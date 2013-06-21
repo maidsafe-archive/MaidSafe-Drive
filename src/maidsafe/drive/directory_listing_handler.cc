@@ -448,9 +448,7 @@ DirectoryData DirectoryListingHandler::RetrieveFromStorage(const DirectoryId& pa
 #ifdef TESTING
       serialised_data.data = data_store_.Get(name);
 #else
-      std::future<WorldDirectory> world_directory_future;
-      world_directory_future = client_nfs_.Get<WorldDirectory>(name);
-      serialised_data = world_directory_future.get().data();
+      client_nfs_.Get<WorldDirectory>(name, nullptr);
 #endif
     WorldDirectory world_directory(name, serialised_data);
     Identity id(std::string("", 64));
@@ -499,7 +497,9 @@ void DirectoryListingHandler::PutToStorage(const DirectoryType& directory) {
 #ifdef TESTING
       data_store_.Put(world_directory.name(), world_directory.Serialise());
 #else
-      client_nfs_.Put<WorldDirectory>(world_directory);
+      client_nfs_.Put<WorldDirectory>(world_directory,
+                                      passport::PublicPmid::name_type(world_directory.name()),
+                                      nullptr);
 #endif
     return;
   }
@@ -528,7 +528,9 @@ void DirectoryListingHandler::PutToStorage(const DirectoryType& directory) {
 #ifdef TESTING
       data_store_.Put(owner_directory.name(), owner_directory.Serialise());
 #else
-      client_nfs_.Put<OwnerDirectory>(owner_directory);
+      client_nfs_.Put<OwnerDirectory>(owner_directory,
+                                      passport::PublicPmid::name_type(owner_directory.name()),
+                                      nullptr);
 #endif
   } else if (directory.second == kGroupValue) {
     // Store the encrypted datamap
@@ -538,7 +540,9 @@ void DirectoryListingHandler::PutToStorage(const DirectoryType& directory) {
 #ifdef TESTING
       data_store_.Put(group_directory.name(), group_directory.Serialise());
 #else
-      client_nfs_.Put<GroupDirectory>(group_directory);
+      client_nfs_.Put<GroupDirectory>(group_directory,
+                                      passport::PublicPmid::name_type(group_directory.name()),
+                                      nullptr);
 #endif
   } else {
     ThrowError(CommonErrors::not_a_directory);
@@ -575,18 +579,15 @@ void DirectoryListingHandler::DeleteStored(const DirectoryId& parent_id,
 #else
   switch (directory_type) {
     case kOwnerValue: {
-      nfs::DataMessage::OnError on_error;  // create on error function
-      client_nfs_.Delete<OwnerDirectory>(OwnerDirectoryNameType(directory_id), on_error);
+      client_nfs_.Delete<OwnerDirectory>(OwnerDirectoryNameType(directory_id), nullptr);
       break;
     }
     case kGroupValue: {
-      nfs::DataMessage::OnError on_error;  // create on error function
-      client_nfs_.Delete<GroupDirectory>(GroupDirectoryNameType(directory_id), on_error);
+      client_nfs_.Delete<GroupDirectory>(GroupDirectoryNameType(directory_id), nullptr);
       break;
     }
     case kWorldValue: {
-      nfs::DataMessage::OnError on_error;  // create on error function
-      client_nfs_.Delete<WorldDirectory>(WorldDirectoryNameType(directory_id), on_error);
+      client_nfs_.Delete<WorldDirectory>(WorldDirectoryNameType(directory_id), nullptr);
       break;
     }
     default:
@@ -607,8 +608,7 @@ void DirectoryListingHandler::RetrieveDataMap(const DirectoryId& parent_id,
 #ifdef TESTING
       serialised_data.data = data_store_.Get(name);
 #else
-      std::future<OwnerDirectory> owner_directory_future(client_nfs_.Get<OwnerDirectory>(name));
-      serialised_data = owner_directory_future.get().data();
+      client_nfs_.Get<OwnerDirectory>(name, nullptr);
 #endif
     // Parse...
     OwnerDirectory owner_directory(name, serialised_data);
@@ -623,8 +623,7 @@ void DirectoryListingHandler::RetrieveDataMap(const DirectoryId& parent_id,
 #ifdef TESTING
       serialised_data.data = data_store_.Get(name);
 #else
-      std::future<GroupDirectory> group_directory_future(client_nfs_.Get<GroupDirectory>(name));
-      serialised_data = group_directory_future.get().data();
+      client_nfs_.Get<GroupDirectory>(name, nullptr);
 #endif
     // Parse...
     GroupDirectory group_directory(name, serialised_data);

@@ -31,13 +31,13 @@ bool ModuleDriverStatus(const fs::path &dll_path,
   HINSTANCE dll_handle = LoadLibrary(dll_path.wstring().c_str());
   if (dll_handle != NULL) {
     // Obtain a pointer to required function in the dll...
-    FARPROC ProcessID = GetProcAddress(HMODULE(dll_handle), "GetModuleStatusW");
+    FARPROC ProcessID = GetProcAddress(HMODULE(dll_handle), "GetModuleStatusA");
     if (ProcessID != NULL) {
       // Function prototype...
-      typedef bool (__stdcall * pFunction)(LPWSTR, DWORD, BOOL*, PDWORD, PDWORD);
-      pFunction GetModuleStatusW = pFunction(ProcessID);
+      typedef bool (__stdcall * pFunction)(LPCSTR, DWORD, BOOL*, PDWORD, PDWORD);
+      pFunction GetModuleStatusA = pFunction(ProcessID);
       // Call the dll function...
-      success = GetModuleStatusW(L"713CC6CE-B3E2-4fd9-838D-E28F558F6866",
+      success = GetModuleStatusA("713CC6CE-B3E2-4fd9-838D-E28F558F6866",
                                  CBFS_MODULE_DRIVER,
                                  installed,
                                  version_high,
@@ -61,15 +61,16 @@ bool ModuleDriverInstall(const fs::path &cab_path, const fs::path &dll_path, DWO
   HINSTANCE dll_handle = LoadLibrary(dll_path.wstring().c_str());
   if (dll_handle != NULL) {
     // Obtain a pointer to required function in the dll...
-    FARPROC ProcessID = GetProcAddress(HMODULE(dll_handle), "InstallW");
+    FARPROC ProcessID = GetProcAddress(HMODULE(dll_handle), "InstallA");
     if (ProcessID != NULL) {
       // Function prototype...
-      typedef bool (__stdcall * pFunction)(LPWSTR, LPWSTR, BOOL, DWORD, DWORD*);
-      pFunction InstallW = pFunction(ProcessID);
+      typedef bool (__stdcall * pFunction)(LPCSTR, LPCSTR, LPCSTR, bool, DWORD, DWORD*);
+      pFunction InstallA = pFunction(ProcessID);
       // Call the dll function...
-      success = InstallW(const_cast<LPWSTR>(cab_path.wstring().c_str()),
-                         L"713CC6CE-B3E2-4fd9-838D-E28F558F6866",
-                         TRUE,
+      success = InstallA(cab_path.string().c_str(),
+                         "713CC6CE-B3E2-4fd9-838D-E28F558F6866",
+                         "",
+                         true,
                          CBFS_MODULE_DRIVER |
                            CBFS_MODULE_NET_REDIRECTOR_DLL |
                            CBFS_MODULE_MOUNT_NOTIFIER_DLL,
@@ -93,14 +94,15 @@ bool ModuleDriverUninstall(const fs::path &cab_path, const fs::path &dll_path, D
   HINSTANCE dll_handle = LoadLibrary(dll_path.wstring().c_str());
   if (dll_handle != NULL) {
     // Obtain a pointer to required function in the dll...
-    FARPROC ProcessID = GetProcAddress(HMODULE(dll_handle), "UninstallW");
+    FARPROC ProcessID = GetProcAddress(HMODULE(dll_handle), "UninstallA");
     if (ProcessID != NULL) {
       // Function prototype...
-      typedef bool (__stdcall * pFunction)(LPWSTR, LPWSTR, DWORD*);
-      pFunction UninstallW = pFunction(ProcessID);
+      typedef bool (__stdcall * pFunction)(LPCSTR, LPCSTR, LPCSTR, DWORD*);
+      pFunction UninstallA = pFunction(ProcessID);
       // Call the dll function...
-      success = UninstallW(const_cast<LPWSTR>(cab_path.wstring().c_str()),
-                           L"713CC6CE-B3E2-4fd9-838D-E28F558F6866",
+      success = UninstallA(cab_path.string().c_str(),
+                           "713CC6CE-B3E2-4fd9-838D-E28F558F6866",
+                           "",
                            reboot);
     } else {
       // Release dll handle...

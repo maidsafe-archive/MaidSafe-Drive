@@ -21,13 +21,13 @@ project(drive)
 include(../../cmake_modules/standard_setup.cmake)
 
 include_directories(${common_SOURCE_DIR}/include)
-include_directories(${passport_SOURCE_DIR}/include)
 include_directories(${private_SOURCE_DIR}/include)
 include_directories(${passport_SOURCE_DIR}/include)
 include_directories(${encrypt_SOURCE_DIR}/include)
 include_directories(${routing_SOURCE_DIR}/include)
 include_directories(${rudp_SOURCE_DIR}/include)
 include_directories(${nfs_SOURCE_DIR}/include)
+
 
 #==================================================================================================#
 # Callback File System / Fuse library search                                                       #
