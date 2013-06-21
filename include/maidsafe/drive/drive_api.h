@@ -93,6 +93,7 @@ class DriveInUserSpace {
                    const int64_t& max_space,
                    const int64_t& used_space);
   virtual ~DriveInUserSpace();
+  virtual int Unmount(int64_t &max_space, int64_t &used_space) = 0;
 #ifdef MAIDSAFE_APPLE
   fs::path GetMountDir() { return mount_dir_; }
 #endif

@@ -53,7 +53,7 @@ class CbfsDriveInUserSpace : public DriveInUserSpace {
   virtual ~CbfsDriveInUserSpace();
   int Init();
   int Mount();
-  int Unmount(int64_t &max_space, int64_t &used_space);
+  virtual int Unmount(int64_t &max_space, int64_t &used_space);
   int Install();
   void NotifyDirectoryChange(const boost::filesystem::path &relative_path, OpType op) const;
   uint32_t max_file_path_length();

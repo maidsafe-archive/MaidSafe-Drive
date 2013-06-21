@@ -32,7 +32,11 @@
 #include "maidsafe/encrypt/self_encryptor.h"
 
 #ifdef WIN32
+#ifdef USE_CBFS
 #  include "maidsafe/drive/win_drive.h"
+#else
+#  include "maidsafe/drive/dummy_win_drive.h"
+#endif
 #else
 #  include "maidsafe/drive/unix_drive.h"
 #endif
@@ -45,9 +49,13 @@ namespace maidsafe {
 namespace drive {
 
 #ifdef WIN32
-typedef CbfsDriveInUserSpace TestDriveInUserSpace;
+#ifdef USE_CBFS
+  typedef CbfsDriveInUserSpace TestDriveInUserSpace;
 #else
-typedef FuseDriveInUserSpace TestDriveInUserSpace;
+  typedef DummyWinDriveInUserSpace TestDriveInUserSpace;
+#endif
+#else
+  typedef FuseDriveInUserSpace TestDriveInUserSpace;
 #endif
 
 namespace test {
