@@ -1,0 +1,111 @@
+/*******************************************************************************
+ *  Copyright 2011 maidsafe.net limited                                        *
+ *                                                                             *
+ *  The following source code is property of maidsafe.net limited and is not   *
+ *  meant for external use.  The use of this code is governed by the licence   *
+ *  file licence.txt found in the root of this directory and also on           *
+ *  www.maidsafe.net.                                                          *
+ *                                                                             *
+ *  You are not free to copy, amend or otherwise use this source code without  *
+ *  the explicit written permission of the board of directors of maidsafe.net. *
+ *******************************************************************************
+ */
+
+#ifndef MAIDSAFE_DRIVE_SHARE_KEYS_H_
+#define MAIDSAFE_DRIVE_SHARE_KEYS_H_
+
+#include <set>
+#include <string>
+#include <vector>
+
+#include "boost/filesystem/path.hpp"
+#include "boost/thread/mutex.hpp"
+
+#include "maidsafe/common/rsa.h"
+
+#include "maidsafe/drive/config.h"
+
+
+namespace fs = boost::filesystem;
+
+namespace maidsafe {
+
+namespace drive {
+
+struct ShareData {
+ public:
+  ShareData(const ShareId& share_id_in,
+            const std::string& inviter_id_in,
+            const fs::path& share_root_dir_in,
+            const asymm::Keys& keyring_in)
+      : share_id(share_id_in),
+        inviter_id(inviter_id_in),
+        share_root_dir(share_root_dir_in),
+        share_right(kShareReadOnly),
+        keyring(keyring_in) {}
+  ShareData(const ShareId& share_id_in,
+            const std::string& inviter_id_in,
+            const fs::path& share_root_dir_in,
+            const asymm::Keys& keyring_in,
+            const int share_right_in)
+      : share_id(share_id_in),
+        inviter_id(inviter_id_in),
+        share_root_dir(share_root_dir_in),
+        share_right(share_right_in),
+        keyring(keyring_in) {}
+  ShareData() : share_id(),
+                inviter_id(),
+                share_root_dir(),
+                share_right(kShareReadOnly),
+                keyring() {}
+  ShareData(const ShareData& other)
+      : share_id(other.share_id),
+        inviter_id(other.inviter_id),
+        share_root_dir(other.share_root_dir),
+        share_right(other.share_right),
+        keyring(other.keyring) {}
+  ShareData& operator=(const ShareData& other) {
+    share_id = other.share_id;
+    inviter_id = other.inviter_id;
+    share_root_dir = other.share_root_dir;
+    share_right = other.share_right;
+    keyring = other.keyring;
+    return *this;
+  }
+  bool operator<(const ShareData& other) const {
+    return share_id < other.share_id;
+  }
+  ShareId share_id;
+  std::string inviter_id;
+  fs::path share_root_dir;
+  int share_right;  // 0 for read only, 1 for read/write, 2 for owner
+  asymm::Keys keyring;
+};
+
+
+class ShareKeys {
+ public:
+  ShareKeys();
+  ~ShareKeys();
+  bool Init(const std::string& serialised_shares);
+  // Adds share_data and if successful returns the updated serialised shares_
+  // set, else an empty string.
+  bool Add(const ShareData& share_data, std::string& serialised_shares);
+  bool Get(const ShareId& share_id, ShareData& share_data);
+  void GetAll(std::vector<ShareData>& all_shares);
+  // Deletes data associated with share_id and if successful returns the updated
+  // serialised shares_ set, else an empty string.
+  bool Delete(const ShareId& share_id, std::string& serialised_shares);
+  void Clear();
+
+ private:
+  bool Serialise(std::string& serialised_shares) const;
+  std::set<ShareData> shares_data_;
+  boost::mutex mutex_;
+};
+
+}  // namespace drive
+
+}  // namespace maidsafe
+
+#endif  // MAIDSAFE_DRIVE_SHARE_KEYS_H_

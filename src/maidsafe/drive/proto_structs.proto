@@ -1,0 +1,35 @@
+package maidsafe.drive.protobuf;
+
+message AttributesArchive {
+  required uint64 st_size = 1;
+  required bytes creation_time = 2;
+  required bytes last_access_time = 3;
+  required bytes last_write_time = 4;
+  required uint32 st_mode = 5;
+  optional uint64 win_attributes = 6;
+  optional bytes link_to = 7;
+  optional uint32 st_dev = 8;
+  optional uint32 st_ino = 9;
+  optional uint32 st_nlink = 10;
+  optional uint32 st_uid = 11;
+  optional uint32 st_gid = 12;
+  optional uint32 st_rdev = 13;
+  optional uint32 st_blksize = 14;
+  optional uint32 st_blocks = 15;
+}
+
+message MetaData {
+  required bytes name = 1;
+  required AttributesArchive attributes_archive = 2;
+  optional bytes serialised_data_map = 3;
+  optional bytes directory_id = 4;
+  repeated bytes notes = 5;
+}
+
+message DirectoryListing {
+  message Child {
+    required bytes serialised_meta_data = 1;
+  }
+  required bytes directory_id = 1;
+  repeated Child children = 2;
+}

@@ -1,0 +1,59 @@
+/*******************************************************************************
+ *  Copyright 2011 maidsafe.net limited                                        *
+ *                                                                             *
+ *  The following source code is property of maidsafe.net limited and is not   *
+ *  meant for external use.  The use of this code is governed by the licence   *
+ *  file licence.txt found in the root of this directory and also on           *
+ *  www.maidsafe.net.                                                          *
+ *                                                                             *
+ *  You are not free to copy, amend or otherwise use this source code without  *
+ *  the explicit written permission of the board of directors of maidsafe.net. *
+ *******************************************************************************
+ */
+
+#ifndef MAIDSAFE_DRIVE_SHARE_USERS_H_
+#define MAIDSAFE_DRIVE_SHARE_USERS_H_
+
+#include <string>
+#include <map>
+#include <vector>
+
+#include "maidsafe/drive/config.h"
+
+namespace maidsafe {
+
+namespace drive {
+
+namespace share_users {
+
+int Add(const std::map<std::string, int>& share_users,
+        const std::string& serialised_existing_users,
+        std::string& serialised_updated_users);
+
+bool GetAll(const std::string& serialised_users,
+            std::map<std::string, int>& all_share_users);
+
+int Remove(const std::vector<std::string>& user_ids,
+           const std::string& serialised_existing_users,
+           std::string& serialised_updated_users);
+
+int Confirm(const std::vector<std::string>& user_ids,
+            const std::string& serialised_existing_users,
+            std::string& serialised_updated_users);
+
+int GetUserRights(const std::string& user_id,
+                  const std::string& serialised_users,
+                  int& admin_rights);
+
+int SetUserRights(const std::string& user_id,
+                  int admin_rights,
+                  const std::string& serialised_existing_users,
+                  std::string& serialised_updated_users);
+
+}  // namespace share_users
+
+}  // namespace drive
+
+}  // namespace maidsafe
+
+#endif  // MAIDSAFE_DRIVE_SHARE_USERS_H_
