@@ -29,7 +29,8 @@
 
 #ifndef MAIDSAFE_WIN32
 #  ifdef MAIDSAFE_APPLE
-#    include "maidsafe/drive/mac_fuse.h"
+#    undef FUSE_USE_VERSION
+#    define FUSE_USE_VERSION 26
 #    include "osxfuse/fuse/fuse.h"
 #  else
 #    include "fuse/fuse.h"
