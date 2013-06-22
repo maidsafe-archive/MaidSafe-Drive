@@ -63,7 +63,7 @@ class FuseDriveInUserSpace : public DriveInUserSpace {
   virtual ~FuseDriveInUserSpace();
   virtual int Init();
   virtual int Mount();
-  virtual void Unmount(int64_t &max_space, int64_t &used_space);
+  virtual int Unmount(int64_t &max_space, int64_t &used_space);
   int64_t UsedSpace() const;
   virtual void NotifyRename(const fs::path& from_relative_path,
                             const fs::path& to_relative_path) const;

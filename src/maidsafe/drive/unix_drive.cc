@@ -105,7 +105,7 @@ FuseDriveInUserSpace::FuseDriveInUserSpace(ClientNfs& client_nfs,
   g_fuse_drive = this;
   int result = Init();
   if (result != kSuccess) {
-    LOG(kError) << "Constructor Failed to initialise drive.  Result: " << result << std::endl;
+    LOG(kError) << "Constructor Failed to initialise drive.  Result: " << result;
     ThrowError(LifeStuffErrors::kCreateStorageError);
   }
 }
@@ -252,10 +252,10 @@ int FuseDriveInUserSpace::Mount() {
   return kSuccess;
 }
 
-void FuseDriveInUserSpace::Unmount(int64_t &max_space, int64_t &used_space) {
+int FuseDriveInUserSpace::Unmount(int64_t &max_space, int64_t &used_space) {
   if (drive_stage_ != kMounted) {
 //    LOG(kInfo) << "Not mounted at all;";
-    return;
+    return kUnmountError;
   }
 #ifdef MAIDSAFE_APPLE
   std::string command(g_fuse_drive->GetMountDir().string());
@@ -274,6 +274,7 @@ void FuseDriveInUserSpace::Unmount(int64_t &max_space, int64_t &used_space) {
   command = "diskutil unmount " + command;
   system(command.c_str());
 #endif
+  return kSuccess;
 }
 
 int64_t FuseDriveInUserSpace::UsedSpace() const {
@@ -605,8 +606,9 @@ int FuseDriveInUserSpace::OpsRead(const char *path,
 
   bool msrf_result(file_context->self_encryptor->Read(buf, size, offset));
   if (!msrf_result) {
+    return -EINVAL;
     // unsuccessful read -> invalid encrypted stream, error already logged
-    return (msrf_result == kInvalidSeek) ? -EINVAL : -EBADF;
+    // return (msrf_result == kInvalidSeek) ? -EINVAL : -EBADF;
   }
   size_t bytes_read(0);
 
