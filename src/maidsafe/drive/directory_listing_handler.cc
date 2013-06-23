@@ -75,7 +75,7 @@ DirectoryListingHandler::DirectoryListingHandler(ClientNfs& client_nfs,
     DirectoryData owner(root.listing->directory_id(), owner_directory);
     PutToStorage(std::make_pair(owner, kOwnerValue));
     // Group...
-    MetaData group_meta_data(kGroup, true), group_services_meta_data("Services", true);
+    MetaData group_meta_data(kGroup, true), group_services_meta_data(kServices, true);
     DirectoryListingPtr group_directory(new DirectoryListing(*group_meta_data.directory_id)),
             group_services_directory(new DirectoryListing(*group_services_meta_data.directory_id));
     DirectoryData group(root.listing->directory_id(), group_directory),

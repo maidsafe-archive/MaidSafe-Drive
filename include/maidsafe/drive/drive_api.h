@@ -84,6 +84,15 @@ class DriveInUserSpace {
   typedef data_store::PermanentStore DataStore;
   typedef passport::Maid Maid;
 
+  // client_nfs: enables network file operations
+  // data_store: an alternative to client_nfs for testing purpose
+  // maid: client performing io operations
+  // unique_user_id: a random id representing drive, it is created during user creation
+  // root_parent_id: a random string representing parent of unique_user_id, requierd when performing
+  //   operations in drive
+  // mount_dir: identifies the path to which the drive mounts
+  // max_space: drive maximum space
+  // used_spance: drive used space
   DriveInUserSpace(ClientNfs& client_nfs,
                    DataStore& data_store,
                    const Maid& maid,
@@ -97,11 +106,18 @@ class DriveInUserSpace {
 #ifdef MAIDSAFE_APPLE
   fs::path GetMountDir() { return mount_dir_; }
 #endif
+  // returns drive's id
   std::string unique_user_id() const;
+  // returns drive's parent id
   std::string root_parent_id() const;
+  // returns drive used space
   int64_t GetUsedSpace() const;
+  // sets the mount state of drive
   void SetMountState(bool mounted);
+  // blocks until the state of drive becomes mounted. Times out if state does not change in
+  // expected period
   bool WaitUntilMounted();
+  // blocks until the state of drive becomes unmounted
   void WaitUntilUnMounted();
 
   // ********************* File / Folder Transfers *****************************

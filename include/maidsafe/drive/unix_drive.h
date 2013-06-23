@@ -61,10 +61,16 @@ class FuseDriveInUserSpace : public DriveInUserSpace {
                        const int64_t &max_space,
                        const int64_t &used_space);
   virtual ~FuseDriveInUserSpace();
+
+  // Assigns customised functions to file sysyem operations
   virtual int Init();
+  // Mounts the drive. Successful return means the drive is ready for IO operations
   virtual int Mount();
+  // Unmount drive
   virtual int Unmount(int64_t &max_space, int64_t &used_space);
+  // Return drive's used space
   int64_t UsedSpace() const;
+  // Notifies filesystem of name change
   virtual void NotifyRename(const fs::path& from_relative_path,
                             const fs::path& to_relative_path) const;
 
