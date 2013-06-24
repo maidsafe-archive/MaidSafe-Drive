@@ -136,32 +136,49 @@ class DriveInUserSpace {
   // should not exist.
   int MoveDirectory(const fs::path& from, const fs::path& to);
 
+  // populates the meta_data with information in relative_path. Moreover, the parent and the
+  // grand_parent of the meta_data are also returned.
   void GetMetaData(const fs::path& relative_path,
                    MetaData& meta_data,
                    DirectoryId* grandparent_directory_id,
                    DirectoryId* parent_directory_id);
+  // updates parent directory at parent_path using the meta_data member of file_context
   void UpdateParent(FileContext* file_context, const fs::path& parent_path);
+  // Adds a directory or file represented by meta_data and relative_path to the appropriate parent
+  // directory listing.  If the element is a directory, a new directory listing is created and
+  // stored.  The parent directory's ID is returned in parent_id and its parent directory's ID is
+  // returned in grandparent_id.
   void AddFile(const fs::path& relative_path,
                const MetaData& meta_data,
                DirectoryId* grandparent_directory_id,
                DirectoryId* parent_directory_id);
+  // evaluates whether removing the contents at path are allowed
   bool CanRemove(const fs::path& relative_path);
+  // Deletes file represented by relative_path from the appropriate parent directory listing
   void RemoveFile(const fs::path& relative_path);
+  // renames or relocates file corresponding to meta_data from old_relative_path to
+  // new new_relative_path. The space released in old_relative_path directory is
   void RenameFile(const fs::path& old_relative_path,
                   const fs::path& new_relative_path,
                   MetaData& meta_data,
                   int64_t& reclaimed_space);
+  // resizes the file.
   bool TruncateFile(FileContext* file_context, const uint64_t& size);
 
   // *************************** Hidden Files **********************************
 
   // All hidden files in this sense have extension ".ms_hidden" and are not
   // accessible through the normal filesystem methods.
+
+  // reads the hidden file at relative_path
   void ReadHiddenFile(const fs::path& relative_path, std::string* content);
+  // writes the hidden file at elative_path
   void WriteHiddenFile(const fs::path& relative_path,
                       const std::string& content,
                       bool overwrite_existing);
+  // delets a hidden file at relative_path
   void DeleteHiddenFile(const fs::path& relative_path);
+  // returns the hidden files at relative_pathrelative_path
   void SearchHiddenFiles(const fs::path& relative_path, std::vector<std::string>* results);
 
   // **************************** File Notes ***********************************
