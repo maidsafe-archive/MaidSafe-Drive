@@ -204,7 +204,7 @@ class DirectoryListingTest : public testing::Test {
           EXPECT_TRUE(RenameDirectoryEntries((*itr).path(), new_path));
           EXPECT_NO_THROW(directory_listing->GetChild((*itr).path().filename(), metadata));
           std::string new_name(RandomAlphaNumericString(5));
-          EXPECT_EQ(kSuccess, directory_listing->RenameChild(metadata, new_name, nullptr));
+          EXPECT_TRUE(directory_listing->RenameChild(metadata, new_name, nullptr));
           // Rename corresponding directory...
           fs::rename((*itr).path(), ((*itr).path().parent_path() / new_name), error_code);
           EXPECT_EQ(error_code.value(), 0) << error_code.message();
@@ -212,7 +212,7 @@ class DirectoryListingTest : public testing::Test {
           if ((*itr).path().filename().string() != listing) {
             EXPECT_NO_THROW(directory_listing->GetChild((*itr).path().filename(), metadata));
             std::string new_name(RandomAlphaNumericString(5) + ".txt");
-            EXPECT_EQ(kSuccess, directory_listing->RenameChild(metadata, new_name, nullptr));
+            EXPECT_TRUE(directory_listing->RenameChild(metadata, new_name, nullptr));
             // Rename corresponding file...
             fs::rename((*itr).path(), ((*itr).path().parent_path() / new_name), error_code);
             EXPECT_EQ(error_code.value(), 0) << error_code.message();
@@ -670,7 +670,7 @@ TEST_F(DirectoryListingTest, BEH_IteratorResetAndFailures) {
   MetaData target_if_exists;
   EXPECT_NO_THROW(directory_listing_->GetChild("A", meta_data));
   EXPECT_EQ(1U, GetSize(meta_data));
-  EXPECT_EQ(kSuccess, directory_listing_->RenameChild(meta_data, "0", &target_if_exists));
+  EXPECT_TRUE(directory_listing_->RenameChild(meta_data, "0", &target_if_exists));
   EXPECT_TRUE(target_if_exists.name.empty());
   EXPECT_TRUE(directory_listing_->GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("0", meta_data.name);
@@ -680,7 +680,7 @@ TEST_F(DirectoryListingTest, BEH_IteratorResetAndFailures) {
 
   // Try to rename to an existing element and check iterator is not reset
   meta_data.name = "B";
-  EXPECT_EQ(kFailedToAddChild, directory_listing_->RenameChild(meta_data, "0", &target_if_exists));
+  EXPECT_FALSE(directory_listing_->RenameChild(meta_data, "0", &target_if_exists));
   EXPECT_EQ("0", target_if_exists.name);
   EXPECT_EQ(1U, GetSize(target_if_exists));
   EXPECT_NO_THROW(directory_listing_->GetChild("0", meta_data));
@@ -695,8 +695,7 @@ TEST_F(DirectoryListingTest, BEH_IteratorResetAndFailures) {
   target_if_exists.name.clear();
   meta_data.name = std::string(1, c);
   ASSERT_FALSE(directory_listing_->HasChild(meta_data.name));
-  EXPECT_EQ(kFailedToRemoveChild,
-            directory_listing_->RenameChild(meta_data, "1", &target_if_exists));
+  EXPECT_FALSE(directory_listing_->RenameChild(meta_data, "1", &target_if_exists));
   EXPECT_TRUE(target_if_exists.name.empty());
   EXPECT_TRUE(directory_listing_->GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("0", meta_data.name);

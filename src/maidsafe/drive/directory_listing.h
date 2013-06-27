@@ -31,7 +31,6 @@ namespace fs = boost::filesystem;
 namespace bptime= boost::posix_time;
 
 namespace maidsafe {
-
 namespace drive {
 
 class DirectoryListing;
@@ -56,7 +55,7 @@ class DirectoryListing {
   void AddChild(const MetaData& child);
   void RemoveChild(const MetaData& child);
   void UpdateChild(const MetaData& child, bool reset_itr);
-  int RenameChild(const MetaData& child, const fs::path& new_name, MetaData* target_if_exists);
+  bool RenameChild(const MetaData& child, const fs::path& new_name, MetaData* target_if_exists);
   void ResetChildrenIterator() { children_itr_ = children_.begin(); }
   bool empty() const;
   DirectoryId directory_id() const { return directory_id_; }
@@ -79,7 +78,6 @@ class DirectoryListing {
 };
 
 }  // namespace drive
-
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_DIRECTORY_LISTING_H_

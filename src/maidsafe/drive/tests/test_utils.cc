@@ -100,7 +100,7 @@ void UnmountDrive(std::shared_ptr<DerivedDriveInUserSpace> drive,
                   AsioService& asio_service) {
   int64_t max_space(0), used_space(0);
 #ifdef WIN32
-  EXPECT_EQ(kSuccess, drive->Unmount(max_space, used_space));
+  EXPECT_TRUE(drive->Unmount(max_space, used_space));
 #else
   drive->Unmount(max_space, used_space);
   drive->WaitUntilUnMounted();

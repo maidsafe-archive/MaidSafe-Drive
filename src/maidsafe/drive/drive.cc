@@ -34,7 +34,6 @@ License.
 namespace fs = boost::filesystem;
 
 namespace maidsafe {
-
 namespace drive {
 
 DriveInUserSpace::DriveInUserSpace(ClientNfs& client_nfs,
@@ -58,7 +57,6 @@ DriveInUserSpace::DriveInUserSpace(ClientNfs& client_nfs,
       max_space_(max_space),
       used_space_(used_space),
       drive_changed_signal_(),
-      share_renamed_signal_(),
       unmount_mutex_(),
       api_mutex_(),
       unmount_condition_variable_(),
@@ -230,27 +228,6 @@ void DriveInUserSpace::InsertDataMap(const fs::path& relative_path,
   return;
 }
 
-// int DriveInUserSpace::MoveDirectory(const fs::path& from, const fs::path& to) {
-//  std::lock_guard<std::mutex> guard(api_mutex_);
-//  fs::path from_relative_path(RelativePath(mount_dir_, from)),
-//           to_relative_path(RelativePath(mount_dir_, to));
-//  MetaData from_meta_data;
-//  if (!GetMetaData(from_relative_path, from_meta_data, nullptr, nullptr)) {
-//    LOG(kError) << "Failed to get meta data for  " << from;
-//    return kFailedToGetMetaData;
-//  }
-//  assert(from_meta_data.directory_id);
-//  int result(directory_listing_handler_->MoveDirectory(from_relative_path,
-//                                                       from_meta_data,
-//                                                       to_relative_path));
-//  if (result != kSuccess) {
-//    LOG(kError) << "Failed to move directory  " << from << " to " << to;
-//    return result;
-//  }
-//  NotifyRename(from_relative_path, to_relative_path);
-//  return result;
-// }
-
 // **************************** Hidden Files ***********************************
 
 void DriveInUserSpace::ReadHiddenFile(const fs::path& relative_path, std::string* content) {
@@ -383,5 +360,4 @@ bs2::connection DriveInUserSpace::ConnectToDriveChanged(DriveChangedSlotPtr slot
 }
 
 }  // namespace drive
-
 }  // namespace maidsafe

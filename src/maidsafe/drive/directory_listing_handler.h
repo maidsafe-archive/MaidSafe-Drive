@@ -16,11 +16,8 @@ License.
 #ifndef MAIDSAFE_DRIVE_DIRECTORY_LISTING_HANDLER_H_
 #define MAIDSAFE_DRIVE_DIRECTORY_LISTING_HANDLER_H_
 
-#include <deque>
-#include <list>
 #include <memory>
 #include <string>
-#include <map>
 #include <utility>
 
 #include "boost/filesystem/path.hpp"
@@ -29,7 +26,6 @@ License.
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
 
-// #include "maidsafe/data_store/data_store.h"
 #include "maidsafe/data_store/permanent_store.h"
 #include "maidsafe/nfs/nfs.h"
 
@@ -43,7 +39,6 @@ namespace fs = boost::filesystem;
 namespace bptime = boost::posix_time;
 
 namespace maidsafe {
-
 namespace drive {
 
 namespace test { class DirectoryListingHandlerTest; }
@@ -72,7 +67,6 @@ struct DirectoryData {
 class DirectoryListingHandler {
  public:
   typedef nfs::ClientMaidNfs ClientNfs;
-  // typedef data_store::DataStore<data_store::DataBuffer> DataStore;
   typedef data_store::PermanentStore DataStore;
   typedef passport::Maid Maid;
   typedef std::pair<DirectoryData, uint32_t> DirectoryType;
@@ -90,7 +84,7 @@ class DirectoryListingHandler {
                           const Maid& maid,
                           const Identity& unique_user_id,
                           std::string root_parent_id);
-  // Virtual destructor to allow inheritance in testing
+  // Virtual destructor to allow inheritance in testing.
   virtual ~DirectoryListingHandler();
 
   Identity unique_user_id() const { return unique_user_id_; }
@@ -104,11 +98,10 @@ class DirectoryListingHandler {
                   const MetaData& meta_data,
                   DirectoryId* grandparent_id,
                   DirectoryId* parent_id);
-  // Deletes the directory or file represented by relative_path from the
-  // appropriate parent directory listing.  If the element is a directory, its
-  // directory listing is deleted.  meta_data is filled with the element's
-  // details if found.  If the element is a file, this allows the caller to
-  // delete any corresponding chunks.  If save_changes is true, the parent
+  // Deletes the directory or file represented by relative_path from the appropriate parent
+  // directory listing.  If the element is a directory, its directory listing is deleted.
+  // meta_data is filled with the element's details if found.  If the element is a file, this
+  // allows the caller to delete any corresponding chunks.  If save_changes is true, the parent
   // directory listing is stored after the deletion.
   void DeleteElement(const fs::path& relative_path, MetaData& meta_data);
   bool CanDelete(const fs::path& relative_path);
@@ -118,7 +111,6 @@ class DirectoryListingHandler {
                      int64_t& reclaimed_space);
   void UpdateParentDirectoryListing(const fs::path& parent_path, MetaData meta_data);
 
-  int MoveDirectory(const fs::path& from, MetaData& from_meta_data, const fs::path& to);
   void SetWorldReadWrite();
   void SetWorldReadOnly();
 
@@ -171,7 +163,6 @@ class DirectoryListingHandler {
 };
 
 }  // namespace drive
-
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_DIRECTORY_LISTING_HANDLER_H_

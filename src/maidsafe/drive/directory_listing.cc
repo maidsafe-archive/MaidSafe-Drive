@@ -31,11 +31,7 @@ License.
 #include "maidsafe/drive/directory_listing.h"
 #include "maidsafe/drive/proto_structs.pb.h"
 
-
-namespace args = std::placeholders;
-
 namespace maidsafe {
-
 namespace drive {
 
 DirectoryListing::DirectoryListing(const DirectoryId& directory_id)
@@ -124,7 +120,7 @@ void DirectoryListing::UpdateChild(const MetaData& child, bool reset_itr) {
   return;
 }
 
-int DirectoryListing::RenameChild(const MetaData& child,
+bool DirectoryListing::RenameChild(const MetaData& child,
                                   const fs::path& new_name,
                                   MetaData* target_if_exists) {
   MetaData child_copy(child);
@@ -133,17 +129,17 @@ int DirectoryListing::RenameChild(const MetaData& child,
   if (!insert_result.second) {
     LOG(kWarning) << "Failed to add " << child_copy.name;
     *target_if_exists = *insert_result.first;
-    return kFailedToAddChild;
+    return false;
   }
   ResetChildrenIterator();
   size_t erase_result(children_.erase(child));
   if (erase_result != 1U) {
     LOG(kWarning) << "Failed to remove " << child.name;
     children_.erase(child_copy);
-    return kFailedToRemoveChild;
+    return false;
   }
   ResetChildrenIterator();
-  return kSuccess;
+  return true;
 }
 
 bool DirectoryListing::empty() const {
@@ -220,5 +216,4 @@ bool MetaDataHasName(const MetaData& meta_data, const fs::path& name) {
 }  // namespace meta_data_ops
 
 }  // namespace drive
-
 }  // namespace maidsafe

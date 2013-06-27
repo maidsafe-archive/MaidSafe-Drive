@@ -34,7 +34,6 @@ License.
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
 
-#include "maidsafe/data_store/data_store.h"
 #include "maidsafe/nfs/nfs.h"
 
 #include "maidsafe/encrypt/self_encryptor.h"
@@ -50,7 +49,6 @@ namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 
 namespace maidsafe {
-
 namespace drive {
 
 #ifdef WIN32
@@ -69,10 +67,6 @@ int Mount(const fs::path &mount_dir,
   fs::path data_store_path(chunk_dir / RandomAlphaNumericString(8));
   DiskUsage disk_usage(1048576000);
   MemoryUsage memory_usage(0);
-  /*data_store::DataStore<data_store::DataBuffer> data_store(memory_usage,
-                                                           disk_usage,
-                                                           data_store::DataBuffer::PopFunctor(),
-                                                           data_store_path);*/
   data_store::PermanentStore data_store(data_store_path, disk_usage);
   routing::Routing routing(maid);
   nfs::ClientMaidNfs client_nfs(routing, maid);
@@ -86,7 +80,7 @@ int Mount(const fs::path &mount_dir,
   if (!first_run)
     BOOST_VERIFY(ReadFile(id_path, &root_parent_id) && !root_parent_id.empty());
 
-  // The following values need to be passed in and returned on unmount...
+  // The following values are passed in and returned on unmount.
   int64_t max_space(std::numeric_limits<int64_t>::max()), used_space(0);
   Identity unique_user_id(Identity(std::string(64, 'a')));
   DemoDriveInUserSpacePtr drive_in_user_space(std::make_shared<DemoDriveInUserSpace>(
@@ -103,8 +97,8 @@ int Mount(const fs::path &mount_dir,
     BOOST_VERIFY(WriteFile(id_path, drive_in_user_space->root_parent_id()));
 
 #ifdef WIN32
-  // drive_in_user_space->WaitUntilUnMounted();
-  while (!kbhit());
+  drive_in_user_space->WaitUntilUnMounted();
+  //while (!kbhit());
   drive_in_user_space->Unmount(max_space, used_space);
 #endif
 
@@ -112,7 +106,6 @@ int Mount(const fs::path &mount_dir,
 }
 
 }  // namespace drive
-
 }  // namespace maidsafe
 
 
@@ -182,8 +175,8 @@ int main(int argc, char *argv[]) {
   // mountdir=/drive/name/
   //    or
   // mountdir=S:
-  // All command line parameters are only for this run.  To allow persistance,
-  // update the config file.  Command line overrides any config file settings.
+  // All command line parameters are only for this run.  To allow persistance, update the config
+  // file.  Command line overrides any config file settings.
   try {
     po::options_description options_description("Allowed options");
     options_description.add_options()

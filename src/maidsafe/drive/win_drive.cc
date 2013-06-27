@@ -42,7 +42,6 @@ namespace bptime = boost::posix_time;
 namespace args = std::placeholders;
 
 namespace maidsafe {
-
 namespace drive {
 
 fs::path RelativePath(const fs::path &mount_dir, const fs::path &absolute_path) {
@@ -115,14 +114,12 @@ CbfsDriveInUserSpace::CbfsDriveInUserSpace(ClientNfs& client_nfs,
       icon_id_(L"SigmoidCoreDriveIcon"),
       drive_name_(drive_name.wstring()) {
   g_cbfs_drive = this;
-  int result = Init();
-  if (result != kSuccess) {
-    LOG(kError) << "Failed to initialise drive.  Result: " << result;
+  if (!Init()) {
+    LOG(kError) << "Failed to initialise drive.";
     ThrowError(LifeStuffErrors::kCreateStorageError);
   }
-  result = Mount();
-  if (result != kSuccess) {
-    LOG(kError) << "Failed to mount drive.  Result: " << result;
+  if (!Mount()) {
+    LOG(kError) << "Failed to mount drive.";
     ThrowError(LifeStuffErrors::kMountError);
   }
 }
@@ -131,7 +128,7 @@ CbfsDriveInUserSpace::~CbfsDriveInUserSpace() {
   Unmount(max_space_, used_space_);
 }
 
-int CbfsDriveInUserSpace::Init() {
+bool CbfsDriveInUserSpace::Init() {
   if (drive_stage_ != kCleaned) {
     OnCallbackFsInit();
     UpdateDriverStatus();
@@ -143,10 +140,10 @@ int CbfsDriveInUserSpace::Init() {
     LOG(kInfo) << "Created Storage.";
   } catch(ECBFSError error) {
     ErrorMessage("Init CreateStorage ", error);
-    return kCreateStorageError;
+    return false;
   } catch(const std::exception &e) {
     LOG(kError) << "Cbfs::Init: " << e.what();
-    return kCreateStorageError;
+    return false;
   }
   // SetIcon can only be called after CreateStorage has successfully completed.
   try {
@@ -156,10 +153,10 @@ int CbfsDriveInUserSpace::Init() {
     ErrorMessage("Init", error);
   }
   drive_stage_ = kInitialised;
-  return kSuccess;
+  return true;
 }
 
-int CbfsDriveInUserSpace::Mount() {
+bool CbfsDriveInUserSpace::Mount() {
   try {
 #ifndef NDEBUG
     int timeout_milliseconds(0);
@@ -168,27 +165,22 @@ int CbfsDriveInUserSpace::Mount() {
 #endif
     callback_filesystem_.MountMedia(timeout_milliseconds);
     // The following can only be called when the media is mounted.
-//    callback_filesystem_.SetFileSystemName
-//    callback_filesystem_.DisableMetaDataCache
     LOG(kInfo) << "Started mount point.";
     callback_filesystem_.AddMountingPoint(mount_dir_.c_str());
-//    callback_filesystem_.AddMountingPoint(mount_dir.wstring().c_str(),
-//                                          CBFS_SYMLINK_MOUNT_MANAGER, nullptr);
     UpdateMountingPoints();
     LOG(kInfo) << "Added mount point.";
   }
   catch(ECBFSError error) {
     std::wstring errorMsg(error.Message());
     ErrorMessage("Mount", error);
-    return kMountError;
+    return false;
   }
   drive_stage_ = kMounted;
   SetMountState(true);
-  return kSuccess;
+  return true;
 }
 
 void CbfsDriveInUserSpace::UnmountDrive(const bptime::time_duration &timeout_before_force) {
-  // directory_listing_handler_->CleanUp();
   bptime::time_duration running_time(bptime::milliseconds(0));
   bptime::milliseconds sleep_interval(200);
   while (drive_stage_ == kMounted) {
@@ -197,9 +189,7 @@ void CbfsDriveInUserSpace::UnmountDrive(const bptime::time_duration &timeout_bef
       for (int index = callback_filesystem_.GetMountingPointCount() - 1;
            index >= 0; --index) {
         callback_filesystem_.DeleteMountingPoint(index);
-//        callback_filesystem_.DeleteMountingPoint(index, CBFS_SYMLINK_MOUNT_MANAGER, nullptr);
       }
-//      UpdateMountingPoints();
       callback_filesystem_.UnmountMedia(force);
     }
     catch(ECBFSError error) {
@@ -210,7 +200,7 @@ void CbfsDriveInUserSpace::UnmountDrive(const bptime::time_duration &timeout_bef
   }
 }
 
-int CbfsDriveInUserSpace::Unmount(int64_t &max_space, int64_t &used_space) {
+bool CbfsDriveInUserSpace::Unmount(int64_t &max_space, int64_t &used_space) {
   if (drive_stage_ != kCleaned) {
     if (callback_filesystem_.Active())
       UnmountDrive(bptime::seconds(3));
@@ -220,14 +210,14 @@ int CbfsDriveInUserSpace::Unmount(int64_t &max_space, int64_t &used_space) {
       }
       catch(ECBFSError error) {
         ErrorMessage("Unmount", error);
-        return kUnmountError;
+        return false;
       }
     }
     drive_stage_ = kCleaned;
   }
   max_space = max_space_;
   used_space = used_space_;
-  return kSuccess;
+  return true;
 }
 
 void CbfsDriveInUserSpace::NotifyRename(const fs::path& from_relative_path,
@@ -315,33 +305,21 @@ void CbfsDriveInUserSpace::UpdateDriverStatus() {
 }
 
 void CbfsDriveInUserSpace::UpdateMountingPoints() {
-//  LVITEM item;
   DWORD flags;
   LUID authentication_id;
   LPTSTR mounting_point = nullptr;
-//  ListView_DeleteAllItems(g_hList);
   for (int index = callback_filesystem_.GetMountingPointCount() - 1;
        index >= 0; --index) {
     if (callback_filesystem_.GetMountingPoint(index,
                                               &mounting_point,
                                               &flags,
                                               &authentication_id)) {
-//      item.mask = LVIF_TEXT;
-//      item.iItem = ListView_GetItemCount(g_hList);
-//      item.iSubItem = 0;
-//      item.stateMask = (UINT)-1;
-//      item.pszText = mounting_point;
-//      item.cchTextMax = _MAX_PATH;
-//      ListView_InsertItem(g_hList,  &item);
     }
     if (mounting_point) {
       free(mounting_point);
       mounting_point = nullptr;
     }
   }
-//  if (ListView_GetItemCount(g_hList) > 0) {
-//    ListView_SetItemState(g_hList, 0, LVIS_SELECTED | LVIS_FOCUSED, 0x000F);
-//  }
 }
 
 void CbfsDriveInUserSpace::OnCallbackFsInit() {
@@ -372,30 +350,7 @@ void CbfsDriveInUserSpace::OnCallbackFsInit() {
     callback_filesystem_.SetOnFlushFile(CbFsFlushFile);
     callback_filesystem_.SetSerializeCallbacks(true);
     callback_filesystem_.SetFileCacheEnabled(false);
-    // Options: scFloppyDiskette, scReadOnlyDevice, scWriteOnceMedia,
-    //          scRemovableMedia, scShowInEjectionTray, scAllowEjection
-    // callback_filesystem_.SetStorageCharacteristics(
-    //    CallbackFileSystem::CbFsStorageCharacteristics(
-    //        CallbackFileSystem::scRemovableMedia |
-    //        CallbackFileSystem::scShowInEjectionTray |
-    //        CallbackFileSystem::scAllowEjection));
-    //// Options: stDisk, stCDROM, stVirtualDisk, and stDiskPnP
-    // callback_filesystem_.SetStorageType(CallbackFileSystem::stDiskPnP);
     callback_filesystem_.SetStorageType(CallbackFileSystem::stDisk);
-//    callback_filesystem_.SetOnEnumerateNamedStreams(
-//        CbFsEnumerateNamedStreams);
-//    callback_filesystem_.SetThreadPoolSize(100);
-//    callback_filesystem_.SetCallAllOpenCloseCallbacks
-//    callback_filesystem_.SetMaxFileNameLength
-//    callback_filesystem_.SetMaxFilePathLength
-//    callback_filesystem_.SetSectorSize
-//    callback_filesystem_.SetShortFileNameSupport
-//    callback_filesystem_.SetTag
-//    callback_filesystem_.SetOnSetFileSecurity(CbFsSetFileSecurity);
-//    callback_filesystem_.SetOnGetFileSecurity(CbFsGetFileSecurity);
-      // TODO(Fraser#5#): 2011-03-31 - Implement CbFsGetFileNameByFileId
-//    callback_filesystem_.SetOnGetFileNameByFileId(CbFsGetFileNameByFileId);
-//    callback_filesystem_.SetVCB
   }
   catch(ECBFSError error) {
     ErrorMessage("OnCallbackFsInit", error);
@@ -1101,5 +1056,4 @@ void CbfsDriveInUserSpace::SetNewAttributes(FileContext *file_context,
 }
 
 }  // namespace drive
-
 }  // namespace maidsafe

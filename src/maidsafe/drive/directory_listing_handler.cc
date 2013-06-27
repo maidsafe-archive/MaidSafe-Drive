@@ -36,10 +36,7 @@ License.
 #include "maidsafe/drive/utils.h"
 
 
-namespace args = std::placeholders;
-
 namespace maidsafe {
-
 namespace drive {
 
 DirectoryListingHandler::DirectoryListingHandler(ClientNfs& client_nfs,
@@ -61,8 +58,8 @@ DirectoryListingHandler::DirectoryListingHandler(ClientNfs& client_nfs,
     std::string const root_parent_id = RandomString(64);
     unique_user_id_ = unique_user_id;
     root_parent_id_ = Identity(root_parent_id);
-    // First run, setup working directories...
-    // Root/Parent...
+    // First run, setup working directories.
+    // Root/Parent.
     MetaData root_meta_data(relative_root_, true);
     DirectoryListingPtr root_parent_directory(new DirectoryListing(root_parent_id_)),
                         root_directory(new DirectoryListing(*root_meta_data.directory_id));
@@ -71,12 +68,12 @@ DirectoryListingHandler::DirectoryListingHandler(ClientNfs& client_nfs,
 
     root_parent.listing->AddChild(root_meta_data);
     PutToStorage(std::make_pair(root_parent, kOwnerValue));
-    // Owner...
+    // Owner.
     MetaData owner_meta_data(kOwner, true);
     DirectoryListingPtr owner_directory(new DirectoryListing(*owner_meta_data.directory_id));
     DirectoryData owner(root.listing->directory_id(), owner_directory);
     PutToStorage(std::make_pair(owner, kOwnerValue));
-    // Group...
+    // Group.
     MetaData group_meta_data(kGroup, true), group_services_meta_data(kServices, true);
     DirectoryListingPtr group_directory(new DirectoryListing(*group_meta_data.directory_id)),
             group_services_directory(new DirectoryListing(*group_services_meta_data.directory_id));
@@ -85,7 +82,7 @@ DirectoryListingHandler::DirectoryListingHandler(ClientNfs& client_nfs,
     PutToStorage(std::make_pair(group_services, kGroupValue));
     group.listing->AddChild(group_services_meta_data);
     PutToStorage(std::make_pair(group, kGroupValue));
-    // World...
+    // World.
     MetaData world_meta_data(kWorld, true), world_services_meta_data("Services", true);
     DirectoryListingPtr world_directory(new DirectoryListing(*world_meta_data.directory_id)),
             world_services_directory(new DirectoryListing(*world_services_meta_data.directory_id));
@@ -110,9 +107,9 @@ DirectoryListingHandler::~DirectoryListingHandler() {}
 DirectoryListingHandler::DirectoryType
     DirectoryListingHandler::GetFromPath(const fs::path& relative_path) {
   int directory_type(GetDirectoryType(relative_path));
-  // Get root directory listing
+  // Get root directory listing.
   DirectoryData directory(RetrieveFromStorage(unique_user_id_, root_parent_id_, kOwnerValue));
-  // Get successive directory listings until found
+  // Get successive directory listings until found.
   MetaData meta_data;
   bool found_root = false;
   for (auto itr(relative_path.begin()); itr != relative_path.end(); ++itr) {
@@ -368,7 +365,6 @@ void DirectoryListingHandler::RenameDifferentParent(const fs::path& old_relative
   }
 
 #ifdef MAIDSAFE_WIN32
-  // TODO(Fraser#5#) 2011-06-02 - Check Windows needs this.
   GetSystemTimeAsFileTime(&old_parent_meta_data.last_write_time);
 #else
   old_parent_meta_data.attributes.st_ctime =
@@ -461,9 +457,9 @@ DirectoryData DirectoryListingHandler::RetrieveFromStorage(const DirectoryId& pa
   }
 
   DataMapPtr data_map(new encrypt::DataMap);
-  // Retrieve encrypted datamap...
+  // Retrieve encrypted datamap.
   RetrieveDataMap(parent_id, directory_id, directory_type, data_map);
-  // Decrypt serialised directory listing...
+  // Decrypt serialised directory listing.
   encrypt::SelfEncryptor self_encryptor(data_map, client_nfs_, data_store_);
   uint32_t data_map_chunks_size(static_cast<uint32_t>(data_map->chunks.size()));
   uint32_t data_map_size;
@@ -479,7 +475,7 @@ DirectoryData DirectoryListingHandler::RetrieveFromStorage(const DirectoryId& pa
                            0)) {
     ThrowError(CommonErrors::invalid_parameter);
   }
-  // Parse serialised directory listing...
+  // Parse serialised directory listing.
   Identity id(std::string("", 64));
   DirectoryData directory(parent_id, std::make_shared<DirectoryListing>(id));
   directory.listing->Parse(serialised_directory_listing);
@@ -488,12 +484,12 @@ DirectoryData DirectoryListingHandler::RetrieveFromStorage(const DirectoryId& pa
 }
 
 void DirectoryListingHandler::PutToStorage(const DirectoryType& directory) {
-  // Serialise directory listing
+  // Serialise directory listing.
   std::string serialised_directory_listing;
   directory.first.listing->Serialise(serialised_directory_listing);
 
   if (directory.second == kWorldValue) {
-    // Store serialised listing...
+    // Store serialised listing.
     WorldDirectory world_directory(WorldDirectoryNameType(directory.first.listing->directory_id()),
                                    NonEmptyString(serialised_directory_listing));
 #ifdef TESTING
@@ -506,7 +502,7 @@ void DirectoryListingHandler::PutToStorage(const DirectoryType& directory) {
     return;
   }
 
-  // Self-encrypt serialised directory listing
+  // Self-encrypt serialised directory listing.
   DataMapPtr data_map(new encrypt::DataMap);
   {
     encrypt::SelfEncryptor self_encryptor(data_map, client_nfs_, data_store_);
@@ -517,13 +513,13 @@ void DirectoryListingHandler::PutToStorage(const DirectoryType& directory) {
       ThrowError(CommonErrors::invalid_parameter);
     }
   }
-  // Encrypt directory listing's datamap
+  // Encrypt directory listing's datamap.
   asymm::CipherText encrypted_data_map =
                       encrypt::EncryptDataMap(directory.first.parent_id,
                                               directory.first.listing->directory_id(),
                                               data_map);
   if (directory.second == kOwnerValue) {
-    // Store the encrypted datamap
+    // Store the encrypted datamap.
     OwnerDirectory owner_directory(OwnerDirectoryNameType(directory.first.listing->directory_id()),
                                    encrypted_data_map,
                                    kMaid_.private_key());
@@ -535,7 +531,7 @@ void DirectoryListingHandler::PutToStorage(const DirectoryType& directory) {
                                       nullptr);
 #endif
   } else if (directory.second == kGroupValue) {
-    // Store the encrypted datamap
+    // Store the encrypted datamap.
     GroupDirectory group_directory(GroupDirectoryNameType(directory.first.listing->directory_id()),
                                    encrypted_data_map,
                                    kMaid_.private_key());
@@ -612,9 +608,9 @@ void DirectoryListingHandler::RetrieveDataMap(const DirectoryId& parent_id,
 #else
       client_nfs_.Get<OwnerDirectory>(name, nullptr);
 #endif
-    // Parse...
+    // Parse.
     OwnerDirectory owner_directory(name, serialised_data);
-    // Generate data map...
+    // Generate data map.
     encrypt::DecryptDataMap(parent_id,
                             directory_id,
                             owner_directory.data().string(),
@@ -627,9 +623,9 @@ void DirectoryListingHandler::RetrieveDataMap(const DirectoryId& parent_id,
 #else
       client_nfs_.Get<GroupDirectory>(name, nullptr);
 #endif
-    // Parse...
+    // Parse.
     GroupDirectory group_directory(name, serialised_data);
-    // Generate data map...
+    // Generate data map.
     encrypt::DecryptDataMap(parent_id,
                             directory_id,
                             group_directory.data().string(),
@@ -719,86 +715,6 @@ bool DirectoryListingHandler::CanRename(const fs::path& from_path, const fs::pat
   return true;
 }
 
-// int DirectoryListingHandler::MoveDirectory(const fs::path& from,
-//                                           MetaData& from_meta_data,
-//                                           const fs::path& to) {
-//  assert(!fs::exists(to));
-//  DirectoryType from_grandparent, from_parent, to_grandparent, to_parent;
-//  MetaData from_parent_meta_data, to_parent_meta_data;
-//  int result(GetParentAndGrandparent(from,
-//                                     &from_grandparent,
-//                                     &from_parent,
-//                                     &from_parent_meta_data));
-//  if (result != kSuccess) {
-//    LOG(kError) << "Failed to get parent for " << from;
-//    return result;
-//  }
-//  result = from_parent.first.listing->RemoveChild(from_meta_data);
-//  if (result != kSuccess) {
-//    LOG(kError) << "Failed to remove child " << from_meta_data.name << " from " << from;
-//    return result;
-//  }
-//  result = GetParentAndGrandparent(to, &to_grandparent, &to_parent, &to_parent_meta_data);
-//  if (result != kSuccess) {
-//    LOG(kError) << "Failed to get parent for " << to;
-//    int temp = from_parent.first.listing->AddChild(from_meta_data);
-//    if (temp != kSuccess) {
-//      LOG(kError) << "Failed to add child " << from_meta_data.name << " back to " << from;
-//      return temp;
-//    }
-//    return result;
-//  }
-//  fs::path temp_path(from_meta_data.name);
-//  from_meta_data.name = to.filename();
-//  result = to_parent.first.listing->AddChild(from_meta_data);
-//  if (result != kSuccess) {
-//    LOG(kError) << "Failed to add child " << from_meta_data.name << " to " << to;
-//    from_meta_data.name = temp_path;
-//    int temp = from_parent.first.listing->AddChild(from_meta_data);
-//    if (temp != kSuccess) {
-//      LOG(kError) << "Failed to add child " << from_meta_data.name << " back to " << from;
-//      return temp;
-//    }
-//    return result;
-//  }
-//
-//  DirectoryData from_directory(RetrieveFromStorage(from_parent.first.listing->directory_id(),
-//                                                   *from_meta_data.directory_id,
-//                                                   kOwnerValue));  // fix me kOwnerValue.....
-//  if (!IsValid(from_directory)) {
-//    LOG(kError) << "Failed to get directory " << from;
-//    int temp = to_parent.first.listing->RemoveChild(from_meta_data);
-//    if (temp != kSuccess) {
-//      LOG(kError) << "Failed to remove child " << from_meta_data.name << " from " << to;
-//    }
-//    from_meta_data.name = temp_path;
-//    temp = from_parent.first.listing->AddChild(from_meta_data);
-//    if (temp != kSuccess) {
-//      LOG(kError) << "Failed to add child " << from_meta_data.name << " back to " << from;
-//    }
-//    return kFailedToGetMetaData;
-//  }
-//
-//  from_directory.parent_id = to_parent.first.listing->directory_id();
-//  result = PutToStorage(std::make_pair(from_directory, kOwnerValue));  // liar   ..........
-//  if (result != kSuccess) {
-//    LOG(kError) << "Failed to store " << from;
-//    int temp = to_parent.first.listing->RemoveChild(from_meta_data);
-//    if (temp != kSuccess) {
-//      LOG(kError) << "Failed to remove child " << from_meta_data.name << " from " << to;
-//    }
-//    from_meta_data.name = temp_path;
-//    temp = from_parent.first.listing->AddChild(from_meta_data);
-//    if (temp != kSuccess) {
-//      LOG(kError) << "Failed to add child " << from_meta_data.name << " back to " << from;
-//    }
-//    from_directory.parent_id = from_parent.first.listing->directory_id();
-//    return result;
-//  }
-//
-//  return kSuccess;
-// }
-
 void DirectoryListingHandler::SetWorldReadWrite() {
   world_is_writeable_ = true;
 }
@@ -808,5 +724,4 @@ void DirectoryListingHandler::SetWorldReadOnly() {
 }
 
 }  // namespace drive
-
 }  // namespace maidsafe

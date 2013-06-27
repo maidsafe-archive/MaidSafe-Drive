@@ -18,7 +18,6 @@ License.
 
 
 namespace maidsafe {
-
 namespace drive {
 
 enum ReturnCode {
@@ -101,7 +100,6 @@ enum ReturnCode {
 };
 
 }  // namespace drive
-
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_RETURN_CODES_H_

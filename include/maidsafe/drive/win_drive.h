@@ -27,19 +27,16 @@ License.
 
 #include "boost/filesystem/path.hpp"
 
-// #include "maidsafe/data_store/data_store.h"
 #include "maidsafe/data_store/permanent_store.h"
 #include "maidsafe/nfs/nfs.h"
 #include "maidsafe/drive/drive_api.h"
 
 namespace maidsafe {
-
 namespace drive {
 
 class CbfsDriveInUserSpace : public DriveInUserSpace {
  public:
   typedef nfs::ClientMaidNfs ClientNfs;
-  //typedef data_store::DataStore<data_store::DataBuffer> DataStore;
   typedef data_store::PermanentStore DataStore;
   typedef passport::Maid Maid;
 
@@ -53,9 +50,9 @@ class CbfsDriveInUserSpace : public DriveInUserSpace {
                        const int64_t &max_space,
                        const int64_t &used_space);
   virtual ~CbfsDriveInUserSpace();
-  int Init();
-  int Mount();
-  virtual int Unmount(int64_t &max_space, int64_t &used_space);
+  bool Init();
+  bool Mount();
+  virtual bool Unmount(int64_t &max_space, int64_t &used_space);
   int Install();
   void NotifyDirectoryChange(const boost::filesystem::path &relative_path, OpType op) const;
   uint32_t max_file_path_length();
@@ -181,14 +178,6 @@ class CbfsDriveInUserSpace : public DriveInUserSpace {
                                    CbFsFileInfo* directory_info,
                                    LPWSTR file_name,
                                    LPBOOL is_empty);
-  //  void CbFsEnumerateNamedStreams(CallbackFileSystem* sender,
-  //                                 CbFsFileInfo* file_info,
-  //                                 PVOID* named_stream_context,
-  //                                 PWSTR stream_name,
-  //                                 PDWORD stream_name_length,
-  //                                 std::uint64_t* stream_size,
-  //                                 std::uint64_t* stream_allocation_size,
-  //                                 LPBOOL named_stream_found);
   static void CbFsSetFileSecurity(CallbackFileSystem* sender,
                                   CbFsFileInfo* file_info,
                                   PVOID file_handle_context,
@@ -213,7 +202,6 @@ class CbfsDriveInUserSpace : public DriveInUserSpace {
 };
 
 }  // namespace drive
-
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_WIN_DRIVE_H_
