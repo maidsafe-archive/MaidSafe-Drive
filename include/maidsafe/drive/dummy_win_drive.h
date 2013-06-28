@@ -37,7 +37,7 @@ class DummyWinDriveInUserSpace : public DriveInUserSpace {
                            const fs::path &drive_name,
                            const int64_t &max_space,
                            const int64_t &used_space);
-  virtual int Unmount(int64_t &max_space, int64_t &used_space);
+  virtual bool Unmount(int64_t &max_space, int64_t &used_space);
   virtual void NotifyRename(const fs::path& /*from_relative_path*/,
                             const fs::path& /*to_relative_path*/) const;
 
