@@ -98,7 +98,7 @@ int Mount(const fs::path &mount_dir,
 
 #ifdef WIN32
   drive_in_user_space->WaitUntilUnMounted();
-  //while (!kbhit());
+  // while (!kbhit());
   drive_in_user_space->Unmount(max_space, used_space);
 #endif
 

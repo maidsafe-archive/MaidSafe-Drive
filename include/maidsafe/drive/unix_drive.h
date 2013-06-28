@@ -69,7 +69,7 @@ class FuseDriveInUserSpace : public DriveInUserSpace {
   // Mounts the drive. Successful return means the drive is ready for IO operations
   virtual int Mount();
   // Unmount drive
-  virtual int Unmount(int64_t &max_space, int64_t &used_space);
+  virtual bool Unmount(int64_t &max_space, int64_t &used_space);
   // Return drive's used space
   int64_t UsedSpace() const;
   // Notifies filesystem of name change

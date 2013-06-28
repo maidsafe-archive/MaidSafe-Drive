@@ -254,10 +254,10 @@ int FuseDriveInUserSpace::Mount() {
   return kSuccess;
 }
 
-int FuseDriveInUserSpace::Unmount(int64_t &max_space, int64_t &used_space) {
+bool FuseDriveInUserSpace::Unmount(int64_t &max_space, int64_t &used_space) {
   if (drive_stage_ != kMounted) {
 //    LOG(kInfo) << "Not mounted at all;";
-    return kUnmountError;
+    return false;  // kUnmountError
   }
 #ifdef MAIDSAFE_APPLE
   std::string command(g_fuse_drive->GetMountDir().string());
@@ -276,7 +276,7 @@ int FuseDriveInUserSpace::Unmount(int64_t &max_space, int64_t &used_space) {
   command = "diskutil unmount " + command;
   system(command.c_str());
 #endif
-  return kSuccess;
+  return true;  // kSuccess
 }
 
 int64_t FuseDriveInUserSpace::UsedSpace() const {
