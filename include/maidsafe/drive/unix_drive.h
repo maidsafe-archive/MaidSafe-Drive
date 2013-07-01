@@ -29,7 +29,6 @@ License.
 #include "boost/thread/thread.hpp"
 
 #ifdef MAIDSAFE_APPLE
-#  include "maidsafe/drive/mac_fuse.h"
 #  include "osxfuse/fuse/fuse.h"
 #  include "sys/statvfs.h"
 #else
