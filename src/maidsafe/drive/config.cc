@@ -17,7 +17,6 @@ License.
 
 
 namespace maidsafe {
-
 namespace drive {
 
 #ifdef __MSVC__
@@ -37,5 +36,4 @@ const boost::posix_time::milliseconds kMinUpdateInterval(5000);
 const boost::posix_time::milliseconds kMaxUpdateInterval(20000);
 
 }  // namespace drive
-
 }  // namespace maidsafe
