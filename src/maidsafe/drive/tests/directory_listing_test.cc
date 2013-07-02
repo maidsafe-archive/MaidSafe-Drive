@@ -153,7 +153,6 @@ class DirectoryListingTest : public testing::Test {
     fs::directory_iterator itr(path), end;
     try {
       MetaData metadata;
-      ShareId share_id;
       for (; itr != end; ++itr) {
         if (fs::is_directory(*itr)) {
           EXPECT_TRUE(RemoveDirectoryListingsEntries((*itr).path(),
@@ -279,7 +278,6 @@ class DirectoryListingTest : public testing::Test {
     std::string listing("msdir.listing");
     fs::directory_iterator itr(path), end;
     try {
-      ShareId share_id;
       for (; itr != end; ++itr) {
         if (fs::is_directory(*itr)) {
           EXPECT_TRUE(MatchEntries((*itr).path(), relative_path / (*itr).path().filename()));
@@ -591,7 +589,6 @@ TEST_F(DirectoryListingTest, BEH_IteratorResetAndFailures) {
 
   // Check internal iterator
   MetaData meta_data;
-  ShareId share_id;
   c = 'A';
   for (size_t i(0); i != kTestCount; ++i, ++c) {
     MetaData metadata(std::string(1, c), ((i % 2) == 0));
