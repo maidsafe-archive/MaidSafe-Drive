@@ -443,14 +443,10 @@ DirectoryData DirectoryListingHandler::RetrieveFromStorage(const DirectoryId& pa
   if (directory_type == kWorldValue) {
     WorldDirectoryNameType name(directory_id);
     WorldDirectorySerialisedType serialised_data;
-#ifdef MAIDSAFE_DRIVE_DEMO
+#if defined(MAIDSAFE_DRIVE_DEMO) || defined(TESTING)
     serialised_data.data = data_store_.Get(name);
 #else
- #ifdef TESTING
-    serialised_data.data = data_store_.Get(name);
- #else
     client_nfs_.Get<WorldDirectory>(name, nullptr);
- #endif
 #endif
     WorldDirectory world_directory(name, serialised_data);
     Identity id(std::string("", 64));
@@ -496,16 +492,12 @@ void DirectoryListingHandler::PutToStorage(const DirectoryType& directory) {
     // Store serialised listing.
     WorldDirectory world_directory(WorldDirectoryNameType(directory.first.listing->directory_id()),
                                    NonEmptyString(serialised_directory_listing));
-#ifdef MAIDSAFE_DRIVE_DEMO
+#if defined(MAIDSAFE_DRIVE_DEMO) || defined(TESTING)
     data_store_.Put(world_directory.name(), world_directory.Serialise());
 #else
- #ifdef TESTING
-    data_store_.Put(world_directory.name(), world_directory.Serialise());
- #else
     client_nfs_.Put<WorldDirectory>(world_directory,
                                       passport::PublicPmid::name_type(world_directory.name()),
                                       nullptr);
- #endif
 #endif
     return;
   }
@@ -531,32 +523,24 @@ void DirectoryListingHandler::PutToStorage(const DirectoryType& directory) {
     OwnerDirectory owner_directory(OwnerDirectoryNameType(directory.first.listing->directory_id()),
                                    encrypted_data_map,
                                    kMaid_.private_key());
-#ifdef MAIDSAFE_DRIVE_DEMO
+#if defined(MAIDSAFE_DRIVE_DEMO) || defined(TESTING)
     data_store_.Put(owner_directory.name(), owner_directory.Serialise());
 #else
- #ifdef TESTING
-    data_store_.Put(owner_directory.name(), owner_directory.Serialise());
- #else
     client_nfs_.Put<OwnerDirectory>(owner_directory,
                                     passport::PublicPmid::name_type(owner_directory.name()),
                                     nullptr);
- #endif
 #endif
   } else if (directory.second == kGroupValue) {
     // Store the encrypted datamap.
     GroupDirectory group_directory(GroupDirectoryNameType(directory.first.listing->directory_id()),
                                    encrypted_data_map,
                                    kMaid_.private_key());
-#ifdef MAIDSAFE_DRIVE_DEMO
+#if defined(MAIDSAFE_DRIVE_DEMO) || defined(TESTING)
     data_store_.Put(group_directory.name(), group_directory.Serialise());
 #else
- #ifdef TESTING
-    data_store_.Put(group_directory.name(), group_directory.Serialise());
- #else
     client_nfs_.Put<GroupDirectory>(group_directory,
                                     passport::PublicPmid::name_type(group_directory.name()),
                                     nullptr);
- #endif
 #endif
   } else {
     ThrowError(CommonErrors::not_a_directory);
@@ -573,7 +557,7 @@ void DirectoryListingHandler::DeleteStored(const DirectoryId& parent_id,
     encrypt::SelfEncryptor self_encryptor(data_map, client_nfs_, data_store_);
     self_encryptor.DeleteAllChunks();
   }
-#ifdef MAIDSAFE_DRIVE_DEMO
+#if defined(MAIDSAFE_DRIVE_DEMO) || defined(TESTING)
   switch (directory_type) {
     case kOwnerValue: {
       data_store_.Delete(OwnerDirectoryNameType(directory_id));
@@ -591,24 +575,6 @@ void DirectoryListingHandler::DeleteStored(const DirectoryId& parent_id,
       LOG(kError) << "Invalid directory type.";
   }
 #else
- #ifdef TESTING
-  switch (directory_type) {
-    case kOwnerValue: {
-      data_store_.Delete(OwnerDirectoryNameType(directory_id));
-      break;
-    }
-    case kGroupValue: {
-      data_store_.Delete(GroupDirectoryNameType(directory_id));
-      break;
-    }
-    case kWorldValue: {
-      data_store_.Delete(WorldDirectoryNameType(directory_id));
-      break;
-    }
-    default:
-      LOG(kError) << "Invalid directory type.";
-  }
- #else
   switch (directory_type) {
     case kOwnerValue: {
       client_nfs_.Delete<OwnerDirectory>(OwnerDirectoryNameType(directory_id), nullptr);
@@ -625,7 +591,6 @@ void DirectoryListingHandler::DeleteStored(const DirectoryId& parent_id,
     default:
       LOG(kError) << "Invalid directory type.";
   }
- #endif
 #endif
   return;
 }
@@ -638,14 +603,10 @@ void DirectoryListingHandler::RetrieveDataMap(const DirectoryId& parent_id,
   if (directory_type == kOwnerValue) {
     OwnerDirectoryNameType name(directory_id);
     OwnerDirectorySerialisedType serialised_data;
-#ifdef MAIDSAFE_DRIVE_DEMO
+#if defined(MAIDSAFE_DRIVE_DEMO) || defined(TESTING)
     serialised_data.data = data_store_.Get(name);
 #else
- #ifdef TESTING
-    serialised_data.data = data_store_.Get(name);
- #else
     client_nfs_.Get<OwnerDirectory>(name, nullptr);
- #endif
 #endif
     // Parse.
     OwnerDirectory owner_directory(name, serialised_data);
@@ -657,14 +618,10 @@ void DirectoryListingHandler::RetrieveDataMap(const DirectoryId& parent_id,
   } else if (directory_type == kGroupValue) {
     GroupDirectoryNameType name(directory_id);
     GroupDirectorySerialisedType serialised_data;
-#ifdef MAIDSAFE_DRIVE_DEMO
+#if defined(MAIDSAFE_DRIVE_DEMO) || defined(TESTING)
     serialised_data.data = data_store_.Get(name);
 #else
- #ifdef TESTING
-    serialised_data.data = data_store_.Get(name);
- #else
     client_nfs_.Get<GroupDirectory>(name, nullptr);
- #endif
 #endif
     // Parse.
     GroupDirectory group_directory(name, serialised_data);
