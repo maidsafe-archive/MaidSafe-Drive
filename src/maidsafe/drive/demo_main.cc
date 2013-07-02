@@ -34,9 +34,8 @@ License.
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
 
+#include "maidsafe/encrypt/drive_store.h"
 #include "maidsafe/nfs/nfs.h"
-
-#include "maidsafe/encrypt/self_encryptor.h"
 
 #ifdef WIN32
 #  include "maidsafe/drive/win_drive.h"
@@ -52,22 +51,21 @@ namespace maidsafe {
 namespace drive {
 
 #ifdef WIN32
-typedef CbfsDriveInUserSpace DemoDriveInUserSpace;
+typedef CbfsDriveInUserSpace DemoDrive;
 #else
-typedef FuseDriveInUserSpace DemoDriveInUserSpace;
+typedef FuseDriveInUserSpace DemoDrive;
 #endif
 
-typedef std::shared_ptr<DemoDriveInUserSpace> DemoDriveInUserSpacePtr;
+typedef std::unique_ptr<DemoDrive> DemoDrivePtr;
 
 
-int Mount(const fs::path &mount_dir,
-          const fs::path &chunk_dir,
-          const passport::Maid& maid,
-          bool first_run) {
-  fs::path data_store_path(chunk_dir / RandomAlphaNumericString(8));
+int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
+  fs::path data_store_path(chunk_dir / "store");
   DiskUsage disk_usage(1048576000);
   MemoryUsage memory_usage(0);
-  data_store::PermanentStore data_store(data_store_path, disk_usage);
+  maidsafe::drive_store::DriveStore data_store(data_store_path, disk_usage);
+  maidsafe::passport::Maid::signer_type maid_signer;
+  maidsafe::passport::Maid maid(maid_signer);
   routing::Routing routing(maid);
   nfs::ClientMaidNfs client_nfs(routing, maid);
 
@@ -76,23 +74,23 @@ int Mount(const fs::path &mount_dir,
     return error_code.value();
 
   std::string root_parent_id;
-  fs::path id_path(chunk_dir / "root_parent_id");
+  fs::path id_path(data_store_path / "root_parent_id");
+  bool first_run(!fs::exists(id_path, error_code));
   if (!first_run)
     BOOST_VERIFY(ReadFile(id_path, &root_parent_id) && !root_parent_id.empty());
 
   // The following values are passed in and returned on unmount.
   int64_t max_space(std::numeric_limits<int64_t>::max()), used_space(0);
   Identity unique_user_id(Identity(std::string(64, 'a')));
-  DemoDriveInUserSpacePtr drive_in_user_space(std::make_shared<DemoDriveInUserSpace>(
-                                                  client_nfs,
-                                                  data_store,
-                                                  maid,
-                                                  unique_user_id,
-                                                  root_parent_id,
-                                                  mount_dir,
-                                                  "MaidSafeDrive",
-                                                  max_space,
-                                                  used_space));
+  DemoDrivePtr drive_in_user_space(new DemoDrive(client_nfs,
+                                                 data_store,
+                                                 maid,
+                                                 unique_user_id,
+                                                 root_parent_id,
+                                                 mount_dir,
+                                                 "MaidSafeDrive",
+                                                 max_space,
+                                                 used_space));
   if (first_run)
     BOOST_VERIFY(WriteFile(id_path, drive_in_user_space->root_parent_id()));
 
@@ -148,13 +146,11 @@ fs::path GetPathFromProgramOption(const std::string &option_name,
 
 int main(int argc, char *argv[]) {
   maidsafe::log::Logging::Instance().Initialise(argc, argv);
-  // Logfiles are written into this directory instead of the default logging one
-//  FLAGS_log_dir = boost::filesystem::temp_directory_path().string();
   boost::system::error_code error_code;
 #ifdef WIN32
-  fs::path logging_dir("C:\\ProgramData\\Sigmoid\\Core\\logs");
+  fs::path logging_dir("C:\\ProgramData\\MaidSafeDrive\\logs");
 #else
-  fs::path logging_dir(fs::temp_directory_path(error_code) / "sigmoid/logs");
+  fs::path logging_dir(fs::temp_directory_path(error_code) / "maidsafe_drive/logs");
   if (error_code) {
     LOG(kError) << error_code.message();
     return 1;
@@ -166,30 +162,18 @@ int main(int argc, char *argv[]) {
     LOG(kError) << error_code.message();
   if (!fs::exists(logging_dir, error_code))
     LOG(kError) << "Couldn't create logging directory at " << logging_dir;
-  fs::path log_path(logging_dir / "sigmoid_core_");
-//  for (google::LogSeverity s = google::WARNING; s < google::NUM_SEVERITIES; ++s)
-//    google::SetLogDestination(s, "");
-//  google::SetLogDestination(google::INFO, log_path.string().c_str());
-
-  // To set a config file option (only done by hand) do something like this:
-  // mountdir=/drive/name/
-  //    or
-  // mountdir=S:
-  // All command line parameters are only for this run.  To allow persistance, update the config
-  // file.  Command line overrides any config file settings.
+  fs::path log_path(logging_dir / "maidsafe_drive");
+  // All command line parameters are only for this run. To allow persistance, update the config
+  // file. Command line overrides any config file settings.
   try {
     po::options_description options_description("Allowed options");
     options_description.add_options()
         ("help,H", "print this help message")
-        ("chunkdir,C", po::value<std::string>(),
-         "set directory to store chunks")
-        ("metadatadir,M", po::value<std::string>(),
-         "set directory to store metadata")
+        ("chunkdir,C", po::value<std::string>(), "set directory to store chunks")
         ("mountdir,D", po::value<std::string>(), "set virtual drive name")
         ("checkdata", "check all data (metadata and chunks)")
-        ("start", "start Sigmoid Core (mount drive) [default]")  // daemonise
-        ("stop", "stop Sigmoid Core (unmount drive) [not implemented]");
-    // dunno if we can from here!
+        ("start", "start MaidSafeDrive (mount drive) [default]")
+        ("stop", "stop MaidSafeDrive (unmount drive) [not implemented]"); // dunno if we can from here!
 
     po::variables_map variables_map;
     po::store(po::command_line_parser(argc, argv).options(options_description).allow_unregistered().
@@ -201,17 +185,17 @@ int main(int argc, char *argv[]) {
     config_file_options.add(options_description);
 
     // try open some config options
-    std::ifstream local_config_file("sigmoid_core.conf");
+    std::ifstream local_config_file("maidsafe_drive.conf");
 #ifdef WIN32
-    fs::path main_config_path("C:/ProgramData/Sigmoid/Core/sigmoid_core.conf");
+    fs::path main_config_path("C:/ProgramData/MaidSafeDrive/maidsafe_drive.conf");
 #else
-    fs::path main_config_path("/etc/sigmoid_core.conf");
+    fs::path main_config_path("/etc/maidsafe_drive.conf");
 #endif
     std::ifstream main_config_file(main_config_path.string().c_str());
 
     // try local first for testing
     if (local_config_file) {
-      LOG(kInfo) << "Using local config file \"sigmoid_core.conf\"";
+      LOG(kInfo) << "Using local config file \"maidsafe_drive.conf\"";
       store(parse_config_file(local_config_file, config_file_options), variables_map);
       notify(variables_map);
     } else if (main_config_file) {
@@ -244,26 +228,7 @@ int main(int argc, char *argv[]) {
       return 1;
     }
 
-    fs::path maid_path(chunkstore_path / "serialised.maid");
-    bool first_run(!fs::exists(maid_path, error_code));
-
-    maidsafe::passport::Maid::signer_type maid_signer;
-    maidsafe::passport::Maid maid(maid_signer);
-
-    /*if (first_run) {
-      fob = maidsafe::priv::utils::GenerateFob(nullptr);
-      maidsafe::NonEmptyString serialised_fob(maidsafe::priv::utils::SerialiseFob(fob));
-      BOOST_VERIFY(maidsafe::WriteFile(fob_path, serialised_fob.string()));
-    } else {
-      std::string str_serialised_fob;
-      BOOST_VERIFY(maidsafe::ReadFile(fob_path, &str_serialised_fob));
-      fob = maidsafe::priv::utils::ParseFob(maidsafe::NonEmptyString(str_serialised_fob));
-    }*/
-
-    int result(maidsafe::drive::Mount(mount_path,
-                                      chunkstore_path,
-                                      maid,
-                                      first_run));
+    int result(maidsafe::drive::Mount(mount_path, chunkstore_path));
     return result;
   }
   catch(const std::exception& e) {

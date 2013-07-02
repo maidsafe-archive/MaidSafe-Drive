@@ -27,8 +27,6 @@ License.
 
 #include "boost/filesystem/path.hpp"
 
-#include "maidsafe/data_store/permanent_store.h"
-#include "maidsafe/nfs/nfs.h"
 #include "maidsafe/drive/drive_api.h"
 
 namespace maidsafe {
@@ -37,7 +35,6 @@ namespace drive {
 class CbfsDriveInUserSpace : public DriveInUserSpace {
  public:
   typedef nfs::ClientMaidNfs ClientNfs;
-  typedef data_store::PermanentStore DataStore;
   typedef passport::Maid Maid;
 
   CbfsDriveInUserSpace(ClientNfs& client_nfs,

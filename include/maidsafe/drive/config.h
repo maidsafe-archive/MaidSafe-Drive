@@ -17,7 +17,6 @@ License.
 #define MAIDSAFE_DRIVE_CONFIG_H_
 
 #include <memory>
-#include <set>
 #include <string>
 
 #include "boost/date_time/posix_time/posix_time_duration.hpp"
@@ -53,19 +52,10 @@ typedef Identity DirectoryId;
 typedef std::shared_ptr<DirectoryId> DirectoryIdPtr;
 typedef std::shared_ptr<DirectoryListing> DirectoryListingPtr;
 typedef std::shared_ptr<DirectoryListingHandler> DirectoryListingHandlerPtr;
-// typedef std::set<MetaData> MetaDataSet;
 typedef std::unique_ptr<FileContext> FileContextPtr;
 typedef std::unique_ptr<FileContextInfo> FileContextInfoPtr;
 
-typedef std::string ShareId;
-
-typedef boost::shared_lock<boost::shared_mutex> SharedLock;
-typedef boost::upgrade_lock<boost::shared_mutex> UpgradeLock;
-typedef boost::unique_lock<boost::shared_mutex> UniqueLock;
-typedef boost::upgrade_to_unique_lock<boost::shared_mutex> UpgradeToUniqueLock;
-
 extern const boost::filesystem::path kMsHidden;
-
 extern const boost::filesystem::path kEmptyPath;
 extern const boost::filesystem::path kRoot;
 extern const boost::filesystem::path kOwner;
@@ -82,7 +72,6 @@ testing::AssertionResult DirectoriesMatch(DirectoryListingPtr directory1,
 }  // namespace test
 
 }  // namespace drive
-
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_CONFIG_H_
