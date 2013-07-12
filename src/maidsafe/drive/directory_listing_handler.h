@@ -26,7 +26,13 @@ License.
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
 
-#include "maidsafe/data_store/permanent_store.h"
+#ifdef MAIDSAFE_DRIVE_DEMO
+# include "maidsafe/encrypt/drive_store.h"
+  typedef maidsafe::drive_store::DriveStore DataStore;
+#else
+# include "maidsafe/data_store/permanent_store.h"
+  typedef maidsafe::data_store::PermanentStore DataStore;
+#endif
 #include "maidsafe/nfs/nfs.h"
 
 #include "maidsafe/drive/config.h"
@@ -67,7 +73,6 @@ struct DirectoryData {
 class DirectoryListingHandler {
  public:
   typedef nfs::ClientMaidNfs ClientNfs;
-  typedef data_store::PermanentStore DataStore;
   typedef passport::Maid Maid;
   typedef std::pair<DirectoryData, uint32_t> DirectoryType;
   typedef OwnerDirectory::name_type OwnerDirectoryNameType;

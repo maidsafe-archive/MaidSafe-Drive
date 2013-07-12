@@ -350,6 +350,7 @@ void CbfsDriveInUserSpace::OnCallbackFsInit() {
     callback_filesystem_.SetOnFlushFile(CbFsFlushFile);
     callback_filesystem_.SetSerializeCallbacks(true);
     callback_filesystem_.SetFileCacheEnabled(false);
+    callback_filesystem_.SetMetaDataCacheEnabled(false);
     callback_filesystem_.SetStorageType(CallbackFileSystem::stDisk);
   }
   catch(ECBFSError error) {
