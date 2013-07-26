@@ -32,28 +32,21 @@ namespace maidsafe {
 
 namespace encrypt {
 struct DataMap;
-class SelfEncryptor;
+template<typename Storage> class SelfEncryptor;
 }  // namespace encrypt
 
 namespace drive {
 
 class DirectoryListing;
-class DirectoryListingHandler;
 struct MetaData;
-struct FileContext;
-class FileContextInfo;
 
 enum OpType { kCreated, kRenamed, kAdded, kRemoved, kMoved, kModified };
 
 typedef std::shared_ptr<encrypt::DataMap> DataMapPtr;
-typedef std::shared_ptr<encrypt::SelfEncryptor> SelfEncryptorPtr;
 
 typedef Identity DirectoryId;
 typedef std::shared_ptr<DirectoryId> DirectoryIdPtr;
 typedef std::shared_ptr<DirectoryListing> DirectoryListingPtr;
-typedef std::shared_ptr<DirectoryListingHandler> DirectoryListingHandlerPtr;
-typedef std::unique_ptr<FileContext> FileContextPtr;
-typedef std::unique_ptr<FileContextInfo> FileContextInfoPtr;
 
 extern const boost::filesystem::path kMsHidden;
 extern const boost::filesystem::path kEmptyPath;

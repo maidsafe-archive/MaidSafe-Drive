@@ -13,10 +13,6 @@ implied. See the License for the specific language governing permissions and lim
 License.
 */
 
-#ifdef WIN32
-#  include <conio.h>
-#endif
-
 #include <functional>
 #include <iostream>  // NOLINT
 #include <memory>
@@ -34,7 +30,7 @@ License.
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
 
-#include "maidsafe/encrypt/drive_store.h"
+#include "maidsafe/data_store/sure_file_store.h"
 #include "maidsafe/nfs/nfs.h"
 
 #ifdef WIN32
@@ -51,30 +47,30 @@ namespace maidsafe {
 namespace drive {
 
 #ifdef WIN32
-typedef CbfsDriveInUserSpace DemoDrive;
+template<typename Storage>
+struct Drive {
+  typedef CbfsDriveInUserSpace<Storage> DemoDrive;
+};
 #else
 typedef FuseDriveInUserSpace DemoDrive;
 #endif
 
-typedef std::unique_ptr<DemoDrive> DemoDrivePtr;
-
-
 int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
-  fs::path data_store_path(chunk_dir / "store");
+  fs::path storage_path(chunk_dir / "store");
   DiskUsage disk_usage(1048576000);
   MemoryUsage memory_usage(0);
-  maidsafe::drive_store::DriveStore data_store(data_store_path, disk_usage);
+  maidsafe::data_store::SureFileStore storage(storage_path, disk_usage);
   maidsafe::passport::Maid::signer_type maid_signer;
   maidsafe::passport::Maid maid(maid_signer);
-  routing::Routing routing(maid);
-  nfs::ClientMaidNfs client_nfs(routing, maid);
+//  routing::Routing routing(maid);
+//  nfs::ClientMaidNfs client_nfs(routing, maid);
 
   boost::system::error_code error_code;
   if (!fs::exists(chunk_dir, error_code))
     return error_code.value();
 
   std::string root_parent_id;
-  fs::path id_path(data_store_path / "root_parent_id");
+  fs::path id_path(storage_path / "root_parent_id");
   bool first_run(!fs::exists(id_path, error_code));
   if (!first_run)
     BOOST_VERIFY(ReadFile(id_path, &root_parent_id) && !root_parent_id.empty());
@@ -82,22 +78,22 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   // The following values are passed in and returned on unmount.
   int64_t max_space(std::numeric_limits<int64_t>::max()), used_space(0);
   Identity unique_user_id(Identity(std::string(64, 'a')));
-  DemoDrivePtr drive_in_user_space(new DemoDrive(client_nfs,
-                                                 data_store,
-                                                 maid,
-                                                 unique_user_id,
-                                                 root_parent_id,
-                                                 mount_dir,
-                                                 "MaidSafeDrive",
-                                                 max_space,
-                                                 used_space));
+  typedef Drive<maidsafe::data_store::SureFileStore>::DemoDrive Drive;
+  typedef std::unique_ptr<Drive> DrivePtr;
+  DrivePtr drive(new Drive(storage,
+                           maid,
+                           unique_user_id,
+                           root_parent_id,
+                           mount_dir,
+                           "MaidSafeDrive",
+                           max_space,
+                           used_space));
   if (first_run)
-    BOOST_VERIFY(WriteFile(id_path, drive_in_user_space->root_parent_id()));
+    BOOST_VERIFY(WriteFile(id_path, drive->root_parent_id()));
 
 #ifdef WIN32
-  drive_in_user_space->WaitUntilUnMounted();
-  // while (!kbhit());
-  drive_in_user_space->Unmount(max_space, used_space);
+  drive->WaitUntilUnMounted();
+  drive->Unmount(max_space, used_space);
 #endif
 
   return 0;

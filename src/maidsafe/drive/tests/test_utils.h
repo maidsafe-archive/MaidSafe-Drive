@@ -26,10 +26,6 @@ License.
 #include "maidsafe/common/test.h"
 #include "maidsafe/common/utils.h"
 
-// #include "maidsafe/data_store/data_store.h"
-#include "maidsafe/data_store/permanent_store.h"
-#include "maidsafe/nfs/nfs.h"
-
 #include "maidsafe/encrypt/data_map.h"
 #include "maidsafe/encrypt/self_encryptor.h"
 
@@ -46,13 +42,15 @@ License.
 namespace fs = boost::filesystem;
 namespace bptime = boost::posix_time;
 
-namespace maidsafe {
-
+namespace maidsafe { 
 namespace drive {
 
 #ifdef WIN32
 #  ifdef HAVE_CBFS
-typedef CbfsDriveInUserSpace TestDriveInUserSpace;
+template<typename Storage>
+struct Drive {
+  typedef CbfsDriveInUserSpace<Storage> TestDriveInUserSpace;
+};
 #  else
 typedef DummyWinDriveInUserSpace TestDriveInUserSpace;
 #  endif
@@ -68,13 +66,11 @@ enum TestOperationCode {
   kCompare = 2
 };
 
-class DerivedDriveInUserSpace : public TestDriveInUserSpace {
+template<typename Storage>
+class DerivedDriveInUserSpace : public Drive<Storage>::TestDriveInUserSpace {
  public:
-  // typedef data_store::DataStore<data_store::DataBuffer> DataStore;
-  typedef data_store::PermanentStore DataStore;
 
-  DerivedDriveInUserSpace(nfs::ClientMaidNfs& client_nfs,
-                          DataStore& data_store,
+  DerivedDriveInUserSpace(Storage& storage,
                           const passport::Maid& default_maid,
                           const Identity& unique_user_id,
                           const std::string& root_parent_id,
@@ -82,36 +78,97 @@ class DerivedDriveInUserSpace : public TestDriveInUserSpace {
                           const boost::filesystem::path &drive_name,
                           const int64_t& max_space,
                           const int64_t& used_space)
-      : TestDriveInUserSpace(client_nfs,
-                             data_store,
-                             default_maid,
-                             unique_user_id,
-                             root_parent_id,
-                             mount_dir,
-                             drive_name,
-                             max_space,
-                             used_space) {}
+      : Drive<Storage>::TestDriveInUserSpace(storage,
+                                             default_maid,
+                                             unique_user_id,
+                                             root_parent_id,
+                                             mount_dir,
+                                             drive_name,
+                                             max_space,
+                                             used_space) {}
 
-  std::shared_ptr<DirectoryListingHandler> directory_listing_handler() const {
+  std::shared_ptr<DirectoryListingHandler<Storage>> directory_listing_handler() const {
     return directory_listing_handler_;
   }
 };
 
-std::shared_ptr<DerivedDriveInUserSpace> MakeAndMountDrive(
-    const std::string &unique_user_id,
-    const std::string &root_parent_id,
+template<typename Storage>
+std::shared_ptr<DerivedDriveInUserSpace<Storage>> MakeAndMountDrive(
+    const Identity& unique_user_id,
+    const std::string& root_parent_id,
     routing::Routing& routing,
     const passport::Maid& maid,
     const maidsafe::test::TestPath& main_test_dir,
     const int64_t &max_space,
     const int64_t &used_space,
-    std::shared_ptr<nfs::ClientMaidNfs>& client_nfs,
-    /*std::shared_ptr<data_store::DataStore<data_store::DataBuffer>>& data_store,*/
-    std::shared_ptr<data_store::PermanentStore>& data_store,
-    fs::path& mount_directory);
+    std::shared_ptr<Storage>& storage,
+    fs::path& mount_directory) {
+  // won't work for objects with different signaturess...
+  storage.reset(new Storage(*main_test_dir / "local", DiskUsage(1073741824)));
+  std::shared_ptr<DerivedDriveInUserSpace<Storage>> drive(
+      std::make_shared<DerivedDriveInUserSpace<Storage>>(*data_store,
+                                                         maid,
+                                                         unique_user_id,
+                                                         root_parent_id,
+                                                         "S:",
+                                                         "MaidSafeDrive",
+                                                         max_space,
+                                                         used_space));
 
-void UnmountDrive(std::shared_ptr<DerivedDriveInUserSpace> drive,
-                  AsioService& asio_service);
+#ifdef WIN32
+  fs::path mount_dir("S:");
+#else
+  fs::path mount_dir(*main_test_dir / "MaidSafeDrive");
+#endif
+
+  boost::system::error_code error_code;
+#ifndef WIN32
+  fs::create_directories(mount_dir, error_code);
+  if (error_code) {
+    LOG(kError) << "Failed creating mount directory";
+//     asio_service.Stop();
+    return std::shared_ptr<DerivedDriveInUserSpace<Storage>>();
+  }
+#endif
+
+#ifdef WIN32
+  mount_dir /= "\\Owner";
+#else
+  // TODO(Team): Find out why, if the mount is put on the asio service,
+  //             unmount hangs
+  boost::thread th(std::bind(&DerivedDriveInUserSpace<Storage>::Mount, drive));
+  if (!drive->WaitUntilMounted()) {
+    LOG(kError) << "Drive failed to mount";
+//     asio_service.Stop();
+    return std::shared_ptr<DerivedDriveInUserSpace<Storage>>();
+  }
+#endif
+
+  mount_directory = mount_dir;
+
+  return drive;
+}
+
+template<typename Storage>
+void UnmountDrive(std::shared_ptr<DerivedDriveInUserSpace<Storage>> drive,
+                  AsioService& asio_service) {
+  int64_t max_space(0), used_space(0);
+#ifdef WIN32
+  EXPECT_TRUE(drive->Unmount(max_space, used_space));
+#else
+  drive->Unmount(max_space, used_space);
+  drive->WaitUntilUnMounted();
+#endif
+  asio_service.Stop();
+}
+
+template<typename Storage>
+struct GlobalDrive {
+  static std::shared_ptr<DerivedDriveInUserSpace<Storage>> g_drive;
+};
+
+template<typename Storage>
+std::shared_ptr<DerivedDriveInUserSpace<Storage>> GlobalDrive<Storage>::g_drive;
 
 void PrintResult(const bptime::ptime &start_time,
                  const bptime::ptime &stop_time,
@@ -133,7 +190,6 @@ uint64_t TotalSize(encrypt::DataMapPtr data_map);
 }  // namespace test
 
 }  // namespace drive
-
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_TESTS_TEST_UTILS_H_

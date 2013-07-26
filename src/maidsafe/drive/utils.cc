@@ -26,29 +26,7 @@ License.
 #include "maidsafe/drive/meta_data.h"
 
 namespace maidsafe {
-
 namespace drive {
-
-FileContext::FileContext()
-    : meta_data(new MetaData),
-      self_encryptor(),
-      content_changed(false),
-      grandparent_directory_id(),
-      parent_directory_id() {}
-
-FileContext::FileContext(const fs::path& name, bool is_directory)
-      : meta_data(new MetaData(name, is_directory)),
-        self_encryptor(),
-        content_changed(!is_directory),
-        grandparent_directory_id(),
-        parent_directory_id() {}
-
-FileContext::FileContext(std::shared_ptr<MetaData> meta_data_in)
-    : meta_data(meta_data_in),
-      self_encryptor(),
-      content_changed(false),
-      grandparent_directory_id(),
-      parent_directory_id() {}
 
 #ifndef MAIDSAFE_WIN32
 // Not called by Windows...
@@ -169,5 +147,4 @@ bool SearchesMask(std::wstring mask, const fs::path& file_name) {
 }
 
 }  // namespace drive
-
 }  // namespace maidsafe
