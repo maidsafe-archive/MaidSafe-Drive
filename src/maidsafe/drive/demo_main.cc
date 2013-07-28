@@ -30,7 +30,7 @@ License.
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
 
-#include "maidsafe/data_store/sure_file_store.h"
+#include "maidsafe/data_store/surefile_store.h"
 #include "maidsafe/nfs/nfs.h"
 
 #ifdef WIN32

@@ -25,7 +25,7 @@ License.
 
 #include "maidsafe/encrypt/self_encryptor.h"
 #include "maidsafe/drive/config.h"
-
+#include "maidsafe/nfs/nfs.h"
 
 namespace maidsafe {
 namespace drive {
@@ -78,6 +78,64 @@ bool ExcludedFilename(const boost::filesystem::path& path);
 
 bool MatchesMask(std::wstring mask, const boost::filesystem::path& file_name);
 bool SearchesMask(std::wstring mask, const boost::filesystem::path& file_name);
+
+namespace detail {
+
+template<typename Storage, typename Directory>
+struct Put {
+
+  void operator()(Storage& storage, const Directory& directory) {
+    storage.Put(directory.name(), directory.Serialise());
+  }
+};
+
+template<typename Directory>
+struct Put<nfs::ClientMaidNfs, Directory> {
+  typedef nfs::ClientMaidNfs ClientNfs;
+
+  void operator()(ClientNfs& storage, const Directory& directory) {
+    storage.Put<Directory>(directory,
+                           passport::PublicPmid::name_type(directory.name()),
+                           nullptr);
+  }
+};
+
+template<typename Storage, typename Directory>
+struct Get {
+
+  NonEmptyString operator()(Storage& storage, const typename Directory::name_type& name) {
+    return storage.Get(name);
+  }
+};
+
+template<typename Directory>
+struct Get<nfs::ClientMaidNfs, Directory> {
+  typedef nfs::ClientMaidNfs ClientNfs;
+
+  NonEmptyString operator()(ClientNfs& storage, const typename Directory::name_type& name) {
+    storage.Get<Directory>(name, nullptr);  // FIXME ...value returned in response_functor
+    return NonEmptyString();
+  }
+};
+
+template<typename Storage, typename Directory>
+struct Delete {
+
+  void operator()(Storage& storage, const typename Directory::name_type& name) {
+    storage.Delete(name);
+  }
+};
+
+template<typename Directory>
+struct Delete<nfs::ClientMaidNfs, Directory> {
+  typedef nfs::ClientMaidNfs ClientNfs;
+
+  void operator()(ClientNfs& storage, const typename Directory::name_type& name) {
+    storage.Delete<Directory>(name, nullptr);
+  }
+};
+
+}  // namespace detail
 
 }  // namespace drive
 }  // namespace maidsafe

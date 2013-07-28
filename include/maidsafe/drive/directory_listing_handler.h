@@ -77,12 +77,6 @@ class DirectoryListingHandler {
  public:
   typedef passport::Maid Maid;
   typedef std::pair<DirectoryData, uint32_t> DirectoryType;
-  typedef OwnerDirectory::name_type OwnerDirectoryNameType;
-  typedef GroupDirectory::name_type GroupDirectoryNameType;
-  typedef WorldDirectory::name_type WorldDirectoryNameType;
-  typedef OwnerDirectory::serialised_type OwnerDirectorySerialisedType;
-  typedef GroupDirectory::serialised_type GroupDirectorySerialisedType;
-  typedef WorldDirectory::serialised_type WorldDirectorySerialisedType;
 
   enum { kOwnerValue, kGroupValue, kWorldValue, kInvalidValue };
 
@@ -588,9 +582,9 @@ DirectoryData DirectoryListingHandler<Storage>::RetrieveFromStorage(const Direct
                                                                     const DirectoryId& directory_id,
                                                                     int directory_type) const {
   if (directory_type == kWorldValue) {
-    WorldDirectoryNameType name(directory_id);
-    WorldDirectorySerialisedType serialised_data;
-    serialised_data.data = storage_.Get(name);
+    WorldDirectory::name_type name(directory_id);
+    WorldDirectory::serialised_type serialised_data;
+    serialised_data.data = detail::Get<Storage, WorldDirectory>()(storage_, name);
     WorldDirectory world_directory(name, serialised_data);
     Identity id(std::string("", 64));
     DirectoryData directory(parent_id, std::make_shared<DirectoryListing>(id));
@@ -634,9 +628,9 @@ void DirectoryListingHandler<Storage>::PutToStorage(const DirectoryType& directo
 
   if (directory.second == kWorldValue) {
     // Store serialised listing.
-    WorldDirectory world_directory(WorldDirectoryNameType(directory.first.listing->directory_id()),
+    WorldDirectory world_directory(WorldDirectory::name_type(directory.first.listing->directory_id()),
                                    NonEmptyString(serialised_directory_listing));
-    storage_.Put(world_directory.name(), world_directory.Serialise());
+    detail::Put<Storage, WorldDirectory>()(storage_, world_directory);
     return;
   }
 
@@ -658,16 +652,16 @@ void DirectoryListingHandler<Storage>::PutToStorage(const DirectoryType& directo
                                               data_map);
   if (directory.second == kOwnerValue) {
     // Store the encrypted datamap.
-    OwnerDirectory owner_directory(OwnerDirectoryNameType(directory.first.listing->directory_id()),
+    OwnerDirectory owner_directory(OwnerDirectory::name_type(directory.first.listing->directory_id()),
                                    encrypted_data_map,
                                    kMaid_.private_key());
-    storage_.Put(owner_directory.name(), owner_directory.Serialise());
+    detail::Put<Storage, OwnerDirectory>()(storage_, owner_directory);
   } else if (directory.second == kGroupValue) {
     // Store the encrypted datamap.
-    GroupDirectory group_directory(GroupDirectoryNameType(directory.first.listing->directory_id()),
+    GroupDirectory group_directory(GroupDirectory::name_type(directory.first.listing->directory_id()),
                                    encrypted_data_map,
                                    kMaid_.private_key());
-    storage_.Put(group_directory.name(), group_directory.Serialise());
+    detail::Put<Storage, GroupDirectory>()(storage_, group_directory);
   } else {
     ThrowError(CommonErrors::not_a_directory);
   }
@@ -686,15 +680,18 @@ void DirectoryListingHandler<Storage>::DeleteStored(const DirectoryId& parent_id
   }
   switch (directory_type) {
     case kOwnerValue: {
-      storage_.Delete(OwnerDirectoryNameType(directory_id));
+      OwnerDirectory::name_type name(directory_id);
+      detail::Delete<Storage, OwnerDirectory>()(storage_, name);
       break;
     }
     case kGroupValue: {
-      storage_.Delete(GroupDirectoryNameType(directory_id));
+      GroupDirectory::name_type name(directory_id);
+      detail::Delete<Storage, GroupDirectory>()(storage_, name);
       break;
     }
     case kWorldValue: {
-      storage_.Delete(WorldDirectoryNameType(directory_id));
+      WorldDirectory::name_type name(directory_id);
+      detail::Delete<Storage, WorldDirectory>()(storage_, name);
       break;
     }
     default:
@@ -710,9 +707,9 @@ void DirectoryListingHandler<Storage>::RetrieveDataMap(const DirectoryId& parent
                                                        DataMapPtr data_map) const {
   assert(data_map);
   if (directory_type == kOwnerValue) {
-    OwnerDirectoryNameType name(directory_id);
-    OwnerDirectorySerialisedType serialised_data;
-    serialised_data.data = storage_.Get(name);
+    OwnerDirectory::name_type name(directory_id);
+    OwnerDirectory::serialised_type serialised_data;
+    serialised_data.data = detail::Get<Storage, OwnerDirectory>()(storage_, name);
     // Parse.
     OwnerDirectory owner_directory(name, serialised_data);
     // Generate data map.
@@ -721,9 +718,9 @@ void DirectoryListingHandler<Storage>::RetrieveDataMap(const DirectoryId& parent
                             owner_directory.data().string(),
                             data_map);
   } else if (directory_type == kGroupValue) {
-    GroupDirectoryNameType name(directory_id);
-    GroupDirectorySerialisedType serialised_data;
-    serialised_data.data = storage_.Get(name);
+    GroupDirectory::name_type name(directory_id);
+    GroupDirectory::serialised_type serialised_data;
+    serialised_data.data = detail::Get<Storage, GroupDirectory>()(storage_, name);
     // Parse.
     GroupDirectory group_directory(name, serialised_data);
     // Generate data map.
