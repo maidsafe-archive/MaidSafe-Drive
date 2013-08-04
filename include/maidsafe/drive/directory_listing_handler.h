@@ -627,11 +627,27 @@ void DirectoryListingHandler<Storage>::PutToStorage(const DirectoryType& directo
   directory.first.listing->Serialise(serialised_directory_listing);
 
   if (directory.second == kWorldValue) {
+    try {
+      DeleteStored(directory.first.parent_id, directory.first.listing->directory_id(), kWorldValue);
+    }
+    catch(...) {}
     // Store serialised listing.
     WorldDirectory world_directory(WorldDirectory::name_type(directory.first.listing->directory_id()),
                                    NonEmptyString(serialised_directory_listing));
     detail::Put<Storage, WorldDirectory>()(storage_, world_directory);
     return;
+  }
+
+  if (directory.second == kOwnerValue) {
+    try {
+      DeleteStored(directory.first.parent_id, directory.first.listing->directory_id(), kOwnerValue);
+    }
+    catch(...) {}
+  } else {
+    try {
+      DeleteStored(directory.first.parent_id, directory.first.listing->directory_id(), kGroupValue);
+    }
+    catch(...) {}
   }
 
   // Self-encrypt serialised directory listing.
