@@ -33,6 +33,7 @@ License.
 #include "maidsafe/nfs/nfs.h"
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/directory_listing_handler.h"
+#include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/utils.h"
 
 namespace fs = boost::filesystem;
@@ -269,7 +270,7 @@ void DriveInUserSpace<Storage>::GetMetaData(const fs::path& relative_path,
                                             MetaData& meta_data,
                                             DirectoryId* grandparent_directory_id,
                                             DirectoryId* parent_directory_id) {
-  typedef DirectoryListingHandler<Storage>::DirectoryType DirectoryType;
+  typedef typename DirectoryListingHandler<Storage>::DirectoryType DirectoryType;
   DirectoryType parent(directory_listing_handler_->GetFromPath(relative_path.parent_path()));
   parent.first.listing->GetChild(relative_path.filename(), meta_data);
 
@@ -487,7 +488,7 @@ void DriveInUserSpace<Storage>::DeleteHiddenFile(const fs::path &relative_path) 
 template<typename Storage>
 void DriveInUserSpace<Storage>::SearchHiddenFiles(const fs::path &relative_path,
                                                   std::vector<std::string> *results) {
-  typedef DirectoryListingHandler<Storage>::DirectoryType DirectoryType;
+  typedef typename DirectoryListingHandler<Storage>::DirectoryType DirectoryType;
   DirectoryType directory(directory_listing_handler_->GetFromPath(relative_path));
   directory.first.listing->GetHiddenChildNames(results);
   return;

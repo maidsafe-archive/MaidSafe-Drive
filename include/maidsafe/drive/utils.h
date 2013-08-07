@@ -25,12 +25,18 @@ License.
 
 #include "maidsafe/encrypt/self_encryptor.h"
 #include "maidsafe/drive/config.h"
+#include "maidsafe/drive/meta_data.h"
+#include "maidsafe/drive/return_codes.h"
 #include "maidsafe/nfs/nfs.h"
 
 namespace maidsafe {
 namespace drive {
 
+
 static const uint32_t kDirectorySize = 4096;
+
+template<typename Storage> struct FileContext;
+template<typename Storage> class DirectoryListingHandler;
 
 template<typename Storage>
 struct FileContext {
@@ -69,9 +75,21 @@ FileContext<Storage>::FileContext(std::shared_ptr<MetaData> meta_data_in)
       parent_directory_id() {}
 
 #ifndef MAIDSAFE_WIN32
+// Not called by Windows...
 template<typename Storage>
 int ForceFlush(std::shared_ptr<DirectoryListingHandler<Storage>> directory_listing_handler,
-               FileContext<Storage>* file_context);
+               FileContext<Storage>* file_context) {
+  BOOST_ASSERT(file_context);
+  file_context->self_encryptor->Flush();
+
+  try {
+    directory_listing_handler->UpdateParentDirectoryListing(
+        file_context->meta_data->name.parent_path(), *file_context->meta_data.get());
+  } catch(...) {
+      return kFailedToSaveParentDirectoryListing;
+  }
+  return kSuccess;
+}
 #endif
 
 bool ExcludedFilename(const boost::filesystem::path& path);
@@ -134,6 +152,7 @@ struct Delete<nfs::ClientMaidNfs, Directory> {
     storage.Delete<Directory>(name, nullptr);
   }
 };
+
 
 }  // namespace detail
 

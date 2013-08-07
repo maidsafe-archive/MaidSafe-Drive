@@ -28,22 +28,6 @@ License.
 namespace maidsafe {
 namespace drive {
 
-#ifndef MAIDSAFE_WIN32
-// Not called by Windows...
-int ForceFlush(DirectoryListingHandlerPtr directory_listing_handler, FileContext* file_context) {
-  BOOST_ASSERT(file_context);
-  file_context->self_encryptor->Flush();
-
-  try {
-    directory_listing_handler->UpdateParentDirectoryListing(
-        file_context->meta_data->name.parent_path(), *file_context->meta_data.get());
-  } catch(...) {
-      return kFailedToSaveParentDirectoryListing;
-  }
-  return kSuccess;
-}
-#endif
-
 bool ExcludedFilename(const fs::path& path) {
   std::string file_name(path.filename().stem().string());
   if (file_name.size() == 4 && isdigit(file_name[3])) {
