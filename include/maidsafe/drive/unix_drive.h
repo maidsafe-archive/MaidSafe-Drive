@@ -50,11 +50,12 @@ namespace chunk_store { class RemoteChunkStore; }
 
 namespace drive {
 
-template <typename Storage> class FuseDriveInUserSpace;
+template <typename Storage>
+class FuseDriveInUserSpace;
 
 template <typename Storage>
 struct Global {
-  static FuseDriveInUserSpace<Storage> *g_fuse_drive;
+  static FuseDriveInUserSpace<Storage>* g_fuse_drive;
 };
 
 
@@ -370,7 +371,7 @@ int FuseDriveInUserSpace<Storage>::Mount() {
   if (res != 0) {
     LOG(kError) << "Fuse Loop result: " << res;
     DriveInUserSpace<Storage>::SetMountState(false);
-    return DriveInUserSpace<Storage>::kFuseFailedToMount;
+    return kFuseFailedToMount;
   }
 
   return kSuccess;
@@ -453,10 +454,9 @@ int FuseDriveInUserSpace<Storage>::OpsCreate(const char *path,
     encrypt::DataMapPtr data_map(new encrypt::DataMap());
     *data_map = *file_context->meta_data->data_map;
     file_context->meta_data->data_map = data_map;
-    file_context->self_encryptor.reset(new encrypt::SelfEncryptor<Storage>(
-        file_context->meta_data->data_map,
-        Global<Storage>::g_fuse_drive->client_nfs_,
-        Global<Storage>::g_fuse_drive->data_store_));
+    file_context->self_encryptor.reset(new
+                          encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
+                                                          Global<Storage>::g_fuse_drive->storage_));
   }
 
   file_info->keep_cache = 1;
@@ -662,8 +662,7 @@ int FuseDriveInUserSpace<Storage>::OpsOpen(const char *path, struct fuse_file_in
     if (!file_context->self_encryptor) {
       file_context->self_encryptor.reset(
           new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
-                                     Global<Storage>::g_fuse_drive->client_nfs_,
-                                     Global<Storage>::g_fuse_drive->data_store_));
+                                              Global<Storage>::g_fuse_drive->storage_));
     }
   }
   SetFileContext(file_info, file_context);
@@ -942,9 +941,9 @@ int FuseDriveInUserSpace<Storage>::OpsWrite(const char *path,
 
   if (!file_context->self_encryptor) {
     LOG(kInfo) << "Resetting the encryption stream";
-    file_context->self_encryptor.reset(new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
-                                                                  Global<Storage>::g_fuse_drive->client_nfs_,
-                                                                  Global<Storage>::g_fuse_drive->data_store_));
+    file_context->self_encryptor.reset(
+          new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
+                                              Global<Storage>::g_fuse_drive->storage_));
   }
 
   // check for sufficient space before writing
@@ -1640,9 +1639,9 @@ void FuseDriveInUserSpace<Storage>::SetNewAttributes(FileContext<Storage> *file_
     else
       file_context->meta_data->attributes.st_mode = (0644 | S_IFREG);
     file_context->meta_data->attributes.st_nlink = 1;
-    file_context->self_encryptor.reset(new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
-                                                                  DriveInUserSpace<Storage>::client_nfs_,
-                                                                  DriveInUserSpace<Storage>::data_store_));
+    file_context->self_encryptor.reset(
+          new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
+                                              Global<Storage>::g_fuse_drive->storage_));
     file_context->meta_data->attributes.st_size = file_context->self_encryptor->size();
     file_context->meta_data->attributes.st_blocks =
         file_context->meta_data->attributes.st_size / 512;
