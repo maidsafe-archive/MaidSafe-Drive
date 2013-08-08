@@ -44,9 +44,9 @@ License.
 //namespace fs = boost::filesystem;
 
 
-//namespace maidsafe {
+namespace maidsafe {
 
-//namespace drive {
+namespace drive {
 
 //fs::path RelativePath(const fs::path &mount_dir, const fs::path &absolute_path) {
 //  if (absolute_path.string().substr(0, mount_dir.string().size()) != mount_dir.string())
