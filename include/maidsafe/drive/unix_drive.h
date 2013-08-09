@@ -58,6 +58,8 @@ struct Global {
   static FuseDriveInUserSpace<Storage>* g_fuse_drive;
 };
 
+template <typename Storage>
+FuseDriveInUserSpace<Storage>* Global<Storage>::g_fuse_drive;
 
 template<typename Storage>
 class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
