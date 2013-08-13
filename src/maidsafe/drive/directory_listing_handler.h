@@ -75,9 +75,9 @@ class DirectoryListingHandler {
   typedef nfs::ClientMaidNfs ClientNfs;
   typedef passport::Maid Maid;
   typedef std::pair<DirectoryData, uint32_t> DirectoryType;
-  typedef OwnerDirectory::name_type OwnerDirectoryNameType;
-  typedef GroupDirectory::name_type GroupDirectoryNameType;
-  typedef WorldDirectory::name_type WorldDirectoryNameType;
+  typedef OwnerDirectory::Name OwnerDirectoryNameType;
+  typedef GroupDirectory::Name GroupDirectoryNameType;
+  typedef WorldDirectory::Name WorldDirectoryNameType;
   typedef OwnerDirectory::serialised_type OwnerDirectorySerialisedType;
   typedef GroupDirectory::serialised_type GroupDirectorySerialisedType;
   typedef WorldDirectory::serialised_type WorldDirectorySerialisedType;

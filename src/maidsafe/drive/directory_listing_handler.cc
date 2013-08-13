@@ -496,7 +496,7 @@ void DirectoryListingHandler::PutToStorage(const DirectoryType& directory) {
     data_store_.Put(world_directory.name(), world_directory.Serialise());
 #else
     client_nfs_.Put<WorldDirectory>(world_directory,
-                                      passport::PublicPmid::name_type(world_directory.name()),
+                                      passport::PublicPmid::Name(world_directory.name()),
                                       nullptr);
 #endif
     return;
@@ -527,7 +527,7 @@ void DirectoryListingHandler::PutToStorage(const DirectoryType& directory) {
     data_store_.Put(owner_directory.name(), owner_directory.Serialise());
 #else
     client_nfs_.Put<OwnerDirectory>(owner_directory,
-                                    passport::PublicPmid::name_type(owner_directory.name()),
+                                    passport::PublicPmid::Name(owner_directory.name()),
                                     nullptr);
 #endif
   } else if (directory.second == kGroupValue) {
@@ -539,7 +539,7 @@ void DirectoryListingHandler::PutToStorage(const DirectoryType& directory) {
     data_store_.Put(group_directory.name(), group_directory.Serialise());
 #else
     client_nfs_.Put<GroupDirectory>(group_directory,
-                                    passport::PublicPmid::name_type(group_directory.name()),
+                                    passport::PublicPmid::Name(group_directory.name()),
                                     nullptr);
 #endif
   } else {
