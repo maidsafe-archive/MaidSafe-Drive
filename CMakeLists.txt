@@ -91,9 +91,9 @@ endif()
 # Define MaidSafe libraries and executables                                                        #
 #==================================================================================================#
 ms_add_static_library(drive ${DriveAllFiles})
-target_link_libraries(maidsafe_drive maidsafe_encrypt maidsafe_nfs)
+target_link_libraries(maidsafe_drive maidsafe_encrypt maidsafe_nfs_client)
 ms_add_static_library(demo_drive ${DriveAllFiles})
-target_link_libraries(maidsafe_demo_drive maidsafe_demo_encrypt maidsafe_nfs)
+target_link_libraries(maidsafe_demo_drive maidsafe_demo_encrypt maidsafe_nfs_client)
 set_target_properties(maidsafe_demo_drive PROPERTIES COMPILE_DEFINITIONS "MAIDSAFE_DRIVE_DEMO")
 if(WIN32)
   if(Cbfs_FOUND)
