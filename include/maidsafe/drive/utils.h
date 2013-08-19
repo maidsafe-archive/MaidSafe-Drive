@@ -105,7 +105,7 @@ struct Put {
 
   void operator()(Storage& storage, const Directory& directory) {
     storage.Put<Directory>(directory,
-                           passport::PublicPmid::name_type(directory.name()),
+                           passport::PublicPmid::Name(directory.name()),
                            nullptr);
   }
 };
@@ -122,7 +122,7 @@ struct Put<data_store::SureFileStore, Directory> {
 template<typename Storage, typename Directory>
 struct Get {
 
-  NonEmptyString operator()(Storage& storage, const typename Directory::name_type& name) {
+  NonEmptyString operator()(Storage& storage, const typename Directory::Name& name) {
     storage.Get<Directory>(name, nullptr);  // FIXME ...value returned in response_functor
     return NonEmptyString();
   }
@@ -132,7 +132,7 @@ template<typename Directory>
 struct Get<data_store::SureFileStore, Directory> {
   typedef data_store::SureFileStore Storage;
 
-  NonEmptyString operator()(Storage& storage, const typename Directory::name_type& name) {
+  NonEmptyString operator()(Storage& storage, const typename Directory::Name& name) {
     return storage.Get(name);
   }
 };
@@ -140,7 +140,7 @@ struct Get<data_store::SureFileStore, Directory> {
 template<typename Storage, typename Directory>
 struct Delete {
 
-  void operator()(Storage& storage, const typename Directory::name_type& name) {
+  void operator()(Storage& storage, const typename Directory::Name& name) {
     storage.Delete<Directory>(name, nullptr);
   }
 };
@@ -149,7 +149,7 @@ template<typename Directory>
 struct Delete<data_store::SureFileStore, Directory> {
   typedef data_store::SureFileStore Storage;
 
-  void operator()(Storage& storage, const typename Directory::name_type& name) {
+  void operator()(Storage& storage, const typename Directory::Name& name) {
     storage.Delete(name);
   }
 };

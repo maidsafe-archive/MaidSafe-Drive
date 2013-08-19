@@ -30,7 +30,6 @@ License.
 
 #include "maidsafe/common/rsa.h"
 
-#include "maidsafe/nfs/nfs.h"
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/directory_listing_handler.h"
 #include "maidsafe/drive/meta_data.h"

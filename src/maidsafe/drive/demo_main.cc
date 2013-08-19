@@ -31,7 +31,6 @@ License.
 #include "maidsafe/common/utils.h"
 
 #include "maidsafe/data_store/surefile_store.h"
-#include "maidsafe/nfs/nfs.h"
 
 #ifdef WIN32
 #  include "maidsafe/drive/win_drive.h"
@@ -203,7 +202,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (variables_map.count("help")) {
-      LOG(kInfo) << options_description;
+      std::cout << options_description << '\n';
       return 1;
     }
 
