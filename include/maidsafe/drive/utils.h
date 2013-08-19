@@ -23,11 +23,12 @@ License.
 
 #include "boost/filesystem/path.hpp"
 
+#include "maidsafe/data_store/surefile_store.h"
 #include "maidsafe/encrypt/self_encryptor.h"
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/return_codes.h"
-#include "maidsafe/nfs/nfs.h"
+
 
 namespace maidsafe {
 namespace drive {
@@ -103,18 +104,18 @@ template<typename Storage, typename Directory>
 struct Put {
 
   void operator()(Storage& storage, const Directory& directory) {
-    storage.Put(directory.name(), directory.Serialise());
+    storage.Put<Directory>(directory,
+                           passport::PublicPmid::name_type(directory.name()),
+                           nullptr);
   }
 };
 
 template<typename Directory>
-struct Put<nfs::ClientMaidNfs, Directory> {
-  typedef nfs::ClientMaidNfs ClientNfs;
+struct Put<data_store::SureFileStore, Directory> {
+  typedef data_store::SureFileStore Storage;
 
-  void operator()(ClientNfs& storage, const Directory& directory) {
-    storage.Put<Directory>(directory,
-                           passport::PublicPmid::name_type(directory.name()),
-                           nullptr);
+  void operator()(Storage& storage, const Directory& directory) {
+    storage.Put(directory.name(), directory.Serialise());
   }
 };
 
@@ -122,17 +123,17 @@ template<typename Storage, typename Directory>
 struct Get {
 
   NonEmptyString operator()(Storage& storage, const typename Directory::name_type& name) {
-    return storage.Get(name);
+    storage.Get<Directory>(name, nullptr);  // FIXME ...value returned in response_functor
+    return NonEmptyString();
   }
 };
 
 template<typename Directory>
-struct Get<nfs::ClientMaidNfs, Directory> {
-  typedef nfs::ClientMaidNfs ClientNfs;
+struct Get<data_store::SureFileStore, Directory> {
+  typedef data_store::SureFileStore Storage;
 
-  NonEmptyString operator()(ClientNfs& storage, const typename Directory::name_type& name) {
-    storage.Get<Directory>(name, nullptr);  // FIXME ...value returned in response_functor
-    return NonEmptyString();
+  NonEmptyString operator()(Storage& storage, const typename Directory::name_type& name) {
+    return storage.Get(name);
   }
 };
 
@@ -140,16 +141,16 @@ template<typename Storage, typename Directory>
 struct Delete {
 
   void operator()(Storage& storage, const typename Directory::name_type& name) {
-    storage.Delete(name);
+    storage.Delete<Directory>(name, nullptr);
   }
 };
 
 template<typename Directory>
-struct Delete<nfs::ClientMaidNfs, Directory> {
-  typedef nfs::ClientMaidNfs ClientNfs;
+struct Delete<data_store::SureFileStore, Directory> {
+  typedef data_store::SureFileStore Storage;
 
-  void operator()(ClientNfs& storage, const typename Directory::name_type& name) {
-    storage.Delete<Directory>(name, nullptr);
+  void operator()(Storage& storage, const typename Directory::name_type& name) {
+    storage.Delete(name);
   }
 };
 
