@@ -91,7 +91,7 @@ endif()
 # Define MaidSafe libraries and executables                                                        #
 #==================================================================================================#
 ms_add_static_library(drive ${DriveAllFiles})
-target_link_libraries(maidsafe_drive maidsafe_encrypt maidsafe_nfs)
+target_link_libraries(maidsafe_drive maidsafe_encrypt maidsafe_nfs_client)
 if(WIN32)
   if(Cbfs_FOUND)
     ms_add_executable(cbfs_driver "Production" ${InstallerAllFiles})
