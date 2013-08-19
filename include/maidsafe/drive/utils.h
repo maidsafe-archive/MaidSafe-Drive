@@ -113,7 +113,7 @@ struct Put<nfs::ClientMaidNfs, Directory> {
 
   void operator()(ClientNfs& storage, const Directory& directory) {
     storage.Put<Directory>(directory,
-                           passport::PublicPmid::name_type(directory.name()),
+                           passport::PublicPmid::Name(directory.name()),
                            nullptr);
   }
 };
@@ -121,7 +121,7 @@ struct Put<nfs::ClientMaidNfs, Directory> {
 template<typename Storage, typename Directory>
 struct Get {
 
-  NonEmptyString operator()(Storage& storage, const typename Directory::name_type& name) {
+  NonEmptyString operator()(Storage& storage, const typename Directory::Name& name) {
     return storage.Get(name);
   }
 };
@@ -130,7 +130,7 @@ template<typename Directory>
 struct Get<nfs::ClientMaidNfs, Directory> {
   typedef nfs::ClientMaidNfs ClientNfs;
 
-  NonEmptyString operator()(ClientNfs& storage, const typename Directory::name_type& name) {
+  NonEmptyString operator()(ClientNfs& storage, const typename Directory::Name& name) {
     storage.Get<Directory>(name, nullptr);  // FIXME ...value returned in response_functor
     return NonEmptyString();
   }
@@ -139,7 +139,7 @@ struct Get<nfs::ClientMaidNfs, Directory> {
 template<typename Storage, typename Directory>
 struct Delete {
 
-  void operator()(Storage& storage, const typename Directory::name_type& name) {
+  void operator()(Storage& storage, const typename Directory::Name& name) {
     storage.Delete(name);
   }
 };
@@ -148,7 +148,7 @@ template<typename Directory>
 struct Delete<nfs::ClientMaidNfs, Directory> {
   typedef nfs::ClientMaidNfs ClientNfs;
 
-  void operator()(ClientNfs& storage, const typename Directory::name_type& name) {
+  void operator()(ClientNfs& storage, const typename Directory::Name& name) {
     storage.Delete<Directory>(name, nullptr);
   }
 };
