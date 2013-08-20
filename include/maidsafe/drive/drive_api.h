@@ -18,6 +18,7 @@ License.
 
 #include <tuple>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 #include <mutex>
@@ -281,7 +282,8 @@ void DriveInUserSpace<Storage>::GetMetaData(const fs::path& relative_path,
 }
 
 template<typename Storage>
-void DriveInUserSpace<Storage>::UpdateParent(FileContext<Storage>* file_context, const fs::path& parent_path) {
+void DriveInUserSpace<Storage>::UpdateParent(FileContext<Storage>* file_context,
+                                             const fs::path& parent_path) {
   directory_listing_handler_->UpdateParentDirectoryListing(parent_path, *file_context->meta_data);
   return;
 }
@@ -327,7 +329,8 @@ void DriveInUserSpace<Storage>::RenameFile(const fs::path& old_relative_path,
 }
 
 template<typename Storage>
-bool DriveInUserSpace<Storage>::TruncateFile(FileContext<Storage>* file_context, const uint64_t& size) {
+bool DriveInUserSpace<Storage>::TruncateFile(FileContext<Storage>* file_context,
+                                             const uint64_t& size) {
   if (!file_context->self_encryptor) {
     file_context->self_encryptor.reset(
         new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map, storage_));
@@ -403,7 +406,8 @@ void DriveInUserSpace<Storage>::InsertDataMap(const fs::path& relative_path,
 // **************************** Hidden Files ***********************************
 
 template<typename Storage>
-void DriveInUserSpace<Storage>::ReadHiddenFile(const fs::path& relative_path, std::string* content) {
+void DriveInUserSpace<Storage>::ReadHiddenFile(const fs::path& relative_path,
+                                               std::string* content) {
   if (relative_path.empty() || (relative_path.extension() != kMsHidden) || !content)
     ThrowError(CommonErrors::invalid_parameter);
 
@@ -496,7 +500,8 @@ void DriveInUserSpace<Storage>::SearchHiddenFiles(const fs::path &relative_path,
 // ***************************** File Notes ************************************
 
 template<typename Storage>
-void DriveInUserSpace<Storage>::GetNotes(const fs::path& relative_path, std::vector<std::string>* notes) {
+void DriveInUserSpace<Storage>::GetNotes(const fs::path& relative_path,
+                                         std::vector<std::string>* notes) {
   LOG(kInfo) << "GetNotes - " << relative_path;
   std::lock_guard<std::mutex> guard(api_mutex_);
   if (relative_path.empty() || !notes)

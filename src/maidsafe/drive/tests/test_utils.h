@@ -42,7 +42,7 @@ License.
 namespace fs = boost::filesystem;
 namespace bptime = boost::posix_time;
 
-namespace maidsafe { 
+namespace maidsafe {
 namespace drive {
 
 #ifdef WIN32
@@ -69,7 +69,6 @@ enum TestOperationCode {
 template<typename Storage>
 class DerivedDriveInUserSpace : public Drive<Storage>::TestDriveInUserSpace {
  public:
-
   DerivedDriveInUserSpace(Storage& storage,
                           const passport::Maid& default_maid,
                           const Identity& unique_user_id,

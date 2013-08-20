@@ -33,6 +33,7 @@ License.
 
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/log.h"
+#include "maidsafe/common/profiler.h"
 #include "maidsafe/common/utils.h"
 
 #include "maidsafe/encrypt/self_encryptor.h"
@@ -230,6 +231,7 @@ DirectoryListingHandler<Storage>::~DirectoryListingHandler() {}
 template<typename Storage>
 typename DirectoryListingHandler<Storage>::DirectoryType
     DirectoryListingHandler<Storage>::GetFromPath(const boost::filesystem::path& relative_path) {
+  SCOPED_PROFILE
   int directory_type(GetDirectoryType(relative_path));
   // Get root directory listing.
   DirectoryData directory(RetrieveFromStorage(unique_user_id_, root_parent_id_, kOwnerValue));
@@ -261,6 +263,7 @@ void DirectoryListingHandler<Storage>::AddElement(const boost::filesystem::path&
                                                   const MetaData& meta_data,
                                                   DirectoryId* grandparent_id,
                                                   DirectoryId* parent_id) {
+  SCOPED_PROFILE
   if (!CanAdd(relative_path))
     ThrowError(CommonErrors::invalid_parameter);
 
@@ -312,6 +315,7 @@ void DirectoryListingHandler<Storage>::AddElement(const boost::filesystem::path&
 template<typename Storage>
 void DirectoryListingHandler<Storage>::DeleteElement(const boost::filesystem::path& relative_path,
                                                      MetaData& meta_data) {
+  SCOPED_PROFILE
   DirectoryType grandparent, parent;
   MetaData parent_meta_data;
   GetParentAndGrandparent(relative_path, &grandparent, &parent, &parent_meta_data);
@@ -352,6 +356,7 @@ void DirectoryListingHandler<Storage>::RenameElement(
         const boost::filesystem::path& new_relative_path,
         MetaData& meta_data,
         int64_t& reclaimed_space) {
+  SCOPED_PROFILE
   if (old_relative_path == new_relative_path)
     return;
   if (!CanRename(old_relative_path, new_relative_path))
@@ -550,6 +555,7 @@ template<typename Storage>
 void DirectoryListingHandler<Storage>::UpdateParentDirectoryListing(
         const boost::filesystem::path& parent_path,
         MetaData meta_data) {
+  SCOPED_PROFILE
   DirectoryType parent = GetFromPath(parent_path);
   parent.first.listing->UpdateChild(meta_data, true);
   PutToStorage(parent);
@@ -754,8 +760,9 @@ void DirectoryListingHandler<Storage>::RetrieveDataMap(const DirectoryId& parent
 // directory, it can be deleted.
 #ifndef MAIDSAFE_WIN32
 template<typename Storage>
-bool DirectoryListingHandler<Storage>::RenameTargetCanBeRemoved(const boost::filesystem::path& new_relative_path,
-                                                                const MetaData& target_meta_data) {
+bool DirectoryListingHandler<Storage>::RenameTargetCanBeRemoved(
+    const boost::filesystem::path& new_relative_path,
+    const MetaData& target_meta_data) {
   bool can_be_removed = !IsDirectory(target_meta_data);
   if (!can_be_removed) {
     DirectoryListingPtr target_directory_listing = GetFromPath(new_relative_path).first.listing;
@@ -767,7 +774,8 @@ bool DirectoryListingHandler<Storage>::RenameTargetCanBeRemoved(const boost::fil
 #endif
 
 template<typename Storage>
-int DirectoryListingHandler<Storage>::GetDirectoryType(const boost::filesystem::path& relative_path) {
+int DirectoryListingHandler<Storage>::GetDirectoryType(
+    const boost::filesystem::path& relative_path) {
   if (relative_path == kEmptyPath || relative_path == kRoot)
     return kOwnerValue;
   boost::filesystem::path::iterator it(relative_path.begin());
@@ -796,6 +804,7 @@ bool DirectoryListingHandler<Storage>::CanAdd(const boost::filesystem::path& rel
 
 template<typename Storage>
 bool DirectoryListingHandler<Storage>::CanDelete(const fs::path& relative_path) {
+  SCOPED_PROFILE
   int directory_type(GetDirectoryType(relative_path));
   if (directory_type == kGroupValue
       || (directory_type == kWorldValue && !world_is_writeable_)
