@@ -57,15 +57,14 @@ void CtrlCHandler(int /*value*/) {
 
 }  // unnamed namespace
 
-
-#ifdef WIN32
 template<typename Storage>
 struct Drive {
+#ifdef WIN32
   typedef CbfsDriveInUserSpace<Storage> DemoDrive;
-};
 #else
-typedef FuseDriveInUserSpace DemoDrive;
+  typedef FuseDriveInUserSpace<Storage> DemoDrive;
 #endif
+};
 
 int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   fs::path storage_path(chunk_dir / "store");
@@ -102,11 +101,9 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   if (first_run)
     BOOST_VERIFY(WriteFile(id_path, drive.root_parent_id()));
 
-#ifdef WIN32
   g_unmount_functor = [&] { drive.Unmount(max_space, used_space); };
   signal(SIGINT, CtrlCHandler);
   drive.WaitUntilUnMounted();
-#endif
 
   return 0;
 }
