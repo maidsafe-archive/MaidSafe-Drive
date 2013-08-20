@@ -13,6 +13,8 @@ implied. See the License for the specific language governing permissions and lim
 License.
 */
 
+#include <signal.h>
+
 #include <functional>
 #include <iostream>  // NOLINT
 #include <memory>
@@ -45,14 +47,24 @@ namespace po = boost::program_options;
 namespace maidsafe {
 namespace drive {
 
-#ifdef WIN32
+namespace {
+
+std::function<void()> g_unmount_functor;
+
+void CtrlCHandler(int /*value*/) {
+  g_unmount_functor();
+}
+
+}  // unnamed namespace
+
 template<typename Storage>
 struct Drive {
+#ifdef WIN32
   typedef CbfsDriveInUserSpace<Storage> DemoDrive;
-};
 #else
-typedef FuseDriveInUserSpace DemoDrive;
+  typedef FuseDriveInUserSpace<Storage> DemoDrive;
 #endif
+};
 
 int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   fs::path storage_path(chunk_dir / "store");
@@ -74,21 +86,19 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   int64_t max_space(std::numeric_limits<int64_t>::max()), used_space(0);
   Identity unique_user_id(Identity(std::string(64, 'a')));
   typedef Drive<maidsafe::data_store::SureFileStore>::DemoDrive Drive;
-  typedef std::unique_ptr<Drive> DrivePtr;
-  DrivePtr drive(new Drive(storage,
-                           unique_user_id,
-                           root_parent_id,
-                           mount_dir,
-                           "MaidSafeDrive",
-                           max_space,
-                           used_space));
+  Drive drive(storage,
+              unique_user_id,
+              root_parent_id,
+              mount_dir,
+              "MaidSafeDrive",
+              max_space,
+              used_space);
   if (first_run)
-    BOOST_VERIFY(WriteFile(id_path, drive->root_parent_id()));
+    BOOST_VERIFY(WriteFile(id_path, drive.root_parent_id()));
 
-#ifdef WIN32
-  drive->WaitUntilUnMounted();
-  drive->Unmount(max_space, used_space);
-#endif
+  g_unmount_functor = [&] { drive.Unmount(max_space, used_space); };
+  signal(SIGINT, CtrlCHandler);
+  drive.WaitUntilUnMounted();
 
   return 0;
 }
@@ -158,12 +168,10 @@ int main(int argc, char *argv[]) {
   try {
     po::options_description options_description("Allowed options");
     options_description.add_options()
-        ("help,H", "print this help message")
+        ("help,h", "print this help message")
         ("chunkdir,C", po::value<std::string>(), "set directory to store chunks")
         ("mountdir,D", po::value<std::string>(), "set virtual drive name")
-        ("checkdata", "check all data (metadata and chunks)")
-        ("start", "start MaidSafeDrive (mount drive) [default]")
-        ("stop", "stop MaidSafeDrive (unmount drive) [not implemented]"); // dunno if we can from here!
+        ("checkdata", "check all data (metadata and chunks)");
 
     po::variables_map variables_map;
     po::store(po::command_line_parser(argc, argv).options(options_description).allow_unregistered().
@@ -197,7 +205,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (variables_map.count("help")) {
-      LOG(kInfo) << options_description;
+      std::cout << options_description << '\n';
       return 1;
     }
 

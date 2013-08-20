@@ -56,7 +56,6 @@ passport::Maid* g_default_maid;
 template<typename Storage>
 class ApiTestEnvironment : public testing::Environment {
  public:
-
   explicit ApiTestEnvironment(std::string test_directory)
       : root_test_dir_(new fs::path(test_directory)),
         main_test_dir_(maidsafe::test::CreateTestPath((*root_test_dir_).string())),
@@ -137,7 +136,8 @@ class ApiTestEnvironment : public testing::Environment {
     if (virtual_filesystem_test_) {
       int64_t max_space, used_space;
 #ifdef WIN32
-      std::static_pointer_cast<DerivedDriveInUserSpace<Storage>>(drive_)->Unmount(max_space, used_space);
+      std::static_pointer_cast<DerivedDriveInUserSpace<Storage>>(drive_)->Unmount(max_space,
+                                                                                  used_space);
 #else
       drive_->Unmount(max_space, used_space);
       drive_->WaitUntilUnMounted();
@@ -1491,13 +1491,13 @@ REGISTER_TYPED_TEST_CASE_P(CallbacksApiTest,
                            FUNC_CopyFileRenameThenRead,
                            FUNC_CopyFileDeleteThenTryToRead,
                            BEH_CreateFileOnDriveThenRead,
-                           BEH_CopyFileModifyThenRead,                           
+                           BEH_CopyFileModifyThenRead,
                            FUNC_CheckFailures,
-                           FUNC_FunctionalTest,                           
+                           FUNC_FunctionalTest,
                            FUNC_BENCHMARK_CopyThenReadManySmallFiles,
-                           FUNC_BENCHMARK_CopyThenReadLargeFile/*,
-                           BEH_GetAndInsertDataMap,
-                           BEH_GetAndInsertHiddenDataMap*/);
+                           FUNC_BENCHMARK_CopyThenReadLargeFile);
+//                           BEH_GetAndInsertDataMap,
+//                           BEH_GetAndInsertHiddenDataMap*/);
 
 typedef ::testing::Types<maidsafe::data_store::SureFileStore> StoreTypes;
 INSTANTIATE_TYPED_TEST_CASE_P(Drive, CallbacksApiTest, StoreTypes);
@@ -1517,7 +1517,8 @@ int main(int argc, char **argv) {
       new maidsafe::drive::test::ApiTestEnvironment("MaidSafe_Test_Disk"));
 #else
   testing::AddGlobalTestEnvironment(
-      new maidsafe::drive::test::ApiTestEnvironment<maidsafe::data_store::SureFileStore>("MaidSafe_Test_Drive"));
+      new maidsafe::drive::test::ApiTestEnvironment<maidsafe::data_store::SureFileStore>(
+          "MaidSafe_Test_Drive"));
 #endif
   int result(RUN_ALL_TESTS());
   int test_count = testing::UnitTest::GetInstance()->test_to_run_count();

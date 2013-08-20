@@ -102,10 +102,9 @@ namespace detail {
 
 template<typename Storage, typename Directory>
 struct Put {
-
   void operator()(Storage& storage, const Directory& directory) {
     storage.Put<Directory>(directory,
-                           passport::PublicPmid::name_type(directory.name()),
+                           passport::PublicPmid::Name(directory.name()),
                            nullptr);
   }
 };

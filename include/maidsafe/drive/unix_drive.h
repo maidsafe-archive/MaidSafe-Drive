@@ -44,21 +44,17 @@ namespace fs = boost::filesystem;
 
 namespace maidsafe {
 
-namespace priv {
-namespace chunk_store { class RemoteChunkStore; }
-}  // namespace priv
-
 namespace drive {
 
-template <typename Storage>
+template<typename Storage>
 class FuseDriveInUserSpace;
 
-template <typename Storage>
+template<typename Storage>
 struct Global {
   static FuseDriveInUserSpace<Storage>* g_fuse_drive;
 };
 
-template <typename Storage>
+template<typename Storage>
 FuseDriveInUserSpace<Storage>* Global<Storage>::g_fuse_drive;
 
 template<typename Storage>
@@ -233,6 +229,7 @@ FuseDriveInUserSpace<Storage>::FuseDriveInUserSpace(
     LOG(kError) << "Constructor Failed to initialise drive.  Result: " << result;
     ThrowError(LifeStuffErrors::kCreateStorageError);
   }
+  Mount();
 }
 
 template<typename Storage>
@@ -362,19 +359,19 @@ int FuseDriveInUserSpace<Storage>::Mount() {
 
   DriveInUserSpace<Storage>::SetMountState(true);
 
-  int res;
-  if (multithreaded)
+//  int res;
+//  if (multithreaded)
 //  fuse_event_loop_thread_ = boost::move(boost::thread(&fuse_loop_mt, fuse_));
-    res = fuse_loop_mt(fuse_);
-  else
-  //  fuse_event_loop_thread_ = boost::move(boost::thread(&fuse_loop, fuse_));
-    res = fuse_loop(fuse_);
+//    res = fuse_loop_mt(fuse_);
+//  else
+    fuse_event_loop_thread_ = boost::move(boost::thread(&fuse_loop, fuse_));
+//    res = fuse_loop(fuse_);
 
-  if (res != 0) {
-    LOG(kError) << "Fuse Loop result: " << res;
-    DriveInUserSpace<Storage>::SetMountState(false);
-    return kFuseFailedToMount;
-  }
+//  if (res != 0) {
+//    LOG(kError) << "Fuse Loop result: " << res;
+//    DriveInUserSpace<Storage>::SetMountState(false);
+//    return kFuseFailedToMount;
+//  }
 
   return kSuccess;
 }

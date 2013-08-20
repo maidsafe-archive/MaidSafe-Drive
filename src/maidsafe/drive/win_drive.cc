@@ -29,11 +29,10 @@ namespace drive {
 #  error CBFS_KEY must be defined.
 #endif
 
-fs::path RelativePath(const boost::filesystem::path &mount_path,
-                      const boost::filesystem::path &absolute_path) {
-  if (absolute_path.root_name() != mount_path.root_name()
-          && absolute_path.root_name() != mount_path)
-    return boost::filesystem::path();
+fs::path RelativePath(const fs::path& mount_path, const fs::path& absolute_path) {
+  if (absolute_path.root_name() != mount_path.root_name() &&
+      absolute_path.root_name() != mount_path)
+    return fs::path();
   return absolute_path.root_directory() / absolute_path.relative_path();
 }
 
