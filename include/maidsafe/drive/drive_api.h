@@ -30,7 +30,6 @@ License.
 
 #include "maidsafe/common/rsa.h"
 
-#include "maidsafe/nfs/nfs.h"
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/directory_listing_handler.h"
 #include "maidsafe/drive/meta_data.h"
@@ -58,7 +57,6 @@ class DriveInUserSpace {
   typedef bs2::signal<void(const fs::path&, OpType op)> NotifyDirectoryChangeSignal;
 
  public:
-  typedef passport::Maid Maid;
 
   // client_nfs: Enables network file operations.
   // data_store: An alternative to client_nfs for local testing.
@@ -69,7 +67,6 @@ class DriveInUserSpace {
   // max_space: Space available for data storage.
   // used_space: Space taken on network storing data.
   DriveInUserSpace(Storage& data_store,
-                   const Maid& maid,
                    const Identity& unique_user_id,
                    const std::string& root_parent_id,
                    const fs::path& mount_dir,
@@ -170,7 +167,6 @@ class DriveInUserSpace {
 
   enum DriveStage { kUnInitialised, kInitialised, kMounted, kUnMounted, kCleaned } drive_stage_;
   Storage& storage_;
-  const Maid maid_;
   std::shared_ptr<DirectoryListingHandler<Storage>> directory_listing_handler_;
   fs::path mount_dir_;
   int64_t max_space_, used_space_;
@@ -195,7 +191,6 @@ class DriveInUserSpace {
 
 template<typename Storage>
 DriveInUserSpace<Storage>::DriveInUserSpace(Storage& storage,
-                                            const Maid& maid,
                                             const Identity& unique_user_id,
                                             const std::string& root_parent_id,
                                             const fs::path& mount_dir,
@@ -203,9 +198,7 @@ DriveInUserSpace<Storage>::DriveInUserSpace(Storage& storage,
                                             const int64_t& used_space)
     : drive_stage_(kUnInitialised),
       storage_(storage),
-      maid_(maid),
       directory_listing_handler_(new DirectoryListingHandler<Storage>(storage,
-                                                                      maid,
                                                                       unique_user_id,
                                                                       root_parent_id)),
       mount_dir_(mount_dir),

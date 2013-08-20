@@ -75,10 +75,8 @@ boost::filesystem::path RelativePath(const boost::filesystem::path &mount_dir,
 template<typename Storage>
 class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
  public:
-  typedef passport::Maid Maid;
 
   CbfsDriveInUserSpace(Storage& storage,
-                       const Maid& maid,
                        const Identity& unique_user_id,
                        const std::string& root_parent_id,
                        const boost::filesystem::path &mount_dir,
@@ -240,7 +238,6 @@ class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
 
 template<typename Storage>
 CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(Storage& storage,
-                                                    const Maid& maid,
                                                     const Identity& unique_user_id,
                                                     const std::string& root_parent_id,
                                                     const fs::path &mount_dir,
@@ -248,7 +245,6 @@ CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(Storage& storage,
                                                     const int64_t &max_space,
                                                     const int64_t &used_space)
     : DriveInUserSpace(storage,
-                       maid,
                        unique_user_id,
                        root_parent_id,
                        mount_dir,

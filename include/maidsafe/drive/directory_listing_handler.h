@@ -81,7 +81,6 @@ class DirectoryListingHandler {
   enum { kOwnerValue, kGroupValue, kWorldValue, kInvalidValue };
 
   DirectoryListingHandler(Storage& storage,
-                          const Maid& maid,
                           const Identity& unique_user_id,
                           std::string root_parent_id);
   // Virtual destructor to allow inheritance in testing.
@@ -155,7 +154,6 @@ class DirectoryListingHandler {
 
  private:
   Storage& storage_;
-  const Maid kMaid_;
   Identity unique_user_id_, root_parent_id_;
   boost::filesystem::path relative_root_;
   bool world_is_writeable_;
@@ -164,11 +162,9 @@ class DirectoryListingHandler {
 
 template<typename Storage>
 DirectoryListingHandler<Storage>::DirectoryListingHandler(Storage& storage,
-                                                          const Maid& maid,
                                                           const Identity& unique_user_id,
                                                           std::string root_parent_id)
     : storage_(storage),
-      kMaid_(maid),
       unique_user_id_(),
       root_parent_id_(),
       relative_root_(boost::filesystem::path("/").make_preferred()),
@@ -669,14 +665,12 @@ void DirectoryListingHandler<Storage>::PutToStorage(const DirectoryType& directo
   if (directory.second == kOwnerValue) {
     // Store the encrypted datamap.
     OwnerDirectory owner_directory(OwnerDirectory::Name(directory.first.listing->directory_id()),
-                                   encrypted_data_map,
-                                   kMaid_.private_key());
+                                   encrypted_data_map);
     detail::Put<Storage, OwnerDirectory>()(storage_, owner_directory);
   } else if (directory.second == kGroupValue) {
     // Store the encrypted datamap.
     GroupDirectory group_directory(GroupDirectory::Name(directory.first.listing->directory_id()),
-                                   encrypted_data_map,
-                                   kMaid_.private_key());
+                                   encrypted_data_map);
     detail::Put<Storage, GroupDirectory>()(storage_, group_directory);
   } else {
     ThrowError(CommonErrors::not_a_directory);

@@ -31,7 +31,6 @@ License.
 #include "maidsafe/common/utils.h"
 
 #include "maidsafe/data_store/surefile_store.h"
-#include "maidsafe/nfs/nfs.h"
 
 #ifdef WIN32
 #  include "maidsafe/drive/win_drive.h"
@@ -60,10 +59,6 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   DiskUsage disk_usage(1048576000);
   MemoryUsage memory_usage(0);
   maidsafe::data_store::SureFileStore storage(storage_path, disk_usage);
-  maidsafe::passport::Maid::signer_type maid_signer;
-  maidsafe::passport::Maid maid(maid_signer);
-//  routing::Routing routing(maid);
-//  nfs::ClientMaidNfs client_nfs(routing, maid);
 
   boost::system::error_code error_code;
   if (!fs::exists(chunk_dir, error_code))
@@ -81,7 +76,6 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   typedef Drive<maidsafe::data_store::SureFileStore>::DemoDrive Drive;
   typedef std::unique_ptr<Drive> DrivePtr;
   DrivePtr drive(new Drive(storage,
-                           maid,
                            unique_user_id,
                            root_parent_id,
                            mount_dir,
