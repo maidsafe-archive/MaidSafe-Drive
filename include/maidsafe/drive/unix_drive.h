@@ -60,9 +60,7 @@ FuseDriveInUserSpace<Storage>* Global<Storage>::g_fuse_drive;
 template<typename Storage>
 class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
  public:
-  typedef passport::Maid Maid;
   FuseDriveInUserSpace(Storage& storage,
-                       const Maid& maid,
                        const Identity& unique_user_id,
                        const std::string& root_parent_id,
                        const fs::path &mount_dir,
@@ -203,7 +201,6 @@ const bool FuseDriveInUserSpace<Storage>::kAllowMsHidden_(false);
 template<typename Storage>
 FuseDriveInUserSpace<Storage>::FuseDriveInUserSpace(
     Storage&  storage,
-    const Maid& maid,
     const Identity& unique_user_id,
     const std::string& root_parent_id,
     const fs::path& mount_dir,
@@ -211,18 +208,17 @@ FuseDriveInUserSpace<Storage>::FuseDriveInUserSpace(
     const int64_t& max_space,
     const int64_t& used_space)
     : DriveInUserSpace<Storage>::DriveInUserSpace(storage,
-                       maid,
-                       unique_user_id,
-                       root_parent_id,
-                       mount_dir,
-                       max_space,
-                       used_space),
-          fuse_(nullptr),
-          fuse_channel_(nullptr),
-          fuse_mountpoint_(nullptr),
-          drive_name_(drive_name.string()),
-          fuse_event_loop_thread_(),
-          open_files_() {
+                                                  unique_user_id,
+                                                  root_parent_id,
+                                                  mount_dir,
+                                                  max_space,
+                                                  used_space),
+      fuse_(nullptr),
+      fuse_channel_(nullptr),
+      fuse_mountpoint_(nullptr),
+      drive_name_(drive_name.string()),
+      fuse_event_loop_thread_(),
+      open_files_() {
   Global<Storage>::g_fuse_drive = this;
   int result = Init();
   if (result != kSuccess) {

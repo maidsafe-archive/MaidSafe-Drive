@@ -529,11 +529,11 @@ void DriveInUserSpace<Storage>::AddNote(const fs::path& relative_path, const std
 
 // ************************** Signals Handling *********************************
 
-template<typename Storage>
-bs2::connection DriveInUserSpace<Storage>::ConnectToDriveChanged(DriveChangedSlotPtr slot) {
-  std::lock_guard<std::mutex> guard(api_mutex_);
-  return drive_changed_signal_.connect(DriveChangedSignal::slot_type(*slot).track_foreign(slot));
-}
+//template<typename Storage>
+//bs2::connection DriveInUserSpace<Storage>::ConnectToDriveChanged(DriveChangedSlotPtr slot) {
+//  std::lock_guard<std::mutex> guard(api_mutex_);
+//  return drive_changed_signal_.connect(DriveChangedSignal::slot_type(*slot).track_foreign(slot));
+//}
 
 }  // namespace drive
 }  // namespace maidsafe
