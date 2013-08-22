@@ -26,6 +26,8 @@ namespace maidsafe {
 
 namespace drive {
 
+namespace detail {
+
 namespace test {
 
 void FilesMatchMask(const std::vector<fs::path> &all_files,
@@ -204,6 +206,8 @@ TEST(UtilsTest, BEH_MatchesMask) {
 }
 
 }  // namespace test
+
+}  // namespace detail
 
 }  // namespace drive
 

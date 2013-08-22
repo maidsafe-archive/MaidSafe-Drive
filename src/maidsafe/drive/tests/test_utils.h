@@ -39,24 +39,28 @@ License.
 #  include "maidsafe/drive/unix_drive.h"
 #endif
 
+
 namespace fs = boost::filesystem;
 namespace bptime = boost::posix_time;
 
 namespace maidsafe {
+
 namespace drive {
 
-#ifdef WIN32
-#  ifdef HAVE_CBFS
+namespace detail {
+
 template<typename Storage>
 struct Drive {
+#ifdef WIN32
+#  ifdef HAVE_CBFS
   typedef CbfsDriveInUserSpace<Storage> TestDriveInUserSpace;
-};
 #  else
-typedef DummyWinDriveInUserSpace TestDriveInUserSpace;
+  typedef DummyWinDriveInUserSpace TestDriveInUserSpace;
 #  endif
 #else
-typedef FuseDriveInUserSpace TestDriveInUserSpace;
+  typedef FuseDriveInUserSpace<Storage> TestDriveInUserSpace;
 #endif
+};
 
 namespace test {
 
@@ -72,7 +76,7 @@ class DerivedDriveInUserSpace : public Drive<Storage>::TestDriveInUserSpace {
   DerivedDriveInUserSpace(Storage& storage,
                           const passport::Maid& default_maid,
                           const Identity& unique_user_id,
-                          const std::string& root_parent_id,
+                          const Identity& root_parent_id,
                           const boost::filesystem::path &mount_dir,
                           const boost::filesystem::path &drive_name,
                           const int64_t& max_space,
@@ -118,7 +122,10 @@ uint64_t TotalSize(encrypt::DataMapPtr data_map);
 
 }  // namespace test
 
+}  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_TESTS_TEST_UTILS_H_

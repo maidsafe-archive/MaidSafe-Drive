@@ -24,14 +24,16 @@ License.
 #include "boost/filesystem/path.hpp"
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/meta_data.h"
-#include "maidsafe/drive/return_codes.h"
 
 
 namespace fs = boost::filesystem;
 namespace bptime= boost::posix_time;
 
 namespace maidsafe {
+
 namespace drive {
+
+namespace detail {
 
 class DirectoryListing;
 
@@ -77,7 +79,10 @@ class DirectoryListing {
   std::set<MetaData>::const_iterator children_itr_;
 };
 
+}  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_DIRECTORY_LISTING_H_

@@ -31,8 +31,12 @@ License.
 #include "maidsafe/drive/directory_listing.h"
 #include "maidsafe/drive/proto_structs.pb.h"
 
+
 namespace maidsafe {
+
 namespace drive {
+
+namespace detail {
 
 DirectoryListing::DirectoryListing(const DirectoryId& directory_id)
     : directory_id_(directory_id),
@@ -215,5 +219,8 @@ bool MetaDataHasName(const MetaData& meta_data, const fs::path& name) {
 
 }  // namespace meta_data_ops
 
+}  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe

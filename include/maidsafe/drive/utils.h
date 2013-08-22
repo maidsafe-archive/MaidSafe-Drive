@@ -27,17 +27,18 @@ License.
 #include "maidsafe/encrypt/self_encryptor.h"
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/meta_data.h"
-#include "maidsafe/drive/return_codes.h"
 
 
 namespace maidsafe {
+
 namespace drive {
 
+namespace detail {
 
 static const uint32_t kDirectorySize = 4096;
 
-template<typename Storage> struct FileContext;
-template<typename Storage> class DirectoryListingHandler;
+template<typename Storage>
+class DirectoryListingHandler;
 
 template<typename Storage>
 struct FileContext {
@@ -98,14 +99,10 @@ bool ExcludedFilename(const boost::filesystem::path& path);
 bool MatchesMask(std::wstring mask, const boost::filesystem::path& file_name);
 bool SearchesMask(std::wstring mask, const boost::filesystem::path& file_name);
 
-namespace detail {
-
 template<typename Storage, typename Directory>
 struct Put {
   void operator()(Storage& storage, const Directory& directory) {
-    storage.Put<Directory>(directory,
-                           passport::PublicPmid::Name(directory.name()),
-                           nullptr);
+    storage.Put(directory.name(), directory.Serialise(), nullptr);
   }
 };
 
@@ -121,7 +118,7 @@ struct Put<data_store::SureFileStore, Directory> {
 template<typename Storage, typename Directory>
 struct Get {
   NonEmptyString operator()(Storage& storage, const typename Directory::Name& name) {
-    storage.Get<Directory>(name, nullptr);  // FIXME ...value returned in response_functor
+    storage.Get(name, nullptr);  // FIXME ...value returned in response_functor
     return NonEmptyString();
   }
 };
@@ -138,7 +135,7 @@ struct Get<data_store::SureFileStore, Directory> {
 template<typename Storage, typename Directory>
 struct Delete {
   void operator()(Storage& storage, const typename Directory::Name& name) {
-    storage.Delete<Directory>(name, nullptr);
+    storage.Delete(name, nullptr);
   }
 };
 
@@ -154,6 +151,7 @@ struct Delete<data_store::SureFileStore, Directory> {
 }  // namespace detail
 
 }  // namespace drive
+
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_UTILS_H_

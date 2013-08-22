@@ -35,14 +35,17 @@ template<typename Storage> class SelfEncryptor;
 
 namespace drive {
 
-class DirectoryListing;
 struct MetaData;
+typedef Identity DirectoryId;
+
+namespace detail {
+
+class DirectoryListing;
 
 enum OpType { kCreated, kRenamed, kAdded, kRemoved, kMoved, kModified };
 
 typedef std::shared_ptr<encrypt::DataMap> DataMapPtr;
 
-typedef Identity DirectoryId;
 typedef std::shared_ptr<DirectoryId> DirectoryIdPtr;
 typedef std::shared_ptr<DirectoryListing> DirectoryListingPtr;
 
@@ -59,7 +62,10 @@ testing::AssertionResult DirectoriesMatch(DirectoryListingPtr directory1,
                                           DirectoryListingPtr directory2);
 }  // namespace test
 
+}  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_CONFIG_H_

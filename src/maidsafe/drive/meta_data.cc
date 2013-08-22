@@ -22,7 +22,6 @@ License.
 #include "maidsafe/common/utils.h"
 
 #include "maidsafe/drive/proto_structs.pb.h"
-#include "maidsafe/drive/return_codes.h"
 #include "maidsafe/drive/utils.h"
 
 

@@ -22,11 +22,12 @@ License.
 #include "maidsafe/common/test.h"
 #include "maidsafe/common/log.h"
 
-#include "maidsafe/drive/return_codes.h"
 
 namespace maidsafe {
 
 namespace drive {
+
+namespace detail {
 
 namespace test {
 
@@ -266,6 +267,8 @@ uint64_t TotalSize(encrypt::DataMapPtr data_map) {
 }
 
 }  // namespace test
+
+}  // namespace detail
 
 }  // namespace drive
 

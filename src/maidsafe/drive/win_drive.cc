@@ -22,7 +22,10 @@ License.
 
 
 namespace maidsafe {
+
 namespace drive {
+
+namespace detail {
 
 #ifndef CBFS_KEY
 #  error CBFS_KEY must be defined.
@@ -47,5 +50,8 @@ void ErrorMessage(const std::string &method_name, ECBFSError error) {
   LOG(kError) << "Cbfs::" << method_name << ": " << WstringToString(error.Message());
 }
 
+}  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe

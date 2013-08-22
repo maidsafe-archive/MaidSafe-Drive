@@ -17,7 +17,10 @@ License.
 
 
 namespace maidsafe {
+
 namespace drive {
+
+namespace detail {
 
 #ifdef __MSVC__
 const boost::filesystem::path kMsHidden(L".ms_hidden");
@@ -32,5 +35,8 @@ const boost::filesystem::path kGroup("Group");
 const boost::filesystem::path kWorld("World");
 const boost::filesystem::path kServices("Services");
 
+}  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe

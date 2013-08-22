@@ -39,7 +39,10 @@ License.
 
 
 namespace maidsafe {
+
 namespace drive {
+
+namespace detail {
 
 template<typename Storage>
 class CbfsDriveInUserSpace;
@@ -81,7 +84,7 @@ class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
  public:
   CbfsDriveInUserSpace(Storage& storage,
                        const Identity& unique_user_id,
-                       const std::string& root_parent_id,
+                       const Identity& root_parent_id,
                        const boost::filesystem::path& mount_dir,
                        const boost::filesystem::path& drive_name,
                        const int64_t& max_space,
@@ -242,7 +245,7 @@ class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
 template<typename Storage>
 CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(Storage& storage,
                                                     const Identity& unique_user_id,
-                                                    const std::string& root_parent_id,
+                                                    const Identity& root_parent_id,
                                                     const fs::path &mount_dir,
                                                     const fs::path &drive_name,
                                                     const int64_t &max_space,
@@ -1207,7 +1210,10 @@ void CbfsDriveInUserSpace<Storage>::SetNewAttributes(FileContext<Storage>* file_
   }
 }
 
+}  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_WIN_DRIVE_H_

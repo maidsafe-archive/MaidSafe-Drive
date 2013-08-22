@@ -25,8 +25,12 @@ License.
 #include "maidsafe/drive/directory_listing.h"
 #include "maidsafe/drive/meta_data.h"
 
+
 namespace maidsafe {
+
 namespace drive {
+
+namespace detail {
 
 bool ExcludedFilename(const fs::path& path) {
   std::string file_name(path.filename().stem().string());
@@ -130,5 +134,8 @@ bool SearchesMask(std::wstring mask, const fs::path& file_name) {
   }
 }
 
+}  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe

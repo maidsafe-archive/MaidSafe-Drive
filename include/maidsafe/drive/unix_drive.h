@@ -48,6 +48,8 @@ namespace maidsafe {
 
 namespace drive {
 
+namespace detail {
+
 template<typename Storage>
 class FuseDriveInUserSpace;
 
@@ -64,7 +66,7 @@ class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
  public:
   FuseDriveInUserSpace(Storage& storage,
                        const Identity& unique_user_id,
-                       const std::string& root_parent_id,
+                       const Identity& root_parent_id,
                        const fs::path &mount_dir,
                        const fs::path &drive_name,
                        const int64_t &max_space,
@@ -201,7 +203,7 @@ template<typename Storage>
 FuseDriveInUserSpace<Storage>::FuseDriveInUserSpace(
     Storage&  storage,
     const Identity& unique_user_id,
-    const std::string& root_parent_id,
+    const Identity& root_parent_id,
     const fs::path& mount_dir,
     const fs::path& drive_name,
     const int64_t& max_space,
@@ -374,7 +376,7 @@ int FuseDriveInUserSpace<Storage>::Mount() {
 }
 
 template<typename Storage>
-bool FuseDriveInUserSpace<Storage>::Unmount(int64_t &max_space, int64_t &used_space) {
+bool FuseDriveInUserSpace<Storage>::Unmount(int64_t& /*max_space*/, int64_t& /*used_space*/) {
   if (DriveInUserSpace<Storage>::drive_stage_ != DriveInUserSpace<Storage>::kMounted) {
     LOG(kInfo) << "Not mounted at all;";
     return false;
@@ -1639,6 +1641,7 @@ template<typename Storage>
 void FuseDriveInUserSpace<Storage>::NotifyRename(
     fs::path const& /*from_relative_path*/,fs::path const& /*to_relative_path*/) const {}
 
+}  // namespace detail
 
 }  // namespace drive
 

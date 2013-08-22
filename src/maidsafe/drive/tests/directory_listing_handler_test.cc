@@ -40,14 +40,16 @@ License.
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/directory_listing.h"
 #include "maidsafe/drive/directory_listing_handler.h"
-#include "maidsafe/drive/return_codes.h"
 #include "maidsafe/drive/tests/test_utils.h"
+
 
 namespace fs = boost::filesystem;
 
 namespace maidsafe {
 
 namespace drive {
+
+namespace detail {
 
 namespace test {
 
@@ -62,7 +64,7 @@ class FailDirectoryListingHandler : public DirectoryListingHandler<Storage> {
   FailDirectoryListingHandler(ClientNfs& client_nfs,
                               DataStore& data_store,
                               const Identity& unique_user_id,
-                              std::string root_parent_id,
+                              const Identity& root_parent_id,
                               int fail_for_put,
                               bool use_real)
       : DirectoryListingHandler(client_nfs, data_store, maid, unique_user_id, root_parent_id),
@@ -419,6 +421,8 @@ TEST_F(DirectoryListingHandlerTest, BEH_UpdateParentDirectoryListing) {
 }
 
 }  // namespace test
+
+}  // namespace detail
 
 }  // namespace drive
 

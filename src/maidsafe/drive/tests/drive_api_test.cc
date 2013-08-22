@@ -39,9 +39,9 @@ License.
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/directory_listing.h"
 #include "maidsafe/drive/directory_listing_handler.h"
-#include "maidsafe/drive/return_codes.h"
 #include "maidsafe/drive/utils.h"
 #include "maidsafe/drive/tests/test_utils.h"
+
 
 namespace fs = boost::filesystem;
 
@@ -134,7 +134,7 @@ class DriveApiTest : public testing::Test {
   MetaData owner_meta_data_;
   int64_t max_space_, used_space_;
   std::shared_ptr<DerivedDriveInUserSpace> drive_;
-  std::shared_ptr<DirectoryListingHandler> directory_handler_;
+  std::shared_ptr<detail::DirectoryListingHandler> directory_handler_;
 };
 
 TEST_F(DriveApiTest, BEH_AddThenGetMetaData) {

@@ -43,6 +43,8 @@ namespace maidsafe {
 
 namespace drive {
 
+namespace detail {
+
 namespace test {
 
 inline uint64_t GetSize(MetaData meta_data) {
@@ -709,6 +711,8 @@ TEST_F(DirectoryListingTest, BEH_IteratorResetAndFailures) {
 }
 
 }  // namespace test
+
+}  // namespace detail
 
 }  // namespace drive
 

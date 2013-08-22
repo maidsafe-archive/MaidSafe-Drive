@@ -39,12 +39,13 @@ License.
 #else
 #  include "maidsafe/drive/unix_drive.h"
 #endif
-#include "maidsafe/drive/return_codes.h"
+
 
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 
 namespace maidsafe {
+
 namespace drive {
 
 namespace {
@@ -60,9 +61,9 @@ void CtrlCHandler(int /*value*/) {
 template<typename Storage>
 struct Drive {
 #ifdef WIN32
-  typedef CbfsDriveInUserSpace<Storage> DemoDrive;
+  typedef detail::CbfsDriveInUserSpace<Storage> DemoDrive;
 #else
-  typedef FuseDriveInUserSpace<Storage> DemoDrive;
+  typedef detail::FuseDriveInUserSpace<Storage> DemoDrive;
 #endif
 };
 
@@ -76,15 +77,16 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   if (!fs::exists(chunk_dir, error_code))
     return error_code.value();
 
-  std::string root_parent_id;
+  std::string root_parent_id_str;
   fs::path id_path(storage_path / "root_parent_id");
   bool first_run(!fs::exists(id_path, error_code));
   if (!first_run)
-    BOOST_VERIFY(ReadFile(id_path, &root_parent_id) && !root_parent_id.empty());
+    BOOST_VERIFY(ReadFile(id_path, &root_parent_id_str));
 
   // The following values are passed in and returned on unmount.
   int64_t max_space(std::numeric_limits<int64_t>::max()), used_space(0);
-  Identity unique_user_id(Identity(std::string(64, 'a')));
+  Identity unique_user_id(std::string(64, 'a'));
+  Identity root_parent_id(root_parent_id_str);
   typedef Drive<maidsafe::data_store::SureFileStore>::DemoDrive Drive;
   Drive drive(storage,
               unique_user_id,
@@ -94,7 +96,7 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
               max_space,
               used_space);
   if (first_run)
-    BOOST_VERIFY(WriteFile(id_path, drive.root_parent_id()));
+    BOOST_VERIFY(WriteFile(id_path, drive.root_parent_id().string()));
 
   g_unmount_functor = [&] { drive.Unmount(max_space, used_space); };
   signal(SIGINT, CtrlCHandler);
@@ -104,6 +106,7 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
 }
 
 }  // namespace drive
+
 }  // namespace maidsafe
 
 

@@ -41,6 +41,7 @@ License.
 #include "maidsafe/encrypt/data_map.h"
 #include "maidsafe/drive/config.h"
 
+
 namespace maidsafe {
 
 namespace drive {
@@ -71,8 +72,8 @@ struct MetaData {
   struct stat attributes;
   boost::filesystem::path link_to;
 #endif
-  DataMapPtr data_map;
-  DirectoryIdPtr directory_id;
+  detail::DataMapPtr data_map;
+  detail::DirectoryIdPtr directory_id;
   std::vector<std::string> notes;
 };
 

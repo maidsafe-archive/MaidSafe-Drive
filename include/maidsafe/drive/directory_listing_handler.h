@@ -41,11 +41,13 @@ License.
 #include "maidsafe/drive/directory_listing.h"
 #include "maidsafe/drive/utils.h"
 #include "maidsafe/drive/meta_data.h"
-#include "maidsafe/drive/return_codes.h"
 
 
 namespace maidsafe {
+
 namespace drive {
+
+namespace detail {
 
 namespace test { class DirectoryListingHandlerTest; }
 
@@ -74,11 +76,9 @@ class DirectoryListingHandler {
 
   DirectoryListingHandler(Storage& storage,
                           const Identity& unique_user_id,
-                          std::string root_parent_id);
-  // Virtual destructor to allow inheritance in testing.
-  virtual ~DirectoryListingHandler();
+                          const Identity& root_parent_id);
+  virtual ~DirectoryListingHandler() {}
 
-  Identity unique_user_id() const { return unique_user_id_; }
   Identity root_parent_id() const { return root_parent_id_; }
   DirectoryType GetFromPath(const boost::filesystem::path& relative_path);
   // Adds a directory or file represented by meta_data and relative_path to the appropriate parent
@@ -105,8 +105,6 @@ class DirectoryListingHandler {
 
   void SetWorldReadWrite();
   void SetWorldReadOnly();
-
-  Storage& storage() const { return storage_; }
 
   friend class test::DirectoryListingHandlerTest;
 
@@ -155,19 +153,17 @@ class DirectoryListingHandler {
 template<typename Storage>
 DirectoryListingHandler<Storage>::DirectoryListingHandler(Storage& storage,
                                                           const Identity& unique_user_id,
-                                                          std::string root_parent_id)
+                                                          const Identity& root_parent_id)
     : storage_(storage),
-      unique_user_id_(),
-      root_parent_id_(),
+      unique_user_id_(unique_user_id),
+      root_parent_id_(root_parent_id),
       relative_root_(boost::filesystem::path("/").make_preferred()),
       world_is_writeable_(true) {
-  if (unique_user_id.string().empty())
+  if (!unique_user_id_.IsInitialised())
     ThrowError(CommonErrors::uninitialised);
 
-  if (root_parent_id.empty()) {
-    std::string const root_parent_id = RandomString(64);
-    unique_user_id_ = unique_user_id;
-    root_parent_id_ = Identity(root_parent_id);
+  if (!root_parent_id_.IsInitialised()) {
+    root_parent_id_ = Identity(RandomString(64));
     // First run, setup working directories.
     // Root/Parent.
     MetaData root_meta_data(relative_root_, true);
@@ -206,14 +202,8 @@ DirectoryListingHandler<Storage>::DirectoryListingHandler(Storage& storage,
     root.listing->AddChild(group_meta_data);
     root.listing->AddChild(world_meta_data);
     PutToStorage(std::make_pair(root, kOwnerValue));
-  } else {
-    unique_user_id_ = unique_user_id;
-    root_parent_id_ = Identity(root_parent_id);
   }
 }
-
-template<typename Storage>
-DirectoryListingHandler<Storage>::~DirectoryListingHandler() {}
 
 template<typename Storage>
 typename DirectoryListingHandler<Storage>::DirectoryType
@@ -839,7 +829,10 @@ void DirectoryListingHandler<Storage>::SetWorldReadOnly() {
   world_is_writeable_ = false;
 }
 
+}  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_DIRECTORY_LISTING_HANDLER_H_
