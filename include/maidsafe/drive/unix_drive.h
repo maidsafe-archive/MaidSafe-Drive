@@ -74,7 +74,7 @@ class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
   virtual ~FuseDriveInUserSpace();
 
   virtual bool Init();
-  virtual int Mount();
+  virtual bool Mount();
   virtual bool Unmount(int64_t &max_space, int64_t &used_space);
   // Notifies filesystem of name change
   virtual void NotifyRename(const fs::path& from_relative_path,
@@ -225,7 +225,10 @@ FuseDriveInUserSpace<Storage>::FuseDriveInUserSpace(
     LOG(kError) << "Constructor Failed to initialise drive.";
     ThrowError(LifeStuffErrors::kCreateStorageError);
   }
-  Mount();
+  if (!Mount()) {
+    LOG(kError) << "Failed to mount drive.";
+    ThrowError(LifeStuffErrors::kMountError);
+  }
 }
 
 template<typename Storage>
@@ -284,7 +287,7 @@ bool FuseDriveInUserSpace<Storage>::Init() {
 
 // TODO(Team): Consider using exceptions
 template<typename Storage>
-int FuseDriveInUserSpace<Storage>::Mount() {
+bool FuseDriveInUserSpace<Storage>::Mount() {
   boost::system::error_code error_code;
   if (!fs::exists(DriveInUserSpace<Storage>::mount_dir_, error_code) || error_code) {
     LOG(kError) << "Mount dir " << DriveInUserSpace<Storage>::mount_dir_ << " doesn't exist."
