@@ -32,7 +32,6 @@ License.
 #include "maidsafe/common/utils.h"
 
 #include "maidsafe/data_store/permanent_store.h"
-#include "maidsafe/nfs/nfs.h"
 
 #include "maidsafe/encrypt/data_map.h"
 #include "maidsafe/encrypt/self_encryptor.h"

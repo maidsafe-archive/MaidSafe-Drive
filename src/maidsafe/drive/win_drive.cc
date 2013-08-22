@@ -17,7 +17,6 @@ License.
 
 #include <locale>
 #include <cwchar>
-#include <string>
 
 #include "maidsafe/common/log.h"
 

@@ -19,12 +19,10 @@ License.
 #include <memory>
 #include <string>
 
-#include "boost/date_time/posix_time/posix_time_duration.hpp"
 #include "boost/filesystem/path.hpp"
-#include "boost/thread/shared_mutex.hpp"
-#include "boost/thread/locks.hpp"
 
 #include "maidsafe/common/types.h"
+
 
 namespace testing { class AssertionResult; }
 
@@ -55,9 +53,6 @@ extern const boost::filesystem::path kOwner;
 extern const boost::filesystem::path kGroup;
 extern const boost::filesystem::path kWorld;
 extern const boost::filesystem::path kServices;
-
-extern const boost::posix_time::milliseconds kMinUpdateInterval;
-extern const boost::posix_time::milliseconds kMaxUpdateInterval;
 
 namespace test {
 testing::AssertionResult DirectoriesMatch(DirectoryListingPtr directory1,

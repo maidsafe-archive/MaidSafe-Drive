@@ -25,7 +25,9 @@ License.
 #include <string>
 #include <utility>
 
-#include "CbFs.h"  // NOLINT
+#pragma pack(push, r1, 8)
+#include "./CbFs.h"
+#pragma pack(pop, r1)
 
 #include "boost/filesystem/path.hpp"
 #include "boost/preprocessor/stringize.hpp"
@@ -77,7 +79,6 @@ boost::filesystem::path RelativePath(const boost::filesystem::path& mount_dir,
 template<typename Storage>
 class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
  public:
-
   CbfsDriveInUserSpace(Storage& storage,
                        const Identity& unique_user_id,
                        const std::string& root_parent_id,
@@ -342,7 +343,7 @@ void CbfsDriveInUserSpace<Storage>::UnmountDrive(
 }
 
 template<typename Storage>
-bool CbfsDriveInUserSpace<Storage>::Unmount(int64_t& max_space, int64_t& used_space) {
+bool CbfsDriveInUserSpace<Storage>::Unmount(int64_t& /*max_space*/, int64_t& /*used_space*/) {
   if (drive_stage_ != kCleaned) {
     UnmountDrive(std::chrono::seconds(3));
     if (callback_filesystem_.StoragePresent()) {
@@ -357,8 +358,8 @@ bool CbfsDriveInUserSpace<Storage>::Unmount(int64_t& max_space, int64_t& used_sp
     callback_filesystem_.SetRegistrationKey(nullptr);
     drive_stage_ = kCleaned;
   }
-  max_space = max_space_;
-  used_space = used_space_;
+//  max_space = max_space_;
+//  used_space = used_space_;
   SetMountState(false);
   return true;
 }
@@ -555,16 +556,16 @@ void CbfsDriveInUserSpace<Storage>::CbFsUnmount(CallbackFileSystem* /*sender*/) 
 }
 
 template<typename Storage>
-void CbfsDriveInUserSpace<Storage>::CbFsGetVolumeSize(CallbackFileSystem* sender,
+void CbfsDriveInUserSpace<Storage>::CbFsGetVolumeSize(CallbackFileSystem* /*sender*/,
                                                       int64_t* total_number_of_sectors,
                                                       int64_t* number_of_free_sectors) {
   SCOPED_PROFILE
   LOG(kInfo) << "CbFsGetVolumeSize";
 
-  WORD sector_size(sender->GetSectorSize());
-  *total_number_of_sectors = Global<Storage>::g_cbfs_drive->max_space_ / sector_size;
-  *number_of_free_sectors = (Global<Storage>::g_cbfs_drive->max_space_ -
-                             Global<Storage>::g_cbfs_drive->used_space_) / sector_size;
+//  WORD sector_size(sender->GetSectorSize());
+  *total_number_of_sectors = 0;  // Global<Storage>::g_cbfs_drive->max_space_ / sector_size;
+  *number_of_free_sectors = 0;  // (Global<Storage>::g_cbfs_drive->max_space_ -
+                                // Global<Storage>::g_cbfs_drive->used_space_) / sector_size;
 }
 
 template<typename Storage>
@@ -620,7 +621,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* /*sender*
   }
 
   if (is_directory) {
-    Global<Storage>::g_cbfs_drive->used_space_ += kDirectorySize;
+//    Global<Storage>::g_cbfs_drive->used_space_ += kDirectorySize;
   } else {
     encrypt::DataMapPtr data_map(new encrypt::DataMap());
     *data_map = *file_context->meta_data->data_map;
@@ -630,10 +631,6 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* /*sender*
                                             Global<Storage>::g_cbfs_drive->storage_));
   }
 
-  Global<Storage>::g_cbfs_drive->drive_changed_signal_(
-      Global<Storage>::g_cbfs_drive->mount_dir_ / relative_path,
-      fs::path(),
-      kCreated);
   file_info->set_UserContext(file_context);
   assert(file_info->get_UserContext());
 }
@@ -896,39 +893,39 @@ void CbfsDriveInUserSpace<Storage>::CbFsSetAllocationSize(CallbackFileSystem* /*
   if (file_context->meta_data->allocation_size == file_context->meta_data->end_of_file)
     return;
 
-  if (file_context->meta_data->allocation_size < static_cast<uint64_t>(allocation_size)) {
-    int64_t additional_size(allocation_size - file_context->meta_data->allocation_size);
-    if (additional_size + Global<Storage>::g_cbfs_drive->used_space_ >
-            Global<Storage>::g_cbfs_drive->max_space_) {
-      LOG(kError) << "CbFsSetAllocationSize: " << relative_path << ", not enough memory.";
-      throw ECBFSError(ERROR_DISK_FULL);
-    } else {
-      Global<Storage>::g_cbfs_drive->used_space_ += additional_size;
-    }
-  } else if (file_context->meta_data->allocation_size > static_cast<uint64_t>(allocation_size)) {
-    int64_t reduced_size(file_context->meta_data->allocation_size - allocation_size);
-    if (Global<Storage>::g_cbfs_drive->used_space_ < reduced_size) {
-      Global<Storage>::g_cbfs_drive->used_space_ = 0;
-    } else {
-      Global<Storage>::g_cbfs_drive->used_space_ -= reduced_size;
-    }
-  }
+//  if (file_context->meta_data->allocation_size < static_cast<uint64_t>(allocation_size)) {
+//    int64_t additional_size(allocation_size - file_context->meta_data->allocation_size);
+//    if (additional_size + Global<Storage>::g_cbfs_drive->used_space_ >
+//            Global<Storage>::g_cbfs_drive->max_space_) {
+//      LOG(kError) << "CbFsSetAllocationSize: " << relative_path << ", not enough memory.";
+//      throw ECBFSError(ERROR_DISK_FULL);
+//    } else {
+//      Global<Storage>::g_cbfs_drive->used_space_ += additional_size;
+//    }
+//  } else if (file_context->meta_data->allocation_size > static_cast<uint64_t>(allocation_size)) {
+//    int64_t reduced_size(file_context->meta_data->allocation_size - allocation_size);
+//    if (Global<Storage>::g_cbfs_drive->used_space_ < reduced_size) {
+//      Global<Storage>::g_cbfs_drive->used_space_ = 0;
+//    } else {
+//      Global<Storage>::g_cbfs_drive->used_space_ -= reduced_size;
+//    }
+//  }
   if (Global<Storage>::g_cbfs_drive->TruncateFile(file_context, allocation_size)) {
     file_context->meta_data->allocation_size = allocation_size;
     if (!file_context->self_encryptor->Flush()) {
       LOG(kError) << "CbFsSetAllocationSize: " << relative_path << ", failed to flush";
     }
-  } else {
-    LOG(kError) << "Truncate failed for " << file_context->meta_data->name.c_str();
-    if (file_context->meta_data->allocation_size < static_cast<uint64_t>(allocation_size)) {
-      int64_t additional_size(allocation_size - file_context->meta_data->allocation_size);
-        Global<Storage>::g_cbfs_drive->used_space_ -= additional_size;
-    } else if (file_context->meta_data->allocation_size >
-                static_cast<uint64_t>(allocation_size)) {
-      int64_t reduced_size(file_context->meta_data->allocation_size - allocation_size);
-      Global<Storage>::g_cbfs_drive->used_space_ += reduced_size;
-    }
-    return;
+//  } else {
+//    LOG(kError) << "Truncate failed for " << file_context->meta_data->name.c_str();
+//    if (file_context->meta_data->allocation_size < static_cast<uint64_t>(allocation_size)) {
+//      int64_t additional_size(allocation_size - file_context->meta_data->allocation_size);
+//        Global<Storage>::g_cbfs_drive->used_space_ -= additional_size;
+//    } else if (file_context->meta_data->allocation_size >
+//                static_cast<uint64_t>(allocation_size)) {
+//      int64_t reduced_size(file_context->meta_data->allocation_size - allocation_size);
+//      Global<Storage>::g_cbfs_drive->used_space_ += reduced_size;
+//    }
+//    return;
   }
   file_context->content_changed = true;
 }
@@ -957,23 +954,23 @@ void CbfsDriveInUserSpace<Storage>::CbFsSetEndOfFile(CallbackFileSystem* /*sende
   if (file_context->meta_data->allocation_size == static_cast<uint64_t>(end_of_file))
     return;
 
-  if (file_context->meta_data->allocation_size < static_cast<uint64_t>(end_of_file)) {
-    int64_t additional_size(end_of_file - file_context->meta_data->allocation_size);
-    if (additional_size + Global<Storage>::g_cbfs_drive->used_space_ >
-            Global<Storage>::g_cbfs_drive->max_space_) {
-      LOG(kError) << "CbFsSetEndOfFile: " << relative_path << ", not enough memory.";
-      throw ECBFSError(ERROR_DISK_FULL);
-    } else {
-      Global<Storage>::g_cbfs_drive->used_space_ += additional_size;
-    }
-  } else {
-    int64_t reduced_size(file_context->meta_data->allocation_size - end_of_file);
-    if (Global<Storage>::g_cbfs_drive->used_space_ < reduced_size) {
-      Global<Storage>::g_cbfs_drive->used_space_ = 0;
-    } else {
-      Global<Storage>::g_cbfs_drive->used_space_ -= reduced_size;
-    }
-  }
+//  if (file_context->meta_data->allocation_size < static_cast<uint64_t>(end_of_file)) {
+//    int64_t additional_size(end_of_file - file_context->meta_data->allocation_size);
+//    if (additional_size + Global<Storage>::g_cbfs_drive->used_space_ >
+//            Global<Storage>::g_cbfs_drive->max_space_) {
+//      LOG(kError) << "CbFsSetEndOfFile: " << relative_path << ", not enough memory.";
+//      throw ECBFSError(ERROR_DISK_FULL);
+//    } else {
+//      Global<Storage>::g_cbfs_drive->used_space_ += additional_size;
+//    }
+//  } else {
+//    int64_t reduced_size(file_context->meta_data->allocation_size - end_of_file);
+//    if (Global<Storage>::g_cbfs_drive->used_space_ < reduced_size) {
+//      Global<Storage>::g_cbfs_drive->used_space_ = 0;
+//    } else {
+//      Global<Storage>::g_cbfs_drive->used_space_ -= reduced_size;
+//    }
+//  }
   file_context->meta_data->allocation_size = end_of_file;
   file_context->content_changed = true;
 }
@@ -1033,14 +1030,11 @@ void CbfsDriveInUserSpace<Storage>::CbFsDeleteFile(CallbackFileSystem* /*sender*
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
 
-  if (!file_context.meta_data->directory_id) {
-    Global<Storage>::g_cbfs_drive->used_space_ -= file_context.meta_data->allocation_size;
-  } else {
-    Global<Storage>::g_cbfs_drive->used_space_ -= kDirectorySize;
-  }
-
-  Global<Storage>::g_cbfs_drive->drive_changed_signal_(
-        Global<Storage>::g_cbfs_drive->mount_dir_ / relative_path, fs::path(), kRemoved);
+//  if (!file_context.meta_data->directory_id) {
+//    Global<Storage>::g_cbfs_drive->used_space_ -= file_context.meta_data->allocation_size;
+//  } else {
+//    Global<Storage>::g_cbfs_drive->used_space_ -= kDirectorySize;
+//  }
 }
 
 template<typename Storage>
@@ -1069,7 +1063,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsRenameOrMoveFile(CallbackFileSystem* /*s
   catch(...) {
     throw ECBFSError(ERROR_ACCESS_DENIED);
   }
-  Global<Storage>::g_cbfs_drive->used_space_ -= reclaimed_space;
+//  Global<Storage>::g_cbfs_drive->used_space_ -= reclaimed_space;
 }
 
 template<typename Storage>

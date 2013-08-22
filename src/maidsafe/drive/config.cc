@@ -32,8 +32,5 @@ const boost::filesystem::path kGroup("Group");
 const boost::filesystem::path kWorld("World");
 const boost::filesystem::path kServices("Services");
 
-const boost::posix_time::milliseconds kMinUpdateInterval(5000);
-const boost::posix_time::milliseconds kMaxUpdateInterval(20000);
-
 }  // namespace drive
 }  // namespace maidsafe

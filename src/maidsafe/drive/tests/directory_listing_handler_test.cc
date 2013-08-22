@@ -32,9 +32,10 @@ License.
 #include "maidsafe/common/utils.h"
 
 #include "maidsafe/data_store/permanent_store.h"
-#include "maidsafe/nfs/nfs.h"
 
 #include "maidsafe/encrypt/data_map.h"
+
+#include "maidsafe/routing/routing_api.h"
 
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/directory_listing.h"
@@ -50,17 +51,16 @@ namespace drive {
 
 namespace test {
 
-class FailDirectoryListingHandler : public DirectoryListingHandler {
+template<typename Storage>
+class FailDirectoryListingHandler : public DirectoryListingHandler<Storage> {
  public:
   typedef nfs::ClientMaidNfs ClientNfs;
   typedef data_store::PermanentStore DataStore;
-  typedef passport::Maid Maid;
 
   enum { kValue = DirectoryListingHandler::kOwnerValue };
 
   FailDirectoryListingHandler(ClientNfs& client_nfs,
                               DataStore& data_store,
-                              const Maid& maid,
                               const Identity& unique_user_id,
                               std::string root_parent_id,
                               int fail_for_put,
@@ -127,8 +127,6 @@ class DirectoryListingHandlerTest : public testing::Test {
 
   typedef nfs::ClientMaidNfs ClientNfs;
   typedef data_store::PermanentStore DataStore;
-  typedef passport::Maid Maid;
-  typedef DirectoryListingHandler::DirectoryType DirectoryType;
 
  protected:
   void SetUp() {
@@ -204,8 +202,7 @@ class DirectoryListingHandlerTest : public testing::Test {
   void FullCoverageByPath() {
     // Originally tested cached directories which are now gone...
     // Get the root listing from storage
-    DirectoryType directory;
-    EXPECT_NO_THROW(directory = listing_handler_->GetFromPath("/"));
+    auto directory(listing_handler_->GetFromPath("/"));
     EXPECT_EQ(directory.first.parent_id, listing_handler_->root_parent_id_);
     // Try to get the non-existant dir listing
     EXPECT_THROW(directory = listing_handler_->GetFromPath(owner_ / "some_dir"), std::exception);
@@ -276,7 +273,7 @@ class DirectoryListingHandlerTest : public testing::Test {
         } else if (created_paths_.size() > 0) {
           search = created_paths_.at(RandomUint32() % created_paths_.size()).path;
           ++(*queries_so_far);
-          DirectoryType directory(listing_handler_->GetFromPath(search));
+          auto directory(listing_handler_->GetFromPath(search));
         }
       }
     }
@@ -305,7 +302,7 @@ class DirectoryListingHandlerTest : public testing::Test {
   }
 
   maidsafe::test::TestPath main_test_dir_;
-  Maid default_maid_;
+  passport::Maid default_maid_;
   routing::Routing routing_;
   std::shared_ptr<ClientNfs> client_nfs_;
   std::shared_ptr<DataStore> data_store_;
@@ -323,11 +320,8 @@ class DirectoryListingHandlerTest : public testing::Test {
 };
 
 TEST_F(DirectoryListingHandlerTest, BEH_Construct) {
-  Maid::signer_type maid_signer;
-  Maid maid(maid_signer);
   EXPECT_NO_THROW(DirectoryListingHandler local_listing_handler(*client_nfs_,
                                                                 *data_store_,
-                                                                maid,
                                                                 unique_user_id_,
                                                                 ""));
   /*EXPECT_THROW(FailDirectoryListingHandler fail_listing_handler(*client_nfs_,

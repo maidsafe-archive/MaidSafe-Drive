@@ -20,6 +20,8 @@ License.
 #include "maidsafe/drive/utils.h"
 
 
+namespace fs = boost::filesystem;
+
 namespace maidsafe {
 
 namespace drive {

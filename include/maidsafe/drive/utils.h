@@ -120,7 +120,6 @@ struct Put<data_store::SureFileStore, Directory> {
 
 template<typename Storage, typename Directory>
 struct Get {
-
   NonEmptyString operator()(Storage& storage, const typename Directory::Name& name) {
     storage.Get<Directory>(name, nullptr);  // FIXME ...value returned in response_functor
     return NonEmptyString();
@@ -138,7 +137,6 @@ struct Get<data_store::SureFileStore, Directory> {
 
 template<typename Storage, typename Directory>
 struct Delete {
-
   void operator()(Storage& storage, const typename Directory::Name& name) {
     storage.Delete<Directory>(name, nullptr);
   }

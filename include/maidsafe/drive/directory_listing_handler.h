@@ -25,11 +25,9 @@ License.
 #include <vector>
 
 #include "boost/algorithm/string/find.hpp"
-#include "boost/assert.hpp"
 #include "boost/filesystem/operations.hpp"
 #include "boost/filesystem/fstream.hpp"
 #include "boost/filesystem/path.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
 
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/log.h"
@@ -45,7 +43,6 @@ License.
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/return_codes.h"
 
-namespace bptime = boost::posix_time;
 
 namespace maidsafe {
 namespace drive {
@@ -58,25 +55,19 @@ struct DirectoryData {
   DirectoryData(const DirectoryId& parent_id_in, DirectoryListingPtr dir_listing)
       : parent_id(parent_id_in),
         listing(dir_listing),
-        last_save(boost::posix_time::microsec_clock::universal_time()),
-        last_change(kMaidSafeEpoch),
         content_changed(false) {}
   DirectoryData()
       : parent_id(),
         listing(),
-        last_save(boost::posix_time::microsec_clock::universal_time()),
-        last_change(kMaidSafeEpoch),
         content_changed(false) {}
   DirectoryId parent_id;
   DirectoryListingPtr listing;
-  bptime::ptime last_save, last_change;
   bool content_changed;
 };
 
 template<typename Storage>
 class DirectoryListingHandler {
  public:
-  typedef passport::Maid Maid;
   typedef std::pair<DirectoryData, uint32_t> DirectoryType;
 
   enum { kOwnerValue, kGroupValue, kWorldValue, kInvalidValue };
