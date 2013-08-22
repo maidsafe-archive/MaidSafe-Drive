@@ -79,8 +79,8 @@ FileContext<Storage>::FileContext(std::shared_ptr<MetaData> meta_data_in)
 #ifndef MAIDSAFE_WIN32
 // Not called by Windows...
 template<typename Storage>
-int ForceFlush(std::shared_ptr<DirectoryListingHandler<Storage>> directory_listing_handler,
-               FileContext<Storage>* file_context) {
+bool ForceFlush(std::shared_ptr<DirectoryListingHandler<Storage>> directory_listing_handler,
+                FileContext<Storage>* file_context) {
   BOOST_ASSERT(file_context);
   file_context->self_encryptor->Flush();
 
@@ -88,9 +88,9 @@ int ForceFlush(std::shared_ptr<DirectoryListingHandler<Storage>> directory_listi
     directory_listing_handler->UpdateParentDirectoryListing(
         file_context->meta_data->name.parent_path(), *file_context->meta_data.get());
   } catch(...) {
-      return kFailedToSaveParentDirectoryListing;
+      return false;
   }
-  return kSuccess;
+  return true;
 }
 #endif
 

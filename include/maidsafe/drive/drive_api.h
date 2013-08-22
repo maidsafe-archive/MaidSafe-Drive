@@ -191,7 +191,7 @@ void DriveInUserSpace<Storage>::SetMountState(bool mounted) {
 
 template<typename Storage>
 bool DriveInUserSpace<Storage>::WaitUntilMounted() {
-  std::lock_guard<std::mutex> lock(mount_mutex_);
+  std::unique_lock<std::mutex> lock(mount_mutex_);
   bool result(mount_condition_variable_.wait_for(lock, std::chrono::seconds(10),
                                                  [this] { return drive_stage_ == kMounted; }));
 #ifdef MAIDSAFE_APPLE
@@ -348,7 +348,7 @@ void DriveInUserSpace<Storage>::InsertDataMap(const boost::filesystem::path& rel
 template<typename Storage>
 void DriveInUserSpace<Storage>::ReadHiddenFile(const boost::filesystem::path& relative_path,
                                                std::string* content) {
-  if (relative_path.empty() || (relative_path.extension() != kMsHidden) || !content)
+  if (relative_path.empty() || (relative_path.extension() != detail::kMsHidden) || !content)
     ThrowError(CommonErrors::invalid_parameter);
 
   detail::FileContext<Storage> file_context;
@@ -376,7 +376,7 @@ template<typename Storage>
 void DriveInUserSpace<Storage>::WriteHiddenFile(const boost::filesystem::path &relative_path,
                                                 const std::string &content,
                                                 bool overwrite_existing) {
-  if (relative_path.empty() || (relative_path.extension() != kMsHidden))
+  if (relative_path.empty() || (relative_path.extension() != detail::kMsHidden))
     ThrowError(CommonErrors::invalid_parameter);
 
   boost::filesystem::path hidden_file_path(relative_path);
@@ -422,7 +422,7 @@ void DriveInUserSpace<Storage>::WriteHiddenFile(const boost::filesystem::path &r
 
 template<typename Storage>
 void DriveInUserSpace<Storage>::DeleteHiddenFile(const boost::filesystem::path &relative_path) {
-  if (relative_path.empty() || (relative_path.extension() != kMsHidden))
+  if (relative_path.empty() || (relative_path.extension() != detail::kMsHidden))
     ThrowError(CommonErrors::invalid_parameter);
   RemoveFile(relative_path);
   return;
@@ -431,8 +431,7 @@ void DriveInUserSpace<Storage>::DeleteHiddenFile(const boost::filesystem::path &
 template<typename Storage>
 void DriveInUserSpace<Storage>::SearchHiddenFiles(const boost::filesystem::path &relative_path,
                                                   std::vector<std::string> *results) {
-  typedef typename DirectoryListingHandler<Storage>::DirectoryType DirectoryType;
-  DirectoryType directory(directory_listing_handler_->GetFromPath(relative_path));
+  auto directory(directory_listing_handler_->GetFromPath(relative_path));
   directory.first.listing->GetHiddenChildNames(results);
   return;
 }

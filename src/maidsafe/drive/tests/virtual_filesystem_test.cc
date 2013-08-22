@@ -1389,12 +1389,12 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_BENCHMARK_CopyThenReadManySmallFiles) {
   }
 }
 
-//TYPED_TEST_P(CallbacksApiTest, BEH_GetAndInsertDataMap) {
+// TYPED_TEST_P(CallbacksApiTest, BEH_GetAndInsertDataMap) {
 //  if (!g_virtual_filesystem_test)
 //    return SUCCEED() << "Can't test on real filesystem.";
 //  int64_t file_size(0);
 //  // Create file on virtual drive
-//  fs::path dir(CreateTestDirectory(g_mount_dir)), dir_relative_path(RelativePath(g_mount_dir, dir));
+// fs::path dir(CreateTestDirectory(g_mount_dir)), dir_relative_path(RelativePath(g_mount_dir, dir));
 //  fs::path file(CreateTestFile(dir, file_size)),
 //           file_relative_path(fs::path("/Owner") / RelativePath(g_mount_dir, file));
 //  boost::system::error_code error_code;
@@ -1420,9 +1420,9 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_BENCHMARK_CopyThenReadManySmallFiles) {
 //  // Insert the file and compare to the previous one
 //  EXPECT_NO_THROW(g_drive->InsertDataMap(new_file_rel_path, data_map));
 //  ASSERT_TRUE(CompareFileContents(file, new_file));
-//}
+// }
 //
-//TYPED_TEST_P(CallbacksApiTest, BEH_GetAndInsertHiddenDataMap) {
+// TYPED_TEST_P(CallbacksApiTest, BEH_GetAndInsertHiddenDataMap) {
 //  if (!g_virtual_filesystem_test)
 //    return SUCCEED() << "Can't test on real filesystem.";
 //
@@ -1449,7 +1449,7 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_BENCHMARK_CopyThenReadManySmallFiles) {
 //  EXPECT_FALSE(hidden_data_map.empty());
 //  EXPECT_NO_THROW(g_drive->GetDataMapHidden(file_relative_path, &normal_data_map));
 //  EXPECT_EQ(hidden_data_map, normal_data_map);
-//}
+// }
 
 // TEST_F(CallbacksApiTest, BEH_MoveDirectory) {
 //  if (!g_virtual_filesystem_test)
