@@ -162,15 +162,13 @@ class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
 };
 
 
-fs::path RelativePath(const fs::path &mount_dir, const fs::path &absolute_path) {
+inline fs::path RelativePath(const fs::path &mount_dir, const fs::path &absolute_path) {
   if (absolute_path.string().substr(0, mount_dir.string().size()) != mount_dir.string())
     return fs::path();
   return fs::path(absolute_path.string().substr(mount_dir.string().size()));
 }
 
 const int kMaxPath(4096);
-
-namespace detail {
 
 // FuseDriveInUserSpace *g_fuse_drive;
 
@@ -190,8 +188,6 @@ static inline void SetFileContext(
     struct FileContext<Storage> *file_context) {
   file_info->fh = reinterpret_cast<uint64_t>(file_context);
 }
-
-}  // namespace detail
 
 template<typename Storage>
 struct fuse_operations FuseDriveInUserSpace<Storage>::maidsafe_ops_;
@@ -458,7 +454,7 @@ int FuseDriveInUserSpace<Storage>::OpsCreate(const char *path,
   }
 
   file_info->keep_cache = 1;
-  detail::SetFileContext(file_info, file_context.get());
+  SetFileContext(file_info, file_context.get());
 //   UniqueLock lock(Global<Storage>::g_fuse_drive->shared_mutex_);
   Global<Storage>::g_fuse_drive->open_files_.insert(std::make_pair(full_path, file_context));
 #ifdef DEBUG
@@ -478,7 +474,7 @@ void FuseDriveInUserSpace<Storage>::OpsDestroy(void */*fuse*/) {
 template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsFlush(const char *path, struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFlush: " << path << ", flags: " << file_info->flags;
-/*  FileContext<Storage> *file_context(detail::GetFileContext(file_info));
+/*  FileContext<Storage> *file_context(GetFileContext(file_info));
   if (!file_context) {
     LOG(kError) << "OpsFlush: " << path << ", failed find filecontext for " << path;
     return -EINVAL;
@@ -497,7 +493,7 @@ int FuseDriveInUserSpace<Storage>::OpsFtruncate(const char *path,
                                        off_t size,
                                        struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFtruncate: " << path << ", size: " << size;
-  FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -656,7 +652,7 @@ int FuseDriveInUserSpace<Storage>::OpsOpen(const char *path, struct fuse_file_in
                                               Global<Storage>::g_fuse_drive->storage_));
     }
   }
-  detail::SetFileContext(file_info, file_context);
+  SetFileContext(file_info, file_context);
 //   UpgradeToUniqueLock unique_lock(upgrade_lock);
   Global<Storage>::g_fuse_drive->open_files_.insert(std::make_pair(full_path, file_context_ptr));
   return 0;
@@ -692,7 +688,7 @@ int FuseDriveInUserSpace<Storage>::OpsOpendir(const char *path, struct fuse_file
       return -ENOENT;
     }
   }
-  detail::SetFileContext(file_info, file_context);
+  SetFileContext(file_info, file_context);
 
   Global<Storage>::g_fuse_drive->open_files_.insert(std::make_pair(full_path, file_context_ptr));
   return 0;
@@ -707,7 +703,7 @@ int FuseDriveInUserSpace<Storage>::OpsRead(const char *path,
   LOG(kInfo) << "OpsRead: " << path << ", flags: 0x" << std::hex << file_info->flags << std::dec
              << " Size : " <<  size << " Offset : " << offset;
 
-  FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -924,7 +920,7 @@ int FuseDriveInUserSpace<Storage>::OpsWrite(const char *path,
   LOG(kInfo) << "OpsWrite: " << path << ", flags: 0x" << std::hex << file_info->flags << std::dec
              << " Size : " <<  size << " Offset : " << offset;
 
-  FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -1058,7 +1054,7 @@ int FuseDriveInUserSpace<Storage>::OpsFgetattr(const char *path,
                                       struct stat *stbuf,
                                       struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFgetattr: " << path;
-  FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
   if (!file_context)
     return -ENOENT;
 
@@ -1079,7 +1075,7 @@ int FuseDriveInUserSpace<Storage>::OpsFsync(const char *path,
                                    int /*isdatasync*/,
                                    struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFsync: " << path;
-  FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -1102,7 +1098,7 @@ int FuseDriveInUserSpace<Storage>::OpsFsyncDir(const char *path,
                                       int /*isdatasync*/,
                                       struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFsyncDir: " << path;
-  FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -1233,7 +1229,7 @@ int FuseDriveInUserSpace<Storage>::OpsReaddir(const char *path,
       break;
   }
 
-  FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
   if (file_context) {
     file_context->content_changed = true;
     time(&file_context->meta_data->attributes.st_atime);
@@ -1524,7 +1520,7 @@ int FuseDriveInUserSpace<Storage>::OpsRemovexattr(const char *path, const char *
 template<typename Storage>
 int FuseDriveInUserSpace<Storage>::Release(const char *path, struct fuse_file_info *file_info) {
   LOG(kInfo) << "Release - " << path;
-  FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
