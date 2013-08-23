@@ -86,7 +86,7 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   // The following values are passed in and returned on unmount.
   int64_t max_space(std::numeric_limits<int64_t>::max()), used_space(0);
   Identity unique_user_id(std::string(64, 'a'));
-  Identity root_parent_id(root_parent_id_str);
+  Identity root_parent_id = (root_parent_id_str.empty() ? Identity() : Identity(root_parent_id_str));
   typedef Drive<maidsafe::data_store::SureFileStore>::DemoDrive Drive;
   Drive drive(storage,
               unique_user_id,
