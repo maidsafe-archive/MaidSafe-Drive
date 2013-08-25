@@ -29,7 +29,7 @@ License.
 #include "maidsafe/encrypt/data_map.h"
 #include "maidsafe/encrypt/self_encryptor.h"
 
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
 #  ifdef HAVE_CBFS
 #    include "maidsafe/drive/win_drive.h"
 #  else
@@ -51,7 +51,7 @@ namespace detail {
 
 template<typename Storage>
 struct Drive {
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
 #  ifdef HAVE_CBFS
   typedef CbfsDriveInUserSpace<Storage> TestDriveInUserSpace;
 #  else
@@ -120,6 +120,9 @@ int64_t CalculateUsedSpace(fs::path const& path);
 
 uint64_t TotalSize(encrypt::DataMapPtr data_map);
 
+void GenerateDirectoryListingEntryForFile(DirectoryListing& directory_listing,
+                                          const fs::path& path,
+                                          const uintmax_t& file_size);
 }  // namespace test
 
 }  // namespace detail

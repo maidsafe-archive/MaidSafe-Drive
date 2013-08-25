@@ -47,20 +47,9 @@ enum OpType { kCreated, kRenamed, kAdded, kRemoved, kMoved, kModified };
 typedef std::shared_ptr<encrypt::DataMap> DataMapPtr;
 
 typedef std::shared_ptr<DirectoryId> DirectoryIdPtr;
-typedef std::shared_ptr<DirectoryListing> DirectoryListingPtr;
 
 extern const boost::filesystem::path kMsHidden;
-extern const boost::filesystem::path kEmptyPath;
 extern const boost::filesystem::path kRoot;
-extern const boost::filesystem::path kOwner;
-extern const boost::filesystem::path kGroup;
-extern const boost::filesystem::path kWorld;
-extern const boost::filesystem::path kServices;
-
-namespace test {
-testing::AssertionResult DirectoriesMatch(DirectoryListingPtr directory1,
-                                          DirectoryListingPtr directory2);
-}  // namespace test
 
 }  // namespace detail
 

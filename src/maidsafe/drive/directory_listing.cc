@@ -16,6 +16,7 @@ License.
 #include <algorithm>
 #include <functional>
 #include <iterator>
+#include <utility>
 #include <vector>
 
 #include "boost/algorithm/string/case_conv.hpp"
@@ -38,186 +39,161 @@ namespace drive {
 
 namespace detail {
 
-DirectoryListing::DirectoryListing(const DirectoryId& directory_id)
-    : directory_id_(directory_id),
-      children_(),
-      children_itr_(children_.end()) {}
-
-DirectoryListing::DirectoryListing(const DirectoryListing& directory)
-  : directory_id_(directory.directory_id()),
-    children_(directory.children_),
-    children_itr_(children_.begin()) {}
-
-DirectoryListing& DirectoryListing::operator=(const DirectoryListing& directory) {
-  directory_id_ = directory.directory_id();
-  children_ = directory.children_;
-  children_itr_ = children_.begin();
-  return *this;
-}
-
-bool DirectoryListing::HasChild(const fs::path& name) const {
-  return (std::find_if(children_.begin(), children_.end(),
-                       [&name] (const MetaData& meta_data) {
-                         return meta_data_ops::MetaDataHasName(meta_data, name);
-                       }) != children_.end());
-}
-
-void DirectoryListing::GetChild(const fs::path& name, MetaData& meta_data) const {
-  auto itr(std::find_if(children_.begin(), children_.end(),
-           [&name] (const MetaData& meta_data) {
-             return meta_data_ops::MetaDataHasName(meta_data, name);
-           }));
-  if (itr != children_.end()) {
-    meta_data = *itr;
-  } else {
-    ThrowError(CommonErrors::invalid_parameter);
-  }
-  return;
-}
-
-bool DirectoryListing::GetChildAndIncrementItr(MetaData& meta_data) {
-  if (children_itr_ != children_.end()) {
-    while ((*children_itr_).name.extension() == kMsHidden) {
-      ++children_itr_;
-      if (children_itr_ == children_.end())
-        return false;
-    }
-    meta_data = (*children_itr_);
-    ++children_itr_;
-    return true;
-  } else {
-    return false;
-  }
-}
-
-void DirectoryListing::AddChild(const MetaData& child) {
-  auto result(children_.insert(child));
-  if (!result.second)
-    ThrowError(CommonErrors::invalid_parameter);
-  ResetChildrenIterator();
-  return;
-}
-
-void DirectoryListing::RemoveChild(const MetaData& child) {
-  auto result = children_.erase(child);
-  if (result != 1U)
-    ThrowError(CommonErrors::invalid_parameter);
-  ResetChildrenIterator();
-  return;
-}
-
-void DirectoryListing::UpdateChild(const MetaData& child, bool reset_itr) {
-  // As children_ is a std::map, insert does not invalidate any iterators.
-  // Only an iterator pointing to the erased element will be invalidated by
-  // erase, so assert that children_itr_ != element to be erased if !reset_itr.
-  assert(reset_itr || children_itr_ == children_.end() || children_itr_->name != child.name);
-  auto erase_result = children_.erase(child);
-  if (erase_result != 1U)
-    ThrowError(CommonErrors::invalid_parameter);
-  if (reset_itr)
-    ResetChildrenIterator();
-  auto insert_result(children_.insert(child));
-  if (!insert_result.second)
-    ThrowError(CommonErrors::invalid_parameter);
-  if (reset_itr)
-    ResetChildrenIterator();
-  return;
-}
-
-bool DirectoryListing::RenameChild(const MetaData& child,
-                                  const fs::path& new_name,
-                                  MetaData* target_if_exists) {
-  MetaData child_copy(child);
-  child_copy.name = new_name;
-  auto insert_result(children_.insert(child_copy));
-  if (!insert_result.second) {
-    LOG(kWarning) << "Failed to add " << child_copy.name;
-    *target_if_exists = *insert_result.first;
-    return false;
-  }
-  ResetChildrenIterator();
-  size_t erase_result(children_.erase(child));
-  if (erase_result != 1U) {
-    LOG(kWarning) << "Failed to remove " << child.name;
-    children_.erase(child_copy);
-    return false;
-  }
-  ResetChildrenIterator();
-  return true;
-}
-
-bool DirectoryListing::empty() const {
-  if (!children_.empty()) {
-    for (auto itr(children_.begin()); itr != children_.end(); ++itr) {
-      if ((*itr).name.extension() != kMsHidden)
-        return false;
-    }
-  }
-  return true;
-}
-
-void DirectoryListing::Serialise(std::string& serialised_directory_listing) const {
-  serialised_directory_listing.clear();
-  protobuf::DirectoryListing pb_directory;
-  pb_directory.set_directory_id(directory_id_.string());
-
-  for (auto child : children_) {
-    std::string serialised_meta_data;
-    child.Serialise(serialised_meta_data);
-    protobuf::DirectoryListing::Child* pb_child = pb_directory.add_children();
-    pb_child->set_serialised_meta_data(serialised_meta_data);
-  }
-
-  if (!pb_directory.SerializeToString(&serialised_directory_listing))
-    ThrowError(CommonErrors::serialisation_error);
-
-  return;
-}
-
-void DirectoryListing::Parse(const std::string& serialised_directory_listing) {
-  protobuf::DirectoryListing pb_directory;
-
-  if (!pb_directory.ParseFromString(serialised_directory_listing) ||
-      !pb_directory.IsInitialized())
-    ThrowError(CommonErrors::parsing_error);
-
-  directory_id_ = Identity(pb_directory.directory_id());
-
-  for (int i(0); i != pb_directory.children_size(); ++i) {
-    if (pb_directory.children(i).IsInitialized()) {
-      MetaData meta_data;
-      meta_data.Parse(pb_directory.children(i).serialised_meta_data());
-      children_.insert(meta_data);
-    } else {
-      ThrowError(CommonErrors::uninitialised);
-    }
-  }
-  ResetChildrenIterator();
-  return;
-}
-
-void DirectoryListing::GetHiddenChildNames(std::vector<std::string>* names) {
-  std::for_each(children_.begin(),
-                children_.end(),
-                [&](const MetaData& child) {
-                  if (child.name.extension() == kMsHidden)
-                    names->push_back(child.name.string());
-                });
-}
-
-bool DirectoryListing::operator<(const DirectoryListing& other) const {
-  return directory_id_ < other.directory_id_;
-}
-
-
-namespace meta_data_ops {
+namespace {
 
 bool MetaDataHasName(const MetaData& meta_data, const fs::path& name) {
   return (boost::algorithm::to_lower_copy(meta_data.name.wstring()) ==
           boost::algorithm::to_lower_copy(name.wstring()));
 }
 
-}  // namespace meta_data_ops
+}  // unnamed namespace
+
+
+
+DirectoryListing::DirectoryListing(const DirectoryId& directory_id)
+    : directory_id_(directory_id),
+      children_(),
+      children_itr_position_(0) {}
+
+DirectoryListing::DirectoryListing(const DirectoryListing& other)
+    : directory_id_(other.directory_id_),
+      children_(other.children_),
+      children_itr_position_(other.children_itr_position_) {}
+
+DirectoryListing::DirectoryListing(DirectoryListing&& other)
+    : directory_id_(std::move(other.directory_id())),
+      children_(std::move(other.children_)),
+      children_itr_position_(std::move(other.children_itr_position_)) {}
+
+DirectoryListing::DirectoryListing(const std::string& serialised_directory_listing)
+    : directory_id_(),
+      children_(),
+      children_itr_position_(0) {
+  protobuf::DirectoryListing pb_directory;
+  if (!pb_directory.ParseFromString(serialised_directory_listing))
+    ThrowError(CommonErrors::parsing_error);
+
+  directory_id_ = Identity(pb_directory.directory_id());
+
+  for (int i(0); i != pb_directory.children_size(); ++i) {
+    if (pb_directory.children(i).IsInitialized()) {
+      children_.emplace_back(pb_directory.children(i).serialised_meta_data());
+    } else {
+      ThrowError(CommonErrors::uninitialised);
+    }
+  }
+
+  std::sort(std::begin(children_), std::end(children_));
+}
+
+
+
+DirectoryListing& DirectoryListing::operator=(DirectoryListing other) {
+  swap(*this, other);
+  return *this;
+}
+
+bool DirectoryListing::HasChild(const fs::path& name) const {
+  return std::any_of(std::begin(children_), std::end(children_),
+                     [&name] (const MetaData& meta_data) {
+                       return MetaDataHasName(meta_data, name);
+                     });
+}
+
+void DirectoryListing::GetChild(const fs::path& name, MetaData& meta_data) const {
+  auto itr(std::find_if(std::begin(children_), std::end(children_),
+                        [&name] (const MetaData& meta_data) {
+                          return MetaDataHasName(meta_data, name);
+                        }));
+  if (itr != std::end(children_)) {
+    meta_data = *itr;
+  } else {
+    ThrowError(CommonErrors::invalid_parameter);
+  }
+}
+
+bool DirectoryListing::GetChildAndIncrementItr(MetaData& meta_data) {
+  if (children_itr_position_ != children_.size()) {
+    while (children_[children_itr_position_].name.extension() == kMsHidden) {
+      ++children_itr_position_;
+      if (children_itr_position_ == children_.size())
+        return false;
+    }
+    meta_data = children_[children_itr_position_];
+    ++children_itr_position_;
+    return true;
+  }
+  return false;
+}
+
+void DirectoryListing::AddChild(const MetaData& child) {
+  assert(!std::any_of(std::begin(children_),
+                      std::end(children_),
+                      [&child](const MetaData& entry) { return child.name == entry.name; }));
+  children_.push_back(child);
+  SortAndResetChildrenIterator();
+}
+
+void DirectoryListing::RemoveChild(const MetaData& child) {
+  auto itr(std::find_if(std::begin(children_), std::end(children_),
+                        [&child](const MetaData& entry) { return child.name == entry.name; }));
+  if (itr == std::end(children_))
+    ThrowError(CommonErrors::invalid_parameter);
+  children_.erase(itr);
+  SortAndResetChildrenIterator();
+}
+
+void DirectoryListing::UpdateChild(const MetaData& child) {
+  auto itr(std::find_if(std::begin(children_), std::end(children_),
+                        [&child](const MetaData& entry) { return child.name == entry.name; }));
+  if (itr == std::end(children_))
+    ThrowError(CommonErrors::invalid_parameter);
+  *itr = child;
+  SortAndResetChildrenIterator();
+}
+
+void DirectoryListing::SortAndResetChildrenIterator() {
+  std::sort(std::begin(children_), std::end(children_));
+  children_itr_position_ = 0;
+}
+
+bool DirectoryListing::empty() const {
+  if (children_.empty())
+    return true;
+  return std::any_of(std::begin(children_), std::end(children_),
+                     [](const MetaData& element) { return element.name.extension() == kMsHidden; });
+}
+
+std::string DirectoryListing::Serialise() const {
+  protobuf::DirectoryListing pb_directory;
+  pb_directory.set_directory_id(directory_id_.string());
+
+  for (const auto& child : children_)
+    pb_directory.add_children()->set_serialised_meta_data(child.Serialise());
+
+  return pb_directory.SerializeAsString();
+}
+
+std::vector<std::string> DirectoryListing::GetHiddenChildNames() const {
+  std::vector<std::string> names;
+  std::for_each(std::begin(children_), std::end(children_),
+                [&](const MetaData& child) {
+                  if (child.name.extension() == kMsHidden)
+                    names.push_back(child.name.string());
+                });
+  return names;
+}
+
+bool operator<(const DirectoryListing& lhs, const DirectoryListing& rhs) {
+  return lhs.directory_id() < rhs.directory_id();
+}
+
+void swap(DirectoryListing& lhs, DirectoryListing& rhs) {
+  using std::swap;
+  swap(lhs.directory_id_, rhs.directory_id_);
+  swap(lhs.children_, rhs.children_);
+  swap(lhs.children_itr_position_, rhs.children_itr_position_);
+}
 
 }  // namespace detail
 

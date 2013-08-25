@@ -15,6 +15,8 @@ License.
 
 #include "maidsafe/drive/meta_data.h"
 
+#include <utility>
+
 #include "boost/algorithm/string/predicate.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
 
@@ -29,24 +31,24 @@ namespace bptime = boost::posix_time;
 namespace fs = boost::filesystem;
 
 // TODO(Fraser#5#): 2012-09-02 - Get rid of these
-#define ATTRIBUTES_IFMT    0x0FFF
-#define ATTRIBUTES_IFREG   0x8000
-#define ATTRIBUTES_IFDIR   0x4000
+#define ATTRIBUTES_IFMT 0x0FFF
+#define ATTRIBUTES_IFREG 0x8000
+#define ATTRIBUTES_IFDIR 0x4000
 
-#define ATTRIBUTES_IRWXU   0x01C0
-#define ATTRIBUTES_IRUSR   0x0100
-#define ATTRIBUTES_IWUSR   0x0080
-#define ATTRIBUTES_IXUSR   0x0040
+#define ATTRIBUTES_IRWXU 0x01C0
+#define ATTRIBUTES_IRUSR 0x0100
+#define ATTRIBUTES_IWUSR 0x0080
+#define ATTRIBUTES_IXUSR 0x0040
 
-#define ATTRIBUTES_IRWXG   0x0038
-#define ATTRIBUTES_IRGRP   0x0020
-#define ATTRIBUTES_IWGRP   0x0010
-#define ATTRIBUTES_IXGRP   0x0008
+#define ATTRIBUTES_IRWXG 0x0038
+#define ATTRIBUTES_IRGRP 0x0020
+#define ATTRIBUTES_IWGRP 0x0010
+#define ATTRIBUTES_IXGRP 0x0008
 
-#define ATTRIBUTES_IRWXO   0x0007
-#define ATTRIBUTES_IROTH   0x0004
-#define ATTRIBUTES_IWOTH   0x0002
-#define ATTRIBUTES_IXOTH   0x0001
+#define ATTRIBUTES_IRWXO 0x0007
+#define ATTRIBUTES_IROTH 0x0004
+#define ATTRIBUTES_IWOTH 0x0002
+#define ATTRIBUTES_IXOTH 0x0001
 
 
 namespace maidsafe {
@@ -171,89 +173,55 @@ MetaData::MetaData(const fs::path &name, bool is_directory)
 #endif
 
 MetaData::MetaData(const MetaData& meta_data)
-  : name(meta_data.name),
+    : name(meta_data.name),
 #ifdef MAIDSAFE_WIN32
-    end_of_file(meta_data.end_of_file),
-    allocation_size(meta_data.allocation_size),
-    attributes(meta_data.attributes),
-    creation_time(meta_data.creation_time),
-    last_access_time(meta_data.last_access_time),
-    last_write_time(meta_data.last_write_time),
+      end_of_file(meta_data.end_of_file),
+      allocation_size(meta_data.allocation_size),
+      attributes(meta_data.attributes),
+      creation_time(meta_data.creation_time),
+      last_access_time(meta_data.last_access_time),
+      last_write_time(meta_data.last_write_time),
 #else
-    attributes(meta_data.attributes),
-    link_to(meta_data.link_to),
+      attributes(meta_data.attributes),
+      link_to(meta_data.link_to),
 #endif
-    data_map(nullptr),
-    directory_id(nullptr),
-    notes(meta_data.notes) {
+      data_map(nullptr),
+      directory_id(nullptr),
+      notes(meta_data.notes) {
   if (meta_data.data_map)
     data_map.reset(new encrypt::DataMap(*meta_data.data_map));
   if (meta_data.directory_id)
     directory_id.reset(new DirectoryId(*meta_data.directory_id));
 }
 
-void MetaData::Serialise(std::string& serialised_meta_data) const {
-  serialised_meta_data.clear();
-  protobuf::MetaData pb_meta_data;
-
-  pb_meta_data.set_name(name.string());
-  protobuf::AttributesArchive* attributes_archive = pb_meta_data.mutable_attributes_archive();
-
+MetaData::MetaData(MetaData&& meta_data)
+    : name(std::move(meta_data.name)),
 #ifdef MAIDSAFE_WIN32
-  attributes_archive->set_creation_time(bptime::to_iso_string(FileTimeToBptime(creation_time)));
-  attributes_archive->set_last_access_time(
-      bptime::to_iso_string(FileTimeToBptime(last_access_time)));
-  attributes_archive->set_last_write_time(bptime::to_iso_string(FileTimeToBptime(last_write_time)));
-  attributes_archive->set_st_size(end_of_file);
-
-  uint32_t st_mode(0x01FF);
-  st_mode &= ATTRIBUTES_IFMT;
-  if ((attributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY)
-    st_mode |= ATTRIBUTES_IFDIR;
-  else
-    st_mode |= ATTRIBUTES_IFREG;
-  attributes_archive->set_st_mode(st_mode);
-  attributes_archive->set_win_attributes(attributes);
+      end_of_file(std::move(meta_data.end_of_file)),
+      allocation_size(std::move(meta_data.allocation_size)),
+      attributes(std::move(meta_data.attributes)),
+      creation_time(std::move(meta_data.creation_time)),
+      last_access_time(std::move(meta_data.last_access_time)),
+      last_write_time(std::move(meta_data.last_write_time)),
 #else
-  attributes_archive->set_link_to(link_to.string());
-  attributes_archive->set_st_size(attributes.st_size);
-
-  attributes_archive->set_last_access_time(
-      bptime::to_iso_string(bptime::from_time_t(attributes.st_atime)));
-  attributes_archive->set_last_write_time(
-      bptime::to_iso_string(bptime::from_time_t(attributes.st_mtime)));
-  attributes_archive->set_creation_time(
-      bptime::to_iso_string(bptime::from_time_t(attributes.st_ctime)));
-
-  attributes_archive->set_st_dev(attributes.st_dev);
-  attributes_archive->set_st_ino(attributes.st_ino);
-  attributes_archive->set_st_mode(attributes.st_mode);
-  attributes_archive->set_st_nlink(attributes.st_nlink);
-  attributes_archive->set_st_uid(attributes.st_uid);
-  attributes_archive->set_st_gid(attributes.st_gid);
-  attributes_archive->set_st_rdev(attributes.st_rdev);
-  attributes_archive->set_st_blksize(attributes.st_blksize);
-  attributes_archive->set_st_blocks(attributes.st_blocks);
+      attributes(std::move(meta_data.attributes)),
+      link_to(std::move(meta_data.link_to)),
 #endif
-
-  if (data_map) {
-    std::string serialised_data_map;
-    encrypt::SerialiseDataMap(*data_map, serialised_data_map);
-    pb_meta_data.set_serialised_data_map(serialised_data_map);
-  } else {
-    pb_meta_data.set_directory_id(directory_id->string());
-  }
-
-  for (auto note : notes)
-    pb_meta_data.add_notes(note);
-
-  if (!pb_meta_data.SerializeToString(&serialised_meta_data))
-    ThrowError(CommonErrors::serialisation_error);
-
-  return;
+      data_map(nullptr),
+      directory_id(nullptr),
+      notes(std::move(meta_data.notes)) {
+  if (meta_data.data_map)
+    data_map.reset(new encrypt::DataMap(*meta_data.data_map));
+  if (meta_data.directory_id)
+    directory_id.reset(new DirectoryId(*meta_data.directory_id));
 }
 
-void MetaData::Parse(const std::string& serialised_meta_data) {
+MetaData& MetaData::operator=(MetaData other) {
+  swap(*this, other);
+  return *this;
+}
+
+MetaData::MetaData(const std::string& serialised_meta_data) {
   if (!name.empty())
     ThrowError(CommonErrors::invalid_parameter);
 
@@ -332,8 +300,62 @@ void MetaData::Parse(const std::string& serialised_meta_data) {
 
   for (int i(0); i != pb_meta_data.notes_size(); ++i)
     notes.push_back(pb_meta_data.notes(i));
+}
 
-  return;
+std::string MetaData::Serialise() const {
+  protobuf::MetaData pb_meta_data;
+  pb_meta_data.set_name(name.string());
+  protobuf::AttributesArchive* attributes_archive = pb_meta_data.mutable_attributes_archive();
+
+#ifdef MAIDSAFE_WIN32
+  attributes_archive->set_creation_time(bptime::to_iso_string(FileTimeToBptime(creation_time)));
+  attributes_archive->set_last_access_time(
+      bptime::to_iso_string(FileTimeToBptime(last_access_time)));
+  attributes_archive->set_last_write_time(bptime::to_iso_string(FileTimeToBptime(last_write_time)));
+  attributes_archive->set_st_size(end_of_file);
+
+  uint32_t st_mode(0x01FF);
+  st_mode &= ATTRIBUTES_IFMT;
+  if ((attributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY)
+    st_mode |= ATTRIBUTES_IFDIR;
+  else
+    st_mode |= ATTRIBUTES_IFREG;
+  attributes_archive->set_st_mode(st_mode);
+  attributes_archive->set_win_attributes(attributes);
+#else
+  attributes_archive->set_link_to(link_to.string());
+  attributes_archive->set_st_size(attributes.st_size);
+
+  attributes_archive->set_last_access_time(
+      bptime::to_iso_string(bptime::from_time_t(attributes.st_atime)));
+  attributes_archive->set_last_write_time(
+      bptime::to_iso_string(bptime::from_time_t(attributes.st_mtime)));
+  attributes_archive->set_creation_time(
+      bptime::to_iso_string(bptime::from_time_t(attributes.st_ctime)));
+
+  attributes_archive->set_st_dev(attributes.st_dev);
+  attributes_archive->set_st_ino(attributes.st_ino);
+  attributes_archive->set_st_mode(attributes.st_mode);
+  attributes_archive->set_st_nlink(attributes.st_nlink);
+  attributes_archive->set_st_uid(attributes.st_uid);
+  attributes_archive->set_st_gid(attributes.st_gid);
+  attributes_archive->set_st_rdev(attributes.st_rdev);
+  attributes_archive->set_st_blksize(attributes.st_blksize);
+  attributes_archive->set_st_blocks(attributes.st_blocks);
+#endif
+
+  if (data_map) {
+    std::string serialised_data_map;
+    encrypt::SerialiseDataMap(*data_map, serialised_data_map);
+    pb_meta_data.set_serialised_data_map(serialised_data_map);
+  } else {
+    pb_meta_data.set_directory_id(directory_id->string());
+  }
+
+  for (auto note : notes)
+    pb_meta_data.add_notes(note);
+
+  return pb_meta_data.SerializeAsString();
 }
 
 bptime::ptime MetaData::creation_posix_time() const {
@@ -352,10 +374,6 @@ bptime::ptime MetaData::last_write_posix_time() const {
 #endif
 }
 
-bool MetaData::operator<(const MetaData &other) const {
-  return boost::ilexicographical_compare(name.wstring(), other.name.wstring());
-}
-
 void MetaData::UpdateLastModifiedTime() {
 #ifdef MAIDSAFE_WIN32
   GetSystemTimeAsFileTime(&last_write_time);
@@ -370,6 +388,29 @@ uint64_t MetaData::GetAllocatedSize() const {
 #else
   return attributes.st_size;
 #endif
+}
+
+bool operator<(const MetaData& lhs, const MetaData& rhs) {
+  return boost::ilexicographical_compare(lhs.name.wstring(), rhs.name.wstring());
+}
+
+void swap(MetaData& lhs, MetaData& rhs) {
+  using std::swap;
+  swap(lhs.name, rhs.name);
+#ifdef MAIDSAFE_WIN32
+  swap(lhs.end_of_file, rhs.end_of_file);
+  swap(lhs.allocation_size, rhs.allocation_size);
+  swap(lhs.attributes, rhs.attributes);
+  swap(lhs.creation_time, rhs.creation_time);
+  swap(lhs.last_access_time, rhs.last_access_time);
+  swap(lhs.last_write_time, rhs.last_write_time);
+#else
+  swap(lhs.attributes, rhs.attributes);
+  swap(lhs.link_to, rhs.link_to);
+#endif
+  swap(lhs.data_map, rhs.data_map);
+  swap(lhs.directory_id, rhs.directory_id);
+  swap(lhs.notes, rhs.notes);
 }
 
 }  // namespace drive

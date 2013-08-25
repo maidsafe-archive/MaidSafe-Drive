@@ -71,7 +71,7 @@ TEST(UtilsTest, BEH_MatchesMask) {
   mask = L"*.*";
   matching_files.erase(L"btx");
   FilesMatchMask(kAllFiles, matching_files, mask);
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
   mask = L"*[*";
   matching_files.clear();
   matching_files.insert(L"1[.txt");
@@ -96,7 +96,7 @@ TEST(UtilsTest, BEH_MatchesMask) {
   matching_files.clear();
   matching_files.insert(L"1).txt");
   FilesMatchMask(kAllFiles, matching_files, mask);
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
   mask = L"*+*";
   matching_files.clear();
   matching_files.insert(L"1+.TXT");
@@ -119,7 +119,7 @@ TEST(UtilsTest, BEH_MatchesMask) {
   matching_files.erase(L"bt.x");
   matching_files.erase(L"btx.");
   matching_files.erase(L"btx");
-#ifndef WIN32
+#ifndef MAIDSAFE_WIN32
 #ifndef MAIDSAFE_APPLE
   matching_files.erase(L"1+.TXT");
 #endif

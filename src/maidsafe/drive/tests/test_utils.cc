@@ -266,6 +266,26 @@ uint64_t TotalSize(encrypt::DataMapPtr data_map) {
   return size;
 }
 
+void GenerateDirectoryListingEntryForFile(DirectoryListing& directory_listing,
+                                          const fs::path& path,
+                                          const uintmax_t& file_size) {
+  MetaData meta_data(path.filename(), false);
+#ifdef MAIDSAFE_WIN32
+  meta_data.end_of_file = file_size;
+  meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
+  GetSystemTimeAsFileTime(&meta_data.creation_time);
+  GetSystemTimeAsFileTime(&meta_data.last_access_time);
+  GetSystemTimeAsFileTime(&meta_data.last_write_time);
+  meta_data.allocation_size = RandomUint32();
+#else
+  time(&meta_data.attributes.st_atime);
+  time(&meta_data.attributes.st_mtime);
+  meta_data.attributes.st_size = file_size;
+#endif
+  meta_data.data_map->content = RandomString(100);
+  EXPECT_NO_THROW(directory_listing.AddChild(meta_data));
+}
+
 }  // namespace test
 
 }  // namespace detail

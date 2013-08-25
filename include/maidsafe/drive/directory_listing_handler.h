@@ -34,6 +34,8 @@ License.
 #include "maidsafe/common/profiler.h"
 #include "maidsafe/common/utils.h"
 
+#include "maidsafe/data_types/data_type_values.h"
+
 #include "maidsafe/encrypt/self_encryptor.h"
 
 #include "maidsafe/drive/config.h"
@@ -51,10 +53,8 @@ namespace detail {
 
 namespace test { class DirectoryListingHandlerTest; }
 
-const size_t kMaxAttempts = 3;
-
 struct DirectoryData {
-  DirectoryData(const DirectoryId& parent_id_in, DirectoryListingPtr dir_listing)
+  DirectoryData(const DirectoryId& parent_id_in, std::shared_ptr<DirectoryListing> dir_listing)
       : parent_id(parent_id_in),
         listing(dir_listing),
         content_changed(false) {}
@@ -63,7 +63,7 @@ struct DirectoryData {
         listing(),
         content_changed(false) {}
   DirectoryId parent_id;
-  DirectoryListingPtr listing;
+  std::shared_ptr<DirectoryListing> listing;
   bool content_changed;
 };
 
@@ -72,14 +72,11 @@ class DirectoryListingHandler {
  public:
   typedef std::pair<DirectoryData, uint32_t> DirectoryType;
 
-  enum { kOwnerValue, kGroupValue, kWorldValue, kInvalidValue };
-
   DirectoryListingHandler(Storage& storage,
-                          const Identity& unique_user_id,
-                          const Identity& root_parent_id);
+                          const DirectoryType& relative_root,
+                          bool immutable_root = false);
   virtual ~DirectoryListingHandler() {}
 
-  Identity root_parent_id() const { return root_parent_id_; }
   DirectoryType GetFromPath(const boost::filesystem::path& relative_path);
   // Adds a directory or file represented by meta_data and relative_path to the appropriate parent
   // directory listing.  If the element is a directory, a new directory listing is created and
@@ -109,8 +106,6 @@ class DirectoryListingHandler {
   friend class test::DirectoryListingHandlerTest;
 
  protected:
-  DirectoryListingHandler(const DirectoryListingHandler&);
-  DirectoryListingHandler& operator=(const DirectoryListingHandler&);
   DirectoryData RetrieveFromStorage(const DirectoryId& parent_id,
                                     const DirectoryId& directory_id,
                                     int directory_type) const;
@@ -143,65 +138,29 @@ class DirectoryListingHandler {
   void ReStoreDirectories(const boost::filesystem::path& relative_path, int directory_type);
 
  private:
+  DirectoryListingHandler(const DirectoryListingHandler&);
+  DirectoryListingHandler(DirectoryListingHandler&&);
+  DirectoryListingHandler& operator=(DirectoryListingHandler);
+
   Storage& storage_;
-  Identity unique_user_id_, root_parent_id_;
-  boost::filesystem::path relative_root_;
-  bool world_is_writeable_;
+  DirectoryType relative_root_;
+  bool world_is_writeable_, immutable_root_;
 };
 
 
+
+// ==================== Implementation =============================================================
 template<typename Storage>
 DirectoryListingHandler<Storage>::DirectoryListingHandler(Storage& storage,
-                                                          const Identity& unique_user_id,
-                                                          const Identity& root_parent_id)
+                                                          const DirectoryType& relative_root,
+                                                          bool immutable_root)
     : storage_(storage),
-      unique_user_id_(unique_user_id),
-      root_parent_id_(root_parent_id),
-      relative_root_(boost::filesystem::path("/").make_preferred()),
-      world_is_writeable_(true) {
-  if (!unique_user_id_.IsInitialised())
+      relative_root_(relative_root),
+      world_is_writeable_(true),
+      immutable_root_(immutable_root) {
+  if (!relative_root.first.parent_id.IsInitialised() ||
+      !relative_root.first.listing.directory_id().IsInitialised()) {
     ThrowError(CommonErrors::uninitialised);
-
-  if (!root_parent_id_.IsInitialised()) {
-    root_parent_id_ = Identity(RandomString(64));
-    // First run, setup working directories.
-    // Root/Parent.
-    MetaData root_meta_data(relative_root_, true);
-    DirectoryListingPtr root_parent_directory(new DirectoryListing(root_parent_id_)),
-                        root_directory(new DirectoryListing(*root_meta_data.directory_id));
-    DirectoryData root_parent(unique_user_id, root_parent_directory),
-                  root(root_parent_id_, root_directory);
-
-    root_parent.listing->AddChild(root_meta_data);
-    PutToStorage(std::make_pair(root_parent, kOwnerValue));
-    // Owner.
-    MetaData owner_meta_data(kOwner, true);
-    DirectoryListingPtr owner_directory(new DirectoryListing(*owner_meta_data.directory_id));
-    DirectoryData owner(root.listing->directory_id(), owner_directory);
-    PutToStorage(std::make_pair(owner, kOwnerValue));
-    // Group.
-    MetaData group_meta_data(kGroup, true), group_services_meta_data(kServices, true);
-    DirectoryListingPtr group_directory(new DirectoryListing(*group_meta_data.directory_id)),
-            group_services_directory(new DirectoryListing(*group_services_meta_data.directory_id));
-    DirectoryData group(root.listing->directory_id(), group_directory),
-                  group_services(group.listing->directory_id(), group_services_directory);
-    PutToStorage(std::make_pair(group_services, kGroupValue));
-    group.listing->AddChild(group_services_meta_data);
-    PutToStorage(std::make_pair(group, kGroupValue));
-    // World.
-    MetaData world_meta_data(kWorld, true), world_services_meta_data("Services", true);
-    DirectoryListingPtr world_directory(new DirectoryListing(*world_meta_data.directory_id)),
-            world_services_directory(new DirectoryListing(*world_services_meta_data.directory_id));
-    DirectoryData world(root.listing->directory_id(), world_directory),
-                  world_services(world.listing->directory_id(), world_services_directory);
-    PutToStorage(std::make_pair(world_services, kWorldValue));
-    world.listing->AddChild(world_services_meta_data);
-    PutToStorage(std::make_pair(world, kWorldValue));
-
-    root.listing->AddChild(owner_meta_data);
-    root.listing->AddChild(group_meta_data);
-    root.listing->AddChild(world_meta_data);
-    PutToStorage(std::make_pair(root, kOwnerValue));
   }
 }
 
@@ -253,8 +212,7 @@ void DirectoryListingHandler<Storage>::AddElement(const boost::filesystem::path&
 
   if (IsDirectory(meta_data)) {
     DirectoryData directory(parent.first.listing->directory_id(),
-                              DirectoryListingPtr(
-                                  new DirectoryListing(*meta_data.directory_id)));
+                            std::make_shared<DirectoryListing>(*meta_data.directory_id));
     try {
       PutToStorage(std::make_pair(directory, directory_type));
     }
@@ -271,7 +229,7 @@ void DirectoryListingHandler<Storage>::AddElement(const boost::filesystem::path&
   if (IsDirectory(meta_data))
     ++parent_meta_data.attributes.st_nlink;
 #endif
-  grandparent.first.listing->UpdateChild(parent_meta_data, true);
+  grandparent.first.listing->UpdateChild(parent_meta_data);
 
   try {
     PutToStorage(parent);
@@ -315,7 +273,7 @@ void DirectoryListingHandler<Storage>::DeleteElement(const boost::filesystem::pa
 #endif
 
   try {
-    grandparent.first.listing->UpdateChild(parent_meta_data, true);
+    grandparent.first.listing->UpdateChild(parent_meta_data);
   }
   catch(...) { /*Non-critical*/ }
 
@@ -323,8 +281,6 @@ void DirectoryListingHandler<Storage>::DeleteElement(const boost::filesystem::pa
   PutToStorage(grandparent);
 #endif
   PutToStorage(parent);
-
-  return;
 }
 
 template<typename Storage>
@@ -343,7 +299,6 @@ void DirectoryListingHandler<Storage>::RenameElement(
     RenameSameParent(old_relative_path, new_relative_path, meta_data, reclaimed_space);
   else
     RenameDifferentParent(old_relative_path, new_relative_path, meta_data, reclaimed_space);
-  return;
 }
 
 template<typename Storage>
@@ -405,12 +360,11 @@ void DirectoryListingHandler<Storage>::RenameSameParent(
 
 #ifndef MAIDSAFE_WIN32
   try {
-    grandparent.first.listing->UpdateChild(parent_meta_data, true);
+    grandparent.first.listing->UpdateChild(parent_meta_data);
   }
   catch(...) { /*Non-critical*/ }
   PutToStorage(grandparent);
 #endif
-  return;
 }
 
 template<typename Storage>
@@ -498,12 +452,11 @@ void DirectoryListingHandler<Storage>::RenameDifferentParent(
 
 #ifndef MAIDSAFE_WIN32
   try {
-    old_grandparent.first.listing->UpdateChild(old_parent_meta_data, true);
+    old_grandparent.first.listing->UpdateChild(old_parent_meta_data);
   }
   catch(...) { /*Non-critical*/ }
   PutToStorage(old_grandparent);
 #endif
-  return;
 }
 
 template<typename Storage>
@@ -525,7 +478,6 @@ void DirectoryListingHandler<Storage>::ReStoreDirectories(
                directory.second);
   directory.second = directory_type;
   PutToStorage(directory);
-  return;
 }
 
 template<typename Storage>
@@ -534,9 +486,8 @@ void DirectoryListingHandler<Storage>::UpdateParentDirectoryListing(
         MetaData meta_data) {
   SCOPED_PROFILE
   DirectoryType parent = GetFromPath(parent_path);
-  parent.first.listing->UpdateChild(meta_data, true);
+  parent.first.listing->UpdateChild(meta_data);
   PutToStorage(parent);
-  return;
 }
 
 template<typename Storage>
@@ -557,7 +508,6 @@ void DirectoryListingHandler<Storage>::GetParentAndGrandparent(
     ThrowError(CommonErrors::invalid_parameter);
   }
   *parent = GetFromPath(relative_path.parent_path());
-  return;
 }
 
 template<typename Storage>
@@ -569,11 +519,8 @@ DirectoryData DirectoryListingHandler<Storage>::RetrieveFromStorage(const Direct
     WorldDirectory::serialised_type serialised_data;
     serialised_data.data = Get<Storage, WorldDirectory>()(storage_, name);
     WorldDirectory world_directory(name, serialised_data);
-    Identity id(std::string("", 64));
-    DirectoryData directory(parent_id, std::make_shared<DirectoryListing>(id));
-    directory.listing->Parse(world_directory.data().string());
-    directory.parent_id = parent_id;
-    return directory;
+    return DirectoryData(parent_id,
+                         std::make_shared<DirectoryListing>(world_directory.data().string()));
   }
 
   DataMapPtr data_map(new encrypt::DataMap);
@@ -596,11 +543,7 @@ DirectoryData DirectoryListingHandler<Storage>::RetrieveFromStorage(const Direct
     ThrowError(CommonErrors::invalid_parameter);
   }
   // Parse serialised directory listing.
-  Identity id(std::string("", 64));
-  DirectoryData directory(parent_id, std::make_shared<DirectoryListing>(id));
-  directory.listing->Parse(serialised_directory_listing);
-  assert(directory.listing->directory_id() == directory_id);
-  return directory;
+  return DirectoryData(parent_id, std::make_shared<DirectoryListing>(serialised_directory_listing));
 }
 
 template<typename Storage>
@@ -662,7 +605,6 @@ void DirectoryListingHandler<Storage>::PutToStorage(const DirectoryType& directo
   } else {
     ThrowError(CommonErrors::not_a_directory);
   }
-  return;
 }
 
 template<typename Storage>
@@ -694,7 +636,6 @@ void DirectoryListingHandler<Storage>::DeleteStored(const DirectoryId& parent_id
     default:
       LOG(kError) << "Invalid directory type.";
   }
-  return;
 }
 
 template<typename Storage>
@@ -728,7 +669,6 @@ void DirectoryListingHandler<Storage>::RetrieveDataMap(const DirectoryId& parent
   } else {
     ThrowError(CommonErrors::invalid_parameter);
   }
-  return;
 }
 
 // If the target is a file it can be deleted.  On POSIX, if it's a non-empty
@@ -740,7 +680,7 @@ bool DirectoryListingHandler<Storage>::RenameTargetCanBeRemoved(
     const MetaData& target_meta_data) {
   bool can_be_removed = !IsDirectory(target_meta_data);
   if (!can_be_removed) {
-    DirectoryListingPtr target_directory_listing = GetFromPath(new_relative_path).first.listing;
+    auto target_directory_listing(GetFromPath(new_relative_path).first.listing);
     if (target_directory_listing)
       can_be_removed = target_directory_listing->empty();
   }
@@ -751,11 +691,11 @@ bool DirectoryListingHandler<Storage>::RenameTargetCanBeRemoved(
 template<typename Storage>
 int DirectoryListingHandler<Storage>::GetDirectoryType(
     const boost::filesystem::path& relative_path) {
-  if (relative_path == kEmptyPath || relative_path == kRoot)
+  if (relative_path.empty() || relative_path == kRoot)
     return kOwnerValue;
   boost::filesystem::path::iterator it(relative_path.begin());
   ++it;
-  if (it->filename() == kEmptyPath || it->filename() == kOwner)
+  if (it->filename().empty() || it->filename() == kOwner)
     return kOwnerValue;
   else if (it->filename() == kGroup)
     return kGroupValue;
@@ -772,25 +712,22 @@ bool DirectoryListingHandler<Storage>::CanAdd(const boost::filesystem::path& rel
   if (directory_type == kGroupValue || (directory_type == kWorldValue && !world_is_writeable_))
     return false;
   fs::path relative_parent_filename(relative_path.parent_path().filename());
-  if (relative_parent_filename == kEmptyPath || relative_parent_filename == kRoot)
-    return false;
-  return true;
+  return !relative_parent_filename.empty() && relative_parent_filename != kRoot;
 }
 
 template<typename Storage>
 bool DirectoryListingHandler<Storage>::CanDelete(const fs::path& relative_path) {
   SCOPED_PROFILE
   int directory_type(GetDirectoryType(relative_path));
-  if (directory_type == kGroupValue
-      || (directory_type == kWorldValue && !world_is_writeable_)
-      || directory_type == kInvalidValue)
+  if (directory_type == kGroupValue ||
+      (directory_type == kWorldValue && !world_is_writeable_) ||
+      directory_type == kInvalidValue) {
     return false;
+  }
   boost::filesystem::path relative_path_parent_filename(relative_path.parent_path().filename());
-  if (relative_path_parent_filename == kEmptyPath
-      || relative_path_parent_filename == kRoot
-      || (relative_path_parent_filename == kWorld && relative_path.filename() == kServices))
-    return false;
-  return true;
+  return !relative_path_parent_filename.empty() &&
+         relative_path_parent_filename != kRoot &&
+         !(relative_path_parent_filename == kWorld && relative_path.filename() == kServices);
 }
 
 template<typename Storage>

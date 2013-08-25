@@ -51,12 +51,14 @@ struct MetaData {
   MetaData();
   MetaData(const boost::filesystem::path &name, bool is_directory);
   MetaData(const MetaData& meta_data);
+  MetaData(MetaData&& meta_data);
+  MetaData& operator=(MetaData other);
 
-  void Serialise(std::string& serialised_meta_data) const;
-  void Parse(const std::string& serialised_meta_data);
+  explicit MetaData(const std::string& serialised_meta_data);
+  std::string Serialise() const;
+
   boost::posix_time::ptime creation_posix_time() const;
   boost::posix_time::ptime last_write_posix_time() const;
-  bool operator<(const MetaData &other) const;
   void UpdateLastModifiedTime();
   uint64_t GetAllocatedSize() const;
 
@@ -76,6 +78,9 @@ struct MetaData {
   detail::DirectoryIdPtr directory_id;
   std::vector<std::string> notes;
 };
+
+bool operator<(const MetaData& lhs, const MetaData& rhs);
+void swap(MetaData& lhs, MetaData& rhs);
 
 }  // namespace drive
 

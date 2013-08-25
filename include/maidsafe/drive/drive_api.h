@@ -23,15 +23,18 @@ License.
 #include <string>
 #include <thread>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 
 #include "boost/filesystem/path.hpp"
 
 #include "maidsafe/common/rsa.h"
+#include "maidsafe/data_store/surefile_store.h"
+#include "maidsafe/nfs/client/maid_node_nfs.h"
 
 #include "maidsafe/drive/config.h"
-#include "maidsafe/drive/directory_listing_handler.h"
 #include "maidsafe/drive/meta_data.h"
+#include "maidsafe/drive/root_handler.h"
 #include "maidsafe/drive/utils.h"
 
 
@@ -45,33 +48,45 @@ boost::filesystem::path RelativePath(const boost::filesystem::path& mount_dir,
 template<typename Storage>
 class DriveInUserSpace {
  public:
-  // client_nfs: Enables network file operations.
-  // data_store: An alternative to client_nfs for local testing.
-  // maid: Client identity to validate network operations.
-  // unique_user_id: A random id created during user creation in client.
-  // root_parent_id: A random id representing non-existing root parent directory.
-  // mount_dir: Identifies the root path at which the drive is mounted.
-  // max_space: Space available for data storage.
-  // used_space: Space taken on network storing data.
-  DriveInUserSpace(Storage& data_store,
-                   const Identity& unique_user_id,
-                   const Identity& root_parent_id,
-                   const boost::filesystem::path& mount_dir,
-                   const int64_t& max_space,
-                   const int64_t& used_space);
+  DriveInUserSpace(
+      nfs_client::MaidNodeNfs& maid_node_nfs,
+      const Identity& unique_user_id,
+      const Identity& root_parent_id,
+      const boost::filesystem::path& mount_dir,
+      typename std::enable_if<std::is_same<Storage, nfs_client::MaidNodeNfs>::value>::type* = 0);
+
+  DriveInUserSpace(
+      const Identity& unique_user_id,
+      const Identity& root_parent_id,
+      const boost::filesystem::path& mount_dir,
+      std::function<void(const boost::filesystem::path&)> root_subdir_added,
+      std::function<void(const boost::filesystem::path&)> root_subdir_removed,
+      typename std::enable_if<std::is_same<Storage, data_store::SureFileStore>::value>::type* = 0);
+
   virtual ~DriveInUserSpace() {}
+
   virtual bool Unmount(int64_t &max_space, int64_t &used_space) = 0;
+
 #ifdef MAIDSAFE_APPLE
   boost::filesystem::path GetMountDir() const { return mount_dir_; }
 #endif
+
   Identity root_parent_id() const;
+
   void SetMountState(bool mounted);
+
   // Times out after 10 seconds.
   bool WaitUntilMounted();
   // Doesn't time out.
   void WaitUntilUnMounted();
 
-  // ********************* File / Folder Transfers *****************************
+  // ********************* SureFile functions ******************************************************
+
+  AddRootSubdir(const boost::filesystem::path& subdir_name,
+                const boost::filesystem::path& store_path);
+  RemoveRootSubdir(const boost::filesystem::path& subdir_name);
+
+  // ********************* File / Folder Transfers *************************************************
 
   // Retrieve the serialised DataMap of the file at 'relative_path' (e.g. to send to another client)
   void GetDataMap(const boost::filesystem::path& relative_path, std::string* serialised_data_map);
@@ -104,7 +119,7 @@ class DriveInUserSpace {
                   MetaData& meta_data,
                   int64_t& reclaimed_space);
 
-  // *************************** Hidden Files **********************************
+  // *************************** Hidden Files ******************************************************
 
   // All hidden files in this sense have extension ".ms_hidden" and are not accessible through the
   // normal filesystem methods.
@@ -113,11 +128,10 @@ class DriveInUserSpace {
                        const std::string& content,
                        bool overwrite_existing);
   void DeleteHiddenFile(const boost::filesystem::path& relative_path);
-  // Returns the hidden files at 'relative_path' in 'results'.
-  void SearchHiddenFiles(const boost::filesystem::path& relative_path,
-                         std::vector<std::string>* results);
+  // Returns all hidden files at 'relative_path'.
+  std::vector<std::string> GetHiddenFiles(const boost::filesystem::path& relative_path);
 
-  // **************************** File Notes ***********************************
+  // **************************** File Notes *******************************************************
 
   // Retrieve the collection of notes (serialised to strings) associated with given file/directory.
   void GetNotes(const boost::filesystem::path& relative_path, std::vector<std::string>* notes);
@@ -134,8 +148,7 @@ class DriveInUserSpace {
                             const boost::filesystem::path& to_relative_path) const = 0;
 
   enum DriveStage { kUnInitialised, kInitialised, kMounted, kUnMounted, kCleaned } drive_stage_;
-  Storage& storage_;
-  std::shared_ptr<detail::DirectoryListingHandler<Storage>> directory_listing_handler_;
+  detail::RootHandler<Storage> root_handler_;
   boost::filesystem::path mount_dir_;
 //  int64_t max_space_, used_space_;
   std::mutex unmount_mutex_;
@@ -153,26 +166,40 @@ class DriveInUserSpace {
 };
 
 
+
+// ==================== Implementation =============================================================
 template<typename Storage>
-DriveInUserSpace<Storage>::DriveInUserSpace(Storage& storage,
-                                            const Identity& unique_user_id,
-                                            const Identity& root_parent_id,
-                                            const boost::filesystem::path& mount_dir,
-                                            const int64_t& /*max_space*/,
-                                            const int64_t& /*used_space*/)
-    : drive_stage_(kUnInitialised),
-      storage_(storage),
-      directory_listing_handler_(new detail::DirectoryListingHandler<Storage>(storage,
-                                                                              unique_user_id,
-                                                                              root_parent_id)),
-      mount_dir_(mount_dir),
-//      max_space_(max_space),
-//      used_space_(used_space),
-      unmount_mutex_(),
-      api_mutex_(),
-      unmount_condition_variable_(),
-      mount_mutex_(),
-      mount_condition_variable_() {}
+DriveInUserSpace<Storage>::DriveInUserSpace(
+    nfs_client::MaidNodeNfs& maid_node_nfs,
+    const Identity& unique_user_id,
+    const Identity& root_parent_id,
+    const boost::filesystem::path& mount_dir,
+    typename std::enable_if<std::is_same<Storage, nfs_client::MaidNodeNfs>::value>::type* = 0)
+        : drive_stage_(kUnInitialised),
+          root_handler_(maid_node_nfs, unique_user_id, root_parent_id),
+          mount_dir_(mount_dir),
+          unmount_mutex_(),
+          api_mutex_(),
+          unmount_condition_variable_(),
+          mount_mutex_(),
+          mount_condition_variable_() {}
+
+template<typename Storage>
+DriveInUserSpace<Storage>::DriveInUserSpace(
+    const Identity& unique_user_id,
+    const Identity& root_parent_id,
+    const boost::filesystem::path& mount_dir,
+    std::function<void(const boost::filesystem::path&)> root_subdir_added,
+    std::function<void(const boost::filesystem::path&)> root_subdir_removed,
+    typename std::enable_if<std::is_same<Storage, data_store::SureFileStore>::value>::type* = 0)
+        : drive_stage_(kUnInitialised),
+          root_handler_(unique_user_id, root_parent_id, root_subdir_added, root_subdir_removed),
+          mount_dir_(mount_dir),
+          unmount_mutex_(),
+          api_mutex_(),
+          unmount_condition_variable_(),
+          mount_mutex_(),
+          mount_condition_variable_() {}
 
 template<typename Storage>
 Identity DriveInUserSpace<Storage>::root_parent_id() const {
@@ -195,7 +222,7 @@ bool DriveInUserSpace<Storage>::WaitUntilMounted() {
   bool result(mount_condition_variable_.wait_for(lock, std::chrono::seconds(10),
                                                  [this] { return drive_stage_ == kMounted; }));
 #ifdef MAIDSAFE_APPLE
-//  Sleep(boost::posix_time::seconds(1));
+//  Sleep(std::chrono::seconds(1));
 #endif
   return result;
 }
@@ -218,14 +245,12 @@ void DriveInUserSpace<Storage>::GetMetaData(const boost::filesystem::path& relat
     *grandparent_directory_id = parent.first.parent_id;
   if (parent_directory_id)
     *parent_directory_id = parent.first.listing->directory_id();
-  return;
 }
 
 template<typename Storage>
 void DriveInUserSpace<Storage>::UpdateParent(detail::FileContext<Storage>* file_context,
                                              const boost::filesystem::path& parent_path) {
   directory_listing_handler_->UpdateParentDirectoryListing(parent_path, *file_context->meta_data);
-  return;
 }
 
 template<typename Storage>
@@ -253,7 +278,6 @@ void DriveInUserSpace<Storage>::RemoveFile(const boost::filesystem::path& relati
     encrypt::SelfEncryptor<Storage> delete_this(meta_data.data_map, storage_);
     delete_this.DeleteAllChunks();
   }
-  return;
 }
 
 template<typename Storage>
@@ -265,7 +289,6 @@ void DriveInUserSpace<Storage>::RenameFile(const boost::filesystem::path& old_re
                                             new_relative_path,
                                             meta_data,
                                             reclaimed_space);
-  return;
 }
 
 template<typename Storage>
@@ -319,7 +342,6 @@ void DriveInUserSpace<Storage>::ReadDataMap(const boost::filesystem::path& relat
     serialised_data_map->clear();
     boost::throw_exception(exception);
   }
-  return;
 }
 
 template<typename Storage>
@@ -340,7 +362,6 @@ void DriveInUserSpace<Storage>::InsertDataMap(const boost::filesystem::path& rel
           *file_context.meta_data.get(),
           &file_context.grandparent_directory_id,
           &file_context.parent_directory_id);
-  return;
 }
 
 // **************************** Hidden Files ***********************************
@@ -368,8 +389,6 @@ void DriveInUserSpace<Storage>::ReadHiddenFile(const boost::filesystem::path& re
   content->resize(bytes_to_read);
   if (!file_context.self_encryptor->Read(const_cast<char*>(content->data()), bytes_to_read, 0))
     ThrowError(CommonErrors::invalid_parameter);
-
-  return;
 }
 
 template<typename Storage>
@@ -416,8 +435,6 @@ void DriveInUserSpace<Storage>::WriteHiddenFile(const boost::filesystem::path &r
 
   file_context.self_encryptor.reset();
   SetNewAttributes(&file_context, false, false);
-
-  return;
 }
 
 template<typename Storage>
@@ -425,15 +442,13 @@ void DriveInUserSpace<Storage>::DeleteHiddenFile(const boost::filesystem::path &
   if (relative_path.empty() || (relative_path.extension() != detail::kMsHidden))
     ThrowError(CommonErrors::invalid_parameter);
   RemoveFile(relative_path);
-  return;
 }
 
 template<typename Storage>
-void DriveInUserSpace<Storage>::SearchHiddenFiles(const boost::filesystem::path &relative_path,
-                                                  std::vector<std::string> *results) {
+std::vector<std::string> DriveInUserSpace<Storage>::GetHiddenFiles(
+    const boost::filesystem::path &relative_path) {
   auto directory(directory_listing_handler_->GetFromPath(relative_path));
-  directory.first.listing->GetHiddenChildNames(results);
-  return;
+  return directory.first.listing.GetHiddenChildNames();
 }
 
 // ***************************** File Notes ************************************
@@ -451,7 +466,6 @@ void DriveInUserSpace<Storage>::GetNotes(const boost::filesystem::path& relative
   file_context.meta_data->name = relative_path.filename();
   GetMetaData(relative_path, *file_context.meta_data.get(), nullptr, nullptr);
   *notes = file_context.meta_data->notes;
-  return;
 }
 
 template<typename Storage>
@@ -470,7 +484,6 @@ void DriveInUserSpace<Storage>::AddNote(const boost::filesystem::path& relative_
               &file_context.parent_directory_id);
   file_context.meta_data->notes.push_back(note);
   UpdateParent(&file_context, relative_path.parent_path());
-  return;
 }
 
 }  // namespace drive

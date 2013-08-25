@@ -35,19 +35,22 @@ namespace drive {
 
 namespace detail {
 
-class DirectoryListing;
+namespace test {
 
-namespace meta_data_ops {
+testing::AssertionResult DirectoriesMatch(const DirectoryListing& lhs, const DirectoryListing& rhs);
+class DirectoryListingTest_BEH_IteratorResetAndFailures_Test;
 
-bool MetaDataHasName(const MetaData& meta_data, const fs::path& name);
+}  // namespace test
 
-}  // namespace meta_data_ops
+
 
 class DirectoryListing {
  public:
   explicit DirectoryListing(const DirectoryId& directory_id);
-  DirectoryListing(const DirectoryListing&);
-  DirectoryListing& operator=(const DirectoryListing&);
+  explicit DirectoryListing(const std::string& serialised_directory_listing);
+  DirectoryListing(const DirectoryListing& other);
+  DirectoryListing(DirectoryListing&& other);
+  DirectoryListing& operator=(DirectoryListing other);
 
   ~DirectoryListing() {}
 
@@ -56,28 +59,29 @@ class DirectoryListing {
   bool GetChildAndIncrementItr(MetaData& meta_data);
   void AddChild(const MetaData& child);
   void RemoveChild(const MetaData& child);
-  void UpdateChild(const MetaData& child, bool reset_itr);
-  bool RenameChild(const MetaData& child, const fs::path& new_name, MetaData* target_if_exists);
-  void ResetChildrenIterator() { children_itr_ = children_.begin(); }
+  void UpdateChild(const MetaData& child);
   bool empty() const;
   DirectoryId directory_id() const { return directory_id_; }
-  void set_directory_id(const DirectoryId& directory_id) { directory_id_ = directory_id; }
 
   // This function is internal to drive, do not use for native filesystem operations.
-  void GetHiddenChildNames(std::vector<std::string> *names);
+  std::vector<std::string> GetHiddenChildNames() const;
 
-  bool operator<(const DirectoryListing& other) const;
-  friend testing::AssertionResult test::DirectoriesMatch(
-      DirectoryListingPtr directory1, DirectoryListingPtr directory2);
+  std::string Serialise() const;
 
-  void Serialise(std::string& serialised_directory_listing) const;
-  void Parse(const std::string& serialised_directory_listing);
+  friend void swap(DirectoryListing& lhs, DirectoryListing& rhs);
+  friend testing::AssertionResult test::DirectoriesMatch(const DirectoryListing& lhs,
+                                                         const DirectoryListing& rhs);
+  friend class test::DirectoryListingTest_BEH_IteratorResetAndFailures_Test;
 
  private:
+  void SortAndResetChildrenIterator();
+
   DirectoryId directory_id_;
-  std::set<MetaData> children_;
-  std::set<MetaData>::const_iterator children_itr_;
+  std::vector<MetaData> children_;
+  size_t children_itr_position_;
 };
+
+bool operator<(const DirectoryListing& lhs, const DirectoryListing& rhs);
 
 }  // namespace detail
 

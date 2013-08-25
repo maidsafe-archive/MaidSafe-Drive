@@ -506,7 +506,6 @@ void CbfsDriveInUserSpace<Storage>::OnCallbackFsInit() {
   catch(const ECBFSError& error) {
     ErrorMessage("OnCallbackFsInit", error);
   }
-  return;
 }
 
 template<typename Storage>

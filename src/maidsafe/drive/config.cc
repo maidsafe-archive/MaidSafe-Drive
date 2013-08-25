@@ -28,12 +28,7 @@ const boost::filesystem::path kMsHidden(L".ms_hidden");
 const boost::filesystem::path kMsHidden(".ms_hidden");
 #endif
 
-const boost::filesystem::path kEmptyPath("");
-const boost::filesystem::path kRoot("\\");
-const boost::filesystem::path kOwner("Owner");
-const boost::filesystem::path kGroup("Group");
-const boost::filesystem::path kWorld("World");
-const boost::filesystem::path kServices("Services");
+const boost::filesystem::path kRoot(boost::filesystem::path("/").make_preferred());
 
 }  // namespace detail
 

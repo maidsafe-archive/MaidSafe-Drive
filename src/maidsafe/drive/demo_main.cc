@@ -34,7 +34,7 @@ License.
 
 #include "maidsafe/data_store/surefile_store.h"
 
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
 #  include "maidsafe/drive/win_drive.h"
 #else
 #  include "maidsafe/drive/unix_drive.h"
@@ -60,7 +60,7 @@ void CtrlCHandler(int /*value*/) {
 
 template<typename Storage>
 struct Drive {
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
   typedef detail::CbfsDriveInUserSpace<Storage> DemoDrive;
 #else
   typedef detail::FuseDriveInUserSpace<Storage> DemoDrive;
@@ -86,7 +86,7 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   // The following values are passed in and returned on unmount.
   int64_t max_space(std::numeric_limits<int64_t>::max()), used_space(0);
   Identity unique_user_id(std::string(64, 'a'));
-  Identity root_parent_id = (root_parent_id_str.empty() ? Identity() : Identity(root_parent_id_str));
+  Identity root_parent_id = root_parent_id_str.empty() ? Identity() : Identity(root_parent_id_str);
   typedef Drive<maidsafe::data_store::SureFileStore>::DemoDrive Drive;
   Drive drive(storage,
               unique_user_id,
@@ -150,7 +150,7 @@ fs::path GetPathFromProgramOption(const std::string &option_name,
 int main(int argc, char *argv[]) {
   maidsafe::log::Logging::Instance().Initialise(argc, argv);
   boost::system::error_code error_code;
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
   fs::path logging_dir("C:\\ProgramData\\MaidSafeDrive\\logs");
 #else
   fs::path logging_dir(fs::temp_directory_path(error_code) / "maidsafe_drive/logs");
@@ -187,7 +187,7 @@ int main(int argc, char *argv[]) {
 
     // try open some config options
     std::ifstream local_config_file("maidsafe_drive.conf");
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
     fs::path main_config_path("C:/ProgramData/MaidSafeDrive/maidsafe_drive.conf");
 #else
     fs::path main_config_path("/etc/maidsafe_drive.conf");
@@ -213,7 +213,7 @@ int main(int argc, char *argv[]) {
     }
 
     fs::path chunkstore_path(GetPathFromProgramOption("chunkdir", &variables_map, true));
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
     fs::path mount_path(GetPathFromProgramOption("mountdir", &variables_map, false));
 #else
     fs::path mount_path(GetPathFromProgramOption("mountdir", &variables_map, true));

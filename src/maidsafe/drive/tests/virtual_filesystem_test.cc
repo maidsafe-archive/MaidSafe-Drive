@@ -27,7 +27,7 @@ License.
 
 #include "maidsafe/data_store/surefile_store.h"
 
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
 #  include "maidsafe/drive/win_drive.h"
 #else
 #  include "maidsafe/drive/unix_drive.h"
@@ -64,7 +64,7 @@ class ApiTestEnvironment : public testing::Environment {
         max_space_(1073741824),  // 2^30
         used_space_(0),
         unique_user_id_(Identity(crypto::Hash<crypto::SHA512>(main_test_dir_->string()))),
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
         drive_(std::make_shared<DerivedDriveInUserSpace<Storage>>(storage_,
                                                                   default_maid_,
                                                                   unique_user_id_,
@@ -79,7 +79,7 @@ class ApiTestEnvironment : public testing::Environment {
 
  protected:
   void SetUp() {
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
     if (virtual_filesystem_test_) {
       g_mount_dir = "S:";
     } else {
@@ -92,7 +92,7 @@ class ApiTestEnvironment : public testing::Environment {
 #endif
 
     boost::system::error_code error_code;
-#ifndef WIN32
+#ifndef MAIDSAFE_WIN32
     fs::create_directories(g_mount_dir, error_code);
     ASSERT_EQ(0, error_code.value());
 #else
@@ -104,7 +104,7 @@ class ApiTestEnvironment : public testing::Environment {
     fs::create_directories(g_test_mirror, error_code);
     ASSERT_EQ(0, error_code.value());
     if (virtual_filesystem_test_) {
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
       g_mount_dir /= "\\Owner";
 #else
       drive_ = std::make_shared<DerivedDriveInUserSpace<Storagae>>(storage_,
@@ -134,7 +134,7 @@ class ApiTestEnvironment : public testing::Environment {
   void TearDown() {
     if (virtual_filesystem_test_) {
       int64_t max_space, used_space;
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
       std::static_pointer_cast<DerivedDriveInUserSpace<Storage>>(drive_)->Unmount(max_space,
                                                                                   used_space);
 #else
@@ -565,7 +565,7 @@ class CallbacksApiTest : public testing::Test {
         }
 //        case 7: {
 //          if (mount_test_) {
-// #ifdef WIN32
+// #ifdef MAIDSAFE_WIN32
 //            // Unmount...
 //            EXPECT_EQ(0, std::static_pointer_cast<TestDriveInUserSpace>(
 //                      drive_)->Unmount());
@@ -1165,7 +1165,7 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_CheckFailures) {
 
   // From boost filesystem docs: if new_p resolves to an existing directory,
   // it is removed if empty on POSIX but is an error on Windows.
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
   ASSERT_NE(error_code.value(), 0);
 #else
   ASSERT_EQ(error_code.value(), 0);
@@ -1202,7 +1202,7 @@ fs::path GenerateFile(const fs::path &path,
 
   size_t filename_size(RandomUint32() % 4 + 4);
   fs::path file_name(RandomAlphaNumericString(filename_size) + ".txt");
-#ifndef WIN32
+#ifndef MAIDSAFE_WIN32
   while (ExcludedFilename(file_name))
     file_name = RandomAlphaNumericString(filename_size);
 #endif
@@ -1227,7 +1227,7 @@ fs::path GenerateFile(const fs::path &path,
 fs::path GenerateDirectory(const fs::path &path) {
   size_t directory_name_size(RandomUint32() % 8 + 1);
   fs::path file_name(RandomAlphaNumericString(directory_name_size));
-#ifndef WIN32
+#ifndef MAIDSAFE_WIN32
   while (ExcludedFilename(file_name))
     file_name = RandomAlphaNumericString(directory_name_size);
 #endif
@@ -1375,7 +1375,7 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_BENCHMARK_CopyThenReadManySmallFiles) {
     std::string str = (*it).string();
     boost::algorithm::replace_first(str, g_test_mirror.string(), g_mount_dir.string());
     if (!fs::exists(str))
-      Sleep(bptime::seconds(1));
+      Sleep(std::chrono::seconds(1));
     ASSERT_TRUE(fs::exists(str))  << "Missing " << str;
     ASSERT_TRUE(CompareFileContents(*it, str)) << "Comparing " << *it << " with " << str;
   }
@@ -1440,7 +1440,7 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_BENCHMARK_CopyThenReadManySmallFiles) {
 //  boost::system::error_code error_code;
 //  ASSERT_TRUE(fs::exists(file, error_code));
 //  ASSERT_EQ(error_code.value(), 0);
-//  Sleep(boost::posix_time::seconds(5));
+//  Sleep(std::chrono::seconds(5));
 //
 //  std::string hidden_data_map;
 //  std::string normal_data_map;
@@ -1468,7 +1468,7 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_BENCHMARK_CopyThenReadManySmallFiles) {
 //  EXPECT_EQ(kSuccess, g_drive->MoveDirectory(directory2, directory3 / directory2.filename()));
 //  int count(0);
 //  while (fs::exists(directory2, error_code) && count++ < 20)
-//    Sleep(bptime::millisec(100));
+//    Sleep(std::chrono::millisec(100));
 //  EXPECT_FALSE(fs::exists(directory2, error_code));
 //  EXPECT_TRUE(fs::exists(directory3 / directory2.filename(), error_code));
 // }
