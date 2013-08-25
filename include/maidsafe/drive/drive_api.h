@@ -53,15 +53,13 @@ class DriveInUserSpace {
       const Identity& unique_user_id,
       const Identity& root_parent_id,
       const boost::filesystem::path& mount_dir,
-      typename std::enable_if<std::is_same<Storage, nfs_client::MaidNodeNfs>::value>::type* = 0);
+      OnServiceAdded on_service_added);
 
   DriveInUserSpace(
-      const Identity& unique_user_id,
-      const Identity& root_parent_id,
+      const Identity& drive_root_id,
       const boost::filesystem::path& mount_dir,
-      std::function<void(const boost::filesystem::path&)> root_subdir_added,
-      std::function<void(const boost::filesystem::path&)> root_subdir_removed,
-      typename std::enable_if<std::is_same<Storage, data_store::SureFileStore>::value>::type* = 0);
+      OnServiceAdded on_service_added,
+      OnServiceRemoved on_service_removed);
 
   virtual ~DriveInUserSpace() {}
 
@@ -80,11 +78,20 @@ class DriveInUserSpace {
   // Doesn't time out.
   void WaitUntilUnMounted();
 
+  // ********************* LifeStuff share functions ***********************************************
+
+  template<typename ShareStorage>
+  void AddService(const boost::filesystem::path& service_alias, ShareStorage& storage);
+
   // ********************* SureFile functions ******************************************************
 
-  AddRootSubdir(const boost::filesystem::path& subdir_name,
-                const boost::filesystem::path& store_path);
-  RemoveRootSubdir(const boost::filesystem::path& subdir_name);
+  void AddService(const boost::filesystem::path& service_alias,
+                  const boost::filesystem::path& store_path);
+  void RemoveService(const boost::filesystem::path& service_alias);
+  // Called on login for each service found in config file
+  void ReInitialiseService(const boost::filesystem::path& service_alias,
+                           const boost::filesystem::path& store_path,
+                           const Identity& service_root_id);
 
   // ********************* File / Folder Transfers *************************************************
 
@@ -173,8 +180,7 @@ DriveInUserSpace<Storage>::DriveInUserSpace(
     nfs_client::MaidNodeNfs& maid_node_nfs,
     const Identity& unique_user_id,
     const Identity& root_parent_id,
-    const boost::filesystem::path& mount_dir,
-    typename std::enable_if<std::is_same<Storage, nfs_client::MaidNodeNfs>::value>::type* = 0)
+    const boost::filesystem::path& mount_dir)
         : drive_stage_(kUnInitialised),
           root_handler_(maid_node_nfs, unique_user_id, root_parent_id),
           mount_dir_(mount_dir),
@@ -182,7 +188,9 @@ DriveInUserSpace<Storage>::DriveInUserSpace(
           api_mutex_(),
           unmount_condition_variable_(),
           mount_mutex_(),
-          mount_condition_variable_() {}
+          mount_condition_variable_() {
+    static_assert(std::is_same<Storage, nfs_client::MaidNodeNfs>::value, "Cannot use without Lifestuff");
+}
 
 template<typename Storage>
 DriveInUserSpace<Storage>::DriveInUserSpace(
@@ -190,8 +198,7 @@ DriveInUserSpace<Storage>::DriveInUserSpace(
     const Identity& root_parent_id,
     const boost::filesystem::path& mount_dir,
     std::function<void(const boost::filesystem::path&)> root_subdir_added,
-    std::function<void(const boost::filesystem::path&)> root_subdir_removed,
-    typename std::enable_if<std::is_same<Storage, data_store::SureFileStore>::value>::type* = 0)
+    std::function<void(const boost::filesystem::path&)> root_subdir_removed)
         : drive_stage_(kUnInitialised),
           root_handler_(unique_user_id, root_parent_id, root_subdir_added, root_subdir_removed),
           mount_dir_(mount_dir),
@@ -199,7 +206,9 @@ DriveInUserSpace<Storage>::DriveInUserSpace(
           api_mutex_(),
           unmount_condition_variable_(),
           mount_mutex_(),
-          mount_condition_variable_() {}
+          mount_condition_variable_() {
+        static_assert(std::is_same<Storage, data_store::SureFileStore>::value, "Cannot use without Surefile");
+}
 
 template<typename Storage>
 Identity DriveInUserSpace<Storage>::root_parent_id() const {

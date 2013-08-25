@@ -16,6 +16,7 @@ License.
 #ifndef MAIDSAFE_DRIVE_CONFIG_H_
 #define MAIDSAFE_DRIVE_CONFIG_H_
 
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -37,6 +38,10 @@ namespace drive {
 
 struct MetaData;
 typedef Identity DirectoryId;
+typedef std::function<void(const boost::filesystem::path& /*service_alias*/,
+                           const Identity& /*drive_root_id*/,
+                           const Identity& /*service_root_id*/)> OnServiceAdded;
+typedef std::function<void(const boost::filesystem::path& /*service_alias*/)> OnServiceRemoved;
 
 namespace detail {
 

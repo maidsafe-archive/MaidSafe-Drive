@@ -39,7 +39,7 @@ License.
 #include "maidsafe/encrypt/self_encryptor.h"
 
 #include "maidsafe/drive/config.h"
-#include "maidsafe/drive/drive_api.h"
+//#include "maidsafe/drive/drive_api.h"
 #include "maidsafe/drive/directory_listing.h"
 #include "maidsafe/drive/utils.h"
 #include "maidsafe/drive/meta_data.h"
@@ -73,7 +73,8 @@ class DirectoryListingHandler {
   typedef std::pair<DirectoryData, uint32_t> DirectoryType;
 
   DirectoryListingHandler(Storage& storage,
-                          const DirectoryType& relative_root,
+                          const DirectoryId& drive_root_id,
+                          const DirectoryId& service_root_id,
                           bool immutable_root = false);
   virtual ~DirectoryListingHandler() {}
 
@@ -159,7 +160,7 @@ DirectoryListingHandler<Storage>::DirectoryListingHandler(Storage& storage,
       world_is_writeable_(true),
       immutable_root_(immutable_root) {
   if (!relative_root.first.parent_id.IsInitialised() ||
-      !relative_root.first.listing.directory_id().IsInitialised()) {
+      !relative_root.first.listing->directory_id().IsInitialised()) {
     ThrowError(CommonErrors::uninitialised);
   }
 }
