@@ -87,14 +87,18 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   int64_t max_space(std::numeric_limits<int64_t>::max()), used_space(0);
   Identity unique_user_id(std::string(64, 'a'));
   Identity drive_root_id = drive_root_id_str.empty() ? Identity() : Identity(drive_root_id_str);
-  typedef Drive<maidsafe::data_store::SureFileStore>::DemoDrive Drive;
-  Drive drive(storage,
-              unique_user_id,
-              drive_root_id,
-              mount_dir,
-              "MaidSafeDrive",
-              max_space,
-              used_space);
+  OnServiceAdded on_added([](const boost::filesystem::path& alias,
+                             const Identity& drive_root_id,
+                             const Identity& service_root_id) {
+                            LOG(kInfo) << "Added " << alias << "  Root: "
+                                       << HexSubstr(drive_root_id) << "  Service: "
+                                       << HexSubstr(service_root_id);
+                          });
+  OnServiceRemoved on_removed([](const boost::filesystem::path& alias) {
+                                LOG(kInfo) << "Removed " << alias;
+                              });
+  Drive<maidsafe::data_store::SureFileStore>::DemoDrive drive(Identity(), mount_dir.c_str(),
+                                                              "SureFile", on_added, on_removed);
   if (first_run)
     BOOST_VERIFY(WriteFile(id_path, drive.drive_root_id().string()));
 

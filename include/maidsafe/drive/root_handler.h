@@ -57,9 +57,14 @@ class RootHandler{
                            const boost::filesystem::path& store_path,
                            const Identity& service_root_id);
 
+  void GetMetaData(const boost::filesystem::path& relative_path,
+                   MetaData& meta_data,
+                   DirectoryId* grandparent_directory_id,
+                   DirectoryId* parent_directory_id);
+
   DirectoryListingHandler<Storage>* GetHandler(const boost::filesystem::path& relative_path);
 
-  Identity drive_root_id() const { return drive_root_id_; }
+  Identity drive_root_id() const { return root_.listing->directory_id(); }
 
  private:
   // Called on the first run ever for this Drive (creating new user account)
@@ -69,6 +74,7 @@ class RootHandler{
 
   std::shared_ptr<Storage> default_storge_;  // MaidNodeNfs or nullptr
   DirectoryData root_;
+  MetaData root_meta_data_;
   std::map<boost::filesystem::path, DirectoryListingHandler<Storage>> directory_listing_handlers_;
   OnServiceAdded on_service_added_;
   OnServiceRemoved on_service_removed_;
@@ -121,6 +127,7 @@ RootHandler<Storage>::RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_
                                   OnServiceAdded on_service_added)
     : default_storge_(maid_node_nfs),
       root_(),
+      root_meta_data_(kRoot, true),
       directory_listing_handlers_(),
       on_service_added_(on_service_added),
       on_service_removed_(nullptr) {
@@ -136,6 +143,7 @@ RootHandler<Storage>::RootHandler(const Identity& drive_root_id,
                                   OnServiceRemoved on_service_removed)
     : default_storge_(),
       root_(),
+      root_meta_data_(kRoot, true),
       directory_listing_handlers_(),
       on_service_added_(on_service_added),
       on_service_removed_(on_service_removed) {
@@ -163,6 +171,25 @@ DirectoryListingHandler<Storage>* RootHandler<Storage>::GetHandler(
   auto alias(*(++std::begin(relative_path)));
   auto itr(directory_listing_handlers_.find(alias));
   return itr == std::end(directory_listing_handlers_) ? nullptr : &(itr->second);
+}
+
+template<typename Storage>
+void RootHandler<Storage>::GetMetaData(const boost::filesystem::path& relative_path,
+                                       MetaData& meta_data,
+                                       DirectoryId* grandparent_directory_id,
+                                       DirectoryId* parent_directory_id) {
+  auto directory_listing_handler(GetHandler(relative_path));
+  auto parent(directory_listing_handler ?
+              directory_listing_handler->GetFromPath(relative_path.parent_path()).first : root_);
+  if (relative_path == kRoot)
+    meta_data = root_meta_data_;
+  else
+    parent.listing->GetChild(relative_path.filename(), meta_data);
+
+  if (grandparent_directory_id)
+    *grandparent_directory_id = parent.parent_id;
+  if (parent_directory_id)
+    *parent_directory_id = parent.listing->directory_id();
 }
 
 template<>

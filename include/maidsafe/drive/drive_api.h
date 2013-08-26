@@ -215,7 +215,7 @@ DriveInUserSpace<Storage>::DriveInUserSpace(const Identity& drive_root_id,
 template<typename Storage>
 Identity DriveInUserSpace<Storage>::drive_root_id() const {
   std::lock_guard<std::mutex> guard(api_mutex_);
-  return directory_listing_handler_->drive_root_id();
+  return root_handler_.drive_root_id();
 }
 
 template<typename Storage>
@@ -267,17 +267,8 @@ void DriveInUserSpace<Storage>::GetMetaData(const boost::filesystem::path& relat
                                             MetaData& meta_data,
                                             DirectoryId* grandparent_directory_id,
                                             DirectoryId* parent_directory_id) {
-  auto directory_listing_handler(GetHandler(relative_path));
-  if (!directory_listing_handler)
-    return;
-
-  auto parent(directory_listing_handler->GetFromPath(relative_path.parent_path()));
-  parent.first.listing->GetChild(relative_path.filename(), meta_data);
-
-  if (grandparent_directory_id)
-    *grandparent_directory_id = parent.first.parent_id;
-  if (parent_directory_id)
-    *parent_directory_id = parent.first.listing->directory_id();
+  return root_handler_.GetMetaData(relative_path, meta_data, grandparent_directory_id,
+                                   parent_directory_id);
 }
 
 template<typename Storage>
