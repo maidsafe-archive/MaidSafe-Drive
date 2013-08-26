@@ -16,12 +16,12 @@ License.
 #ifndef MAIDSAFE_DRIVE_DIRECTORY_LISTING_HANDLER_H_
 #define MAIDSAFE_DRIVE_DIRECTORY_LISTING_HANDLER_H_
 
-#include <memory>
-#include <string>
-#include <utility>
 #include <algorithm>
 #include <functional>
 #include <limits>
+#include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "boost/algorithm/string/find.hpp"
@@ -39,7 +39,6 @@ License.
 #include "maidsafe/encrypt/self_encryptor.h"
 
 #include "maidsafe/drive/config.h"
-//#include "maidsafe/drive/drive_api.h"
 #include "maidsafe/drive/directory_listing.h"
 #include "maidsafe/drive/utils.h"
 #include "maidsafe/drive/meta_data.h"
@@ -70,12 +69,20 @@ struct DirectoryData {
 template<typename Storage>
 class DirectoryListingHandler {
  public:
-  typedef std::pair<DirectoryData, uint32_t> DirectoryType;
+  typedef std::pair<DirectoryData, DataTagValue> DirectoryType;
 
-  DirectoryListingHandler(Storage& storage,
+  // Put relative_root_ to storage.
+  DirectoryListingHandler(std::shared_ptr<Storage> storage,
+                          const DirectoryType& relative_root,
+                          bool immutable_root = false);
+  // Retrieve relative_root_ from storage.
+  DirectoryListingHandler(std::shared_ptr<Storage> storage,
                           const DirectoryId& drive_root_id,
                           const DirectoryId& service_root_id,
                           bool immutable_root = false);
+  DirectoryListingHandler(const DirectoryListingHandler& other);
+  DirectoryListingHandler(DirectoryListingHandler&& other);
+  DirectoryListingHandler& operator=(DirectoryListingHandler other);
   virtual ~DirectoryListingHandler() {}
 
   DirectoryType GetFromPath(const boost::filesystem::path& relative_path);
@@ -98,25 +105,32 @@ class DirectoryListingHandler {
                      const boost::filesystem::path& new_relative_path,
                      MetaData& meta_data,
                      int64_t& reclaimed_space);
-  void UpdateParentDirectoryListing(const boost::filesystem::path& parent_path,
-                                    MetaData meta_data);
+  void UpdateParentDirectoryListing(const boost::filesystem::path& parent_path, MetaData meta_data);
 
   void SetWorldReadWrite();
   void SetWorldReadOnly();
+  Storage& storage() const { return *storage_; }
 
+  friend void swap(DirectoryListingHandler& lhs, DirectoryListingHandler& rhs) {
+    using std::swap;
+    swap(lhs.storage_, rhs.storage_);
+    swap(lhs.relative_root_, rhs.relative_root_);
+    swap(lhs.world_is_writeable_, rhs.world_is_writeable_);
+    swap(lhs.immutable_root_, rhs.immutable_root_);
+  }
   friend class test::DirectoryListingHandlerTest;
 
  protected:
   DirectoryData RetrieveFromStorage(const DirectoryId& parent_id,
                                     const DirectoryId& directory_id,
-                                    int directory_type) const;
+                                    DataTagValue directory_type) const;
   void PutToStorage(const DirectoryType& directory);
   void DeleteStored(const DirectoryId& parent_id,
                     const DirectoryId& directory_id,
-                    int directory_type);
+                    DataTagValue directory_type);
   void RetrieveDataMap(const DirectoryId& parent_id,
                        const DirectoryId& directory_id,
-                       int directory_type,
+                       DataTagValue directory_type,
                        DataMapPtr data_map) const;
   bool IsDirectory(const MetaData& meta_data) const;
   void GetParentAndGrandparent(const boost::filesystem::path& relative_path,
@@ -125,7 +139,7 @@ class DirectoryListingHandler {
                                MetaData* parent_meta_data);
   bool RenameTargetCanBeRemoved(const boost::filesystem::path& new_relative_path,
                                 const MetaData& target_meta_data);
-  int GetDirectoryType(const boost::filesystem::path& relative_path);
+  DataTagValue GetDirectoryType(const boost::filesystem::path& relative_path);
   bool CanAdd(const boost::filesystem::path& relative_path);
   bool CanRename(const boost::filesystem::path& from_path, const boost::filesystem::path& to_path);
   void RenameSameParent(const boost::filesystem::path& old_relative_path,
@@ -136,14 +150,11 @@ class DirectoryListingHandler {
                              const boost::filesystem::path& new_relative_path,
                              MetaData& meta_data,
                              int64_t& reclaimed_space);
-  void ReStoreDirectories(const boost::filesystem::path& relative_path, int directory_type);
+  void ReStoreDirectories(const boost::filesystem::path& relative_path,
+                          DataTagValue directory_type);
 
  private:
-  DirectoryListingHandler(const DirectoryListingHandler&);
-  DirectoryListingHandler(DirectoryListingHandler&&);
-  DirectoryListingHandler& operator=(DirectoryListingHandler);
-
-  Storage& storage_;
+  std::shared_ptr<Storage> storage_;
   DirectoryType relative_root_;
   bool world_is_writeable_, immutable_root_;
 };
@@ -152,45 +163,72 @@ class DirectoryListingHandler {
 
 // ==================== Implementation =============================================================
 template<typename Storage>
-DirectoryListingHandler<Storage>::DirectoryListingHandler(Storage& storage,
+DirectoryListingHandler<Storage>::DirectoryListingHandler(std::shared_ptr<Storage> storage,
                                                           const DirectoryType& relative_root,
-                                                          bool immutable_root)
+                                                          bool immutable_root = false)
     : storage_(storage),
       relative_root_(relative_root),
       world_is_writeable_(true),
       immutable_root_(immutable_root) {
-  if (!relative_root.first.parent_id.IsInitialised() ||
-      !relative_root.first.listing->directory_id().IsInitialised()) {
+  PutToStorage(relative_root_);
+}
+
+template<typename Storage>
+DirectoryListingHandler<Storage>::DirectoryListingHandler(std::shared_ptr<Storage> storage,
+                                                          const DirectoryId& drive_root_id,
+                                                          const DirectoryId& service_root_id,
+                                                          bool immutable_root)
+    : storage_(storage),
+      relative_root_(),
+      world_is_writeable_(true),
+      immutable_root_(immutable_root) {
+  if (!drive_root_id.IsInitialised() || !service_root_id.IsInitialised())
     ThrowError(CommonErrors::uninitialised);
-  }
+  relative_root_.first = RetrieveFromStorage(drive_root_id, service_root_id,
+                                             DataTagValue::kOwnerDirectoryValue);
+}
+
+template<typename Storage>
+DirectoryListingHandler<Storage>::DirectoryListingHandler(const DirectoryListingHandler& other)
+    : storage_(other.storage_),
+      relative_root_(other.relative_root_),
+      world_is_writeable_(other.world_is_writeable_),
+      immutable_root_(other.immutable_root_) {}
+
+template<typename Storage>
+DirectoryListingHandler<Storage>::DirectoryListingHandler(DirectoryListingHandler&& other)
+    : storage_(std::move(other.storage_)),
+      relative_root_(std::move(other.relative_root_)),
+      world_is_writeable_(std::move(other.world_is_writeable_)),
+      immutable_root_(std::move(other.immutable_root_)) {}
+
+template<typename Storage>
+DirectoryListingHandler<Storage>& DirectoryListingHandler<Storage>::operator=(
+    DirectoryListingHandler other) {
+  swap(*this, other);
+  return *this;
 }
 
 template<typename Storage>
 typename DirectoryListingHandler<Storage>::DirectoryType
     DirectoryListingHandler<Storage>::GetFromPath(const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
-  int directory_type(GetDirectoryType(relative_path));
+  auto itr(++std::begin(relative_path));
+  if (++itr == std::end(relative_path))
+    return relative_root_;
+
+  auto directory_type(GetDirectoryType(relative_path));
   // Get root directory listing.
-  DirectoryData directory(RetrieveFromStorage(unique_user_id_, root_parent_id_, kOwnerValue));
+  DirectoryData directory(relative_root_.first);
   // Get successive directory listings until found.
   MetaData meta_data;
-  bool found_root = false;
-  for (auto itr(relative_path.begin()); itr != relative_path.end(); ++itr) {
-    // for itr == begin, path is "/" which is wrong for Windows.
-    if (itr == relative_path.begin()) {
-      directory.listing->GetChild(relative_root_, meta_data);
-      found_root = true;
-    } else {
-      directory.listing->GetChild((*itr), meta_data);
-    }
+  for (; itr != std::end(relative_path); ++itr) {
+    directory.listing->GetChild((*itr), meta_data);
 
     if (!meta_data.directory_id)
       ThrowError(CommonErrors::invalid_parameter);
-    directory = RetrieveFromStorage(directory.listing->directory_id(),
-                                    *meta_data.directory_id,
-                                    found_root ? kOwnerValue : directory_type);
-    if (found_root)
-      found_root = false;
+    directory = RetrieveFromStorage(directory.listing->directory_id(), *meta_data.directory_id,
+                                    directory_type);
   }
   return std::make_pair(directory, directory_type);
 }
@@ -204,7 +242,7 @@ void DirectoryListingHandler<Storage>::AddElement(const boost::filesystem::path&
   if (!CanAdd(relative_path))
     ThrowError(CommonErrors::invalid_parameter);
 
-  int directory_type(GetDirectoryType(relative_path));
+  auto directory_type(GetDirectoryType(relative_path));
   DirectoryType grandparent, parent;
   MetaData parent_meta_data;
 
@@ -463,7 +501,7 @@ void DirectoryListingHandler<Storage>::RenameDifferentParent(
 template<typename Storage>
 void DirectoryListingHandler<Storage>::ReStoreDirectories(
         const boost::filesystem::path& relative_path,
-        int directory_type) {
+        DataTagValue directory_type) {
   DirectoryType directory(GetFromPath(relative_path));
   directory.first.listing->ResetChildrenIterator();
   MetaData meta_data;
@@ -512,13 +550,14 @@ void DirectoryListingHandler<Storage>::GetParentAndGrandparent(
 }
 
 template<typename Storage>
-DirectoryData DirectoryListingHandler<Storage>::RetrieveFromStorage(const DirectoryId& parent_id,
-                                                                    const DirectoryId& directory_id,
-                                                                    int directory_type) const {
-  if (directory_type == kWorldValue) {
+DirectoryData DirectoryListingHandler<Storage>::RetrieveFromStorage(
+    const DirectoryId& parent_id,
+    const DirectoryId& directory_id,
+    DataTagValue directory_type) const {
+  if (directory_type == DataTagValue::kWorldDirectoryValue) {
     WorldDirectory::Name name(directory_id);
     WorldDirectory::serialised_type serialised_data;
-    serialised_data.data = Get<Storage, WorldDirectory>()(storage_, name);
+    serialised_data.data = Get<Storage, WorldDirectory>()(*storage_, name);
     WorldDirectory world_directory(name, serialised_data);
     return DirectoryData(parent_id,
                          std::make_shared<DirectoryListing>(world_directory.data().string()));
@@ -528,7 +567,7 @@ DirectoryData DirectoryListingHandler<Storage>::RetrieveFromStorage(const Direct
   // Retrieve encrypted datamap.
   RetrieveDataMap(parent_id, directory_id, directory_type, data_map);
   // Decrypt serialised directory listing.
-  encrypt::SelfEncryptor<Storage> self_encryptor(data_map, storage_);
+  encrypt::SelfEncryptor<Storage> self_encryptor(data_map, *storage_);
   uint32_t data_map_chunks_size(static_cast<uint32_t>(data_map->chunks.size()));
   uint32_t data_map_size;
   if (data_map_chunks_size != 0) {
@@ -550,29 +589,28 @@ DirectoryData DirectoryListingHandler<Storage>::RetrieveFromStorage(const Direct
 template<typename Storage>
 void DirectoryListingHandler<Storage>::PutToStorage(const DirectoryType& directory) {
   // Serialise directory listing.
-  std::string serialised_directory_listing;
-  directory.first.listing->Serialise(serialised_directory_listing);
+  auto serialised_directory_listing(directory.first.listing->Serialise());
 
-  if (directory.second == kWorldValue) {
+  if (directory.second == DataTagValue::kWorldDirectoryValue) {
     try {
-      DeleteStored(directory.first.parent_id, directory.first.listing->directory_id(), kWorldValue);
+      DeleteStored(directory.first.parent_id, directory.first.listing->directory_id(), DataTagValue::kWorldDirectoryValue);
     }
     catch(...) {}
     // Store serialised listing.
     WorldDirectory world_directory(WorldDirectory::Name(directory.first.listing->directory_id()),
                                    NonEmptyString(serialised_directory_listing));
-    Put<Storage, WorldDirectory>()(storage_, world_directory);
+    Put<Storage, WorldDirectory>()(*storage_, world_directory);
     return;
   }
 
-  if (directory.second == kOwnerValue) {
+  if (directory.second == DataTagValue::kOwnerDirectoryValue) {
     try {
-      DeleteStored(directory.first.parent_id, directory.first.listing->directory_id(), kOwnerValue);
+      DeleteStored(directory.first.parent_id, directory.first.listing->directory_id(), DataTagValue::kOwnerDirectoryValue);
     }
     catch(...) {}
   } else {
     try {
-      DeleteStored(directory.first.parent_id, directory.first.listing->directory_id(), kGroupValue);
+      DeleteStored(directory.first.parent_id, directory.first.listing->directory_id(), DataTagValue::kGroupDirectoryValue);
     }
     catch(...) {}
   }
@@ -580,7 +618,7 @@ void DirectoryListingHandler<Storage>::PutToStorage(const DirectoryType& directo
   // Self-encrypt serialised directory listing.
   DataMapPtr data_map(new encrypt::DataMap);
   {
-    encrypt::SelfEncryptor<Storage> self_encryptor(data_map, storage_);
+    encrypt::SelfEncryptor<Storage> self_encryptor(data_map, *storage_);
     assert(serialised_directory_listing.size() <= std::numeric_limits<uint32_t>::max());
     if (!self_encryptor.Write(serialised_directory_listing.c_str(),
                               static_cast<uint32_t>(serialised_directory_listing.size()),
@@ -593,16 +631,16 @@ void DirectoryListingHandler<Storage>::PutToStorage(const DirectoryType& directo
                       encrypt::EncryptDataMap(directory.first.parent_id,
                                               directory.first.listing->directory_id(),
                                               data_map);
-  if (directory.second == kOwnerValue) {
+  if (directory.second == DataTagValue::kOwnerDirectoryValue) {
     // Store the encrypted datamap.
     OwnerDirectory owner_directory(OwnerDirectory::Name(directory.first.listing->directory_id()),
                                    encrypted_data_map);
-    Put<Storage, OwnerDirectory>()(storage_, owner_directory);
-  } else if (directory.second == kGroupValue) {
+    Put<Storage, OwnerDirectory>()(*storage_, owner_directory);
+  } else if (directory.second == DataTagValue::kGroupDirectoryValue) {
     // Store the encrypted datamap.
     GroupDirectory group_directory(GroupDirectory::Name(directory.first.listing->directory_id()),
                                    encrypted_data_map);
-    Put<Storage, GroupDirectory>()(storage_, group_directory);
+    Put<Storage, GroupDirectory>()(*storage_, group_directory);
   } else {
     ThrowError(CommonErrors::not_a_directory);
   }
@@ -611,27 +649,27 @@ void DirectoryListingHandler<Storage>::PutToStorage(const DirectoryType& directo
 template<typename Storage>
 void DirectoryListingHandler<Storage>::DeleteStored(const DirectoryId& parent_id,
                                                     const DirectoryId& directory_id,
-                                                    int directory_type) {
-  if (directory_type != kWorldValue) {
+                                                    DataTagValue directory_type) {
+  if (directory_type != DataTagValue::kWorldDirectoryValue) {
     DataMapPtr data_map(new encrypt::DataMap);
     RetrieveDataMap(parent_id, directory_id, directory_type, data_map);
-    encrypt::SelfEncryptor<Storage> self_encryptor(data_map, storage_);
+    encrypt::SelfEncryptor<Storage> self_encryptor(data_map, *storage_);
     self_encryptor.DeleteAllChunks();
   }
   switch (directory_type) {
-    case kOwnerValue: {
+    case DataTagValue::kOwnerDirectoryValue: {
       OwnerDirectory::Name name(directory_id);
-      Delete<Storage, OwnerDirectory>()(storage_, name);
+      Delete<Storage, OwnerDirectory>()(*storage_, name);
       break;
     }
-    case kGroupValue: {
+    case DataTagValue::kGroupDirectoryValue: {
       GroupDirectory::Name name(directory_id);
-      Delete<Storage, GroupDirectory>()(storage_, name);
+      Delete<Storage, GroupDirectory>()(*storage_, name);
       break;
     }
-    case kWorldValue: {
+    case DataTagValue::kWorldDirectoryValue: {
       WorldDirectory::Name name(directory_id);
-      Delete<Storage, WorldDirectory>()(storage_, name);
+      Delete<Storage, WorldDirectory>()(*storage_, name);
       break;
     }
     default:
@@ -642,13 +680,13 @@ void DirectoryListingHandler<Storage>::DeleteStored(const DirectoryId& parent_id
 template<typename Storage>
 void DirectoryListingHandler<Storage>::RetrieveDataMap(const DirectoryId& parent_id,
                                                        const DirectoryId& directory_id,
-                                                       int directory_type,
+                                                       DataTagValue directory_type,
                                                        DataMapPtr data_map) const {
   assert(data_map);
-  if (directory_type == kOwnerValue) {
+  if (directory_type == DataTagValue::kOwnerDirectoryValue) {
     OwnerDirectory::Name name(directory_id);
     OwnerDirectory::serialised_type serialised_data;
-    serialised_data.data = Get<Storage, OwnerDirectory>()(storage_, name);
+    serialised_data.data = Get<Storage, OwnerDirectory>()(*storage_, name);
     // Parse.
     OwnerDirectory owner_directory(name, serialised_data);
     // Generate data map.
@@ -656,10 +694,10 @@ void DirectoryListingHandler<Storage>::RetrieveDataMap(const DirectoryId& parent
                             directory_id,
                             owner_directory.data().string(),
                             data_map);
-  } else if (directory_type == kGroupValue) {
+  } else if (directory_type == DataTagValue::kGroupDirectoryValue) {
     GroupDirectory::Name name(directory_id);
     GroupDirectory::serialised_type serialised_data;
-    serialised_data.data = Get<Storage, GroupDirectory>()(storage_, name);
+    serialised_data.data = Get<Storage, GroupDirectory>()(*storage_, name);
     // Parse.
     GroupDirectory group_directory(name, serialised_data);
     // Generate data map.
@@ -690,27 +728,19 @@ bool DirectoryListingHandler<Storage>::RenameTargetCanBeRemoved(
 #endif
 
 template<typename Storage>
-int DirectoryListingHandler<Storage>::GetDirectoryType(
+DataTagValue DirectoryListingHandler<Storage>::GetDirectoryType(
     const boost::filesystem::path& relative_path) {
-  if (relative_path.empty() || relative_path == kRoot)
-    return kOwnerValue;
-  boost::filesystem::path::iterator it(relative_path.begin());
-  ++it;
-  if (it->filename().empty() || it->filename() == kOwner)
-    return kOwnerValue;
-  else if (it->filename() == kGroup)
-    return kGroupValue;
-  else if (it->filename() == kWorld)
-    return kWorldValue;
-  else
-    ThrowError(CommonErrors::invalid_parameter);
-  return kInvalidValue;
+  get from root_handler kValues
 }
+
+template<>
+DataTagValue DirectoryListingHandler<data_store::SureFileStore>::GetDirectoryType(
+    const boost::filesystem::path& /*relative_path*/);
 
 template<typename Storage>
 bool DirectoryListingHandler<Storage>::CanAdd(const boost::filesystem::path& relative_path) {
-  int directory_type(GetDirectoryType(relative_path));
-  if (directory_type == kGroupValue || (directory_type == kWorldValue && !world_is_writeable_))
+  auto directory_type(GetDirectoryType(relative_path));
+  if (directory_type == DataTagValue::kGroupDirectoryValue || (directory_type == DataTagValue::kWorldDirectoryValue && !world_is_writeable_))
     return false;
   fs::path relative_parent_filename(relative_path.parent_path().filename());
   return !relative_parent_filename.empty() && relative_parent_filename != kRoot;
@@ -719,16 +749,15 @@ bool DirectoryListingHandler<Storage>::CanAdd(const boost::filesystem::path& rel
 template<typename Storage>
 bool DirectoryListingHandler<Storage>::CanDelete(const fs::path& relative_path) {
   SCOPED_PROFILE
-  int directory_type(GetDirectoryType(relative_path));
-  if (directory_type == kGroupValue ||
-      (directory_type == kWorldValue && !world_is_writeable_) ||
-      directory_type == kInvalidValue) {
+  auto directory_type(GetDirectoryType(relative_path));
+  if (directory_type == DataTagValue::kGroupDirectoryValue ||
+      (directory_type == DataTagValue::kWorldDirectoryValue && !world_is_writeable_)) {
     return false;
   }
   boost::filesystem::path relative_path_parent_filename(relative_path.parent_path().filename());
   return !relative_path_parent_filename.empty() &&
          relative_path_parent_filename != kRoot &&
-         !(relative_path_parent_filename == kWorld && relative_path.filename() == kServices);
+         !(relative_path_parent_filename == "World" && relative_path.filename() == "Services");
 }
 
 template<typename Storage>
@@ -739,22 +768,25 @@ bool DirectoryListingHandler<Storage>::CanRename(const boost::filesystem::path& 
            to_parent_filename(to_path.parent_path().filename());
   if ((from_filename == kRoot || to_filename == kRoot)
       || (from_parent_filename == kRoot || to_parent_filename == kRoot)
-      || (from_filename == kOwner && from_parent_filename == kRoot)
-      || (to_filename == kOwner && to_parent_filename == kRoot)
-      || (from_filename == kGroup && from_parent_filename == kRoot)
-      || (to_filename == kGroup && to_parent_filename == kRoot)
-      || (from_filename == kWorld && from_parent_filename == kRoot)
-      || (to_filename == kWorld && to_parent_filename == kRoot))
+      || (from_filename == "Owner" && from_parent_filename == kRoot)
+      || (to_filename == "Owner" && to_parent_filename == kRoot)
+      || (from_filename == "Group" && from_parent_filename == kRoot)
+      || (to_filename == "Group" && to_parent_filename == kRoot)
+      || (from_filename == "World" && from_parent_filename == kRoot)
+      || (to_filename == "World" && to_parent_filename == kRoot))
     return false;
-  int from_type(GetDirectoryType(from_path)),
-      to_type(GetDirectoryType(to_path));
-  if (from_type != to_type)
-    if (from_type == kGroupValue || to_type == kGroupValue
-        || (from_type != kWorldValue && to_type == kWorldValue && !world_is_writeable_))
+  auto from_type(GetDirectoryType(from_path)), to_type(GetDirectoryType(to_path));
+  if (from_type != to_type) {
+    if (from_type == DataTagValue::kGroupDirectoryValue ||
+        to_type == DataTagValue::kGroupDirectoryValue ||
+            (from_type != DataTagValue::kWorldDirectoryValue &&
+            to_type == DataTagValue::kWorldDirectoryValue && !world_is_writeable_)) {
       return false;
-  if (from_type == kWorldValue && from_parent_filename == kWorld && from_filename == kServices)
-    return false;
-  return true;
+    }
+  }
+  return from_type != DataTagValue::kWorldDirectoryValue ||
+         from_parent_filename != "World" ||
+         from_filename != "Services";
 }
 
 template<typename Storage>

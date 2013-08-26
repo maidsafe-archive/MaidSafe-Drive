@@ -77,26 +77,26 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   if (!fs::exists(chunk_dir, error_code))
     return error_code.value();
 
-  std::string root_parent_id_str;
-  fs::path id_path(storage_path / "root_parent_id");
+  std::string drive_root_id_str;
+  fs::path id_path(storage_path / "drive_root_id");
   bool first_run(!fs::exists(id_path, error_code));
   if (!first_run)
-    BOOST_VERIFY(ReadFile(id_path, &root_parent_id_str));
+    BOOST_VERIFY(ReadFile(id_path, &drive_root_id_str));
 
   // The following values are passed in and returned on unmount.
   int64_t max_space(std::numeric_limits<int64_t>::max()), used_space(0);
   Identity unique_user_id(std::string(64, 'a'));
-  Identity root_parent_id = root_parent_id_str.empty() ? Identity() : Identity(root_parent_id_str);
+  Identity drive_root_id = drive_root_id_str.empty() ? Identity() : Identity(drive_root_id_str);
   typedef Drive<maidsafe::data_store::SureFileStore>::DemoDrive Drive;
   Drive drive(storage,
               unique_user_id,
-              root_parent_id,
+              drive_root_id,
               mount_dir,
               "MaidSafeDrive",
               max_space,
               used_space);
   if (first_run)
-    BOOST_VERIFY(WriteFile(id_path, drive.root_parent_id().string()));
+    BOOST_VERIFY(WriteFile(id_path, drive.drive_root_id().string()));
 
   g_unmount_functor = [&] { drive.Unmount(max_space, used_space); };
   signal(SIGINT, CtrlCHandler);

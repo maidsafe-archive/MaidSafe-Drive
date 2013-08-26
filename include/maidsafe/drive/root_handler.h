@@ -19,6 +19,7 @@ License.
 #include <algorithm>
 #include <functional>
 #include <iterator>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -33,83 +34,45 @@ License.
 
 namespace maidsafe {
 
-namespace data_store { class SureFileStore; }
-
 namespace drive {
 
 namespace detail {
 
 template<typename Storage>
 class RootHandler{
-public:
- RootHandler(nfs_client::MaidNodeNfs& maid_node_nfs,
-             const Identity& unique_user_id,
-             const Identity& root_parent_id);
+ public:
+  RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
+              const Identity& unique_user_id,
+              const Identity& drive_root_id,
+              OnServiceAdded on_service_added);
 
- RootHandler(const Identity& root_parent_id,
-             OnServiceAdded on_service_added,
-             OnServiceRemoved on_service_removed);
+  RootHandler(const Identity& drive_root_id,
+              OnServiceAdded on_service_added,
+              OnServiceRemoved on_service_removed);
 
- void AddService(const boost::filesystem::path& service_alias,
-                 const boost::filesystem::path& store_path);
- void RemoveService(const boost::filesystem::path& service_alias);
- void ReInitialiseService(const boost::filesystem::path& service_alias,
-                          const boost::filesystem::path& store_path,
-                          const Identity& service_root_id);
+  void AddService(const boost::filesystem::path& service_alias,
+                  const boost::filesystem::path& store_path);
+  void RemoveService(const boost::filesystem::path& service_alias);
+  void ReInitialiseService(const boost::filesystem::path& service_alias,
+                           const boost::filesystem::path& store_path,
+                           const Identity& service_root_id);
 
- Identity root_parent_id() const { return root_parent_id_; }
+  DirectoryListingHandler<Storage>* GetHandler(const boost::filesystem::path& relative_path);
 
-private:
- // Called on the first run ever for this Drive (creating new user account)
- void CreateRoot();
- // Called when starting up a new session (user logging back in)
- void InitRoot();
+  Identity drive_root_id() const { return drive_root_id_; }
 
- nfs_client::MaidNodeNfs& maid_node_nfs_;
- Identity unique_user_id_, drive_root_id_;
- OnServiceAdded on_service_added_;
- OnServiceRemoved on_service_removed_;
+ private:
+  // Called on the first run ever for this Drive (creating new user account)
+  void CreateRoot(const Identity& unique_user_id);
+  // Called when starting up a new session (user logging back in)
+  void InitRoot(const Identity& unique_user_id, const Identity& drive_root_id);
+
+  std::shared_ptr<Storage> default_storge_;  // MaidNodeNfs or nullptr
+  DirectoryData root_;
+  std::map<boost::filesystem::path, DirectoryListingHandler<Storage>> directory_listing_handlers_;
+  OnServiceAdded on_service_added_;
+  OnServiceRemoved on_service_removed_;
 };
-
-//template<>
-//class RootHandler<nfs_client::MaidNodeNfs> {
-// public:
-//  RootHandler(nfs_client::MaidNodeNfs& maid_node_nfs,
-//              const Identity& unique_user_id,
-//              const Identity& root_parent_id);
-
-//  Identity root_parent_id() const { return root_parent_id_; }
-
-// private:
-//  // Called on the first run ever for this Drive (creating new user account)
-//  void CreateRoot();
-//  // Called when starting up a new session (user logging back in)
-//  void InitRoot();
-
-//  nfs_client::MaidNodeNfs& maid_node_nfs_;
-//  Identity unique_user_id_, root_parent_id_;
-//};
-
-//template<>
-//class RootHandler<data_store::SureFileStore> {
-// public:
-//  RootHandler(const Identity& unique_user_id,
-//              const Identity& root_parent_id,
-//              std::function<void(const boost::filesystem::path&)> root_subdir_added,
-//              std::function<void(const boost::filesystem::path&)> root_subdir_removed);
-
-//  Identity root_parent_id() const { return root_parent_id_; }
-
-// private:
-//  // Called on the first run ever for this Drive (creating new user account)
-//  void CreateRoot();
-//  // Called when starting up a new session (user logging back in)
-//  void InitRoot();
-
-//  Identity unique_user_id_, root_parent_id_;
-//  std::function<void(const boost::filesystem::path&)> root_subdir_added_;
-//  std::function<void(const boost::filesystem::path&)> root_subdir_removed_;
-//};
 
 
 
@@ -125,85 +88,96 @@ struct Default {
   }
 };
 
-template<typename Storage>
-const std::vector<typename Default<Storage>::PathAndType> Default<Storage>::kValues = {
-    PathAndType(boost::filesystem::path("/Owner").make_preferred(), DataTagValue::kOwnerDirectoryValue),
-    PathAndType(boost::filesystem::path("/Group"), DataTagValue::kGroupDirectoryValue),
-    PathAndType(boost::filesystem::path("/Group/Services").make_preferred(),
-                DataTagValue::kGroupDirectoryValue),
-    PathAndType(boost::filesystem::path("/World"), DataTagValue::kWorldDirectoryValue),
-    PathAndType(boost::filesystem::path("/World/Services"), DataTagValue::kWorldDirectoryValue)
-};
+//template<>
+//const std::vector<typename Default<nfs_client::MaidNodeNfs>::PathAndType>
+//    Default<nfs_client::MaidNodeNfs>::kValues =
+//        []()->std::vector<typename Default<nfs_client::MaidNodeNfs>::PathAndType> {
+//    std::vector<typename Default<nfs_client::MaidNodeNfs>::PathAndType> result;
+//    result.push_back(std::make_pair(boost::filesystem::path("/Owner").make_preferred(),
+//                                    DataTagValue::kOwnerDirectoryValue));
+//    result.push_back(std::make_pair(boost::filesystem::path("/Group"),
+//                                    DataTagValue::kGroupDirectoryValue));
+//    result.push_back(std::make_pair(boost::filesystem::path("/Group/Services").make_preferred(),
+//                                    DataTagValue::kGroupDirectoryValue));
+//    result.push_back(std::make_pair(boost::filesystem::path("/World"),
+//                                    DataTagValue::kWorldDirectoryValue));
+//    result.push_back(std::make_pair(boost::filesystem::path("/World/Services"),
+//                                    DataTagValue::kWorldDirectoryValue));
+//    return result;
+//}();
 
 // No default values for SureFile
 template<>
 const std::vector<typename Default<data_store::SureFileStore>::PathAndType>
-    Default<data_store::SureFileStore>::kValues;
+    Default<data_store::SureFileStore>::kValues =
+        std::vector<typename Default<data_store::SureFileStore>::PathAndType>();
+
 
 
 template<typename Storage>
-RootHandler<Storage>::RootHandler(nfs_client::MaidNodeNfs& maid_node_nfs,
-            const Identity& unique_user_id,
-            const Identity& root_parent_id)
-    : unique_user_id_(unique_user_id),
-      root_parent_id_(root_parent_id) {
+RootHandler<Storage>::RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
+                                  const Identity& unique_user_id,
+                                  const Identity& drive_root_id,
+                                  OnServiceAdded on_service_added)
+    : default_storge_(maid_node_nfs),
+      root_(),
+      directory_listing_handlers_(),
+      on_service_added_(on_service_added),
+      on_service_removed_(nullptr) {
   if (!unique_user_id.IsInitialised())
     ThrowError(CommonErrors::uninitialised);
-  return root_parent_id_.IsInitialised() ? InitRoot() : CreateRoot();
+  drive_root_id.IsInitialised() ? InitRoot(unique_user_id, drive_root_id) :
+                                  CreateRoot(unique_user_id);
 }
-
-
-// TODO(dirvine) uncomment for lifestuff  #BEFORE_RELEASE
-
-//template<>
-//void RootHandler<nfs_client::MaidNodeNfs>::CreateRoot() {
-//  assert(!root_parent_id_.IsInitialised());
-//  root_parent_id_ = Identity(RandomString(64));
-//  // First run, setup working directories.
-//  // Root/Parent.
-//  MetaData root_meta_data(kRoot, true);
-//  std::shared_ptr<DirectoryListing> root_parent_directory(new DirectoryListing(root_parent_id_)),
-//                      root_directory(new DirectoryListing(*root_meta_data.directory_id));
-//  DirectoryData root_parent(unique_user_id_, root_parent_directory),
-//                root(root_parent_id_, root_directory);
-
-//  root_parent.listing->AddChild(root_meta_data);
-//  PutToStorage(std::make_pair(root_parent, kOwnerValue));
-//  // Owner.
-//  MetaData owner_meta_data(kOwner, true);
-//  std::shared_ptr<DirectoryListing> owner_directory(new DirectoryListing(*owner_meta_data.directory_id));
-//  DirectoryData owner(root.listing->directory_id(), owner_directory);
-//  PutToStorage(std::make_pair(owner, kOwnerValue));
-//  // Group.
-//  MetaData group_meta_data(kGroup, true), group_services_meta_data(kServices, true);
-//  std::shared_ptr<DirectoryListing> group_directory(new DirectoryListing(*group_meta_data.directory_id)),
-//          group_services_directory(new DirectoryListing(*group_services_meta_data.directory_id));
-//  DirectoryData group(root.listing->directory_id(), group_directory),
-//                group_services(group.listing->directory_id(), group_services_directory);
-//  PutToStorage(std::make_pair(group_services, kGroupValue));
-//  group.listing->AddChild(group_services_meta_data);
-//  PutToStorage(std::make_pair(group, kGroupValue));
-//  // World.
-//  MetaData world_meta_data(kWorld, true), world_services_meta_data("Services", true);
-//  std::shared_ptr<DirectoryListing> world_directory(new DirectoryListing(*world_meta_data.directory_id)),
-//          world_services_directory(new DirectoryListing(*world_services_meta_data.directory_id));
-//  DirectoryData world(root.listing->directory_id(), world_directory),
-//                world_services(world.listing->directory_id(), world_services_directory);
-//  PutToStorage(std::make_pair(world_services, kWorldValue));
-//  world.listing->AddChild(world_services_meta_data);
-//  PutToStorage(std::make_pair(world, kWorldValue));
-
-//  root.listing->AddChild(owner_meta_data);
-//  root.listing->AddChild(group_meta_data);
-//  root.listing->AddChild(world_meta_data);
-//  PutToStorage(std::make_pair(root, kOwnerValue));
-//}
 
 template<typename Storage>
-void RootHandler<Storage>::InitRoot() {
-  assert(root_parent_id_.IsInitialised());
-  DirectoryData directory(RetrieveFromStorage(unique_user_id_, root_parent_id_, kOwnerValue));
+RootHandler<Storage>::RootHandler(const Identity& drive_root_id,
+                                  OnServiceAdded on_service_added,
+                                  OnServiceRemoved on_service_removed)
+    : default_storge_(),
+      root_(),
+      directory_listing_handlers_(),
+      on_service_added_(on_service_added),
+      on_service_removed_(on_service_removed) {
+  drive_root_id.IsInitialised() ? InitRoot(Identity(), drive_root_id) : CreateRoot(Identity());
 }
+
+template<>
+void RootHandler<data_store::SureFileStore>::AddService(
+    const boost::filesystem::path& service_alias,
+    const boost::filesystem::path& store_path);
+
+template<>
+void RootHandler<data_store::SureFileStore>::RemoveService(
+    const boost::filesystem::path& service_alias);
+
+template<>
+void RootHandler<data_store::SureFileStore>::ReInitialiseService(
+    const boost::filesystem::path& service_alias,
+    const boost::filesystem::path& store_path,
+    const Identity& service_root_id);
+
+template<typename Storage>
+DirectoryListingHandler<Storage>* RootHandler<Storage>::GetHandler(
+    const boost::filesystem::path& relative_path) {
+  auto alias(*(++std::begin(relative_path)));
+  auto itr(directory_listing_handlers_.find(alias));
+  return itr == std::end(directory_listing_handlers_) ? nullptr : &(itr->second);
+}
+
+template<>
+void RootHandler<nfs_client::MaidNodeNfs>::CreateRoot(const Identity& unique_user_id);
+
+template<>
+void RootHandler<data_store::SureFileStore>::CreateRoot(const Identity& unique_user_id);
+
+template<>
+void RootHandler<nfs_client::MaidNodeNfs>::InitRoot(const Identity& unique_user_id,
+                                                    const Identity& drive_root_id);
+
+template<>
+void RootHandler<data_store::SureFileStore>::InitRoot(const Identity& unique_user_id,
+                                                      const Identity& drive_root_id);
 
 }  // namespace detail
 

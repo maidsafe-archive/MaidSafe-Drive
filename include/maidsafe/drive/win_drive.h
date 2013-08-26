@@ -56,12 +56,12 @@ template<typename Storage>
 CbfsDriveInUserSpace<Storage>* Global<Storage>::g_cbfs_drive;
 
 struct DirectoryEnumerationContext {
-  explicit DirectoryEnumerationContext(const std::pair<DirectoryData, uint32_t>& directory_in)
+  explicit DirectoryEnumerationContext(const std::pair<DirectoryData, DataTagValue>& directory_in)
       : exact_match(false),
         directory(directory_in) {}
   DirectoryEnumerationContext() : exact_match(false), directory() {}
   bool exact_match;
-  std::pair<DirectoryData, uint32_t> directory;
+  std::pair<DirectoryData, DataTagValue> directory;
 };
 
 template<typename Storage>
@@ -82,13 +82,19 @@ boost::filesystem::path RelativePath(const boost::filesystem::path& mount_dir,
 template<typename Storage>
 class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
  public:
-  CbfsDriveInUserSpace(Storage& storage,
+  CbfsDriveInUserSpace(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
                        const Identity& unique_user_id,
-                       const Identity& root_parent_id,
+                       const Identity& drive_root_id,
                        const boost::filesystem::path& mount_dir,
                        const boost::filesystem::path& drive_name,
-                       const int64_t& max_space,
-                       const int64_t& used_space);
+                       OnServiceAdded on_service_added);
+
+  CbfsDriveInUserSpace(const Identity& drive_root_id,
+                       const boost::filesystem::path& mount_dir,
+                       const boost::filesystem::path& drive_name,
+                       OnServiceAdded on_service_added,
+                       OnServiceRemoved on_service_removed);
+
   virtual ~CbfsDriveInUserSpace();
   bool Init();
   bool Mount();
@@ -243,14 +249,38 @@ class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
 };
 
 template<typename Storage>
-CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(Storage& storage,
-                                                    const Identity& unique_user_id,
-                                                    const Identity& root_parent_id,
-                                                    const fs::path &mount_dir,
-                                                    const fs::path &drive_name,
-                                                    const int64_t &max_space,
-                                                    const int64_t &used_space)
-    : DriveInUserSpace(storage, unique_user_id, root_parent_id, mount_dir, max_space, used_space),
+CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(
+    std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
+    const Identity& unique_user_id,
+    const Identity& drive_root_id,
+    const boost::filesystem::path& mount_dir,
+    const boost::filesystem::path& drive_name,
+    OnServiceAdded on_service_added)
+        : DriveInUserSpace<Storage>(maid_node_nfs, unique_user_id, drive_root_id, mount_dir,
+                                    on_service_added),
+          callback_filesystem_(),
+          guid_("713CC6CE-B3E2-4fd9-838D-E28F558F6866"),
+          icon_id_(L"MaidSafeDriveIcon"),
+          drive_name_(drive_name.wstring()),
+          registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)) {
+  Global<Storage>::g_cbfs_drive = this;
+  if (!Init()) {
+    LOG(kError) << "Failed to initialise drive.";
+    ThrowError(LifeStuffErrors::kCreateStorageError);
+  }
+  if (!Mount()) {
+    LOG(kError) << "Failed to mount drive.";
+    ThrowError(LifeStuffErrors::kMountError);
+  }
+}
+
+template<typename Storage>
+CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(const Identity& drive_root_id,
+                                                    const boost::filesystem::path& mount_dir,
+                                                    const boost::filesystem::path& drive_name,
+                                                    OnServiceAdded on_service_added,
+                                                    OnServiceRemoved on_service_removed)
+    : DriveInUserSpace<Storage>(drive_root_id, mount_dir, on_service_added, on_service_removed),
       callback_filesystem_(),
       guid_("713CC6CE-B3E2-4fd9-838D-E28F558F6866"),
       icon_id_(L"MaidSafeDriveIcon"),
@@ -628,9 +658,12 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* /*sender*
     encrypt::DataMapPtr data_map(new encrypt::DataMap());
     *data_map = *file_context->meta_data->data_map;
     file_context->meta_data->data_map = data_map;
+    auto directory_listing_handler(Global<Storage>::g_cbfs_drive->GetHandler(relative_path));
+    assert(directory_listing_handler);
+
     file_context->self_encryptor.reset(
         new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
-                                            Global<Storage>::g_cbfs_drive->storage_));
+                                            directory_listing_handler->storage()));
   }
 
   file_info->set_UserContext(file_context);
@@ -671,9 +704,11 @@ void CbfsDriveInUserSpace<Storage>::CbFsOpenFile(CallbackFileSystem* /*sender*/,
       encrypt::DataMapPtr data_map(new encrypt::DataMap);
       *data_map = *file_context->meta_data->data_map;
       file_context->meta_data->data_map = data_map;
+      auto directory_listing_handler(Global<Storage>::g_cbfs_drive->GetHandler(relative_path));
+      assert(directory_listing_handler);
       file_context->self_encryptor.reset(
          new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
-                                             Global<Storage>::g_cbfs_drive->storage_));
+                                             directory_listing_handler->storage()));
     }
   }
   // Transfer ownership of the pointer to CBFS' file_info.
@@ -812,11 +847,12 @@ void CbfsDriveInUserSpace<Storage>::CbFsEnumerateDirectory(
     directory_enumeration_info->set_UserContext(nullptr);
   }
 
-  std::pair<DirectoryData, uint32_t> directory;
+  DirectoryListingHandler<Storage>::DirectoryType directory;
   if (!directory_enumeration_info->get_UserContext()) {
     try {
-      directory =
-          Global<Storage>::g_cbfs_drive->directory_listing_handler_->GetFromPath(relative_path);
+      auto directory_listing_handler(Global<Storage>::g_cbfs_drive->GetHandler(relative_path));
+      assert(directory_listing_handler);
+      directory = directory_listing_handler->GetFromPath(relative_path);
     }
     catch(...) {
       throw ECBFSError(ERROR_PATH_NOT_FOUND);
@@ -1136,8 +1172,9 @@ void CbfsDriveInUserSpace<Storage>::CbFsIsDirectoryEmpty(CallbackFileSystem* /*s
   SCOPED_PROFILE
   LOG(kInfo) << "CbFsIsDirectoryEmpty - " << fs::path(file_name);
   try {
-    DirectoryListingHandler<Storage>::DirectoryType directory(
-        Global<Storage>::g_cbfs_drive->directory_listing_handler_->GetFromPath(file_name));
+    auto directory_listing_handler(Global<Storage>::g_cbfs_drive->GetHandler(fs::path(file_name)));
+    assert(directory_listing_handler);
+    auto directory(directory_listing_handler->GetFromPath(file_name));
     *is_empty = directory.first.listing->empty();
   }
   catch(...) {
@@ -1202,8 +1239,11 @@ void CbfsDriveInUserSpace<Storage>::SetNewAttributes(FileContext<Storage>* file_
     else
       file_context->meta_data->attributes = FILE_ATTRIBUTE_NORMAL;
 
+    auto directory_listing_handler(GetHandler(file_context->meta_data->name));
+    assert(directory_listing_handler);
+
     file_context->self_encryptor.reset(new encrypt::SelfEncryptor<Storage>(
-        file_context->meta_data->data_map, storage_));
+        file_context->meta_data->data_map, directory_listing_handler->storage()));
     file_context->meta_data->end_of_file = file_context->meta_data->allocation_size =
         file_context->self_encryptor->size();
   }

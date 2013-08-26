@@ -60,6 +60,7 @@ class DirectoryListing {
   void AddChild(const MetaData& child);
   void RemoveChild(const MetaData& child);
   void UpdateChild(const MetaData& child);
+  void ResetChildrenIterator();
   bool empty() const;
   DirectoryId directory_id() const { return directory_id_; }
 

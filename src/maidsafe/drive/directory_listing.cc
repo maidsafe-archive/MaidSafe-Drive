@@ -152,9 +152,13 @@ void DirectoryListing::UpdateChild(const MetaData& child) {
   SortAndResetChildrenIterator();
 }
 
+void DirectoryListing::ResetChildrenIterator() {
+  children_itr_position_ = 0;
+}
+
 void DirectoryListing::SortAndResetChildrenIterator() {
   std::sort(std::begin(children_), std::end(children_));
-  children_itr_position_ = 0;
+  ResetChildrenIterator();
 }
 
 bool DirectoryListing::empty() const {

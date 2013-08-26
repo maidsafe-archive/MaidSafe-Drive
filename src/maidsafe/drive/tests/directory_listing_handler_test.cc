@@ -59,15 +59,15 @@
 //  typedef nfs::ClientMaidNfs ClientNfs;
 //  typedef data_store::PermanentStore DataStore;
 //
-//  enum { kValue = DirectoryListingHandler::kOwnerValue };
+//  enum { kValue = DirectoryListingHandler::DataTagValue::kOwnerDirectoryValue };
 //
 //  FailDirectoryListingHandler(ClientNfs& client_nfs,
 //                              DataStore& data_store,
 //                              const Identity& unique_user_id,
-//                              const Identity& root_parent_id,
+//                              const Identity& drive_root_id,
 //                              int fail_for_put,
 //                              bool use_real)
-//      : DirectoryListingHandler(client_nfs, data_store, maid, unique_user_id, root_parent_id),
+//      : DirectoryListingHandler(client_nfs, data_store, maid, unique_user_id, drive_root_id),
 //        fail_for_put_(fail_for_put),
 //        fail_count_(0),
 //        use_real_(use_real) {}
@@ -169,7 +169,7 @@
 //    // Originally tested cached directories which are now gone...
 //    // Get the root listing from storage
 //    auto directory(listing_handler_->GetFromPath("/"));
-//    EXPECT_EQ(directory.first.parent_id, listing_handler_->root_parent_id_);
+//    EXPECT_EQ(directory.first.parent_id, listing_handler_->drive_root_id_);
 //    // Try to get the non-existant dir listing
 //    EXPECT_THROW(directory = listing_handler_->GetFromPath(owner_ / "some_dir"), std::exception);
 //    // Adding some_dir

@@ -1,93 +1,111 @@
-///* Copyright 2011 MaidSafe.net limited
-//
-//This MaidSafe Software is licensed under the MaidSafe.net Commercial License, version 1.0 or later,
-//and The General Public License (GPL), version 3. By contributing code to this project You agree to
-//the terms laid out in the MaidSafe Contributor Agreement, version 1.0, found in the root directory
-//of this project at LICENSE, COPYING and CONTRIBUTOR respectively and also available at:
-//
-//http://www.novinet.com/license
-//
-//Unless required by applicable law or agreed to in writing, software distributed under the License is
-//distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-//implied. See the License for the specific language governing permissions and limitations under the
-//License.
-//*/
-//
-//#ifdef MAIDSAFE_WIN32
-//#  include <windows.h>
-//#else
-//#  include <time.h>
-//#endif
-//
-//#include <fstream>  // NOLINT
-//#include <string>
-//#include <chrono>
-//
-//#include "boost/filesystem.hpp"
-//#include "boost/scoped_array.hpp"
-//
-//#include "maidsafe/common/crypto.h"
-//#include "maidsafe/common/log.h"
-//#include "maidsafe/common/test.h"
-//#include "maidsafe/common/utils.h"
-//
-//#include "maidsafe/data_store/permanent_store.h"
-//
-//#include "maidsafe/encrypt/data_map.h"
-//#include "maidsafe/encrypt/self_encryptor.h"
-//
-//#include "maidsafe/drive/meta_data.h"
-//#include "maidsafe/drive/directory_listing.h"
-//#include "maidsafe/drive/directory_listing_handler.h"
-//#include "maidsafe/drive/utils.h"
+/* Copyright 2011 MaidSafe.net limited
+
+This MaidSafe Software is licensed under the MaidSafe.net Commercial License, version 1.0 or later,
+and The General Public License (GPL), version 3. By contributing code to this project You agree to
+the terms laid out in the MaidSafe Contributor Agreement, version 1.0, found in the root directory
+of this project at LICENSE, COPYING and CONTRIBUTOR respectively and also available at:
+
+http://www.novinet.com/license
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is
+distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+implied. See the License for the specific language governing permissions and limitations under the
+License.
+*/
+
+#ifdef MAIDSAFE_WIN32
+#  include <windows.h>
+#else
+#  include <time.h>
+#endif
+
+#include <fstream>  // NOLINT
+#include <string>
+#include <chrono>
+
+#include "boost/filesystem.hpp"
+#include "boost/scoped_array.hpp"
+
+#include "maidsafe/common/crypto.h"
+#include "maidsafe/common/log.h"
+#include "maidsafe/common/test.h"
+#include "maidsafe/common/utils.h"
+
+#include "maidsafe/data_store/permanent_store.h"
+#include "maidsafe/data_store/surefile_store.h"
+
+#include "maidsafe/encrypt/data_map.h"
+#include "maidsafe/encrypt/self_encryptor.h"
+
+#include "maidsafe/drive/meta_data.h"
+#include "maidsafe/drive/directory_listing.h"
+#include "maidsafe/drive/directory_listing_handler.h"
+#include "maidsafe/drive/utils.h"
+#include "maidsafe/drive/win_drive.h"
 //#include "maidsafe/drive/tests/test_utils.h"
-//
-//
-//namespace fs = boost::filesystem;
-//
-//namespace maidsafe {
-//
-//namespace drive {
-//
-//namespace test {
-//
-//#ifdef MAIDSAFE_WIN32
-//testing::AssertionResult TimesMatch(const FILETIME &time1, const FILETIME &time2) {
-//  if (time1.dwHighDateTime != time2.dwHighDateTime) {
-//    return testing::AssertionFailure() << "time1.dwHighDateTime (" << time1.dwHighDateTime
-//           << ") != time2.dwHighDateTime (" << time2.dwHighDateTime << ")";
-//  }
-//  if (time1.dwLowDateTime!= time2.dwLowDateTime) {
-//    return testing::AssertionFailure() << "time1.dwLowDateTime (" << time1.dwLowDateTime
-//           << ") != time2.dwLowDateTime (" << time2.dwLowDateTime << ")";
-//  }
-//  return testing::AssertionSuccess();
-//}
-//#endif
-//
-//void SetLastAccessTime(MetaData *meta_data) {
-//#ifdef MAIDSAFE_WIN32
-//  GetSystemTimeAsFileTime(&meta_data->last_access_time);
-//#else
-//  time(&meta_data->attributes.st_atime);
-//#endif
-//}
-//
-//testing::AssertionResult LastAccessTimesMatch(const MetaData &meta_data1,
-//                                              const MetaData &meta_data2) {
-//#ifdef MAIDSAFE_WIN32
-//  return TimesMatch(meta_data1.last_access_time, meta_data2.last_access_time);
-//#else
-//  if (meta_data1.attributes.st_atime == meta_data2.attributes.st_atime)
-//    return testing::AssertionSuccess();
-//  else
-//    return testing::AssertionFailure() << "meta_data1.attributes.st_atime ("
-//        << meta_data1.attributes.st_atime << ") != meta_data2.attributes."
-//        << "st_atime (" << meta_data2.attributes.st_atime << ")";
-//#endif
-//}
-//
-//
+
+
+namespace fs = boost::filesystem;
+
+namespace maidsafe {
+
+namespace drive {
+
+namespace test {
+
+#ifdef MAIDSAFE_WIN32
+testing::AssertionResult TimesMatch(const FILETIME &time1, const FILETIME &time2) {
+  if (time1.dwHighDateTime != time2.dwHighDateTime) {
+    return testing::AssertionFailure() << "time1.dwHighDateTime (" << time1.dwHighDateTime
+           << ") != time2.dwHighDateTime (" << time2.dwHighDateTime << ")";
+  }
+  if (time1.dwLowDateTime!= time2.dwLowDateTime) {
+    return testing::AssertionFailure() << "time1.dwLowDateTime (" << time1.dwLowDateTime
+           << ") != time2.dwLowDateTime (" << time2.dwLowDateTime << ")";
+  }
+  return testing::AssertionSuccess();
+}
+#endif
+
+void SetLastAccessTime(MetaData *meta_data) {
+#ifdef MAIDSAFE_WIN32
+  GetSystemTimeAsFileTime(&meta_data->last_access_time);
+#else
+  time(&meta_data->attributes.st_atime);
+#endif
+}
+
+testing::AssertionResult LastAccessTimesMatch(const MetaData &meta_data1,
+                                              const MetaData &meta_data2) {
+#ifdef MAIDSAFE_WIN32
+  return TimesMatch(meta_data1.last_access_time, meta_data2.last_access_time);
+#else
+  if (meta_data1.attributes.st_atime == meta_data2.attributes.st_atime)
+    return testing::AssertionSuccess();
+  else
+    return testing::AssertionFailure() << "meta_data1.attributes.st_atime ("
+        << meta_data1.attributes.st_atime << ") != meta_data2.attributes."
+        << "st_atime (" << meta_data2.attributes.st_atime << ")";
+#endif
+}
+
+
+TEST(Drive, BEH_SureStore) {
+  OnServiceAdded on_added([](const boost::filesystem::path& alias,
+                             const Identity& drive_root_id,
+                             const Identity& service_root_id) {
+                            LOG(kInfo) << "Added " << alias << "  Root: "
+                                       << HexSubstr(drive_root_id) << "  Service: "
+                                       << HexSubstr(service_root_id);
+                          });
+  OnServiceRemoved on_removed([](const boost::filesystem::path& alias) {
+                                LOG(kInfo) << "Removed " << alias;
+                              });
+  detail::CbfsDriveInUserSpace<data_store::SureFileStore> drive(Identity(), "Z:", "SureFileDrive",
+                                                                on_added, on_removed);
+}
+
+
 //class DriveApiTest : public testing::Test {
 // public:
 //  typedef data_store::PermanentStore DataStore;
@@ -486,9 +504,9 @@
 //  for (uint32_t i = 0; i < kTestDataSize; ++i)
 //    ASSERT_EQ(plain_data[i], answer[i]) << "failed at count " << i;
 //}
-//
-//}  // namespace test
-//
-//}  // namespace drive
-//
-//}  // namespace maidsafe
+
+}  // namespace test
+
+}  // namespace drive
+
+}  // namespace maidsafe
