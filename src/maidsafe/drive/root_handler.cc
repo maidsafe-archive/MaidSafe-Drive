@@ -115,7 +115,7 @@ void RootHandler<data_store::SureFileStore>::CreateRoot(const Identity& unique_u
 //void RootHandler<nfs_client::MaidNodeNfs>::InitRoot(const Identity& unique_user_id,
 //                                                    const Identity& drive_root_id) {
 //  assert(drive_root_id.IsInitialised() && unique_user_id.IsInitialised());
-//  DirectoryData directory(RetrieveFromStorage(unique_user_id_, drive_root_id_, DataTagValue::kOwnerDirectoryValue));
+//  DirectoryData directory(GetDirectoryFromStorage(unique_user_id_, drive_root_id_, DataTagValue::kOwnerDirectoryValue));
 //}
 
 template<>

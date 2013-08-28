@@ -51,8 +51,6 @@ enum OpType { kCreated, kRenamed, kAdded, kRemoved, kMoved, kModified };
 
 typedef std::shared_ptr<encrypt::DataMap> DataMapPtr;
 
-typedef std::shared_ptr<DirectoryId> DirectoryIdPtr;
-
 extern const boost::filesystem::path kMsHidden;
 extern const boost::filesystem::path kRoot;
 

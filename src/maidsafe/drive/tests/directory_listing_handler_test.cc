@@ -1,58 +1,59 @@
-///* Copyright 2011 MaidSafe.net limited
-//
-//This MaidSafe Software is licensed under the MaidSafe.net Commercial License, version 1.0 or later,
-//and The General Public License (GPL), version 3. By contributing code to this project You agree to
-//the terms laid out in the MaidSafe Contributor Agreement, version 1.0, found in the root directory
-//of this project at LICENSE, COPYING and CONTRIBUTOR respectively and also available at:
-//
-//http://www.novinet.com/license
-//
-//Unless required by applicable law or agreed to in writing, software distributed under the License is
-//distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-//implied. See the License for the specific language governing permissions and limitations under the
-//License.
-//*/
-//
-//#ifdef MAIDSAFE_WIN32
-//#  include <windows.h>
-//#else
-//#  include <time.h>
-//#endif
-//
-//#include <fstream>  // NOLINT
-//#include <string>
-//
-//#include "boost/filesystem.hpp"
-//#include "boost/thread.hpp"
-//
-//#include "maidsafe/common/asio_service.h"
-//#include "maidsafe/common/crypto.h"
-//#include "maidsafe/common/log.h"
-//#include "maidsafe/common/test.h"
-//#include "maidsafe/common/utils.h"
-//
-//#include "maidsafe/data_store/permanent_store.h"
-//
-//#include "maidsafe/encrypt/data_map.h"
-//
-//#include "maidsafe/routing/routing_api.h"
-//
-//#include "maidsafe/drive/meta_data.h"
-//#include "maidsafe/drive/directory_listing.h"
-//#include "maidsafe/drive/directory_listing_handler.h"
-//#include "maidsafe/drive/tests/test_utils.h"
-//
-//
-//namespace fs = boost::filesystem;
-//
-//namespace maidsafe {
-//
-//namespace drive {
-//
-//namespace detail {
-//
-//namespace test {
-//
+/* Copyright 2011 MaidSafe.net limited
+
+This MaidSafe Software is licensed under the MaidSafe.net Commercial License, version 1.0 or later,
+and The General Public License (GPL), version 3. By contributing code to this project You agree to
+the terms laid out in the MaidSafe Contributor Agreement, version 1.0, found in the root directory
+of this project at LICENSE, COPYING and CONTRIBUTOR respectively and also available at:
+
+http://www.novinet.com/license
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is
+distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+implied. See the License for the specific language governing permissions and limitations under the
+License.
+*/
+
+#ifdef MAIDSAFE_WIN32
+#  include <windows.h>
+#else
+#  include <time.h>
+#endif
+
+#include <fstream>  // NOLINT
+#include <mutex>
+#include <string>
+
+#include "boost/filesystem/path.hpp"
+
+#include "maidsafe/common/asio_service.h"
+#include "maidsafe/common/crypto.h"
+#include "maidsafe/common/log.h"
+#include "maidsafe/common/test.h"
+#include "maidsafe/common/utils.h"
+
+#include "maidsafe/data_store/surefile_store.h"
+
+#include "maidsafe/encrypt/data_map.h"
+
+#include "maidsafe/routing/routing_api.h"
+
+#include "maidsafe/drive/config.h"
+#include "maidsafe/drive/meta_data.h"
+#include "maidsafe/drive/directory_listing.h"
+#include "maidsafe/drive/directory_listing_handler.h"
+#include "maidsafe/drive/tests/test_utils.h"
+
+
+namespace fs = boost::filesystem;
+
+namespace maidsafe {
+
+namespace drive {
+
+namespace detail {
+
+namespace test {
+
 //template<typename Storage>
 //class FailDirectoryListingHandler : public DirectoryListingHandler<Storage> {
 // public:
@@ -73,10 +74,10 @@
 //        use_real_(use_real) {}
 //
 //  ~FailDirectoryListingHandler() {}
-//  DirectoryData RetrieveFromStorage(const DirectoryId &pid,
+//  DirectoryData GetDirectoryFromStorage(const DirectoryId &pid,
 //                                    const DirectoryId &id) const {
 //    if (use_real_)
-//      return DirectoryListingHandler::RetrieveFromStorage(pid, id, kValue);
+//      return DirectoryListingHandler::GetDirectoryFromStorage(pid, id, kValue);
 //    else
 //      return DirectoryData();
 //  }
@@ -88,9 +89,9 @@
 //    else
 //      return;
 //  }
-//  void DeleteStored(const DirectoryId &pid, const DirectoryId &id) {
+//  void DeleteFromStorage(const DirectoryId &pid, const DirectoryId &id) {
 //    if (use_real_)
-//      DirectoryListingHandler::DeleteStored(pid, id, kValue);
+//      DirectoryListingHandler::DeleteFromStorage(pid, id, kValue);
 //    else
 //      return;
 //  }
@@ -101,31 +102,27 @@
 //  int fail_count_;
 //  bool use_real_;
 //};
-//
-//struct TestTreeEntry {
-//  TestTreeEntry() : path(), leaf(true) {}
-//  TestTreeEntry(const fs::path fs_path, bool leafness)
-//      : path(fs_path),
-//        leaf(leafness) {}
-//  fs::path path;
-//  bool leaf;
-//};
-//
-//class DirectoryListingHandlerTest : public testing::Test {
-// public:
-//  DirectoryListingHandlerTest()
-//      : main_test_dir_(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive")),
-//        default_maid_(passport::Maid::signer_type()),
-//        routing_(default_maid_),
-//        client_nfs_(),
-//        data_store_(),
-//        relative_root_(fs::path("/").make_preferred()),
-//        owner_(relative_root_ / "Owner"),
-//        owner_meta_data_(owner_, true),
-//        unique_user_id_(RandomString(64)),
-//        listing_handler_(),
-//        created_paths_(),
-//        created_paths_mutex_() {}
+
+struct TestTreeEntry {
+  TestTreeEntry() : path(), leaf(true) {}
+  TestTreeEntry(const fs::path fs_path, bool leafness)
+      : path(fs_path),
+        leaf(leafness) {}
+  fs::path path;
+  bool leaf;
+};
+
+class DirectoryListingHandlerTest : public testing::Test {
+ public:
+  DirectoryListingHandlerTest()
+      : main_test_dir_(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive")),
+        data_store_(new data_store::SureFileStore(*main_test_dir_, DiskUsage(1 << 9))),
+        owner_(kRoot / "Owner"),
+        owner_meta_data_(owner_, true),
+        unique_user_id_(RandomString(64)),
+        listing_handler_(),
+        created_paths_(),
+        created_paths_mutex_() {}
 //
 //  typedef nfs::ClientMaidNfs ClientNfs;
 //  typedef data_store::PermanentStore DataStore;
@@ -266,24 +263,28 @@
 //    }
 //  }
 //
-//  maidsafe::test::TestPath main_test_dir_;
-//  passport::Maid default_maid_;
-//  routing::Routing routing_;
-//  std::shared_ptr<ClientNfs> client_nfs_;
-//  std::shared_ptr<DataStore> data_store_;
-//  fs::path relative_root_;
-//  fs::path owner_;
-//  MetaData owner_meta_data_;
-//  Identity unique_user_id_;
-//  std::shared_ptr<DirectoryListingHandler> listing_handler_;
-//  std::vector<TestTreeEntry> created_paths_;
-//  boost::mutex created_paths_mutex_;
-//
-// private:
-//  DirectoryListingHandlerTest(const DirectoryListingHandlerTest&);
-//  DirectoryListingHandlerTest& operator=(const DirectoryListingHandlerTest&);
-//};
-//
+  maidsafe::test::TestPath main_test_dir_;
+  std::shared_ptr<data_store::SureFileStore> data_store_;
+  fs::path owner_;
+  MetaData owner_meta_data_;
+  Identity unique_user_id_;
+  std::shared_ptr<detail::DirectoryListingHandler<data_store::SureFileStore>> listing_handler_;
+  std::vector<TestTreeEntry> created_paths_;
+  std::mutex created_paths_mutex_;
+
+ private:
+  DirectoryListingHandlerTest(const DirectoryListingHandlerTest&);
+  DirectoryListingHandlerTest& operator=(const DirectoryListingHandlerTest&);
+};
+
+TEST_F(DirectoryListingHandlerTest, BEH_Construct) {
+  DirectoryData service_root(Identity(RandomString(64)), std::make_shared<DirectoryListing>(),
+                          DataTagValue::kOwnerDirectoryValue);
+
+  listing_handler_.reset(new detail::DirectoryListingHandler<data_store::SureFileStore>(
+      data_store_, service_root));
+}
+
 //TEST_F(DirectoryListingHandlerTest, BEH_Construct) {
 //  EXPECT_NO_THROW(DirectoryListingHandler local_listing_handler(*client_nfs_,
 //                                                                *data_store_,
@@ -382,11 +383,11 @@
 //  EXPECT_EQ(new_meta.attributes.st_atime, result_temp.attributes.st_atime);
 //#endif
 //}
-//
-//}  // namespace test
-//
-//}  // namespace detail
-//
-//}  // namespace drive
-//
-//}  // namespace maidsafe
+
+}  // namespace test
+
+}  // namespace detail
+
+}  // namespace drive
+
+}  // namespace maidsafe

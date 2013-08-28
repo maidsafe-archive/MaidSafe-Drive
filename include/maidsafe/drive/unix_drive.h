@@ -1209,7 +1209,7 @@ int FuseDriveInUserSpace<Storage>::OpsReaddir(const char *path,
   filler(buf, "..", nullptr, 0);
   DirectoryListingPtr dir_listing;
   try {
-    typename DirectoryListingHandler<Storage>::DirectoryType directory(
+    typename DirectoryListingHandler<Storage>::DirectoryData directory(
         Global<Storage>::g_fuse_drive->directory_listing_handler_->GetFromPath(fs::path(path)));
     dir_listing = directory.first.listing;
   } catch(...) {}

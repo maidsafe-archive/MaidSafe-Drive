@@ -147,11 +147,11 @@ MetaData::MetaData(const fs::path &name, bool is_directory)
       data_map(is_directory ? nullptr : std::make_shared<encrypt::DataMap>()),
       directory_id(is_directory ? std::make_shared<DirectoryId>(RandomString(64)) : nullptr),
       notes() {
-    FILETIME file_time;
-    GetSystemTimeAsFileTime(&file_time);
-    creation_time = file_time;
-    last_access_time = file_time;
-    last_write_time = file_time;
+  FILETIME file_time;
+  GetSystemTimeAsFileTime(&file_time);
+  creation_time = file_time;
+  last_access_time = file_time;
+  last_write_time = file_time;
 }
 #else
       attributes(),

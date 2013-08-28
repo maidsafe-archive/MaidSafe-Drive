@@ -62,11 +62,11 @@ FileContext<Storage>::FileContext()
 
 template<typename Storage>
 FileContext<Storage>::FileContext(const boost::filesystem::path& name, bool is_directory)
-      : meta_data(new MetaData(name, is_directory)),
-        self_encryptor(),
-        content_changed(!is_directory),
-        grandparent_directory_id(),
-        parent_directory_id() {}
+    : meta_data(new MetaData(name, is_directory)),
+      self_encryptor(),
+      content_changed(!is_directory),
+      grandparent_directory_id(),
+      parent_directory_id() {}
 
 template<typename Storage>
 FileContext<Storage>::FileContext(std::shared_ptr<MetaData> meta_data_in)

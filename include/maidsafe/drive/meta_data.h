@@ -75,7 +75,7 @@ struct MetaData {
   boost::filesystem::path link_to;
 #endif
   detail::DataMapPtr data_map;
-  detail::DirectoryIdPtr directory_id;
+  std::shared_ptr<DirectoryId> directory_id;
   std::vector<std::string> notes;
 };
 

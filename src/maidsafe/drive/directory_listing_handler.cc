@@ -24,7 +24,7 @@ namespace detail {
 
 template<>
 DataTagValue DirectoryListingHandler<data_store::SureFileStore>::GetDirectoryType(
-    const boost::filesystem::path& /*relative_path*/) {
+    const boost::filesystem::path& /*path*/) {
   return DataTagValue::kOwnerDirectoryValue;
 }
 

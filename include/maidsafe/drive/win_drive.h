@@ -56,12 +56,12 @@ template<typename Storage>
 CbfsDriveInUserSpace<Storage>* Global<Storage>::g_cbfs_drive;
 
 struct DirectoryEnumerationContext {
-  explicit DirectoryEnumerationContext(const std::pair<DirectoryData, DataTagValue>& directory_in)
+  explicit DirectoryEnumerationContext(const DirectoryData& directory_in)
       : exact_match(false),
         directory(directory_in) {}
   DirectoryEnumerationContext() : exact_match(false), directory() {}
   bool exact_match;
-  std::pair<DirectoryData, DataTagValue> directory;
+  DirectoryData directory;
 };
 
 template<typename Storage>
@@ -847,7 +847,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsEnumerateDirectory(
     directory_enumeration_info->set_UserContext(nullptr);
   }
 
-  DirectoryListingHandler<Storage>::DirectoryType directory;
+  DirectoryListingHandler<Storage>::DirectoryData directory;
   if (!directory_enumeration_info->get_UserContext()) {
     try {
       auto directory_listing_handler(Global<Storage>::g_cbfs_drive->GetHandler(relative_path));
