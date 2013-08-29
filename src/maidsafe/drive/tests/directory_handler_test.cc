@@ -40,7 +40,7 @@ License.
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/directory_listing.h"
-#include "maidsafe/drive/directory_listing_handler.h"
+#include "maidsafe/drive/directory_handler.h"
 #include "maidsafe/drive/tests/test_utils.h"
 
 
@@ -55,49 +55,49 @@ namespace detail {
 namespace test {
 
 //template<typename Storage>
-//class FailDirectoryListingHandler : public DirectoryListingHandler<Storage> {
+//class FailDirectoryHandler : public DirectoryHandler<Storage> {
 // public:
 //  typedef nfs::ClientMaidNfs ClientNfs;
 //  typedef data_store::PermanentStore DataStore;
 //
-//  enum { kValue = DirectoryListingHandler::DataTagValue::kOwnerDirectoryValue };
+//  enum { kValue = DirectoryHandler::DataTagValue::kOwnerDirectoryValue };
 //
-//  FailDirectoryListingHandler(ClientNfs& client_nfs,
+//  FailDirectoryHandler(ClientNfs& client_nfs,
 //                              DataStore& data_store,
 //                              const Identity& unique_user_id,
 //                              const Identity& drive_root_id,
 //                              int fail_for_put,
 //                              bool use_real)
-//      : DirectoryListingHandler(client_nfs, data_store, maid, unique_user_id, drive_root_id),
+//      : DirectoryHandler(client_nfs, data_store, maid, unique_user_id, drive_root_id),
 //        fail_for_put_(fail_for_put),
 //        fail_count_(0),
 //        use_real_(use_real) {}
 //
-//  ~FailDirectoryListingHandler() {}
-//  DirectoryData GetDirectoryFromStorage(const DirectoryId &pid,
+//  ~FailDirectoryHandler() {}
+//  Directory GetDirectoryFromStorage(const DirectoryId &pid,
 //                                    const DirectoryId &id) const {
 //    if (use_real_)
-//      return DirectoryListingHandler::GetDirectoryFromStorage(pid, id, kValue);
+//      return DirectoryHandler::GetFromStorage(pid, id, kValue);
 //    else
-//      return DirectoryData();
+//      return Directory();
 //  }
-//  void PutToStorage(DirectoryData data) {
+//  void PutToStorage(Directory data) {
 //    if (++fail_count_ == fail_for_put_)
 //      ThrowError(CommonErrors::invalid_parameter);
 //    else if (use_real_)
-//      DirectoryListingHandler::PutToStorage(std::make_pair(data, kValue));
+//      DirectoryHandler::PutToStorage(std::make_pair(data, kValue));
 //    else
 //      return;
 //  }
 //  void DeleteFromStorage(const DirectoryId &pid, const DirectoryId &id) {
 //    if (use_real_)
-//      DirectoryListingHandler::DeleteFromStorage(pid, id, kValue);
+//      DirectoryHandler::DeleteFromStorage(pid, id, kValue);
 //    else
 //      return;
 //  }
 //
 // private:
-//  friend class test::DirectoryListingHandlerTest;
+//  friend class test::DirectoryHandlerTest;
 //  int fail_for_put_;
 //  int fail_count_;
 //  bool use_real_;
@@ -112,9 +112,9 @@ struct TestTreeEntry {
   bool leaf;
 };
 
-class DirectoryListingHandlerTest : public testing::Test {
+class DirectoryHandlerTest : public testing::Test {
  public:
-  DirectoryListingHandlerTest()
+  DirectoryHandlerTest()
       : main_test_dir_(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive")),
         data_store_(new data_store::SureFileStore(*main_test_dir_, DiskUsage(1 << 9))),
         owner_(kRoot / "Owner"),
@@ -132,7 +132,7 @@ class DirectoryListingHandlerTest : public testing::Test {
 //    DiskUsage disk_usage(1048576000);
 //    data_store_.reset(new DataStore(*main_test_dir_ / RandomAlphaNumericString(8), disk_usage));
 //    client_nfs_.reset(new ClientNfs(routing_, default_maid_));
-//    listing_handler_.reset(new DirectoryListingHandler(*client_nfs_,
+//    listing_handler_.reset(new DirectoryHandler(*client_nfs_,
 //                                                       *data_store_,
 //                                                       default_maid_,
 //                                                       unique_user_id_,
@@ -268,29 +268,52 @@ class DirectoryListingHandlerTest : public testing::Test {
   fs::path owner_;
   MetaData owner_meta_data_;
   Identity unique_user_id_;
-  std::shared_ptr<detail::DirectoryListingHandler<data_store::SureFileStore>> listing_handler_;
+  std::shared_ptr<detail::DirectoryHandler<data_store::SureFileStore>> listing_handler_;
   std::vector<TestTreeEntry> created_paths_;
   std::mutex created_paths_mutex_;
 
  private:
-  DirectoryListingHandlerTest(const DirectoryListingHandlerTest&);
-  DirectoryListingHandlerTest& operator=(const DirectoryListingHandlerTest&);
+  DirectoryHandlerTest(const DirectoryHandlerTest&);
+  DirectoryHandlerTest& operator=(const DirectoryHandlerTest&);
 };
 
-TEST_F(DirectoryListingHandlerTest, BEH_Construct) {
-  DirectoryData service_root(Identity(RandomString(64)), std::make_shared<DirectoryListing>(),
-                          DataTagValue::kOwnerDirectoryValue);
+TEST_F(DirectoryHandlerTest, BEH_Construct) {
+  Directory root(Identity(RandomString(64)),
+                 std::make_shared<DirectoryListing>(Identity(RandomString(64))),
+                 nullptr, DataTagValue::kOwnerDirectoryValue);
+  listing_handler_.reset(new detail::DirectoryHandler<data_store::SureFileStore>(
+      data_store_, &root, DataTagValue::kOwnerDirectoryValue));
 
-  listing_handler_.reset(new detail::DirectoryListingHandler<data_store::SureFileStore>(
-      data_store_, service_root));
+  Directory owner(Identity(RandomString(64)),
+                  std::make_shared<DirectoryListing>(Identity(RandomString(64))), nullptr,
+                  DataTagValue::kOwnerDirectoryValue);
+  Directory group(Identity(RandomString(64)),
+                  std::make_shared<DirectoryListing>(Identity(RandomString(64))), nullptr,
+                  DataTagValue::kGroupDirectoryValue);
+  Directory world(Identity(RandomString(64)),
+                  std::make_shared<DirectoryListing>(Identity(RandomString(64))), nullptr,
+                  DataTagValue::kWorldDirectoryValue);
+
+  PutToStorage(*data_store_, owner);
+  PutToStorage(*data_store_, group);
+  PutToStorage(*data_store_, world);
+  auto owner_recovered(GetFromStorage(*data_store_, owner.parent_id, owner.listing->directory_id(),
+                                      owner.type));
+  auto group_recovered(GetFromStorage(*data_store_, group.parent_id, group.listing->directory_id(),
+                                      group.type));
+  auto world_recovered(GetFromStorage(*data_store_, world.parent_id, world.listing->directory_id(),
+                                      world.type));
+  DeleteFromStorage(*data_store_, owner);
+  DeleteFromStorage(*data_store_, group);
+  DeleteFromStorage(*data_store_, world);
 }
 
-//TEST_F(DirectoryListingHandlerTest, BEH_Construct) {
-//  EXPECT_NO_THROW(DirectoryListingHandler local_listing_handler(*client_nfs_,
+//TEST_F(DirectoryHandlerTest, BEH_Construct) {
+//  EXPECT_NO_THROW(DirectoryHandler local_listing_handler(*client_nfs_,
 //                                                                *data_store_,
 //                                                                unique_user_id_,
 //                                                                ""));
-//  /*EXPECT_THROW(FailDirectoryListingHandler fail_listing_handler(*client_nfs_,
+//  /*EXPECT_THROW(FailDirectoryHandler fail_listing_handler(*client_nfs_,
 //                                                                *data_store_,
 //                                                                maid,
 //                                                                unique_user_id_,
@@ -298,7 +321,7 @@ TEST_F(DirectoryListingHandlerTest, BEH_Construct) {
 //                                                                1,
 //                                                                true),
 //               std::exception);
-//  EXPECT_THROW(FailDirectoryListingHandler fail_listing_handler(*client_nfs_,
+//  EXPECT_THROW(FailDirectoryHandler fail_listing_handler(*client_nfs_,
 //                                                                *data_store_,
 //                                                                maid,
 //                                                                unique_user_id_,
@@ -308,15 +331,15 @@ TEST_F(DirectoryListingHandlerTest, BEH_Construct) {
 //               std::exception);*/
 //}
 //
-//TEST_F(DirectoryListingHandlerTest, BEH_GetDirectoryDataByPath) {
+//TEST_F(DirectoryHandlerTest, BEH_GetDirectoryDataByPath) {
 //  FullCoverageByPath();
 //}
 //
-//TEST_F(DirectoryListingHandlerTest, BEH_AddElement) {
+//TEST_F(DirectoryHandlerTest, BEH_AddElement) {
 //  FullCoverageAddElement();
 //}
 //
-//TEST_F(DirectoryListingHandlerTest, BEH_AddThenDelete) {
+//TEST_F(DirectoryHandlerTest, BEH_AddThenDelete) {
 //  {
 //    // Add then Delete Directory Element
 //    MetaData directory_meta("directory_test", true);
@@ -337,7 +360,7 @@ TEST_F(DirectoryListingHandlerTest, BEH_Construct) {
 //  }
 //}
 //
-//TEST_F(DirectoryListingHandlerTest, BEH_RenameElement) {
+//TEST_F(DirectoryHandlerTest, BEH_RenameElement) {
 //  MetaData directory_meta("test", true);
 //  EXPECT_NO_THROW(listing_handler_->AddElement(owner_ / "test",
 //                                               directory_meta,
@@ -354,7 +377,7 @@ TEST_F(DirectoryListingHandlerTest, BEH_Construct) {
 //  EXPECT_NO_THROW(listing_handler_->DeleteElement(owner_ / "new_test", new_meta));
 //}
 //
-//TEST_F(DirectoryListingHandlerTest, BEH_UpdateParentDirectoryListing) {
+//TEST_F(DirectoryHandlerTest, BEH_UpdateParentDirectoryListing) {
 //  MetaData directory_meta("test", true);
 //  EXPECT_NO_THROW(listing_handler_->AddElement(owner_ / "test",
 //                                               directory_meta,

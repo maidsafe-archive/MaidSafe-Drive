@@ -39,7 +39,7 @@ License.
 
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/directory_listing.h"
-#include "maidsafe/drive/directory_listing_handler.h"
+#include "maidsafe/drive/directory_handler.h"
 #include "maidsafe/drive/utils.h"
 #include "maidsafe/drive/win_drive.h"
 //#include "maidsafe/drive/tests/test_utils.h"
@@ -91,18 +91,41 @@ testing::AssertionResult LastAccessTimesMatch(const MetaData &meta_data1,
 
 
 TEST(Drive, BEH_SureStore) {
-  OnServiceAdded on_added([](const boost::filesystem::path& alias,
-                             const Identity& drive_root_id,
-                             const Identity& service_root_id) {
+  fs::path svc_alias;
+  Identity svc_root_id;
+  OnServiceAdded on_added([&svc_alias, &svc_root_id](const fs::path& alias,
+                                                     const Identity& drive_root_id,
+                                                     const Identity& service_root_id) {
                             LOG(kInfo) << "Added " << alias << "  Root: "
                                        << HexSubstr(drive_root_id) << "  Service: "
                                        << HexSubstr(service_root_id);
+                            svc_alias = alias;
+                            svc_root_id = service_root_id;
                           });
-  OnServiceRemoved on_removed([](const boost::filesystem::path& alias) {
-                                LOG(kInfo) << "Removed " << alias;
+  OnServiceRemoved on_removed([](const fs::path& alias) { LOG(kInfo) << "Removed " << alias; });
+  OnServiceRenamed on_renamed([](const fs::path& old_alias, const fs::path& new_alias) {
+                                LOG(kInfo) << "Renamed " << old_alias << " to " << new_alias;
                               });
-  detail::CbfsDriveInUserSpace<data_store::SureFileStore> drive(Identity(), "Z:", "SureFileDrive",
-                                                                on_added, on_removed);
+  maidsafe::test::TestPath main_test_dir(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
+  {
+    detail::CbfsDriveInUserSpace<data_store::SureFileStore> drive(Identity(), "Z:", "SureFileDrive",
+                                                                  on_added, on_removed, on_renamed);
+    //MetaData meta_data("TestService", true);
+    //DirectoryId grandparent_id, parent_id;
+    //drive.AddFile(detail::kRoot / "TestService", meta_data, grandparent_id, parent_id);
+    //drive.AddService(meta_data.name, *main_test_dir / "TestService");
+    fs::create_directory("Z:\\AnotherService");
+    drive.AddService("AnotherService", *main_test_dir / "AnotherService");
+    EXPECT_TRUE(WriteFile("Z:\\AnotherService\\test.txt", "Content\n"));
+    EXPECT_EQ(NonEmptyString("Content\n"), ReadFile("Z:\\AnotherService\\test.txt"));
+  }
+
+  {
+    detail::CbfsDriveInUserSpace<data_store::SureFileStore> drive(Identity(), "Z:", "SureFileDrive",
+                                                                  on_added, on_removed, on_renamed);    
+    drive.ReInitialiseService(svc_alias, *main_test_dir / svc_alias, svc_root_id);
+    EXPECT_EQ(NonEmptyString("Content\n"), ReadFile("Z:\\AnotherService\\test.txt"));
+  }
 }
 
 
@@ -132,7 +155,7 @@ TEST(Drive, BEH_SureStore) {
 //                                                         "MaidSafeDrive",
 //                                                         max_space_,
 //                                                         used_space_)),
-//        directory_handler_(drive_->directory_listing_handler()) {}
+//        directory_handler_(drive_->directory_handler()) {}
 //
 //
 //
@@ -152,7 +175,7 @@ TEST(Drive, BEH_SureStore) {
 //  MetaData owner_meta_data_;
 //  int64_t max_space_, used_space_;
 //  std::shared_ptr<DerivedDriveInUserSpace> drive_;
-//  std::shared_ptr<detail::DirectoryListingHandler> directory_handler_;
+//  std::shared_ptr<detail::DirectoryHandler> directory_handler_;
 //};
 //
 //TEST_F(DriveApiTest, BEH_AddThenGetMetaData) {

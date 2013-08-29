@@ -21,7 +21,7 @@ License.
 #include "maidsafe/common/log.h"
 #include "maidsafe/encrypt/self_encryptor.h"
 
-#include "maidsafe/drive/directory_listing_handler.h"
+#include "maidsafe/drive/directory_handler.h"
 #include "maidsafe/drive/directory_listing.h"
 #include "maidsafe/drive/meta_data.h"
 

@@ -34,7 +34,7 @@ License.
 
 #include "maidsafe/encrypt/self_encryptor.h"
 #include "maidsafe/drive/drive_api.h"
-#include "maidsafe/drive/directory_listing_handler.h"
+#include "maidsafe/drive/directory_handler.h"
 #include "maidsafe/drive/utils.h"
 
 
@@ -56,12 +56,12 @@ template<typename Storage>
 CbfsDriveInUserSpace<Storage>* Global<Storage>::g_cbfs_drive;
 
 struct DirectoryEnumerationContext {
-  explicit DirectoryEnumerationContext(const DirectoryData& directory_in)
+  explicit DirectoryEnumerationContext(const Directory& directory_in)
       : exact_match(false),
         directory(directory_in) {}
   DirectoryEnumerationContext() : exact_match(false), directory() {}
   bool exact_match;
-  DirectoryData directory;
+  Directory directory;
 };
 
 template<typename Storage>
@@ -93,7 +93,8 @@ class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
                        const boost::filesystem::path& mount_dir,
                        const boost::filesystem::path& drive_name,
                        OnServiceAdded on_service_added,
-                       OnServiceRemoved on_service_removed);
+                       OnServiceRemoved on_service_removed,
+                       OnServiceRenamed on_service_renamed);
 
   virtual ~CbfsDriveInUserSpace();
   bool Init();
@@ -279,8 +280,10 @@ CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(const Identity& drive_root_i
                                                     const boost::filesystem::path& mount_dir,
                                                     const boost::filesystem::path& drive_name,
                                                     OnServiceAdded on_service_added,
-                                                    OnServiceRemoved on_service_removed)
-    : DriveInUserSpace<Storage>(drive_root_id, mount_dir, on_service_added, on_service_removed),
+                                                    OnServiceRemoved on_service_removed,
+                                                    OnServiceRenamed on_service_renamed)
+    : DriveInUserSpace<Storage>(drive_root_id, mount_dir, on_service_added, on_service_removed,
+                                on_service_renamed),
       callback_filesystem_(),
       guid_("713CC6CE-B3E2-4fd9-838D-E28F558F6866"),
       icon_id_(L"MaidSafeDriveIcon"),
@@ -645,8 +648,8 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* /*sender*
   try {
     Global<Storage>::g_cbfs_drive->AddFile(relative_path,
                                            *file_context->meta_data.get(),
-                                           &file_context->grandparent_directory_id,
-                                           &file_context->parent_directory_id);
+                                           file_context->grandparent_directory_id,
+                                           file_context->parent_directory_id);
   }
   catch(...) {
     throw ECBFSError(ERROR_ACCESS_DENIED);
@@ -658,12 +661,12 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* /*sender*
     encrypt::DataMapPtr data_map(new encrypt::DataMap());
     *data_map = *file_context->meta_data->data_map;
     file_context->meta_data->data_map = data_map;
-    auto directory_listing_handler(Global<Storage>::g_cbfs_drive->GetHandler(relative_path));
-    assert(directory_listing_handler);
+    auto directory_handler(Global<Storage>::g_cbfs_drive->GetHandler(relative_path));
+    assert(directory_handler);
 
     file_context->self_encryptor.reset(
         new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
-                                            directory_listing_handler->storage()));
+                                            directory_handler->storage()));
   }
 
   file_info->set_UserContext(file_context);
@@ -704,11 +707,11 @@ void CbfsDriveInUserSpace<Storage>::CbFsOpenFile(CallbackFileSystem* /*sender*/,
       encrypt::DataMapPtr data_map(new encrypt::DataMap);
       *data_map = *file_context->meta_data->data_map;
       file_context->meta_data->data_map = data_map;
-      auto directory_listing_handler(Global<Storage>::g_cbfs_drive->GetHandler(relative_path));
-      assert(directory_listing_handler);
+      auto directory_handler(Global<Storage>::g_cbfs_drive->GetHandler(relative_path));
+      assert(directory_handler);
       file_context->self_encryptor.reset(
          new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
-                                             directory_listing_handler->storage()));
+                                             directory_handler->storage()));
     }
   }
   // Transfer ownership of the pointer to CBFS' file_info.
@@ -847,45 +850,40 @@ void CbfsDriveInUserSpace<Storage>::CbFsEnumerateDirectory(
     directory_enumeration_info->set_UserContext(nullptr);
   }
 
-  DirectoryListingHandler<Storage>::DirectoryData directory;
+  Directory directory;
   if (!directory_enumeration_info->get_UserContext()) {
     try {
-      auto directory_listing_handler(Global<Storage>::g_cbfs_drive->GetHandler(relative_path));
-      assert(directory_listing_handler);
-      directory = directory_listing_handler->GetFromPath(relative_path);
+      directory = Global<Storage>::g_cbfs_drive->GetDirectory(relative_path);
     }
     catch(...) {
       throw ECBFSError(ERROR_PATH_NOT_FOUND);
     }
     enum_context = new DirectoryEnumerationContext(directory);
-    enum_context->directory.first.listing->ResetChildrenIterator();
+    enum_context->directory.listing->ResetChildrenIterator();
     directory_enumeration_info->set_UserContext(enum_context);
   } else {
     enum_context =
         static_cast<DirectoryEnumerationContext*>(directory_enumeration_info->get_UserContext());
     if (restart)
-      enum_context->directory.first.listing->ResetChildrenIterator();
+      enum_context->directory.listing->ResetChildrenIterator();
   }
 
   MetaData meta_data;
   if (exact_match) {
     while (!(*file_found)) {
-      if (!enum_context->directory.first.listing->GetChildAndIncrementItr(meta_data))
+      if (!enum_context->directory.listing->GetChildAndIncrementItr(meta_data))
         break;
       *file_found = MatchesMask(mask_str, meta_data.name);
     }
   } else {
-    *file_found = enum_context->directory.first.listing->GetChildAndIncrementItr(meta_data);
+    *file_found = enum_context->directory.listing->GetChildAndIncrementItr(meta_data);
   }
 
   if (*file_found) {
-#pragma warning(push)
-#pragma warning(disable: 4996)
     // Need to use wcscpy rather than the secure wcsncpy_s as file_name has a size of 0 in some
     // cases.  CBFS docs specify that callers must assign MAX_PATH chars to file_name, so we assume
     // this is done.
     wcscpy(file_name, meta_data.name.wstring().c_str());
-#pragma warning(pop)
     *file_name_length = static_cast<DWORD>(meta_data.name.wstring().size());
     *creation_time = meta_data.creation_time;
     *last_access_time = meta_data.last_access_time;
@@ -1172,10 +1170,10 @@ void CbfsDriveInUserSpace<Storage>::CbFsIsDirectoryEmpty(CallbackFileSystem* /*s
   SCOPED_PROFILE
   LOG(kInfo) << "CbFsIsDirectoryEmpty - " << fs::path(file_name);
   try {
-    auto directory_listing_handler(Global<Storage>::g_cbfs_drive->GetHandler(fs::path(file_name)));
-    assert(directory_listing_handler);
-    auto directory(directory_listing_handler->GetFromPath(file_name));
-    *is_empty = directory.first.listing->empty();
+    auto directory_handler(Global<Storage>::g_cbfs_drive->GetHandler(fs::path(file_name)));
+    assert(directory_handler);
+    auto directory(directory_handler->GetFromPath(file_name));
+    *is_empty = directory.listing->empty();
   }
   catch(...) {
     throw ECBFSError(ERROR_PATH_NOT_FOUND);
@@ -1239,11 +1237,11 @@ void CbfsDriveInUserSpace<Storage>::SetNewAttributes(FileContext<Storage>* file_
     else
       file_context->meta_data->attributes = FILE_ATTRIBUTE_NORMAL;
 
-    auto directory_listing_handler(GetHandler(file_context->meta_data->name));
-    assert(directory_listing_handler);
+    auto directory_handler(GetHandler(file_context->meta_data->name));
+    assert(directory_handler);
 
     file_context->self_encryptor.reset(new encrypt::SelfEncryptor<Storage>(
-        file_context->meta_data->data_map, directory_listing_handler->storage()));
+        file_context->meta_data->data_map, directory_handler->storage()));
     file_context->meta_data->end_of_file = file_context->meta_data->allocation_size =
         file_context->self_encryptor->size();
   }

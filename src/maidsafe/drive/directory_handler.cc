@@ -13,7 +13,7 @@ implied. See the License for the specific language governing permissions and lim
 License.
 */
 
-#include "maidsafe/drive/directory_listing_handler.h"
+#include "maidsafe/drive/directory_handler.h"
 
 
 namespace maidsafe {
@@ -22,11 +22,6 @@ namespace drive {
 
 namespace detail {
 
-template<>
-DataTagValue DirectoryListingHandler<data_store::SureFileStore>::GetDirectoryType(
-    const boost::filesystem::path& /*path*/) {
-  return DataTagValue::kOwnerDirectoryValue;
-}
 
 }  // namespace detail
 

@@ -90,8 +90,8 @@ class DerivedDriveInUserSpace : public Drive<Storage>::TestDriveInUserSpace {
                                              max_space,
                                              used_space) {}
 
-  std::shared_ptr<DirectoryListingHandler<Storage>> directory_listing_handler() const {
-    return directory_listing_handler_;
+  std::shared_ptr<DirectoryHandler<Storage>> directory_handler() const {
+    return directory_handler_;
   }
 };
 

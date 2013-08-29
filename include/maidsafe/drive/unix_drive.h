@@ -433,7 +433,7 @@ int FuseDriveInUserSpace<Storage>::OpsCreate(const char *path,
   file_context->meta_data->attributes.st_gid = fuse_get_context()->gid;
 
   try {
-    Global<Storage>::g_fuse_drive->directory_listing_handler_->AddElement(
+    Global<Storage>::g_fuse_drive->directory_handler_->AddElement(
         full_path,
         *file_context->meta_data.get(),
         &file_context->grandparent_directory_id,
@@ -480,7 +480,7 @@ int FuseDriveInUserSpace<Storage>::OpsFlush(const char *path, struct fuse_file_i
     return -EINVAL;
   }
 
-  if (!ForceFlush(Global<Storage>::g_fuse_drive->directory_listing_handler_, file_context)) {
+  if (!ForceFlush(Global<Storage>::g_fuse_drive->directory_handler_, file_context)) {
     LOG(kError) << "OpsFlush: " << path << ", failed to update. Result: " << result;
     return -EBADF;
   }
@@ -520,7 +520,7 @@ int FuseDriveInUserSpace<Storage>::OpsFtruncate(const char *path,
     file_context->meta_data->attributes.st_ctime =
         file_context->meta_data->attributes.st_atime =
         file_context->meta_data->attributes.st_mtime;
-//    Update(Global<Storage>::g_fuse_drive->directory_listing_handler_, file_context, false, false);
+//    Update(Global<Storage>::g_fuse_drive->directory_handler_, file_context, false, false);
     if (!file_context->self_encryptor->Flush()) {
         LOG(kInfo) << "OpsFtruncate: " << path << ", failed to flush";
     }
@@ -544,7 +544,7 @@ int FuseDriveInUserSpace<Storage>::OpsMkdir(const char *path, mode_t mode) {
   meta_data.attributes.st_gid = fuse_get_context()->gid;
 
   try {
-    Global<Storage>::g_fuse_drive->directory_listing_handler_->AddElement(
+    Global<Storage>::g_fuse_drive->directory_handler_->AddElement(
         full_path, meta_data, nullptr, nullptr);
   } catch(...) {
     LOG(kError) << "OpsMkdir: " << path << ", failed to AddNewMetaData.  ";
@@ -583,7 +583,7 @@ int FuseDriveInUserSpace<Storage>::OpsMknod(const char *path, mode_t mode, dev_t
   meta_data.attributes.st_gid = fuse_get_context()->gid;
 
   try {
-    Global<Storage>::g_fuse_drive->directory_listing_handler_->AddElement(
+    Global<Storage>::g_fuse_drive->directory_handler_->AddElement(
         full_path, meta_data, nullptr, nullptr);
   } catch(...) {
     LOG(kError) << "OpsMknod: " << path << ", failed to AddNewMetaData.  ";
@@ -833,7 +833,7 @@ int FuseDriveInUserSpace<Storage>::OpsTruncate(const char *path, off_t size) {
         file_context->meta_data->attributes.st_ctime =
             file_context->meta_data->attributes.st_atime =
             file_context->meta_data->attributes.st_mtime;
-//    Update(Global<Storage>::g_fuse_drive->directory_listing_handler_, file_context, false, false);
+//    Update(Global<Storage>::g_fuse_drive->directory_handler_, file_context, false, false);
       }
       update_metadata = false;
       ++p.first;
@@ -877,7 +877,7 @@ int FuseDriveInUserSpace<Storage>::OpsTruncate(const char *path, off_t size) {
       file_context.meta_data->attributes.st_ctime =
           file_context.meta_data->attributes.st_atime =
           file_context.meta_data->attributes.st_mtime;
-//   Update(Global<Storage>::g_fuse_drive->directory_listing_handler_, &file_context, false, false);
+//   Update(Global<Storage>::g_fuse_drive->directory_handler_, &file_context, false, false);
       if (!file_context.self_encryptor->Flush()) {
         LOG(kError) << "OpsTruncate: " << path << ", failed to flush";
       }
@@ -1003,7 +1003,7 @@ int FuseDriveInUserSpace<Storage>::OpsChmod(const char *path, mode_t mode) {
   file_context.meta_data->attributes.st_mode = mode;
   time(&file_context.meta_data->attributes.st_ctime);
   file_context.content_changed = true;
-//  int result(Update(Global<Storage>::g_fuse_drive->directory_listing_handler_, &file_context,
+//  int result(Update(Global<Storage>::g_fuse_drive->directory_handler_, &file_context,
 //                    false, true));
 //  if (result != kSuccess) {
 //    LOG(kError) << "OpsChmod: " << path << ", fail to update parent "
@@ -1039,7 +1039,7 @@ int FuseDriveInUserSpace<Storage>::OpsChown(const char *path, uid_t uid, gid_t g
   if (changed) {
     time(&file_context.meta_data->attributes.st_ctime);
     file_context.content_changed = true;
-//    int result(Update(Global<Storage>::g_fuse_drive->directory_listing_handler_, &file_context,
+//    int result(Update(Global<Storage>::g_fuse_drive->directory_handler_, &file_context,
 //                      false, true));
 //    if (result != kSuccess) {
 //      LOG(kError) << "OpsChown: " << path << ", failed to update parent " << "dir: " << result;
@@ -1079,8 +1079,8 @@ int FuseDriveInUserSpace<Storage>::OpsFsync(const char *path,
   if (!file_context)
     return -EINVAL;
 
-  if (!ForceFlush(Global<Storage>::g_fuse_drive->directory_listing_handler_, file_context)) {
-//    int result(Update(Global<Storage>::g_fuse_drive->directory_listing_handler_,
+  if (!ForceFlush(Global<Storage>::g_fuse_drive->directory_handler_, file_context)) {
+//    int result(Update(Global<Storage>::g_fuse_drive->directory_handler_,
 //                      file_context,
 //                      false,
 //                      (isdatasync == 0)));
@@ -1102,7 +1102,7 @@ int FuseDriveInUserSpace<Storage>::OpsFsyncDir(const char *path,
   if (!file_context)
     return -EINVAL;
 
-//  int result(Update(Global<Storage>::g_fuse_drive->directory_listing_handler_,
+//  int result(Update(Global<Storage>::g_fuse_drive->directory_handler_,
 //                    file_context,
 //                    false,
 //                    (isdatasync == 0)));
@@ -1209,8 +1209,8 @@ int FuseDriveInUserSpace<Storage>::OpsReaddir(const char *path,
   filler(buf, "..", nullptr, 0);
   DirectoryListingPtr dir_listing;
   try {
-    typename DirectoryListingHandler<Storage>::DirectoryData directory(
-        Global<Storage>::g_fuse_drive->directory_listing_handler_->GetFromPath(fs::path(path)));
+    typename DirectoryHandler<Storage>::Directory directory(
+        Global<Storage>::g_fuse_drive->directory_handler_->GetFromPath(fs::path(path)));
     dir_listing = directory.first.listing;
   } catch(...) {}
 
@@ -1279,7 +1279,7 @@ int FuseDriveInUserSpace<Storage>::OpsRename(const char *old_name, const char *n
         FileContext<Storage> file_context = *(itr->second.get());
         if (file_context.self_encryptor->Flush()) {
           try {
-            Global<Storage>::g_fuse_drive->directory_listing_handler_->UpdateParentDirectoryListing(
+            Global<Storage>::g_fuse_drive->directory_handler_->UpdateParentDirectoryListing(
                 (*itr).first.parent_path(), *file_context.meta_data.get());
           } catch(...) {
             LOG(kInfo) << "OpsRename: " << old_name << " --> " << new_name
@@ -1412,7 +1412,7 @@ int FuseDriveInUserSpace<Storage>::OpsUtimens(const char *path, const struct tim
   }
 #endif
   file_context.content_changed = true;
-//  int result(Update(Global<Storage>::g_fuse_drive->directory_listing_handler_, &file_context,
+//  int result(Update(Global<Storage>::g_fuse_drive->directory_handler_, &file_context,
 //                    false, true));
 //  if (result != kSuccess) {
 //    LOG(kError) << "OpsUtimens: " << path << ", failed to update.  " << "Result: " << result;
@@ -1441,7 +1441,7 @@ int FuseDriveInUserSpace<Storage>::OpsSymlink(const char *to, const char *from) 
   meta_data.attributes.st_size = path_from.string().size();
   meta_data.link_to = path_to;
 
-  int result(AddNewMetaData(Global<Storage>::g_fuse_drive->directory_listing_handler_,
+  int result(AddNewMetaData(Global<Storage>::g_fuse_drive->directory_handler_,
                             path_from, ShareData(), &meta_data, false,
                             nullptr, nullptr, nullptr));
   if (result != kSuccess) {

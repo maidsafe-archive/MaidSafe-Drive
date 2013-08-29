@@ -641,11 +641,6 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CreateDirectoryOnDrive) {
   ASSERT_TRUE(fs::exists(directory)) << directory;
 }
 
-#ifdef __MSVC__
-#  pragma warning(push, 1)
-#  pragma warning(disable: 4996)
-#endif
-
 TYPED_TEST_P(CallbacksApiTest, BEH_AppendToFileTest) {
   fs::path file(g_mount_dir / (RandomAlphaNumericString(5) + ".txt"));
   FILE *test_file(NULL);
@@ -671,10 +666,6 @@ TYPED_TEST_P(CallbacksApiTest, BEH_AppendToFileTest) {
     this_char = 0;
   }
 }
-
-#ifdef __MSVC__
-#  pragma warning(pop)
-#endif
 
 TYPED_TEST_P(CallbacksApiTest, BEH_CopyEmptyDirectoryToDrive) {
   // Create empty directory on disk...

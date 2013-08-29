@@ -16,7 +16,6 @@ License.
 #ifndef MAIDSAFE_DRIVE_UTILS_H_
 #define MAIDSAFE_DRIVE_UTILS_H_
 
-
 #include <memory>
 #include <string>
 #include <vector>
@@ -38,7 +37,7 @@ namespace detail {
 static const uint32_t kDirectorySize = 4096;
 
 template<typename Storage>
-class DirectoryListingHandler;
+class DirectoryHandler;
 
 template<typename Storage>
 struct FileContext {
@@ -79,13 +78,13 @@ FileContext<Storage>::FileContext(std::shared_ptr<MetaData> meta_data_in)
 #ifndef MAIDSAFE_WIN32
 // Not called by Windows...
 template<typename Storage>
-bool ForceFlush(std::shared_ptr<DirectoryListingHandler<Storage>> directory_listing_handler,
+bool ForceFlush(std::shared_ptr<DirectoryHandler<Storage>> directory_handler,
                 FileContext<Storage>* file_context) {
   BOOST_ASSERT(file_context);
   file_context->self_encryptor->Flush();
 
   try {
-    directory_listing_handler->UpdateParentDirectoryListing(
+    directory_handler->UpdateParentDirectoryListing(
         file_context->meta_data->name.parent_path(), *file_context->meta_data.get());
   } catch(...) {
       return false;
@@ -102,7 +101,7 @@ bool SearchesMask(std::wstring mask, const boost::filesystem::path& file_name);
 template<typename Storage, typename Directory>
 struct Put {
   void operator()(Storage& storage, const Directory& directory) {
-    storage.Put(directory.name(), directory.Serialise(), nullptr);
+    storage.Put(directory);
   }
 };
 
@@ -118,8 +117,7 @@ struct Put<data_store::SureFileStore, Directory> {
 template<typename Storage, typename Directory>
 struct Get {
   NonEmptyString operator()(Storage& storage, const typename Directory::Name& name) {
-    storage.Get(name, nullptr);  // FIXME ...value returned in response_functor
-    return NonEmptyString();
+    return storage.Get(name).get().data();
   }
 };
 
@@ -135,7 +133,7 @@ struct Get<data_store::SureFileStore, Directory> {
 template<typename Storage, typename Directory>
 struct Delete {
   void operator()(Storage& storage, const typename Directory::Name& name) {
-    storage.Delete(name, nullptr);
+    storage.Delete<Directory>(name);
   }
 };
 

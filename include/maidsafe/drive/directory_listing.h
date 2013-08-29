@@ -21,7 +21,9 @@ License.
 #include <set>
 #include <utility>
 #include <vector>
+
 #include "boost/filesystem/path.hpp"
+
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/meta_data.h"
 
