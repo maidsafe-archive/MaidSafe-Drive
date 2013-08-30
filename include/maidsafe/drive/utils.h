@@ -98,54 +98,6 @@ bool ExcludedFilename(const boost::filesystem::path& path);
 bool MatchesMask(std::wstring mask, const boost::filesystem::path& file_name);
 bool SearchesMask(std::wstring mask, const boost::filesystem::path& file_name);
 
-template<typename Storage, typename Directory>
-struct Put {
-  void operator()(Storage& storage, const Directory& directory) {
-    storage.Put(directory);
-  }
-};
-
-template<typename Directory>
-struct Put<data_store::SureFileStore, Directory> {
-  typedef data_store::SureFileStore Storage;
-
-  void operator()(Storage& storage, const Directory& directory) {
-    storage.Put(directory.name(), directory.Serialise());
-  }
-};
-
-template<typename Storage, typename Directory>
-struct Get {
-  NonEmptyString operator()(Storage& storage, const typename Directory::Name& name) {
-    return storage.Get(name).get().data();
-  }
-};
-
-template<typename Directory>
-struct Get<data_store::SureFileStore, Directory> {
-  typedef data_store::SureFileStore Storage;
-
-  NonEmptyString operator()(Storage& storage, const typename Directory::Name& name) {
-    return storage.Get(name);
-  }
-};
-
-template<typename Storage, typename Directory>
-struct Delete {
-  void operator()(Storage& storage, const typename Directory::Name& name) {
-    storage.Delete<Directory>(name);
-  }
-};
-
-template<typename Directory>
-struct Delete<data_store::SureFileStore, Directory> {
-  typedef data_store::SureFileStore Storage;
-
-  void operator()(Storage& storage, const typename Directory::Name& name) {
-    storage.Delete(name);
-  }
-};
-
 }  // namespace detail
 
 }  // namespace drive
