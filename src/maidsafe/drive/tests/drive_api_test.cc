@@ -32,7 +32,7 @@ License.
 #include "maidsafe/common/utils.h"
 
 #include "maidsafe/data_store/permanent_store.h"
-#include "maidsafe/data_store/surefile_store.h"
+#include "maidsafe/data_store/sure_file_store.h"
 
 #include "maidsafe/encrypt/data_map.h"
 #include "maidsafe/encrypt/self_encryptor.h"
@@ -92,14 +92,16 @@ testing::AssertionResult LastAccessTimesMatch(const MetaData &meta_data1,
 
 TEST(Drive, BEH_SureStore) {
   fs::path svc_alias;
+  Identity root_id;
   Identity svc_root_id;
-  OnServiceAdded on_added([&svc_alias, &svc_root_id](const fs::path& alias,
-                                                     const Identity& drive_root_id,
-                                                     const Identity& service_root_id) {
+  OnServiceAdded on_added([&svc_alias, &root_id, &svc_root_id](const fs::path& alias,
+                                                               const Identity& drive_root_id,
+                                                               const Identity& service_root_id) {
                             LOG(kInfo) << "Added " << alias << "  Root: "
                                        << HexSubstr(drive_root_id) << "  Service: "
                                        << HexSubstr(service_root_id);
                             svc_alias = alias;
+                            root_id = drive_root_id;
                             svc_root_id = service_root_id;
                           });
   OnServiceRemoved on_removed([](const fs::path& alias) { LOG(kInfo) << "Removed " << alias; });
@@ -110,10 +112,10 @@ TEST(Drive, BEH_SureStore) {
   {
     detail::CbfsDriveInUserSpace<data_store::SureFileStore> drive(Identity(), "Z:", "SureFileDrive",
                                                                   on_added, on_removed, on_renamed);
-    //MetaData meta_data("TestService", true);
-    //DirectoryId grandparent_id, parent_id;
-    //drive.AddFile(detail::kRoot / "TestService", meta_data, grandparent_id, parent_id);
-    //drive.AddService(meta_data.name, *main_test_dir / "TestService");
+    MetaData meta_data("TestService", true);
+    DirectoryId grandparent_id, parent_id;
+    drive.AddFile(detail::kRoot / "TestService", meta_data, grandparent_id, parent_id);
+    drive.AddService(meta_data.name, *main_test_dir / "TestService");
     fs::create_directory("Z:\\AnotherService");
     drive.AddService("AnotherService", *main_test_dir / "AnotherService");
     EXPECT_TRUE(WriteFile("Z:\\AnotherService\\test.txt", "Content\n"));
@@ -121,8 +123,8 @@ TEST(Drive, BEH_SureStore) {
   }
 
   {
-    detail::CbfsDriveInUserSpace<data_store::SureFileStore> drive(Identity(), "Z:", "SureFileDrive",
-                                                                  on_added, on_removed, on_renamed);    
+    detail::CbfsDriveInUserSpace<data_store::SureFileStore> drive(root_id, "Z:", "SureFileDrive",
+                                                                  on_added, on_removed, on_renamed);
     drive.ReInitialiseService(svc_alias, *main_test_dir / svc_alias, svc_root_id);
     EXPECT_EQ(NonEmptyString("Content\n"), ReadFile("Z:\\AnotherService\\test.txt"));
   }

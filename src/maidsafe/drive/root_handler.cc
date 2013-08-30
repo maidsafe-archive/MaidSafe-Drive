@@ -56,12 +56,14 @@ void RootHandler<data_store::SureFileStore>::ReInitialiseService(
     const Identity& service_root_id) {
   // TODO(Fraser#5#): 2013-08-26 - BEFORE_RELEASE - fix size
   auto storage(std::make_shared<data_store::SureFileStore>(store_path, DiskUsage(1 << 9)));
-  /*auto service_root(*/GetFromStorage(*storage, root_.listing->directory_id(), service_root_id,
-                                   DataTagValue::kOwnerDirectoryValue)/*)*/;
+  auto service_root(GetFromStorage(*storage, root_.listing->directory_id(), service_root_id,
+                                   DataTagValue::kOwnerDirectoryValue));
   DirectoryHandler<data_store::SureFileStore> handler(storage, &root_,
                                                       DataTagValue::kOwnerDirectoryValue, true);
   directory_handlers_.insert(std::make_pair(service_alias, handler));
-  root_.listing->AddChild(MetaData(service_alias, true));
+  MetaData service_meta_data(service_alias, true);
+  *service_meta_data.directory_id = service_root.listing->directory_id();
+  root_.listing->AddChild(service_meta_data);
 }
 
 template<>
@@ -93,12 +95,14 @@ DataTagValue RootHandler<data_store::SureFileStore>::GetDirectoryType(
 //  PutToStorage(std::make_pair(root_parent, DataTagValue::kOwnerDirectoryValue));
 //  // Owner.
 //  MetaData owner_meta_data(kOwner, true);
-//  std::shared_ptr<DirectoryListing> owner_directory(new DirectoryListing(*owner_meta_data.directory_id));
+//  std::shared_ptr<DirectoryListing> owner_directory(
+//      new DirectoryListing(*owner_meta_data.directory_id));
 //  Directory owner(root.listing->directory_id(), owner_directory);
 //  PutToStorage(std::make_pair(owner, DataTagValue::kOwnerDirectoryValue));
 //  // Group.
 //  MetaData group_meta_data(kGroup, true), group_services_meta_data(kServices, true);
-//  std::shared_ptr<DirectoryListing> group_directory(new DirectoryListing(*group_meta_data.directory_id)),
+//  std::shared_ptr<DirectoryListing> group_directory(
+//      new DirectoryListing(*group_meta_data.directory_id)),
 //          group_services_directory(new DirectoryListing(*group_services_meta_data.directory_id));
 //  Directory group(root.listing->directory_id(), group_directory),
 //                group_services(group.listing->directory_id(), group_services_directory);
@@ -107,7 +111,8 @@ DataTagValue RootHandler<data_store::SureFileStore>::GetDirectoryType(
 //  PutToStorage(std::make_pair(group, DataTagValue::kGroupDirectoryValue));
 //  // World.
 //  MetaData world_meta_data(kWorld, true), world_services_meta_data("Services", true);
-//  std::shared_ptr<DirectoryListing> world_directory(new DirectoryListing(*world_meta_data.directory_id)),
+//  std::shared_ptr<DirectoryListing> world_directory(
+//      new DirectoryListing(*world_meta_data.directory_id)),
 //          world_services_directory(new DirectoryListing(*world_services_meta_data.directory_id));
 //  Directory world(root.listing->directory_id(), world_directory),
 //                world_services(world.listing->directory_id(), world_services_directory);
@@ -131,7 +136,8 @@ void RootHandler<data_store::SureFileStore>::CreateRoot(const Identity& unique_u
 //void RootHandler<nfs_client::MaidNodeNfs>::InitRoot(const Identity& unique_user_id,
 //                                                    const Identity& drive_root_id) {
 //  assert(drive_root_id.IsInitialised() && unique_user_id.IsInitialised());
-//  Directory directory(GetFromStorage(unique_user_id_, drive_root_id_, DataTagValue::kOwnerDirectoryValue));
+//  Directory directory(GetFromStorage(unique_user_id_, drive_root_id_,
+//                                     DataTagValue::kOwnerDirectoryValue));
 //}
 
 template<>
@@ -167,7 +173,7 @@ bool RootHandler<nfs_client::MaidNodeNfs>::CanDelete(const boost::filesystem::pa
   auto handler(GetHandler(path));
   if (!handler)
     return false;
-  
+
   if (handler->directory_type() == DataTagValue::kGroupDirectoryValue ||
           (handler->directory_type() == DataTagValue::kWorldDirectoryValue &&
           !handler->world_is_writeable())) {

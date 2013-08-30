@@ -13,8 +13,8 @@ implied. See the License for the specific language governing permissions and lim
 License.
 */
 
-#ifndef MAIDSAFE_DRIVE_DIRECTORY_LISTING_HANDLER_H_
-#define MAIDSAFE_DRIVE_DIRECTORY_LISTING_HANDLER_H_
+#ifndef MAIDSAFE_DRIVE_DIRECTORY_HANDLER_H_
+#define MAIDSAFE_DRIVE_DIRECTORY_HANDLER_H_
 
 #include <algorithm>
 #include <functional>
@@ -72,8 +72,8 @@ class DirectoryHandler {
 
   Directory GetFromPath(const boost::filesystem::path& path) const;
 
-  void SetWorldReadWrite() { world_is_writeable_ = true; };
-  void SetWorldReadOnly() { world_is_writeable_ = false; };
+  void SetWorldReadWrite() { world_is_writeable_ = true; }
+  void SetWorldReadOnly() { world_is_writeable_ = false; }
   Storage& storage() const { return *storage_; }
   DataTagValue directory_type() const { return directory_type_; }
   bool world_is_writeable() const { return world_is_writeable_; }
@@ -257,7 +257,6 @@ typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type
   // Store the encrypted datamap.
   DirectoryType dir(typename DirectoryType::Name(directory.listing->directory_id()),
                     encrypted_data_map);
-  LOG(kWarning) << "PUTTING: " << HexSubstr(directory.listing->directory_id()) << "    " << HexSubstr(encrypted_data_map);
   Put<Storage, DirectoryType>()(storage, dir);
 }
 
@@ -346,7 +345,6 @@ DataMapPtr GetDataMapFromStorage(Storage& storage,
   typename DirectoryType::Name name(directory_id);
   typename DirectoryType::serialised_type serialised_data(
       Get<Storage, DirectoryType>()(storage, name));
-  LOG(kWarning) << "GETTING: " << HexSubstr(directory_id) << "    " << HexSubstr(serialised_data.data);
   DirectoryType directory(name, serialised_data);
 
   auto data_map(std::make_shared<encrypt::DataMap>());
@@ -396,4 +394,4 @@ typename std::enable_if<!is_encrypted_dir<DirectoryType>::value>::type
 
 }  // namespace maidsafe
 
-#endif  // MAIDSAFE_DRIVE_DIRECTORY_LISTING_HANDLER_H_
+#endif  // MAIDSAFE_DRIVE_DIRECTORY_HANDLER_H_

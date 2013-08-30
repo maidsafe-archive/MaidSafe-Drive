@@ -22,7 +22,7 @@ License.
 
 #include "boost/filesystem/path.hpp"
 
-#include "maidsafe/data_store/surefile_store.h"
+#include "maidsafe/data_store/sure_file_store.h"
 #include "maidsafe/encrypt/self_encryptor.h"
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/meta_data.h"

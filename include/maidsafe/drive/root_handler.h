@@ -26,7 +26,7 @@ License.
 
 #include "boost/optional.hpp"
 
-#include "maidsafe/data_store/surefile_store.h"
+#include "maidsafe/data_store/sure_file_store.h"
 #include "maidsafe/data_types/data_type_values.h"
 #include "maidsafe/nfs/client/maid_node_nfs.h"
 
@@ -41,7 +41,7 @@ namespace drive {
 namespace detail {
 
 template<typename Storage>
-class RootHandler{
+class RootHandler {
  public:
   RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
               const Identity& unique_user_id,
@@ -117,7 +117,7 @@ class RootHandler{
                           const boost::filesystem::path& new_path);
 
   void Put(const boost::filesystem::path& path, Directory& directory) const;
-  void Delete(const boost::filesystem::path& path,const Directory& directory) const;
+  void Delete(const boost::filesystem::path& path, const Directory& directory) const;
 
   std::shared_ptr<Storage> default_storge_;  // MaidNodeNfs or nullptr
   Directory root_;
@@ -607,7 +607,7 @@ void RootHandler<Storage>::RenameDifferentParent(const boost::filesystem::path& 
 #endif
   Put(old_path.parent_path(), old_parent);
   Put(new_path.parent_path(), new_parent);
-  
+
 #ifndef MAIDSAFE_WIN32
   try {
     if (old_grandparent.listing)
