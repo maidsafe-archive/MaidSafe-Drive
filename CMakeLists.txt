@@ -56,7 +56,6 @@ endif()
 set(DriveSourcesDir ${PROJECT_SOURCE_DIR}/src/maidsafe/drive)
 set(DriveApiDir ${PROJECT_SOURCE_DIR}/include/maidsafe/drive)
 glob_dir(Drive ${DriveSourcesDir} Drive)
-set(DemoMain ${DriveSourcesDir}/demo_main.cc)
 set(WinServiceMain ${DriveSourcesDir}/win_service_main.cc)
 set(UnixFiles ${DriveApiDir}/unix_drive.h ${DriveSourcesDir}/unix_drive.cc)
 set(CbfsWinFiles ${DriveApiDir}/win_drive.h ${DriveSourcesDir}/win_drive.cc)
@@ -64,12 +63,12 @@ set(DummyWinFiles ${DriveApiDir}/dummy_win_drive.h ${DriveSourcesDir}/dummy_win_
 
 if(WIN32)
   if(Cbfs_FOUND)
-    list(REMOVE_ITEM DriveAllFiles ${DemoMain} ${WinServiceMain} ${UnixFiles} ${DummyWinFiles})
+    list(REMOVE_ITEM DriveAllFiles ${WinServiceMain} ${UnixFiles} ${DummyWinFiles})
   else()
-    list(REMOVE_ITEM DriveAllFiles ${DemoMain} ${WinServiceMain} ${UnixFiles} ${CbfsWinFiles})
+    list(REMOVE_ITEM DriveAllFiles ${WinServiceMain} ${UnixFiles} ${CbfsWinFiles})
   endif()
 else()
-  list(REMOVE_ITEM DriveAllFiles ${DemoMain} ${WinServiceMain} ${CbfsWinFiles} ${DummyWinFiles})
+  list(REMOVE_ITEM DriveAllFiles ${WinServiceMain} ${CbfsWinFiles} ${DummyWinFiles})
 endif()
 
 glob_dir(DriveTests ${DriveSourcesDir}/tests Tests)
@@ -107,9 +106,6 @@ endif()
 
 #TODO (TEAM) Create unit test target for directory listing to build even with dummy win dependency
 if(MaidsafeTesting AND (Cbfs_FOUND OR NOT WIN32))
-  ms_add_executable(drive_demo Tools ${DemoMain})
-  target_link_libraries(drive_demo maidsafe_drive)
-
   ms_add_executable(TESTdrive_listings_api "Tests/Drive" ${DriveTestsAllFiles})
   ms_add_executable(TESTdrive_virtual_filesystem "Tests/Drive" ${TestVfsFiles})
   ms_add_executable(TESTdrive_real_filesystem "Tests/Drive" ${TestVfsFiles})
@@ -136,7 +132,6 @@ endif()
 if(Cbfs_FOUND)
   set_target_properties(cbfs_driver PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")
 endif()
-add_coverage_exclude(demo_main\\\\.cc)
 
 
 #==================================================================================================#
