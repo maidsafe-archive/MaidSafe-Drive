@@ -73,8 +73,6 @@ class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
                        const int64_t &used_space);
   virtual ~FuseDriveInUserSpace();
 
-  virtual bool Init();
-  virtual bool Mount();
   virtual bool Unmount();
   // Notifies filesystem of name change
   virtual void NotifyRename(const fs::path& from_relative_path,
@@ -82,7 +80,11 @@ class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
 
  private:
   FuseDriveInUserSpace(const FuseDriveInUserSpace&);
-  FuseDriveInUserSpace& operator=(const FuseDriveInUserSpace&);
+  FuseDriveInUserSpace(FuseDriveInUserSpace&&);
+  FuseDriveInUserSpace& operator=(FuseDriveInUserSpace);
+
+  void Init();
+  void Mount();
 
   static int OpsCreate(const char *path, mode_t mode, struct fuse_file_info *file_info);
   static void OpsDestroy(void *fuse);
@@ -216,15 +218,7 @@ FuseDriveInUserSpace<Storage>::FuseDriveInUserSpace(
       drive_name_(drive_name.string()),
       fuse_event_loop_thread_(),
       open_files_() {
-  Global<Storage>::g_fuse_drive = this;
-  if (!Init()) {
-    LOG(kError) << "Constructor Failed to initialise drive.";
-    ThrowError(LifeStuffErrors::kCreateStorageError);
-  }
-  if (!Mount()) {
-    LOG(kError) << "Failed to mount drive.";
-    ThrowError(LifeStuffErrors::kMountError);
-  }
+  Init();
 }
 
 template<typename Storage>
@@ -233,7 +227,8 @@ FuseDriveInUserSpace<Storage>::~FuseDriveInUserSpace() {
 }
 
 template<typename Storage>
-bool FuseDriveInUserSpace<Storage>::Init() {
+void FuseDriveInUserSpace<Storage>::Init() {
+  Global<Storage>::g_fuse_drive = this;
   maidsafe_ops_.create       = OpsCreate;
   maidsafe_ops_.destroy      = OpsDestroy;
 #ifdef MAIDSAFE_APPLE
@@ -274,26 +269,25 @@ bool FuseDriveInUserSpace<Storage>::Init() {
 #endif
 
   umask(0022);
-
   DriveInUserSpace<Storage>::drive_stage_ = DriveInUserSpace<Storage>::kInitialised;
-  return true;
+  Mount();
 }
 
 // TODO(Team): Consider using exceptions
 template<typename Storage>
-bool FuseDriveInUserSpace<Storage>::Mount() {
+void FuseDriveInUserSpace<Storage>::Mount() {
   boost::system::error_code error_code;
   if (!fs::exists(DriveInUserSpace<Storage>::mount_dir_, error_code) || error_code) {
     LOG(kError) << "Mount dir " << DriveInUserSpace<Storage>::mount_dir_ << " doesn't exist."
                 << (error_code ? ("  " + error_code.message()) : "");
-    return false;  // kMountError
+    ThrowError(DriveErrors::failed_to_mount);
   }
 
 
   if (!fs::is_empty(DriveInUserSpace<Storage>::mount_dir_, error_code) || error_code) {
     LOG(kError) << "Mount dir " << DriveInUserSpace<Storage>::mount_dir_ << " isn't empty."
                 << (error_code ? ("  " + error_code.message()) : "");
-    return false;  // kMountError
+    ThrowError(DriveErrors::failed_to_mount);
   }
 
   boost::shared_array<char*> opts(new char*[2]);
@@ -316,15 +310,14 @@ bool FuseDriveInUserSpace<Storage>::Mount() {
   fuse_opt_add_arg(&args, "-s");  // this is single threaded
 
   int multithreaded, foreground;
-  if (fuse_parse_cmdline(&args, &fuse_mountpoint_, &multithreaded, &foreground) == -1) {
-    return false;  // kFuseFailedToParseCommandLine
-  }
+  if (fuse_parse_cmdline(&args, &fuse_mountpoint_, &multithreaded, &foreground) == -1)
+    ThrowError(DriveErrors::failed_to_mount);
 
   fuse_channel_ = fuse_mount(fuse_mountpoint_, &args);
   if (!fuse_channel_) {
     fuse_opt_free_args(&args);
     free(fuse_mountpoint_);
-    return  false;  // kFuseFailedToMount
+    ThrowError(DriveErrors::failed_to_mount);
   }
 
   fuse_ = fuse_new(fuse_channel_, &args, &maidsafe_ops_, sizeof(maidsafe_ops_), nullptr);
@@ -334,7 +327,7 @@ bool FuseDriveInUserSpace<Storage>::Mount() {
     if (fuse_)
       fuse_destroy(fuse_);
     free(fuse_mountpoint_);
-    return false;  // kFuseNewFailed
+    ThrowError(DriveErrors::failed_to_mount);
   }
 
   if (fuse_daemonize(foreground) == -1) {
@@ -342,7 +335,7 @@ bool FuseDriveInUserSpace<Storage>::Mount() {
     if (fuse_)
       fuse_destroy(fuse_);
     free(fuse_mountpoint_);
-    return false;  // kFuseFailedToDaemonise;
+    ThrowError(DriveErrors::failed_to_mount);
   }
 
   if (fuse_set_signal_handlers(fuse_get_session(fuse_)) == -1) {
@@ -350,7 +343,7 @@ bool FuseDriveInUserSpace<Storage>::Mount() {
     if (fuse_)
       fuse_destroy(fuse_);
     free(fuse_mountpoint_);
-    return false;  // kFuseFailedToSetSignalHandlers
+    ThrowError(DriveErrors::failed_to_mount);
   }
 
   DriveInUserSpace<Storage>::SetMountState(true);
@@ -368,8 +361,6 @@ bool FuseDriveInUserSpace<Storage>::Mount() {
 //    DriveInUserSpace<Storage>::SetMountState(false);
 //    return kFuseFailedToMount;
 //  }
-
-  return true;  // kSuccess
 }
 
 template<typename Storage>

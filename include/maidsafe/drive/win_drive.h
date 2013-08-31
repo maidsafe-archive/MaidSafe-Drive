@@ -90,8 +90,6 @@ class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
                        OnServiceRenamed on_service_renamed);
 
   virtual ~CbfsDriveInUserSpace() {}
-  bool Init();
-  bool Mount();
   virtual bool Unmount();
   int Install();
   void NotifyDirectoryChange(const boost::filesystem::path& relative_path, OpType op) const;
@@ -100,6 +98,12 @@ class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
                             const boost::filesystem::path& to_relative_path) const;
 
  private:
+  CbfsDriveInUserSpace(const CbfsDriveInUserSpace&);
+  CbfsDriveInUserSpace(CbfsDriveInUserSpace&&);
+  CbfsDriveInUserSpace& operator=(CbfsDriveInUserSpace);
+
+  void Init();
+  void Mount();
   void UnmountDrive(const std::chrono::steady_clock::duration& timeout_before_force);
   std::wstring drive_name() const;
 
@@ -257,14 +261,7 @@ CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(
           icon_id_(L"MaidSafeDriveIcon"),
           drive_name_(drive_name.wstring()),
           registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)) {
-  if (!Init()) {
-    LOG(kError) << "Failed to initialise drive.";
-    ThrowError(LifeStuffErrors::kCreateStorageError);
-  }
-  if (!Mount()) {
-    LOG(kError) << "Failed to mount drive.";
-    ThrowError(LifeStuffErrors::kMountError);
-  }
+  Init();
 }
 
 template<typename Storage>
@@ -281,18 +278,11 @@ CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(const Identity& drive_root_i
       icon_id_(L"MaidSafeDriveIcon"),
       drive_name_(drive_name.wstring()),
       registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)) {
-  if (!Init()) {
-    LOG(kError) << "Failed to initialise drive.";
-    ThrowError(LifeStuffErrors::kCreateStorageError);
-  }
-  if (!Mount()) {
-    LOG(kError) << "Failed to mount drive.";
-    ThrowError(LifeStuffErrors::kMountError);
-  }
+  Init();
 }
 
 template<typename Storage>
-bool CbfsDriveInUserSpace<Storage>::Init() {
+void CbfsDriveInUserSpace<Storage>::Init() {
   if (drive_stage_ != kCleaned) {
     OnCallbackFsInit();
     UpdateDriverStatus();
@@ -305,11 +295,11 @@ bool CbfsDriveInUserSpace<Storage>::Init() {
   }
   catch(const ECBFSError& error) {
     ErrorMessage("Init CreateStorage ", error);
-    return false;
+    ThrowError(CommonErrors::uninitialised);
   }
   catch(const std::exception& e) {
     LOG(kError) << "Cbfs::Init: " << e.what();
-    return false;
+    ThrowError(CommonErrors::uninitialised);
   }
   // SetIcon can only be called after CreateStorage has successfully completed.
   try {
@@ -321,11 +311,11 @@ bool CbfsDriveInUserSpace<Storage>::Init() {
 
   callback_filesystem_.SetTag(static_cast<void*>(this));
   drive_stage_ = kInitialised;
-  return true;
+  Mount();
 }
 
 template<typename Storage>
-bool CbfsDriveInUserSpace<Storage>::Mount() {
+void CbfsDriveInUserSpace<Storage>::Mount() {
   try {
 #ifndef NDEBUG
     int timeout_milliseconds(0);
@@ -342,11 +332,10 @@ bool CbfsDriveInUserSpace<Storage>::Mount() {
   catch(ECBFSError& error) {
     std::wstring errorMsg(error.Message());
     ErrorMessage("Mount", error);
-    return false;
+    ThrowError(DriveErrors::failed_to_mount);
   }
   drive_stage_ = kMounted;
   SetMountState(true);
-  return true;
 }
 
 template<typename Storage>
@@ -636,7 +625,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* sender,
                         file_context->grandparent_directory_id, file_context->parent_directory_id);
   }
   catch(const std::system_error& system_error) {
-    if (system_error.code() == make_error_code(VaultErrors::permission_denied)) {
+    if (system_error.code() == make_error_code(DriveErrors::no_service_storage_allocated)) {
       LOG(kError) << "User has added a service to root, but hasn't provided the store_path for it.";
       throw ECBFSError(ERROR_SERVICE_DOES_NOT_EXIST);
     } else {

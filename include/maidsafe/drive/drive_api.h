@@ -178,6 +178,10 @@ class DriveInUserSpace {
   std::condition_variable mount_condition_variable_;
 };
 
+#ifdef MAIDSAFE_WIN32
+boost::filesystem::path GetNextAvailableDrivePath();
+#endif
+
 
 
 // ==================== Implementation =============================================================

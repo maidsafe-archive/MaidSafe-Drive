@@ -109,24 +109,46 @@ TEST(Drive, BEH_SureStore) {
                                 LOG(kInfo) << "Renamed " << old_alias << " to " << new_alias;
                               });
   maidsafe::test::TestPath main_test_dir(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
+  fs::path service_name("AnotherService"), service_root, file_name("test.txt");
+  std::string content("Content\n");
   {
-    detail::CbfsDriveInUserSpace<data_store::SureFileStore> drive(Identity(), "Z:", "SureFileDrive",
-                                                                  on_added, on_removed, on_renamed);
+#ifdef MAIDSAFE_WIN32
+    auto mount_dir(GetNextAvailableDrivePath());
+#else
+    fs::path mount_dir();
+#endif
+    detail::CbfsDriveInUserSpace<data_store::SureFileStore> drive(
+        Identity(), mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
+#ifdef MAIDSAFE_WIN32
+    mount_dir /= "\\";
+#endif
     MetaData meta_data("TestService", true);
     DirectoryId grandparent_id, parent_id;
     drive.AddFile(detail::kRoot / "TestService", meta_data, grandparent_id, parent_id);
     drive.AddService(meta_data.name, *main_test_dir / "TestService");
-    fs::create_directory("Z:\\AnotherService");
-    drive.AddService("AnotherService", *main_test_dir / "AnotherService");
-    EXPECT_TRUE(WriteFile("Z:\\AnotherService\\test.txt", "Content\n"));
-    EXPECT_EQ(NonEmptyString("Content\n"), ReadFile("Z:\\AnotherService\\test.txt"));
+
+    fs::create_directory(mount_dir / service_name);
+    drive.AddService(service_name, *main_test_dir / service_name);
+
+    service_root = mount_dir / service_name;
+    EXPECT_TRUE(WriteFile(service_root / file_name, content));
+    EXPECT_EQ(NonEmptyString(content), ReadFile(service_root / file_name));
   }
 
   {
-    detail::CbfsDriveInUserSpace<data_store::SureFileStore> drive(root_id, "Z:", "SureFileDrive",
-                                                                  on_added, on_removed, on_renamed);
+#ifdef MAIDSAFE_WIN32
+    auto mount_dir(GetNextAvailableDrivePath());
+#else
+    fs::path mount_dir();
+#endif
+    detail::CbfsDriveInUserSpace<data_store::SureFileStore> drive(
+        root_id, mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
+#ifdef MAIDSAFE_WIN32
+    mount_dir /= "\\";
+#endif
     drive.ReInitialiseService(svc_alias, *main_test_dir / svc_alias, svc_root_id);
-    EXPECT_EQ(NonEmptyString("Content\n"), ReadFile("Z:\\AnotherService\\test.txt"));
+    service_root = mount_dir / service_name;
+    EXPECT_EQ(NonEmptyString(content), ReadFile(service_root / file_name));
   }
 }
 

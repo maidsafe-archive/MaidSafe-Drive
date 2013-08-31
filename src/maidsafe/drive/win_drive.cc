@@ -18,12 +18,27 @@ License.
 #include <locale>
 #include <cwchar>
 
+#include "maidsafe/common/error.h"
 #include "maidsafe/common/log.h"
 
 
 namespace maidsafe {
 
 namespace drive {
+
+fs::path GetNextAvailableDrivePath() {
+  uint32_t drive_letters(GetLogicalDrives()), mask(0x4);
+  std::string path("C:");
+  while (drive_letters & mask) {
+    mask <<= 1;
+    ++path[0];
+  }
+  if (path[0] > 'Z')
+    ThrowError(DriveErrors::no_drive_letter_available);
+  return fs::path(path);
+}
+
+
 
 namespace detail {
 

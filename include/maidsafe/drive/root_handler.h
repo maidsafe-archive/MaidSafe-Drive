@@ -333,7 +333,7 @@ void RootHandler<Storage>::AddElement(const boost::filesystem::path& path,
   GetParentAndGrandparent(path, grandparent, parent, parent_meta_data);
 
   if (!parent.listing)
-    ThrowError(VaultErrors::permission_denied);
+    ThrowError(DriveErrors::no_service_storage_allocated);
 
   parent.listing->AddChild(meta_data);
 
@@ -558,8 +558,7 @@ void RootHandler<Storage>::RenameDifferentParent(const boost::filesystem::path& 
 #endif
   assert(old_parent.listing);
   if (!new_parent.listing)
-    ThrowError(VaultErrors::permission_denied);
-
+    ThrowError(DriveErrors::no_service_storage_allocated);
 
   if (IsDirectory(meta_data)) {
     Directory directory(GetFromPath(old_path));
