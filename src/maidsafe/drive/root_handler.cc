@@ -129,6 +129,7 @@ DataTagValue RootHandler<data_store::SureFileStore>::GetDirectoryType(
 template<>
 void RootHandler<data_store::SureFileStore>::CreateRoot(const Identity& unique_user_id) {
   assert(!unique_user_id.IsInitialised());
+  static_cast<void>(unique_user_id);
   root_.listing = std::make_shared<DirectoryListing>(Identity(RandomString(64)));
 }
 
@@ -144,6 +145,7 @@ template<>
 void RootHandler<data_store::SureFileStore>::InitRoot(const Identity& unique_user_id,
                                                       const Identity& drive_root_id) {
   assert(!unique_user_id.IsInitialised() && drive_root_id.IsInitialised());
+  static_cast<void>(unique_user_id);
   root_.listing = std::make_shared<DirectoryListing>(drive_root_id);
 }
 
