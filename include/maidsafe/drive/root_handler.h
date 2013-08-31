@@ -332,6 +332,9 @@ void RootHandler<Storage>::AddElement(const boost::filesystem::path& path,
   MetaData parent_meta_data;
   GetParentAndGrandparent(path, grandparent, parent, parent_meta_data);
 
+  if (!parent.listing)
+    ThrowError(VaultErrors::permission_denied);
+
   parent.listing->AddChild(meta_data);
 
   if (IsDirectory(meta_data)) {
@@ -389,6 +392,7 @@ void RootHandler<Storage>::DeleteElement(const boost::filesystem::path& path, Me
   MetaData parent_meta_data;
   GetParentAndGrandparent(path, grandparent, parent, parent_meta_data);
 
+  assert(parent.listing);
   parent.listing->GetChild(path.filename(), meta_data);
 
   if (IsDirectory(meta_data)) {
@@ -476,6 +480,7 @@ void RootHandler<Storage>::RenameSameParent(const boost::filesystem::path& old_p
   meta_data.attributes.st_ctime = meta_data.attributes.st_mtime;
 #endif
 
+  assert(parent.listing);
   if (!parent.listing->HasChild(new_path.filename())) {
     parent.listing->RemoveChild(meta_data);
     meta_data.name = new_path.filename();
@@ -551,6 +556,10 @@ void RootHandler<Storage>::RenameDifferentParent(const boost::filesystem::path& 
   time(&meta_data.attributes.st_mtime);
   meta_data.attributes.st_ctime = meta_data.attributes.st_mtime;
 #endif
+  assert(old_parent.listing);
+  if (!new_parent.listing)
+    ThrowError(VaultErrors::permission_denied);
+
 
   if (IsDirectory(meta_data)) {
     Directory directory(GetFromPath(old_path));

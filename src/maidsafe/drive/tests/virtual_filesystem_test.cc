@@ -26,21 +26,25 @@ License.
 #include "maidsafe/common/utils.h"
 
 #include "maidsafe/data_store/sure_file_store.h"
+#include "maidsafe/nfs/client/maid_node_nfs.h"
 
 #ifdef MAIDSAFE_WIN32
 #  include "maidsafe/drive/win_drive.h"
 #else
 #  include "maidsafe/drive/unix_drive.h"
 #endif
-#include "maidsafe/drive/directory_listing_handler.h"
+#include "maidsafe/drive/directory_handler.h"
 #include "maidsafe/drive/utils.h"
-#include "maidsafe/drive/return_codes.h"
 #include "maidsafe/drive/tests/test_utils.h"
+
 
 namespace fs = boost::filesystem;
 
 namespace maidsafe {
+
 namespace drive {
+
+namespace detail {
 
 namespace test {
 
@@ -48,7 +52,6 @@ namespace {
 
 fs::path g_test_mirror, g_mount_dir;
 bool g_virtual_filesystem_test;
-passport::Maid* g_default_maid;
 
 }  // unnamed namespace
 
@@ -56,26 +59,21 @@ template<typename Storage>
 class ApiTestEnvironment : public testing::Environment {
  public:
   explicit ApiTestEnvironment(std::string test_directory)
-      : root_test_dir_(new fs::path(test_directory)),
-        main_test_dir_(maidsafe::test::CreateTestPath((*root_test_dir_).string())),
+      : main_test_dir_(maidsafe::test::CreateTestPath(test_directory)),
         virtual_filesystem_test_(test_directory == "MaidSafe_Test_Drive"),
-        default_maid_(GetSigner()),
-        storage_(*main_test_dir_ / "local", DiskUsage(1073741824)),
-        max_space_(1073741824),  // 2^30
-        used_space_(0),
-        unique_user_id_(Identity(crypto::Hash<crypto::SHA512>(main_test_dir_->string()))),
-#ifdef MAIDSAFE_WIN32
-        drive_(std::make_shared<DerivedDriveInUserSpace<Storage>>(storage_,
-                                                                  default_maid_,
-                                                                  unique_user_id_,
-                                                                  "",
-                                                                  "S:",
-                                                                  "MaidSafeDrive",
-                                                                  max_space_,
-                                                                  used_space_)) {}
-#else
-        drive_() {}
-#endif
+        drive_root_id_(Identity(crypto::Hash<crypto::SHA512>(main_test_dir_->string()))),
+        on_added_([](const fs::path& alias,
+                     const Identity& drive_root_id,
+                     const Identity& service_root_id) {
+                       LOG(kInfo) << "Added " << alias << "  Root: " << HexSubstr(drive_root_id)
+                                  << "  Service: " << HexSubstr(service_root_id);
+                  }),
+        on_removed_([](const fs::path& alias) { LOG(kInfo) << "Removed " << alias; }),
+        on_renamed_([](const fs::path& old_alias, const fs::path& new_alias) {
+                        LOG(kInfo) << "Renamed " << old_alias << " to " << new_alias;
+                    }),
+        drive_(std::make_shared<DerivedDriveInUserSpace<Storage>>(
+            drive_root_id_, "S:", "MaidSafe", on_added_, on_removed_, on_renamed_)) {}
 
  protected:
   void SetUp() {
@@ -107,14 +105,10 @@ class ApiTestEnvironment : public testing::Environment {
 #ifdef MAIDSAFE_WIN32
       g_mount_dir /= "\\Owner";
 #else
-      drive_ = std::make_shared<DerivedDriveInUserSpace<Storagae>>(storage_,
-                                                                   default_maid_,
-                                                                   unique_user_id_,
+      drive_ = std::make_shared<DerivedDriveInUserSpace<Storagae>>(drive_root_id_,
                                                                    "",
                                                                    g_mount_dir,
-                                                                   "MaidSafeDrive",
-                                                                   max_space_,
-                                                                   used_space_);
+                                                                   "MaidSafeDrive");
       // TODO(Team): Find out why, if the mount is put on the asio service,
       //             unmount hangs
       boost::thread th(std::bind(&DerivedDriveInUserSpace<Storage>::Mount, drive_));
@@ -125,61 +119,53 @@ class ApiTestEnvironment : public testing::Environment {
       }
       g_mount_dir /= "Owner";
 #endif
+      AddOwnerDir(g_mount_dir);
     }
     GlobalDrive<Storage>::g_drive = drive_;
     g_virtual_filesystem_test = virtual_filesystem_test_;
-    g_default_maid = &default_maid_;
   }
 
   void TearDown() {
     if (virtual_filesystem_test_) {
-      int64_t max_space, used_space;
-#ifdef MAIDSAFE_WIN32
-      std::static_pointer_cast<DerivedDriveInUserSpace<Storage>>(drive_)->Unmount(max_space,
-                                                                                  used_space);
-#else
-      drive_->Unmount(max_space, used_space);
+      drive_->Unmount();
       drive_->WaitUntilUnMounted();
-#endif
-      BOOST_ASSERT(max_space == 1073741824);
     }
-//    g_drive.reset();
     main_test_dir_.reset();
-  }
-
-  maidsafe::passport::Maid::signer_type GetSigner() {
-    return maidsafe::passport::Maid::signer_type();
   }
 
  private:
   ApiTestEnvironment(const ApiTestEnvironment&);
-  ApiTestEnvironment& operator=(const ApiTestEnvironment&);
+  ApiTestEnvironment(ApiTestEnvironment&&);
+  ApiTestEnvironment& operator=(ApiTestEnvironment);
 
-  maidsafe::test::TestPath root_test_dir_;
+  void AddOwnerDir(const fs::path& owner_dir);
+
   maidsafe::test::TestPath main_test_dir_;
   bool virtual_filesystem_test_;
-  passport::Maid default_maid_;
-  Storage storage_;
-  int64_t max_space_, used_space_;
-  Identity unique_user_id_;
+  Identity drive_root_id_;
+  OnServiceAdded on_added_;
+  OnServiceRemoved on_removed_;
+  OnServiceRenamed on_renamed_;
   std::shared_ptr<DerivedDriveInUserSpace<Storage>> drive_;
 };
+
+template<>
+void ApiTestEnvironment<nfs_client::MaidNodeNfs>::AddOwnerDir(const fs::path&) {}  // no-op
+
+template<>
+void ApiTestEnvironment<data_store::SureFileStore>::AddOwnerDir(const fs::path& owner_dir) {
+  boost::system::error_code error_code;
+  EXPECT_TRUE(fs::create_directories(owner_dir, error_code)) << owner_dir
+              << ": " << error_code.message();
+  EXPECT_EQ(0, error_code.value()) << owner_dir << ": " << error_code.message();
+  EXPECT_TRUE(fs::exists(owner_dir, error_code)) << owner_dir << ": " << error_code.message();
+  drive_->AddService("Owner", *main_test_dir_ / "OwnerSureFileStore");
+}
 
 template<typename Storage>
 class CallbacksApiTest : public testing::Test {
  protected:
   void TearDown() {
-    // if (!RemoveDirectories(g_mount_dir)) {
-    //  // be persistent...
-    //  if (!RemoveDirectories(g_mount_dir)) {
-    //    // ok give up...
-    //    LOG(kError) << "Failed to remove directories from " << g_mount_dir;
-    //  }
-    // }
-    // if (!RemoveDirectories(g_test_mirror)) {
-    //    // do it next time...
-    //    LOG(kError) << "Failed to remove directories from " << g_test_mirror;
-    // }
      fs::directory_iterator end;
      try {
       fs::directory_iterator begin1(g_test_mirror), end1;
@@ -255,53 +241,6 @@ class CallbacksApiTest : public testing::Test {
       LOG(kError) << e.what();
       return "";
     }
-  };
-
-  bool RemoveDirectories(fs::path const& path) {
-    LOG(kInfo) << "RemoveDirectories: " << path;
-    boost::system::error_code error_code;
-    fs::directory_iterator begin(path), end;
-    try {
-      for (; begin != end; ++begin) {
-        if (fs::is_directory(*begin)) {
-          EXPECT_TRUE(RemoveDirectories((*begin).path()));
-          EXPECT_TRUE(fs::remove((*begin).path(), error_code));
-          if (error_code.value() != 0) {
-            // try again...
-            EXPECT_TRUE(fs::remove((*begin).path(), error_code));
-            if (error_code.value() != 0) {
-              LOG(kError) << "Failed to remove " << (*begin).path();
-              return false;
-            }
-          }
-        } else if (fs::is_regular_file(*begin)) {
-          EXPECT_TRUE(fs::remove((*begin).path(), error_code));
-          if (error_code.value() != 0) {
-            // may as well...
-            EXPECT_TRUE(fs::remove((*begin).path(), error_code));
-            if (error_code.value() != 0) {
-              LOG(kError) << "Failed to remove " << (*begin).path();
-              return false;
-            }
-          }
-        } else {
-          // try removing it anyway...
-          EXPECT_TRUE(fs::remove((*begin).path(), error_code));
-          if (error_code.value() != 0) {
-            // and again...
-            EXPECT_TRUE(fs::remove((*begin).path(), error_code));
-            if (error_code.value() != 0) {
-              LOG(kError) << "Failed to remove " << (*begin).path();
-              return false;
-            }
-          }
-        }
-      }
-    } catch(...) {
-      LOG(kError) << "RemoveDirectories: Failed";
-      return false;
-    }
-    return true;
   };
 
   bool CopyDirectories(fs::path const& from, fs::path const& to) {
@@ -1178,9 +1117,6 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_CheckFailures) {
 
 TYPED_TEST_P(CallbacksApiTest, FUNC_FunctionalTest) {
   ASSERT_TRUE(DoRandomEvents());
-  // Check used space...
-//  if (g_virtual_filesystem_test)
-//    ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
 }
 
 namespace {
@@ -1385,7 +1321,8 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_BENCHMARK_CopyThenReadManySmallFiles) {
 //    return SUCCEED() << "Can't test on real filesystem.";
 //  int64_t file_size(0);
 //  // Create file on virtual drive
-// fs::path dir(CreateTestDirectory(g_mount_dir)), dir_relative_path(RelativePath(g_mount_dir, dir));
+//  fs::path dir(CreateTestDirectory(g_mount_dir)),
+//           dir_relative_path(RelativePath(g_mount_dir, dir));
 //  fs::path file(CreateTestFile(dir, file_size)),
 //           file_relative_path(fs::path("/Owner") / RelativePath(g_mount_dir, file));
 //  boost::system::error_code error_code;
@@ -1421,7 +1358,8 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_BENCHMARK_CopyThenReadManySmallFiles) {
 //  for (int i = 0; i < 10; ++i)
 //    content += content + RandomAlphaNumericString(10);
 //
-//  fs::path dir(CreateTestDirectory(g_mount_dir)), dir_relative_path(RelativePath(g_mount_dir, dir));
+//  fs::path dir(CreateTestDirectory(g_mount_dir)),
+//           dir_relative_path(RelativePath(g_mount_dir, dir));
 //  // Create file on virtual drive, one hidden and one normal, with same content
 //  std::string hidden_file_name(RandomAlphaNumericString(5) + ".ms_hidden");
 //  fs::path hidden_file(dir_relative_path / hidden_file_name);
@@ -1494,20 +1432,32 @@ INSTANTIATE_TYPED_TEST_CASE_P(Drive, CallbacksApiTest, StoreTypes);
 
 }  // namespace test
 
+}  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe
+
+
 
 int main(int argc, char **argv) {
   maidsafe::log::Logging::Instance().Initialise(argc, argv);
 
+#if defined(__clang__) || defined(__GNUC__)
+  // To allow Clang and GCC advanced diagnostics to work properly.
+  testing::FLAGS_gtest_catch_exceptions = true;
+#else
   testing::FLAGS_gtest_catch_exceptions = false;
+#endif
+
   testing::InitGoogleTest(&argc, argv);
 #ifdef DISK_TEST
   testing::AddGlobalTestEnvironment(
-      new maidsafe::drive::test::ApiTestEnvironment("MaidSafe_Test_Disk"));
+      new maidsafe::drive::detail::test::ApiTestEnvironment<maidsafe::data_store::SureFileStore>(
+          "MaidSafe_Test_Disk"));
 #else
   testing::AddGlobalTestEnvironment(
-      new maidsafe::drive::test::ApiTestEnvironment<maidsafe::data_store::SureFileStore>(
+      new maidsafe::drive::detail::test::ApiTestEnvironment<maidsafe::data_store::SureFileStore>(
           "MaidSafe_Test_Drive"));
 #endif
   int result(RUN_ALL_TESTS());

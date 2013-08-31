@@ -75,7 +75,7 @@ class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
 
   virtual bool Init();
   virtual bool Mount();
-  virtual bool Unmount(int64_t &max_space, int64_t &used_space);
+  virtual bool Unmount();
   // Notifies filesystem of name change
   virtual void NotifyRename(const fs::path& from_relative_path,
                             const fs::path& to_relative_path) const;
@@ -229,9 +229,7 @@ FuseDriveInUserSpace<Storage>::FuseDriveInUserSpace(
 
 template<typename Storage>
 FuseDriveInUserSpace<Storage>::~FuseDriveInUserSpace() {
-  int64_t max_space, used_space;
-  Unmount(max_space, used_space);
-//  Unmount(DriveInUserSpace<Storage>::max_space_, DriveInUserSpace<Storage>::used_space_);
+  Unmount();
 }
 
 template<typename Storage>
@@ -375,7 +373,7 @@ bool FuseDriveInUserSpace<Storage>::Mount() {
 }
 
 template<typename Storage>
-bool FuseDriveInUserSpace<Storage>::Unmount(int64_t& /*max_space*/, int64_t& /*used_space*/) {
+bool FuseDriveInUserSpace<Storage>::Unmount() {
   if (DriveInUserSpace<Storage>::drive_stage_ != DriveInUserSpace<Storage>::kMounted) {
     LOG(kInfo) << "Not mounted at all;";
     return false;
@@ -384,8 +382,6 @@ bool FuseDriveInUserSpace<Storage>::Unmount(int64_t& /*max_space*/, int64_t& /*u
   std::string command(Global<Storage>::g_fuse_drive->GetMountDir().string());
   std::lock_guard<std::mutex> lock(Global<Storage>::g_fuse_drive->unmount_mutex_);
 #endif
-//  max_space = DriveInUserSpace<Storage>::max_space_;
-//  used_space = DriveInUserSpace<Storage>::used_space_;
   fuse_exit(fuse_);
 #ifdef MAIDSAFE_APPLE
   fuse_unmount(fuse_mountpoint_, fuse_channel_);

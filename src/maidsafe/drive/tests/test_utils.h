@@ -73,26 +73,16 @@ enum TestOperationCode {
 template<typename Storage>
 class DerivedDriveInUserSpace : public Drive<Storage>::TestDriveInUserSpace {
  public:
-  DerivedDriveInUserSpace(Storage& storage,
-                          const passport::Maid& default_maid,
-                          const Identity& unique_user_id,
-                          const Identity& drive_root_id,
-                          const boost::filesystem::path &mount_dir,
-                          const boost::filesystem::path &drive_name,
-                          const int64_t& max_space,
-                          const int64_t& used_space)
-      : Drive<Storage>::TestDriveInUserSpace(storage,
-                                             default_maid,
-                                             unique_user_id,
-                                             drive_root_id,
-                                             mount_dir,
-                                             drive_name,
-                                             max_space,
-                                             used_space) {}
+  DerivedDriveInUserSpace(const Identity& drive_root_id,
+                          const boost::filesystem::path& mount_dir,
+                          const boost::filesystem::path& drive_name,
+                          OnServiceAdded on_service_added,
+                          OnServiceRemoved on_service_removed,
+                          OnServiceRenamed on_service_renamed)
+      : Drive<Storage>::TestDriveInUserSpace(drive_root_id, mount_dir, drive_name, on_service_added,
+                                             on_service_removed, on_service_renamed) {}
 
-  std::shared_ptr<DirectoryHandler<Storage>> directory_handler() const {
-    return directory_handler_;
-  }
+  std::shared_ptr<RootHandler<Storage>> root_handler() const { return root_handler_; }
 };
 
 template<typename Storage>
@@ -123,6 +113,7 @@ uint64_t TotalSize(encrypt::DataMapPtr data_map);
 void GenerateDirectoryListingEntryForFile(DirectoryListing& directory_listing,
                                           const fs::path& path,
                                           const uintmax_t& file_size);
+
 }  // namespace test
 
 }  // namespace detail

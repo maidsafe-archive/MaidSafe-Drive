@@ -63,7 +63,7 @@ class DriveInUserSpace {
 
   virtual ~DriveInUserSpace() {}
 
-  virtual bool Unmount(int64_t &max_space, int64_t &used_space) = 0;
+  virtual bool Unmount() = 0;
 
 #ifdef MAIDSAFE_APPLE
   boost::filesystem::path GetMountDir() const { return mount_dir_; }

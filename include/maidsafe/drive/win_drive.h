@@ -89,10 +89,10 @@ class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
                        OnServiceRemoved on_service_removed,
                        OnServiceRenamed on_service_renamed);
 
-  virtual ~CbfsDriveInUserSpace();
+  virtual ~CbfsDriveInUserSpace() {}
   bool Init();
   bool Mount();
-  virtual bool Unmount(int64_t& max_space, int64_t& used_space);
+  virtual bool Unmount();
   int Install();
   void NotifyDirectoryChange(const boost::filesystem::path& relative_path, OpType op) const;
   uint32_t max_file_path_length();
@@ -292,11 +292,6 @@ CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(const Identity& drive_root_i
 }
 
 template<typename Storage>
-CbfsDriveInUserSpace<Storage>::~CbfsDriveInUserSpace() {
-//  Unmount(max_space_, used_space_);
-}
-
-template<typename Storage>
 bool CbfsDriveInUserSpace<Storage>::Init() {
   if (drive_stage_ != kCleaned) {
     OnCallbackFsInit();
@@ -372,7 +367,7 @@ void CbfsDriveInUserSpace<Storage>::UnmountDrive(
 }
 
 template<typename Storage>
-bool CbfsDriveInUserSpace<Storage>::Unmount(int64_t& /*max_space*/, int64_t& /*used_space*/) {
+bool CbfsDriveInUserSpace<Storage>::Unmount() {
   if (drive_stage_ != kCleaned) {
     UnmountDrive(std::chrono::seconds(3));
     if (callback_filesystem_.StoragePresent()) {
@@ -387,8 +382,6 @@ bool CbfsDriveInUserSpace<Storage>::Unmount(int64_t& /*max_space*/, int64_t& /*u
     callback_filesystem_.SetRegistrationKey(nullptr);
     drive_stage_ = kCleaned;
   }
-//  max_space = max_space_;
-//  used_space = used_space_;
   SetMountState(false);
   return true;
 }
@@ -642,7 +635,21 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* sender,
     cbfs_drive->AddFile(relative_path, *file_context->meta_data.get(),
                         file_context->grandparent_directory_id, file_context->parent_directory_id);
   }
+  catch(const std::system_error& system_error) {
+    if (system_error.code() == make_error_code(VaultErrors::permission_denied)) {
+      LOG(kError) << "User has added a service to root, but hasn't provided the store_path for it.";
+      throw ECBFSError(ERROR_SERVICE_DOES_NOT_EXIST);
+    } else {
+      LOG(kError) << system_error.what();
+      throw ECBFSError(ERROR_ACCESS_DENIED);
+    }
+  }
+  catch(const std::exception& e) {
+    LOG(kError) << e.what();
+    throw ECBFSError(ERROR_ACCESS_DENIED);
+  }
   catch(...) {
+    assert(false);  // We should be catching specific error types
     throw ECBFSError(ERROR_ACCESS_DENIED);
   }
 
