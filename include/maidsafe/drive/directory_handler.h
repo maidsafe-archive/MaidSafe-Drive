@@ -235,6 +235,8 @@ typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type
   assert(directory.type == DirectoryType::Tag::kValue);
   // TODO(Fraser#5#): 2013-08-28 - Use versions
   try {
+    // TODO(Fraser#5#): 2013-08-31 - BEFORE_RELEASE - This won't work (and shouldn't even be tried)
+    //                               for NFS.
     DeleteFromStorage(storage, directory);
   }
   catch(...) {}

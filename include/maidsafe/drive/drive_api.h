@@ -154,7 +154,9 @@ class DriveInUserSpace {
   void UpdateParent(detail::FileContext<Storage>* file_context,
                     const boost::filesystem::path& parent_path);
   // Resizes the file.
-  bool TruncateFile(detail::FileContext<Storage>* file_context, const uint64_t& size);
+  bool TruncateFile(const boost::filesystem::path& relative_path,
+                    detail::FileContext<Storage>* file_context,
+                    const uint64_t& size);
   virtual void NotifyRename(const boost::filesystem::path& from_relative_path,
                             const boost::filesystem::path& to_relative_path) const = 0;
 
@@ -320,21 +322,22 @@ void DriveInUserSpace<Storage>::RenameFile(const boost::filesystem::path& old_re
 }
 
 template<typename Storage>
-bool DriveInUserSpace<Storage>::TruncateFile(detail::FileContext<Storage>* file_context,
+bool DriveInUserSpace<Storage>::TruncateFile(const boost::filesystem::path& relative_path,
+                                             detail::FileContext<Storage>* file_context,
                                              const uint64_t& size) {
-  auto directory_handler(GetHandler(file_context->meta_data->name));
-  if (!directory_handler)
-    return false;
-
   if (!file_context->self_encryptor) {
+    auto directory_handler(GetHandler(relative_path));
+    if (!directory_handler)
+      return false;
+
     file_context->self_encryptor.reset(
         new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
                                             directory_handler->storage()));
   }
+
   bool result = file_context->self_encryptor->Truncate(size);
-  if (result) {
+  if (result)
     file_context->content_changed = true;
-  }
   return result;
 }
 

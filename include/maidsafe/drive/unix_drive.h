@@ -493,7 +493,7 @@ int FuseDriveInUserSpace<Storage>::OpsFtruncate(const char *path,
   if (!file_context)
     return -EINVAL;
 
-  if (Global<Storage>::g_fuse_drive->TruncateFile(file_context, size)) {
+  if (Global<Storage>::g_fuse_drive->TruncateFile(fs::path(path), file_context, size)) {
 //    if (file_context->meta_data->attributes.st_size < size) {
 //      int64_t additional_size(size - file_context->meta_data->attributes.st_size);
 //      if (additional_size + Global<Storage>::g_fuse_drive->used_space_ >
@@ -806,7 +806,7 @@ int FuseDriveInUserSpace<Storage>::OpsTruncate(const char *path, off_t size) {
     auto p(Global<Storage>::g_fuse_drive->open_files_.equal_range(path));
     while (p.first != p.second) {
       FileContext<Storage> *file_context = (*p.first).second.get();
-      if (Global<Storage>::g_fuse_drive->TruncateFile(file_context, size)) {
+      if (Global<Storage>::g_fuse_drive->TruncateFile(fs::path(path), file_context, size)) {
 //        if (file_context->meta_data->attributes.st_size < size) {
 //          int64_t additional_size(size - file_context->meta_data->attributes.st_size);
 //          if (additional_size + Global<Storage>::g_fuse_drive->used_space_ >
@@ -842,15 +842,15 @@ int FuseDriveInUserSpace<Storage>::OpsTruncate(const char *path, off_t size) {
 
     try {
       Global<Storage>::g_fuse_drive->GetMetaData(path,
-                                *file_context.meta_data.get(),
-                                &file_context.grandparent_directory_id,
-                                &file_context.parent_directory_id);
+                                                 *file_context.meta_data.get(),
+                                                 &file_context.grandparent_directory_id,
+                                                 &file_context.parent_directory_id);
     } catch(...) {
       LOG(kWarning) << "OpsTruncate: " << path << ", failed to locate file.";
       return -ENOENT;
     }
 
-    if (Global<Storage>::g_fuse_drive->TruncateFile(&file_context, size)) {
+    if (Global<Storage>::g_fuse_drive->TruncateFile(fs::path(path), &file_context, size)) {
 //      if (file_context.meta_data->attributes.st_size < size) {
 //        int64_t additional_size(size - file_context.meta_data->attributes.st_size);
 //        if (additional_size + Global<Storage>::g_fuse_drive->used_space_ >

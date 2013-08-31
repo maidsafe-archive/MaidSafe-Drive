@@ -946,7 +946,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsSetAllocationSize(CallbackFileSystem* se
 //    else
 //      cbfs_drive->used_space_ -= reduced_size;
 //  }
-  if (cbfs_drive->TruncateFile(file_context, allocation_size)) {
+  if (cbfs_drive->TruncateFile(relative_path, file_context, allocation_size)) {
     file_context->meta_data->allocation_size = allocation_size;
     if (!file_context->self_encryptor->Flush()) {
       LOG(kError) << "CbFsSetAllocationSize: " << relative_path << ", failed to flush";
@@ -979,7 +979,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender,
 
   FileContext<Storage>* file_context(
       static_cast<FileContext<Storage>*>(file_info->get_UserContext()));
-  if (cbfs_drive->TruncateFile(file_context, end_of_file)) {
+  if (cbfs_drive->TruncateFile(relative_path, file_context, end_of_file)) {
     file_context->meta_data->end_of_file = end_of_file;
     if (!file_context->self_encryptor->Flush()) {
       LOG(kError) << "CbFsSetEndOfFile: " << relative_path << ", failed to flush";
