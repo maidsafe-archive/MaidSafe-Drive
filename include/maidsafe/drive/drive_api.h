@@ -151,6 +151,7 @@ class DriveInUserSpace {
   detail::DirectoryHandler<Storage>* GetHandler(const boost::filesystem::path& relative_path);
   detail::Directory GetDirectory(const boost::filesystem::path& relative_path);
   // Updates parent directory at 'parent_path' with the values contained in the 'file_context'.
+  Storage* GetStorage(const boost::filesystem::path& path) const;
   void UpdateParent(detail::FileContext<Storage>* file_context,
                     const boost::filesystem::path& parent_path);
   // Resizes the file.
@@ -293,6 +294,11 @@ detail::Directory DriveInUserSpace<Storage>::GetDirectory(
 }
 
 template<typename Storage>
+Storage* DriveInUserSpace<Storage>::GetStorage(const boost::filesystem::path& path) const {
+  return root_handler_.GetStorage(path);
+}
+
+template<typename Storage>
 void DriveInUserSpace<Storage>::UpdateParent(detail::FileContext<Storage>* file_context,
                                              const boost::filesystem::path& parent_path) {
   root_handler_.UpdateParentDirectoryListing(parent_path, *file_context->meta_data);
@@ -336,7 +342,7 @@ bool DriveInUserSpace<Storage>::TruncateFile(const boost::filesystem::path& rela
 
     file_context->self_encryptor.reset(
         new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
-                                            directory_handler->storage()));
+                                            *directory_handler->storage()));
   }
 
   bool result = file_context->self_encryptor->Truncate(size);
@@ -421,7 +427,7 @@ void DriveInUserSpace<Storage>::ReadHiddenFile(const boost::filesystem::path& re
   BOOST_ASSERT(!file_context.meta_data->directory_id);
 
   file_context.self_encryptor.reset(new encrypt::SelfEncryptor<Storage>(
-      file_context.meta_data->data_map, storage_));
+      file_context.meta_data->data_map, *root_handler_.GetStorage(relative_path)));
   if (file_context.self_encryptor->size() > std::numeric_limits<uint32_t>::max())
     ThrowError(CommonErrors::invalid_parameter);
 
@@ -464,7 +470,7 @@ void DriveInUserSpace<Storage>::WriteHiddenFile(const boost::filesystem::path &r
 
   // Write the data
   file_context.self_encryptor.reset(new encrypt::SelfEncryptor<Storage>(
-      file_context.meta_data->data_map, storage_));
+      file_context.meta_data->data_map, *root_handler_.GetStorage(relative_path)));
 
   if (file_context.self_encryptor->size() > content.size())
     file_context.self_encryptor->Truncate(content.size());
@@ -489,7 +495,7 @@ std::vector<std::string> DriveInUserSpace<Storage>::GetHiddenFiles(
     const boost::filesystem::path &relative_path) {
   auto directory_handler(GetHandler(relative_path));
   if (!directory_handler)
-    return;
+    return std::vector<std::string>();
   auto directory(directory_handler->GetFromPath(relative_path));
   return directory.first.listing.GetHiddenChildNames();
 }

@@ -82,7 +82,7 @@ class DerivedDriveInUserSpace : public Drive<Storage>::TestDriveInUserSpace {
       : Drive<Storage>::TestDriveInUserSpace(drive_root_id, mount_dir, drive_name, on_service_added,
                                              on_service_removed, on_service_renamed) {}
 
-  std::shared_ptr<RootHandler<Storage>> root_handler() const { return root_handler_; }
+  std::shared_ptr<RootHandler<Storage>> root_handler() const { return this->root_handler_; }
 };
 
 template<typename Storage>

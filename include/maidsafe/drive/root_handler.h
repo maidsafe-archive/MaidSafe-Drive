@@ -64,6 +64,8 @@ class RootHandler {
   const DirectoryHandler<Storage>* GetHandler(const boost::filesystem::path& path) const;
   DirectoryHandler<Storage>* GetHandler(const boost::filesystem::path& path);
 
+  Storage* GetStorage(const boost::filesystem::path& path) const;
+
   DataTagValue GetDirectoryType(const boost::filesystem::path& path) const;
 
   void GetMetaData(const boost::filesystem::path& path,
@@ -88,7 +90,7 @@ class RootHandler {
   Directory GetFromPath(const boost::filesystem::path& path) const;
 
   Identity drive_root_id() const { return root_.listing->directory_id(); }
-  std::shared_ptr<Storage> default_storge() const { return default_storge_; }
+  std::shared_ptr<Storage> default_storage() const { return default_storage_; }
 
  private:
   // Called on the first run ever for this Drive (creating new user account)
@@ -119,7 +121,7 @@ class RootHandler {
   void Put(const boost::filesystem::path& path, Directory& directory) const;
   void Delete(const boost::filesystem::path& path, const Directory& directory) const;
 
-  std::shared_ptr<Storage> default_storge_;  // MaidNodeNfs or nullptr
+  std::shared_ptr<Storage> default_storage_;  // MaidNodeNfs or nullptr
   Directory root_;
   MetaData root_meta_data_;
   std::map<boost::filesystem::path, DirectoryHandler<Storage>> directory_handlers_;
@@ -173,13 +175,13 @@ RootHandler<Storage>::RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_
                                   const Identity& unique_user_id,
                                   const Identity& drive_root_id,
                                   OnServiceAdded on_service_added)
-    : default_storge_(maid_node_nfs),
+    : default_storage_(maid_node_nfs),
       root_(),
       root_meta_data_(kRoot, true),
       directory_handlers_(),
       on_service_added_(on_service_added),
       on_service_removed_(nullptr),
-      on_service_renamed(nullptr) {
+      on_service_renamed_(nullptr) {
   if (!unique_user_id.IsInitialised())
     ThrowError(CommonErrors::uninitialised);
   drive_root_id.IsInitialised() ? InitRoot(unique_user_id, drive_root_id) :
@@ -191,7 +193,7 @@ RootHandler<Storage>::RootHandler(const Identity& drive_root_id,
                                   OnServiceAdded on_service_added,
                                   OnServiceRemoved on_service_removed,
                                   OnServiceRenamed on_service_renamed)
-    : default_storge_(),
+    : default_storage_(),
       root_(),
       root_meta_data_(kRoot, true),
       directory_handlers_(),
@@ -230,6 +232,14 @@ DirectoryHandler<Storage>* RootHandler<Storage>::GetHandler(const boost::filesys
   auto itr(directory_handlers_.find(alias));
   return itr == std::end(directory_handlers_) ? nullptr : &(itr->second);
 }
+
+template<>
+nfs_client::MaidNodeNfs* RootHandler<nfs_client::MaidNodeNfs>::GetStorage(
+    const boost::filesystem::path& path) const;
+
+template<>
+data_store::SureFileStore* RootHandler<data_store::SureFileStore>::GetStorage(
+    const boost::filesystem::path& path) const;
 
 template<>
 DataTagValue RootHandler<nfs_client::MaidNodeNfs>::GetDirectoryType(
@@ -402,10 +412,10 @@ void RootHandler<Storage>::DeleteElement(const boost::filesystem::path& path, Me
     auto directory_handler(GetHandler(path));
     if (directory_handler) {
       encrypt::SelfEncryptor<Storage>(meta_data.data_map,
-                                      directory_handler->storage()).DeleteAllChunks();
+                                      *directory_handler->storage()).DeleteAllChunks();
     } else {
       encrypt::SelfEncryptor<Storage>(meta_data.data_map,
-                                      *default_storge_).DeleteAllChunks();
+                                      *default_storage_).DeleteAllChunks();
     }
   }
 
@@ -526,7 +536,7 @@ void RootHandler<Storage>::RenameSameParent(const boost::filesystem::path& old_p
       grandparent.listing->UpdateChild(parent_meta_data);
   }
   catch(...) { /*Non-critical*/ }
-  Put(path.parent_path().parent_path(), grandparent);
+  Put(new_path.parent_path().parent_path(), grandparent);
 #endif
 
   auto old_alias(GetAlias(old_path));

@@ -233,7 +233,7 @@ bool RootHandler<data_store::SureFileStore>::CanRename(
 template<>
 void RootHandler<nfs_client::MaidNodeNfs>::Put(const boost::filesystem::path& /*path*/,
                                                Directory& directory) const {
-  PutToStorage(*default_storge_, directory);
+  PutToStorage(*default_storage_, directory);
 }
 
 template<>
@@ -241,13 +241,13 @@ void RootHandler<data_store::SureFileStore>::Put(const boost::filesystem::path& 
                                                  Directory& directory) const {
   auto directory_handler(GetHandler(path));
   if (directory_handler)
-    PutToStorage(directory_handler->storage(), directory);
+    PutToStorage(*directory_handler->storage(), directory);
 }
 
 template<>
 void RootHandler<nfs_client::MaidNodeNfs>::Delete(const boost::filesystem::path& /*path*/,
                                                   const Directory& directory) const {
-  DeleteFromStorage(*default_storge_, directory);
+  DeleteFromStorage(*default_storage_, directory);
 }
 
 template<>
@@ -255,8 +255,23 @@ void RootHandler<data_store::SureFileStore>::Delete(const boost::filesystem::pat
                                                     const Directory& directory) const {
   auto directory_handler(GetHandler(path));
   if (directory_handler)
-    DeleteFromStorage(directory_handler->storage(), directory);
+    DeleteFromStorage(*directory_handler->storage(), directory);
 }
+
+template<>
+nfs_client::MaidNodeNfs* RootHandler<nfs_client::MaidNodeNfs>::GetStorage(
+    const boost::filesystem::path& /*path*/) const {
+  return default_storage_.get();
+}
+
+template<>
+data_store::SureFileStore* RootHandler<data_store::SureFileStore>::GetStorage(
+    const boost::filesystem::path& path) const {
+  auto directory_handler(GetHandler(path));
+  assert(directory_handler);
+  return directory_handler->storage();
+}
+
 
 }  // namespace detail
 

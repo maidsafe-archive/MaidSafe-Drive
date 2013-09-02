@@ -74,7 +74,7 @@ class DirectoryHandler {
 
   void SetWorldReadWrite() { world_is_writeable_ = true; }
   void SetWorldReadOnly() { world_is_writeable_ = false; }
-  Storage& storage() const { return *storage_; }
+  Storage* storage() const { return storage_.get(); }
   DataTagValue directory_type() const { return directory_type_; }
   bool world_is_writeable() const { return world_is_writeable_; }
   bool immutable_root() const { return immutable_root_; }
@@ -166,7 +166,7 @@ template<typename Storage>
 DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
                                             Directory* parent,
                                             DataTagValue directory_type,
-                                            bool immutable_root = false)
+                                            bool immutable_root)
     : storage_(storage),
       parent_(parent),
       directory_type_(directory_type),
@@ -331,7 +331,7 @@ typename std::enable_if<!is_encrypted_dir<DirectoryType>::value, Directory>::typ
                             const DirectoryId& directory_id) {
   static_assert(DirectoryType::Tag::kValue == DataTagValue::kWorldDirectoryValue,
                 "This should only be called with WorldDirectory type.");
-  DirectoryType dir(storage.Get<DirectoryType>(typename DirectoryType::Name(directory_id)).get());
+  DirectoryType dir(storage.template Get<DirectoryType>(typename DirectoryType::Name(directory_id)).get());
   return Directory(parent_id, std::make_shared<DirectoryListing>(dir.data().string()), nullptr,
                    DirectoryType::Tag::kValue);
 }
@@ -341,7 +341,7 @@ DataMapPtr GetDataMapFromStorage(Storage& storage,
                                  const DirectoryId& parent_id,
                                  const DirectoryId& directory_id) {
   static_assert(is_encrypted_dir<DirectoryType>::value, "Must be an encrypted type of directory.");
-  DirectoryType dir(storage.Get<DirectoryType>(typename DirectoryType::Name(directory_id)).get());
+  DirectoryType dir(storage.template Get<DirectoryType>(typename DirectoryType::Name(directory_id)).get());
   auto data_map(std::make_shared<encrypt::DataMap>());
   encrypt::DecryptDataMap(parent_id, directory_id, dir.data().string(), data_map);
   return data_map;
@@ -371,14 +371,14 @@ typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type
   }
   // TODO(Fraser#5#): 2013-08-28 - Check if there's a case where the DM could be nullptr and we need
   //                  to retrieve the DM from Storage in order to call DeleteAllChunks().
-  storage.Delete<DirectoryType>(typename DirectoryType::Name(directory.listing->directory_id()));
+  storage.template Delete<DirectoryType>(typename DirectoryType::Name(directory.listing->directory_id()));
 }
 
 template<typename Storage, typename DirectoryType>
 typename std::enable_if<!is_encrypted_dir<DirectoryType>::value>::type
     DeleteFromStorage(Storage& storage, const Directory& directory) {
   assert(directory.type == DirectoryType::Tag::kValue);
-  storage.Delete<DirectoryType>(typename DirectoryType::Name(directory.listing->directory_id()));
+  storage.template Delete<DirectoryType>(typename DirectoryType::Name(directory.listing->directory_id()));
 }
 
 }  // namespace detail

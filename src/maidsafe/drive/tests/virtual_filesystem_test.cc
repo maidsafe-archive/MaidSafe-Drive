@@ -72,8 +72,8 @@ class ApiTestEnvironment : public testing::Environment {
         on_renamed_([](const fs::path& old_alias, const fs::path& new_alias) {
                         LOG(kInfo) << "Renamed " << old_alias << " to " << new_alias;
                     }),
-        drive_(std::make_shared<DerivedDriveInUserSpace<Storage>>(
-            drive_root_id_, "S:", "MaidSafe", on_added_, on_removed_, on_renamed_)) {}
+        drive_(
+            on_renamed_)) {}
 
  protected:
   void SetUp() {
@@ -105,13 +105,13 @@ class ApiTestEnvironment : public testing::Environment {
 #ifdef MAIDSAFE_WIN32
       g_mount_dir /= "\\Owner";
 #else
-      drive_ = std::make_shared<DerivedDriveInUserSpace<Storagae>>(drive_root_id_,
-                                                                   "",
+      drive_ = std::make_shared<DerivedDriveInUserSpace<Storage>>(drive_root_id_,
                                                                    g_mount_dir,
-                                                                   "MaidSafeDrive");
+                                                                   "MaidSafeDrive",
+                                                                  );
       // TODO(Team): Find out why, if the mount is put on the asio service,
       //             unmount hangs
-      boost::thread th(std::bind(&DerivedDriveInUserSpace<Storage>::Mount, drive_));
+//      boost::thread th(std::bind(&DerivedDriveInUserSpace<Storage>::Mount, drive_));
       if (!drive_->WaitUntilMounted()) {
         LOG(kError) << "Drive failed to mount";
 //         asio_service_.Stop();
@@ -560,7 +560,7 @@ class CallbacksApiTest : public testing::Test {
           if (file != fs::path()) {
             fs::path found(FindDirectoryOrFile(g_test_mirror, file.filename()));
             EXPECT_NE(found, fs::path());
-            EXPECT_TRUE(CompareFileContents(file, found));
+            EXPECT_TRUE(this->CompareFileContents(file, found));
           }
           break;
         }
@@ -625,7 +625,7 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryToDriveThenDelete) {
   // Create a file in newly created directory...
   fs::path file(CreateTestFile(directory, file_size));
   // Copy directory and file to virtual drive...
-  ASSERT_TRUE(CopyDirectories(directory, g_mount_dir));
+  ASSERT_TRUE(this->CopyDirectories(directory, g_mount_dir));
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename() / file.filename(), error_code));
@@ -646,7 +646,7 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryToDriveDeleteThenRecopy)
   // Create a file in newly created directory...
   fs::path file(CreateTestFile(directory, file_size));
   // Copy directory and file to virtual drive...
-  ASSERT_TRUE(CopyDirectories(directory, g_mount_dir));
+  ASSERT_TRUE(this->CopyDirectories(directory, g_mount_dir));
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename()));
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename() / file.filename()));
   // Delete the directory along with its contents...
@@ -656,7 +656,7 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryToDriveDeleteThenRecopy)
   ASSERT_FALSE(fs::exists(g_mount_dir / directory.filename()));
   ASSERT_FALSE(fs::exists(g_mount_dir / directory.filename() / file.filename()));
   // Re-copy directory and file to virtual drive...
-  ASSERT_TRUE(CopyDirectories(directory, g_mount_dir));
+  ASSERT_TRUE(this->CopyDirectories(directory, g_mount_dir));
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename()));
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename() / file.filename()));
 }
@@ -671,7 +671,7 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryThenRename) {
   // Create a file in newly created directory...
   fs::path file(CreateTestFile(directory, file_size));
   // Copy directory and file to virtual drive...
-  ASSERT_TRUE(CopyDirectories(directory, g_mount_dir));
+  ASSERT_TRUE(this->CopyDirectories(directory, g_mount_dir));
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename() / file.filename(), error_code));
@@ -696,7 +696,7 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryRenameThenRecopy) {
   // Create a file in newly created directory...
   fs::path file(CreateTestFile(directory, file_size));
   // Copy directory and file to virtual drive...
-  ASSERT_TRUE(CopyDirectories(directory, g_mount_dir));
+  ASSERT_TRUE(this->CopyDirectories(directory, g_mount_dir));
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename() / file.filename(), error_code));
@@ -709,7 +709,7 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryRenameThenRecopy) {
   ASSERT_NE(error_code.value(), 0);
   ASSERT_TRUE(fs::exists(new_directory_name));
   // Re-copy disk directory and file to virtual drive...
-  ASSERT_TRUE(CopyDirectories(directory, g_mount_dir));
+  ASSERT_TRUE(this->CopyDirectories(directory, g_mount_dir));
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename() / file.filename(), error_code));
@@ -719,10 +719,10 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryRenameThenRecopy) {
 TYPED_TEST_P(CallbacksApiTest, FUNC_CopyDirectoryContainingFiles) {
   boost::system::error_code error_code;
   // Create directory with random number of files...
-  fs::path directory(CreateDirectoryContainingFiles(g_test_mirror));
+  fs::path directory(this->CreateDirectoryContainingFiles(g_test_mirror));
   ASSERT_FALSE(directory.empty());
   // Copy directory to virtual drive...
-  ASSERT_TRUE(CopyDirectories(directory, g_mount_dir));
+  ASSERT_TRUE(this->CopyDirectories(directory, g_mount_dir));
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
 }
@@ -733,7 +733,7 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_CopyDirectoryContainingFilesAndDirectories) 
   fs::path directories(CreateTestDirectoriesAndFiles(g_test_mirror));
   ASSERT_TRUE(fs::exists(directories));
   // Copy hierarchy to virtual drive...
-  ASSERT_TRUE(CopyDirectories(directories, g_mount_dir));
+  ASSERT_TRUE(this->CopyDirectories(directories, g_mount_dir));
   ASSERT_TRUE(fs::exists(g_mount_dir / directories.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
 }
@@ -830,7 +830,7 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyFileThenRead) {
   ASSERT_EQ(error_code.value(), 0);
   // Compare content in the two files...
   ASSERT_EQ(fs::file_size(test_file), fs::file_size(file));
-  ASSERT_TRUE(CompareFileContents(test_file, file));
+  ASSERT_TRUE(this->CompareFileContents(test_file, file));
 }
 
 TYPED_TEST_P(CallbacksApiTest, FUNC_CopyFileRenameThenRead) {
@@ -860,7 +860,7 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_CopyFileRenameThenRead) {
   ASSERT_TRUE(fs::exists(test_file, error_code));
   ASSERT_EQ(error_code.value(), 0);
   // Compare content in the two files...
-  ASSERT_TRUE(CompareFileContents(test_file, file));
+  ASSERT_TRUE(this->CompareFileContents(test_file, file));
 }
 
 TYPED_TEST_P(CallbacksApiTest, FUNC_CopyFileDeleteThenTryToRead) {
@@ -887,7 +887,7 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_CopyFileDeleteThenTryToRead) {
                 error_code);
   ASSERT_NE(error_code.value(), 0);
   // Compare content in the two files...
-  ASSERT_FALSE(CompareFileContents(test_file, file));
+  ASSERT_FALSE(this->CompareFileContents(test_file, file));
 }
 
 TYPED_TEST_P(CallbacksApiTest, BEH_CreateFileOnDriveThenRead) {
@@ -927,7 +927,7 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyFileModifyThenRead) {
                 error_code);
   ASSERT_EQ(error_code.value(), 0);
   // Compare content in the two files...
-  ASSERT_FALSE(CompareFileContents(test_file, file));
+  ASSERT_FALSE(this->CompareFileContents(test_file, file));
 }
 
 TYPED_TEST_P(CallbacksApiTest, FUNC_CheckFailures) {
@@ -948,7 +948,7 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_CheckFailures) {
   ASSERT_TRUE(fs::exists(g_mount_dir / file0.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
   // Create a file with the same name on the virtual drive...
-  ASSERT_TRUE(CreateFileAt(g_mount_dir / file0.filename()));
+  ASSERT_TRUE(this->CreateFileAt(g_mount_dir / file0.filename()));
   ASSERT_TRUE(fs::exists(file0, error_code));
   ASSERT_EQ(error_code.value(), 0);
   // Create another file on disk...
@@ -1040,7 +1040,7 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_CheckFailures) {
 }
 
 TYPED_TEST_P(CallbacksApiTest, FUNC_FunctionalTest) {
-  ASSERT_TRUE(DoRandomEvents());
+  ASSERT_TRUE(this->DoRandomEvents());
 }
 
 namespace {
@@ -1181,7 +1181,7 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_BENCHMARK_CopyThenReadLargeFile) {
   // Compare content in the two files...
   ASSERT_EQ(fs::file_size(g_mount_dir / file.filename()), fs::file_size(file));
   bptime::ptime compare_start_time(bptime::microsec_clock::universal_time());
-  ASSERT_TRUE(CompareFileContents(g_mount_dir / file.filename(), file));
+  ASSERT_TRUE(this->CompareFileContents(g_mount_dir / file.filename(), file));
   bptime::ptime compare_stop_time(bptime::microsec_clock::universal_time());
   PrintResult(compare_start_time, compare_stop_time, size, kCompare);
 }
@@ -1227,7 +1227,7 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_BENCHMARK_CopyThenReadManySmallFiles) {
     if (!fs::exists(str))
       Sleep(std::chrono::seconds(1));
     ASSERT_TRUE(fs::exists(str))  << "Missing " << str;
-    ASSERT_TRUE(CompareFileContents(*it, str)) << "Comparing " << *it << " with " << str;
+    ASSERT_TRUE(this->CompareFileContents(*it, str)) << "Comparing " << *it << " with " << str;
   }
   bptime::ptime compare_stop_time(bptime::microsec_clock::universal_time());
   PrintResult(compare_start_time, compare_stop_time, total_data_size, kCompare);
