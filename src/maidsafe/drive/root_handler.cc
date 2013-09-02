@@ -81,7 +81,7 @@ DataTagValue RootHandler<data_store::SureFileStore>::GetDirectoryType(
 
 // TODO(dirvine) uncomment for lifestuff  #BEFORE_RELEASE
 //template<>
-//void RootHandler<nfs_client::MaidNodeNfs>::CreateRoot(const Identity& unique_user_id) {
+void RootHandler<nfs_client::MaidNodeNfs>::CreateRoot(const Identity& /*unique_user_id*/) {
 //  drive_root_id_ = Identity(RandomString(64));
 //  // First run, setup working directories.
 //  // Root/Parent.
@@ -124,7 +124,7 @@ DataTagValue RootHandler<data_store::SureFileStore>::GetDirectoryType(
 //  root.listing->AddChild(group_meta_data);
 //  root.listing->AddChild(world_meta_data);
 //  PutToStorage(std::make_pair(root, DataTagValue::kOwnerDirectoryValue));
-//}
+}
 
 template<>
 void RootHandler<data_store::SureFileStore>::CreateRoot(const Identity& unique_user_id) {
@@ -133,13 +133,15 @@ void RootHandler<data_store::SureFileStore>::CreateRoot(const Identity& unique_u
   root_.listing = std::make_shared<DirectoryListing>(Identity(RandomString(64)));
 }
 
-//template<>
-//void RootHandler<nfs_client::MaidNodeNfs>::InitRoot(const Identity& unique_user_id,
-//                                                    const Identity& drive_root_id) {
-//  assert(drive_root_id.IsInitialised() && unique_user_id.IsInitialised());
+template<>
+void RootHandler<nfs_client::MaidNodeNfs>::InitRoot(const Identity& unique_user_id,
+                                                    const Identity& drive_root_id) {
+  assert(unique_user_id.IsInitialised() && drive_root_id.IsInitialised());
+  static_cast<void>(unique_user_id);
+  static_cast<void>(drive_root_id);
 //  Directory directory(GetFromStorage(unique_user_id_, drive_root_id_,
 //                                     DataTagValue::kOwnerDirectoryValue));
-//}
+}
 
 template<>
 void RootHandler<data_store::SureFileStore>::InitRoot(const Identity& unique_user_id,

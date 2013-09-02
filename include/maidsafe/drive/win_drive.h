@@ -653,7 +653,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* sender,
 
     file_context->self_encryptor.reset(
         new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
-                                            directory_handler->storage()));
+                                            *directory_handler->storage()));
   }
 
   file_info->set_UserContext(file_context);
@@ -698,7 +698,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsOpenFile(CallbackFileSystem* sender,
       assert(directory_handler);
       file_context->self_encryptor.reset(
          new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
-                                             directory_handler->storage()));
+                                             *directory_handler->storage()));
     }
   }
   // Transfer ownership of the pointer to CBFS' file_info.
@@ -1232,7 +1232,7 @@ void CbfsDriveInUserSpace<Storage>::SetNewAttributes(FileContext<Storage>* file_
     assert(directory_handler);
 
     file_context->self_encryptor.reset(new encrypt::SelfEncryptor<Storage>(
-        file_context->meta_data->data_map, directory_handler->storage()));
+        file_context->meta_data->data_map, *directory_handler->storage()));
     file_context->meta_data->end_of_file = file_context->meta_data->allocation_size =
         file_context->self_encryptor->size();
   }

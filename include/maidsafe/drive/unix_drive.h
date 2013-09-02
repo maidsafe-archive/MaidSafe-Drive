@@ -64,7 +64,6 @@ FuseDriveInUserSpace<Storage>* Global<Storage>::g_fuse_drive;
 template<typename Storage>
 class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
  public:
-
   FuseDriveInUserSpace(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
                        const Identity& unique_user_id,
                        const Identity& drive_root_id,
@@ -216,11 +215,11 @@ FuseDriveInUserSpace<Storage>::FuseDriveInUserSpace(std::shared_ptr<nfs_client::
                                                   drive_root_id,
                                                   mount_dir,
                                                   on_service_added),
-     fuse_(nullptr),
-     fuse_channel_(nullptr),
-     fuse_mountpoint_(nullptr),
-     drive_name_(drive_name.string()),
-     fuse_event_loop_thread_() {
+      fuse_(nullptr),
+      fuse_channel_(nullptr),
+      fuse_mountpoint_(nullptr),
+      drive_name_(drive_name.string()),
+      fuse_event_loop_thread_() {
   Init();
 }
 
@@ -236,12 +235,12 @@ FuseDriveInUserSpace<Storage>::FuseDriveInUserSpace(const Identity& drive_root_i
                                                   on_service_added,
                                                   on_service_removed,
                                                   on_service_renamed),
-     fuse_(nullptr),
-     fuse_channel_(nullptr),
-     fuse_mountpoint_(nullptr),
-     drive_name_(drive_name.string()),
-     fuse_event_loop_thread_() {
- Init();
+      fuse_(nullptr),
+      fuse_channel_(nullptr),
+      fuse_mountpoint_(nullptr),
+      drive_name_(drive_name.string()),
+      fuse_event_loop_thread_() {
+  Init();
 }
 
 

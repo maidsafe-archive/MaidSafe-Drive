@@ -61,6 +61,8 @@ class ApiTestEnvironment : public testing::Environment {
   explicit ApiTestEnvironment(std::string test_directory)
       : main_test_dir_(maidsafe::test::CreateTestPath(test_directory)),
         virtual_filesystem_test_(test_directory == "MaidSafe_Test_Drive"),
+        maid_node_nfs_(),
+        unique_user_id_(Identity(RandomString(64))),
         drive_root_id_(Identity(crypto::Hash<crypto::SHA512>(main_test_dir_->string()))),
         on_added_([](const fs::path& alias,
                      const Identity& drive_root_id,
@@ -72,51 +74,34 @@ class ApiTestEnvironment : public testing::Environment {
         on_renamed_([](const fs::path& old_alias, const fs::path& new_alias) {
                         LOG(kInfo) << "Renamed " << old_alias << " to " << new_alias;
                     }),
-        drive_(
-            on_renamed_)) {}
+        drive_() {}
 
  protected:
   void SetUp() {
+    boost::system::error_code error_code;
 #ifdef MAIDSAFE_WIN32
     if (virtual_filesystem_test_) {
-      g_mount_dir = "S:";
+      g_mount_dir = GetNextAvailableDrivePath();
     } else {
       g_mount_dir = *main_test_dir_ / "TestMount";
+      fs::create_directories(g_mount_dir, error_code);
+      ASSERT_EQ(0, error_code.value());
     }
     g_test_mirror = *main_test_dir_ / "TestMirror";
 #else
     g_mount_dir = *main_test_dir_ / "MaidSafeDrive";
     g_test_mirror = *main_test_dir_ / "Temp";
-#endif
-
-    boost::system::error_code error_code;
-#ifndef MAIDSAFE_WIN32
     fs::create_directories(g_mount_dir, error_code);
     ASSERT_EQ(0, error_code.value());
-#else
-    if (!virtual_filesystem_test_) {
-      fs::create_directories(g_mount_dir, error_code);
-      ASSERT_EQ(0, error_code.value());
-    }
 #endif
+
     fs::create_directories(g_test_mirror, error_code);
     ASSERT_EQ(0, error_code.value());
     if (virtual_filesystem_test_) {
+      ConstructDrive();
 #ifdef MAIDSAFE_WIN32
       g_mount_dir /= "\\Owner";
 #else
-      drive_ = std::make_shared<DerivedDriveInUserSpace<Storage>>(drive_root_id_,
-                                                                   g_mount_dir,
-                                                                   "MaidSafeDrive",
-                                                                  );
-      // TODO(Team): Find out why, if the mount is put on the asio service,
-      //             unmount hangs
-//      boost::thread th(std::bind(&DerivedDriveInUserSpace<Storage>::Mount, drive_));
-      if (!drive_->WaitUntilMounted()) {
-        LOG(kError) << "Drive failed to mount";
-//         asio_service_.Stop();
-        ASSERT_TRUE(false);
-      }
       g_mount_dir /= "Owner";
 #endif
       AddOwnerDir(g_mount_dir);
@@ -138,16 +123,31 @@ class ApiTestEnvironment : public testing::Environment {
   ApiTestEnvironment(ApiTestEnvironment&&);
   ApiTestEnvironment& operator=(ApiTestEnvironment);
 
+  void ConstructDrive();
   void AddOwnerDir(const fs::path& owner_dir);
 
   maidsafe::test::TestPath main_test_dir_;
   bool virtual_filesystem_test_;
-  Identity drive_root_id_;
+  std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs_;
+  Identity unique_user_id_, drive_root_id_;
   OnServiceAdded on_added_;
   OnServiceRemoved on_removed_;
   OnServiceRenamed on_renamed_;
-  std::shared_ptr<DerivedDriveInUserSpace<Storage>> drive_;
+  std::shared_ptr<typename Drive<Storage>::TestDriveInUserSpace> drive_;
 };
+
+template<>
+void ApiTestEnvironment<nfs_client::MaidNodeNfs>::ConstructDrive() {
+  // TODO(Fraser#5#): 2013-09-02 - Construct maid_node_nfs_
+  drive_ = std::make_shared<typename Drive<nfs_client::MaidNodeNfs>::TestDriveInUserSpace>(
+               maid_node_nfs_, unique_user_id_, drive_root_id_, g_mount_dir, "MaidSafe", on_added_);
+}
+
+template<>
+void ApiTestEnvironment<data_store::SureFileStore>::ConstructDrive() {
+  drive_ = std::make_shared<typename Drive<data_store::SureFileStore>::TestDriveInUserSpace>(
+               drive_root_id_, g_mount_dir, "MaidSafe", on_added_, on_removed_, on_renamed_);
+}
 
 template<>
 void ApiTestEnvironment<nfs_client::MaidNodeNfs>::AddOwnerDir(const fs::path&) {}  // no-op
@@ -632,7 +632,7 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryToDriveThenDelete) {
   ASSERT_EQ(error_code.value(), 0);
   // Delete the directory along with its contents...
   ASSERT_EQ(2U, fs::remove_all(g_mount_dir / directory.filename(), error_code));
-  ASSERT_EQ(error_code.value(), 0);
+  ASSERT_EQ(error_code.value(), 0) << error_code.message();
   ASSERT_FALSE(fs::exists(g_mount_dir / directory.filename(), error_code));
   ASSERT_NE(error_code.value(), 0);
   ASSERT_FALSE(fs::exists(g_mount_dir / directory.filename() / file.filename()));

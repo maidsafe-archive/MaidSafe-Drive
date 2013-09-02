@@ -170,7 +170,7 @@ TEST(Drive, BEH_SureStore) {
 //        owner_meta_data_(owner_, true),
 //        max_space_(1073741824),
 //        used_space_(0),
-//        drive_(std::make_shared<DerivedDriveInUserSpace>(client_nfs_,
+//        drive_(std::make_shared<Drive<Storage>::TestDriveInUserSpace(client_nfs_,
 //                                                         data_store_,
 //                                                         default_maid_,
 //                                                         unique_user_id_,
@@ -198,7 +198,7 @@ TEST(Drive, BEH_SureStore) {
 //  fs::path owner_;
 //  MetaData owner_meta_data_;
 //  int64_t max_space_, used_space_;
-//  std::shared_ptr<DerivedDriveInUserSpace> drive_;
+//  std::shared_ptr<Drive<Storage>::TestDriveInUserSpace> drive_;
 //  std::shared_ptr<detail::DirectoryHandler> directory_handler_;
 //};
 //

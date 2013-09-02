@@ -71,27 +71,12 @@ enum TestOperationCode {
 };
 
 template<typename Storage>
-class DerivedDriveInUserSpace : public Drive<Storage>::TestDriveInUserSpace {
- public:
-  DerivedDriveInUserSpace(const Identity& drive_root_id,
-                          const boost::filesystem::path& mount_dir,
-                          const boost::filesystem::path& drive_name,
-                          OnServiceAdded on_service_added,
-                          OnServiceRemoved on_service_removed,
-                          OnServiceRenamed on_service_renamed)
-      : Drive<Storage>::TestDriveInUserSpace(drive_root_id, mount_dir, drive_name, on_service_added,
-                                             on_service_removed, on_service_renamed) {}
-
-  std::shared_ptr<RootHandler<Storage>> root_handler() const { return this->root_handler_; }
-};
-
-template<typename Storage>
 struct GlobalDrive {
-  static std::shared_ptr<DerivedDriveInUserSpace<Storage>> g_drive;
+  static std::shared_ptr<typename Drive<Storage>::TestDriveInUserSpace> g_drive;
 };
 
 template<typename Storage>
-std::shared_ptr<DerivedDriveInUserSpace<Storage>> GlobalDrive<Storage>::g_drive;
+std::shared_ptr<typename Drive<Storage>::TestDriveInUserSpace> GlobalDrive<Storage>::g_drive;
 
 void PrintResult(const bptime::ptime &start_time,
                  const bptime::ptime &stop_time,
