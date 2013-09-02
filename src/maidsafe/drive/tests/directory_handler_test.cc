@@ -116,7 +116,7 @@ class DirectoryHandlerTest : public testing::Test {
  public:
   DirectoryHandlerTest()
       : main_test_dir_(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive")),
-        data_store_(new data_store::SureFileStore(*main_test_dir_, DiskUsage(1 << 9))),
+        data_store_(new data_store::SureFileStore(*main_test_dir_, DiskUsage(1 << 30))),
         owner_(kRoot / "Owner"),
         owner_meta_data_(owner_, true),
         unique_user_id_(RandomString(64)),

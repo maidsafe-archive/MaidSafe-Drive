@@ -247,8 +247,9 @@ typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type
       directory.data_map.reset(new encrypt::DataMap);
     encrypt::SelfEncryptor<Storage> self_encryptor(directory.data_map, storage);
     assert(serialised_directory_listing.size() <= std::numeric_limits<uint32_t>::max());
-    if (!self_encryptor.Write(serialised_directory_listing.c_str(),
-                              static_cast<uint32_t>(serialised_directory_listing.size()), 0)) {
+    auto write_size(static_cast<uint32_t>(serialised_directory_listing.size()));
+    if (!self_encryptor.Write(serialised_directory_listing.c_str(), write_size, 0) ||
+        !self_encryptor.Truncate(write_size)) {
       ThrowError(CommonErrors::invalid_parameter);
     }
   }

@@ -13,6 +13,8 @@ implied. See the License for the specific language governing permissions and lim
 License.
 */
 
+#include "maidsafe/drive/directory_listing.h"
+
 #include <algorithm>
 #include <functional>
 #include <iterator>
@@ -29,7 +31,6 @@ License.
 #include "maidsafe/encrypt/self_encryptor.h"
 
 #include "maidsafe/drive/meta_data.h"
-#include "maidsafe/drive/directory_listing.h"
 #include "maidsafe/drive/proto_structs.pb.h"
 
 

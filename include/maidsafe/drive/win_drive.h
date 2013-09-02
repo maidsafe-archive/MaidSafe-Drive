@@ -1049,7 +1049,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsDeleteFile(CallbackFileSystem* sender,
   LOG(kInfo) << "CbFsDeleteFile - " << relative_path;
   FileContext<Storage> file_context;
   try {
-    cbfs_drive->GetMetaData(relative_path, *file_context.meta_data.get(), nullptr, nullptr);
+//    cbfs_drive->GetMetaData(relative_path, *file_context.meta_data.get(), nullptr, nullptr);
     cbfs_drive->RemoveFile(relative_path);
   }
   catch(...) {

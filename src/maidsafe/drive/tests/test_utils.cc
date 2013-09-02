@@ -237,28 +237,6 @@ bool SameFileContents(fs::path const& path1, fs::path const& path2) {
   return true;
 }
 
-int64_t CalculateUsedSpace(fs::path const& path) {
-  LOG(kInfo) << "CalculatUsedSpace: " << path;
-  boost::system::error_code error_code;
-  int64_t space_used(0);
-  fs::recursive_directory_iterator begin(path), end;
-  try {
-    for (; begin != end; ++begin) {
-      if (fs::is_directory(*begin)) {
-        space_used += 4096;  // kDirectorySize;
-      } else if (fs::is_regular_file(*begin)) {
-        space_used += fs::file_size((*begin).path(), error_code);
-        EXPECT_EQ(0, error_code.value());
-      }
-    }
-  }
-  catch(...) {
-    LOG(kError) << "CalculatUsedSpace: Failed";
-    return 0;
-  }
-  return space_used;
-}
-
 uint64_t TotalSize(encrypt::DataMapPtr data_map) {
   uint64_t size(data_map->chunks.empty() ? data_map->content.size() : 0);
   std::for_each(data_map->chunks.begin(), data_map->chunks.end(),

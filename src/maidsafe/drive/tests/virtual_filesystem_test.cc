@@ -624,27 +624,18 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryToDriveThenDelete) {
   ASSERT_EQ(error_code.value(), 0);
   // Create a file in newly created directory...
   fs::path file(CreateTestFile(directory, file_size));
-  // Check used space...
-//  ASSERT_EQ(0, g_drive->GetUsedSpace());
   // Copy directory and file to virtual drive...
   ASSERT_TRUE(CopyDirectories(directory, g_mount_dir));
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename() / file.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
-  // Check used space...
-  ASSERT_EQ(CalculateUsedSpace(g_test_mirror), CalculateUsedSpace(g_mount_dir));
-//  if (g_virtual_filesystem_test)
-//    ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
   // Delete the directory along with its contents...
   ASSERT_EQ(2U, fs::remove_all(g_mount_dir / directory.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
   ASSERT_FALSE(fs::exists(g_mount_dir / directory.filename(), error_code));
   ASSERT_NE(error_code.value(), 0);
   ASSERT_FALSE(fs::exists(g_mount_dir / directory.filename() / file.filename()));
-  // Check used space...
-//  ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
-//  ASSERT_EQ(0, g_drive->GetUsedSpace());
 }
 
 TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryToDriveDeleteThenRecopy) {
@@ -658,26 +649,16 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryToDriveDeleteThenRecopy)
   ASSERT_TRUE(CopyDirectories(directory, g_mount_dir));
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename()));
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename() / file.filename()));
-  // Check used space...
-//  if (g_virtual_filesystem_test)
-//    ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
   // Delete the directory along with its contents...
   boost::system::error_code error_code;
   ASSERT_EQ(2U, fs::remove_all(g_mount_dir / directory.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
   ASSERT_FALSE(fs::exists(g_mount_dir / directory.filename()));
   ASSERT_FALSE(fs::exists(g_mount_dir / directory.filename() / file.filename()));
-  // Check used space again...
-//  ASSERT_EQ(0, g_drive->GetUsedSpace());
   // Re-copy directory and file to virtual drive...
   ASSERT_TRUE(CopyDirectories(directory, g_mount_dir));
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename()));
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename() / file.filename()));
-  // and again...
-//  if (g_virtual_filesystem_test) {
-//    ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
-//    ASSERT_EQ(file_size + kDirectorySize, g_drive->GetUsedSpace());
-//  }
 }
 
 TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryThenRename) {
@@ -695,10 +676,6 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryThenRename) {
   ASSERT_EQ(error_code.value(), 0);
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename() / file.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
-  // Check used space...
-  ASSERT_EQ(CalculateUsedSpace(g_test_mirror), CalculateUsedSpace(g_mount_dir));
-//  if (g_virtual_filesystem_test)
-//    ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
   // Rename the directory...
   fs::path new_directory_name(g_mount_dir / maidsafe::RandomAlphaNumericString(5));
   fs::rename(g_mount_dir / directory.filename(), new_directory_name, error_code);
@@ -707,10 +684,6 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryThenRename) {
   ASSERT_NE(error_code.value(), 0);
   ASSERT_TRUE(fs::exists(new_directory_name, error_code));
   ASSERT_EQ(error_code.value(), 0);
-  // Check used space...
-  ASSERT_EQ(file_size + kDirectorySize, CalculateUsedSpace(g_test_mirror));
-//  if (g_virtual_filesystem_test)
-//    ASSERT_EQ(file_size + kDirectorySize, g_drive->GetUsedSpace());
 }
 
 TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryRenameThenRecopy) {
@@ -728,9 +701,6 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryRenameThenRecopy) {
   ASSERT_EQ(error_code.value(), 0);
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename() / file.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
-  // Check used space...
-//  if (g_virtual_filesystem_test)
-//    ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
   // Rename the directory...
   fs::path new_directory_name(g_mount_dir / maidsafe::RandomAlphaNumericString(5));
   fs::rename(g_mount_dir / directory.filename(), new_directory_name, error_code);
@@ -744,11 +714,6 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyNonemptyDirectoryRenameThenRecopy) {
   ASSERT_EQ(error_code.value(), 0);
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename() / file.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
-  // Check used space again...
-//  if (g_virtual_filesystem_test) {
-//    ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
-//    ASSERT_EQ(2 * file_size + 2 * kDirectorySize, g_drive->GetUsedSpace());
-//  }
 }
 
 TYPED_TEST_P(CallbacksApiTest, FUNC_CopyDirectoryContainingFiles) {
@@ -760,10 +725,6 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_CopyDirectoryContainingFiles) {
   ASSERT_TRUE(CopyDirectories(directory, g_mount_dir));
   ASSERT_TRUE(fs::exists(g_mount_dir / directory.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
-  // Check used space...
-  ASSERT_EQ(CalculateUsedSpace(g_test_mirror), CalculateUsedSpace(g_mount_dir));
-//  if (g_virtual_filesystem_test)
-//    ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
 }
 
 TYPED_TEST_P(CallbacksApiTest, FUNC_CopyDirectoryContainingFilesAndDirectories) {
@@ -775,9 +736,6 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_CopyDirectoryContainingFilesAndDirectories) 
   ASSERT_TRUE(CopyDirectories(directories, g_mount_dir));
   ASSERT_TRUE(fs::exists(g_mount_dir / directories.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
-  // Check used space...
-//  if (g_virtual_filesystem_test)
-//    ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
 }
 
 TYPED_TEST_P(CallbacksApiTest, FUNC_CopyFileThenCopyCopiedFile) {
@@ -800,11 +758,6 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_CopyFileThenCopyCopiedFile) {
   ASSERT_EQ(error_code.value(), 0) << error_code.message();
   ASSERT_TRUE(fs::exists(g_mount_dir / file.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
-  // Check used space...
-//  if (g_virtual_filesystem_test) {
-//   ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
-//    ASSERT_EQ(file_size, g_drive->GetUsedSpace());
-//  }
 }
 
 TYPED_TEST_P(CallbacksApiTest, FUNC_CopyFileDeleteThenRecopy) {
@@ -829,11 +782,6 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_CopyFileDeleteThenRecopy) {
   ASSERT_EQ(error_code.value(), 0);
   ASSERT_TRUE(fs::exists(g_mount_dir / file.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
-  // Check used space...
-//  if (g_virtual_filesystem_test) {
-//    ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
-//    ASSERT_EQ(file_size, g_drive->GetUsedSpace());
-//  }
 }
 
 TYPED_TEST_P(CallbacksApiTest, FUNC_CopyFileRenameThenRecopy) {
@@ -848,9 +796,6 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_CopyFileRenameThenRecopy) {
   ASSERT_EQ(error_code.value(), 0);
   ASSERT_TRUE(fs::exists(g_mount_dir / file.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
-  // Check used space...
-//  if (g_virtual_filesystem_test)
-//    ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
   // Rename the file...
   fs::path new_file_name(g_mount_dir / (RandomAlphaNumericString(5) + ".txt"));
   fs::rename(g_mount_dir / file.filename(), new_file_name, error_code);
@@ -864,9 +809,6 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_CopyFileRenameThenRecopy) {
   ASSERT_EQ(error_code.value(), 0);
   ASSERT_TRUE(fs::exists(g_test_mirror / file.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
-  // Check used space...
-//  if (g_virtual_filesystem_test)
-//    ASSERT_EQ(2 * file_size, g_drive->GetUsedSpace());
 }
 
 TYPED_TEST_P(CallbacksApiTest, BEH_CopyFileThenRead) {
@@ -889,9 +831,6 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyFileThenRead) {
   // Compare content in the two files...
   ASSERT_EQ(fs::file_size(test_file), fs::file_size(file));
   ASSERT_TRUE(CompareFileContents(test_file, file));
-  // Check used space...
-//  if (g_virtual_filesystem_test)
-//    ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
 }
 
 TYPED_TEST_P(CallbacksApiTest, FUNC_CopyFileRenameThenRead) {
@@ -962,11 +901,6 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CreateFileOnDriveThenRead) {
   fs::path test_file(g_test_mirror / file.filename());
   fs::copy_file(file, test_file, fs::copy_option::overwrite_if_exists, error_code);
   ASSERT_EQ(error_code.value(), 0);
-  // Check used space...
-//  if (g_virtual_filesystem_test) {
-//    ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
-//    ASSERT_EQ(file_size, g_drive->GetUsedSpace());
-//  }
 }
 
 TYPED_TEST_P(CallbacksApiTest, BEH_CopyFileModifyThenRead) {
@@ -981,20 +915,10 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CopyFileModifyThenRead) {
   ASSERT_EQ(error_code.value(), 0);
   ASSERT_TRUE(fs::exists(g_mount_dir / file.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
-  // Check used space...
-//  if (g_virtual_filesystem_test) {
-//    ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
-//    ASSERT_EQ(file_size, g_drive->GetUsedSpace());
-//  }
   // Modify the file...
   ASSERT_TRUE(ModifyFile(g_mount_dir / file.filename(), file_size));
   ASSERT_TRUE(fs::exists(g_mount_dir / file.filename(), error_code));
   ASSERT_EQ(error_code.value(), 0);
-  // Check used space again...
-//  if (g_virtual_filesystem_test) {
-//    ASSERT_EQ(g_drive->GetUsedSpace(), CalculateUsedSpace(g_mount_dir));
-//    ASSERT_EQ(file_size, g_drive->GetUsedSpace());
-//  }
   // Write virtual drive file back to a disk file...
   fs::path test_file(g_test_mirror / (RandomAlphaNumericString(5) + ".txt"));
   fs::copy_file(g_mount_dir / file.filename(),
@@ -1271,11 +1195,10 @@ TYPED_TEST_P(CallbacksApiTest, FUNC_BENCHMARK_CopyThenReadManySmallFiles) {
   std::uint32_t num_of_files(300);  // 3000);
   std::uint32_t max_filesize(256 * 1024);
   std::uint32_t min_filesize(1);
-  std::cout << "Creating a test tree with " << num_of_directories
-            << " directories holding " << num_of_files
-            << " files with file size range from "
-            << BytesToBinarySiUnits(min_filesize)
-            << " to " << BytesToBinarySiUnits(max_filesize) << std::endl;
+  std::cout << "Creating a test tree with " << num_of_directories << " directories holding "
+            << num_of_files << " files with file size range from "
+            << BytesToBinarySiUnits(min_filesize) << " to "
+            << BytesToBinarySiUnits(max_filesize) << std::endl;
   std::uint32_t total_data_size = CreateTestTreeStructure(g_test_mirror, &directories, &files,
                                                           num_of_directories, num_of_files,
                                                           max_filesize, min_filesize);

@@ -32,7 +32,7 @@ void RootHandler<data_store::SureFileStore>::AddService(
                          DataTagValue::kOwnerDirectoryValue);
 
   // TODO(Fraser#5#): 2013-08-26 - BEFORE_RELEASE - fix size
-  auto storage(std::make_shared<data_store::SureFileStore>(store_path, DiskUsage(1 << 9)));
+  auto storage(std::make_shared<data_store::SureFileStore>(store_path, DiskUsage(1 << 30)));
   PutToStorage(*storage, service_root);
   DirectoryHandler<data_store::SureFileStore> handler(storage, &root_,
                                                       DataTagValue::kOwnerDirectoryValue, true);
@@ -55,7 +55,7 @@ void RootHandler<data_store::SureFileStore>::ReInitialiseService(
     const boost::filesystem::path& store_path,
     const Identity& service_root_id) {
   // TODO(Fraser#5#): 2013-08-26 - BEFORE_RELEASE - fix size
-  auto storage(std::make_shared<data_store::SureFileStore>(store_path, DiskUsage(1 << 9)));
+  auto storage(std::make_shared<data_store::SureFileStore>(store_path, DiskUsage(1 << 30)));
   auto service_root(GetFromStorage(*storage, root_.listing->directory_id(), service_root_id,
                                    DataTagValue::kOwnerDirectoryValue));
   DirectoryHandler<data_store::SureFileStore> handler(storage, &root_,

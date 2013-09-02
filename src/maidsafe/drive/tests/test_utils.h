@@ -106,7 +106,6 @@ fs::path CreateNamedFile(fs::path const& path, const std::string &name, int64_t 
 fs::path CreateNamedDirectory(fs::path const& path, const std::string &name);
 bool ModifyFile(fs::path const& path, int64_t &file_size);
 bool SameFileContents(fs::path const& path1, fs::path const& path2);
-int64_t CalculateUsedSpace(fs::path const& path);
 
 uint64_t TotalSize(encrypt::DataMapPtr data_map);
 
