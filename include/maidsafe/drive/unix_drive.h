@@ -1072,7 +1072,7 @@ template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsGetattr(const char *path, struct stat *stbuf) {
   LOG(kInfo) << "OpsGetattr: " << path;
 #ifdef MAIDSAFE_APPLE
-  if (!g_fuse_drive->unmount_mutex_.try_lock()) {
+  if (!Global<Storage>::g_fuse_drive->unmount_mutex_.try_lock()) {
     LOG(kInfo) << "try lock unmount_mutex_ failed";
     return -EIO;
   }
