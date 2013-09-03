@@ -589,7 +589,7 @@ TYPED_TEST_P(CallbacksApiTest, BEH_AppendToFileTest) {
     WriteFile(file, content.string() + "a");
     NonEmptyString updated_content(ReadFile(file));
     ASSERT_EQ(updated_content.string().size(), content.string().size() + 1);
-    ASSERT_EQ(updated_content.string().size() , i);
+    ASSERT_EQ(updated_content.string().size() ,i + 2);
   }
 }
 
