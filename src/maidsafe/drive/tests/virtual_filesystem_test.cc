@@ -582,27 +582,14 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CreateDirectoryOnDrive) {
 
 TYPED_TEST_P(CallbacksApiTest, BEH_AppendToFileTest) {
   fs::path file(g_mount_dir / (RandomAlphaNumericString(5) + ".txt"));
-  FILE *test_file(NULL);
-  int this_char(0);
-  int num_of_a_chars = 0;
   int test_runs = 1000;
-
-  for (int i = 0; i < test_runs; ++i) {
-    test_file = fopen(file.string().c_str(), "a");
-    ASSERT_TRUE(test_file != NULL);
-    fputc('a', test_file);
-    fclose(test_file);
-    test_file = fopen(file.string().c_str(), "r");
-    ASSERT_TRUE(test_file != NULL);
-    while (this_char != EOF) {
-      this_char = getc(test_file);
-      if (this_char == 'a')
-        ++num_of_a_chars;
-    }
-    ASSERT_EQ(num_of_a_chars, i + 1);
-    fclose(test_file);
-    num_of_a_chars = 0;
-    this_char = 0;
+  WriteFile(file, "a");
+  for (int i = 0; i < test_runs; ++i) {  
+    NonEmptyString content(ReadFile(file));
+    WriteFile(file, content.string() + "a");
+    NonEmptyString updated_content(ReadFile(file));
+    ASSERT_EQ(updated_content.string().size(), content.string().size() + 1);
+    ASSERT_EQ(updated_content.string().size() , i);
   }
 }
 

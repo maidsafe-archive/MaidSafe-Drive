@@ -162,11 +162,6 @@ struct Default {
 //    return result;
 //}();
 
-// No default values for SureFile
-//template<>
-//const std::vector<typename Default<data_store::SureFileStore>::PathAndType>
-//Default<data_store::SureFileStore>::kValues;
-
 
 template<typename Storage>
 RootHandler<Storage>::RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
