@@ -16,9 +16,6 @@ License.
 #ifndef MAIDSAFE_DRIVE_UNIX_DRIVE_H_
 #define MAIDSAFE_DRIVE_UNIX_DRIVE_H_
 
-#ifndef FUSE_USE_VERSION
-#define FUSE_USE_VERSION 26
-#endif
 
 #include <algorithm>
 #include <cstdio>
@@ -49,6 +46,21 @@ namespace maidsafe {
 namespace drive {
 
 namespace detail {
+
+template<typename Storage>
+bool ForceFlush(RootHandler<Storage>& root_handler,
+                FileContext<Storage>* file_context) {
+  assert(file_context);
+  file_context->self_encryptor->Flush();
+
+  try {
+    root_handler.UpdateParentDirectoryListing(
+        file_context->meta_data->name.parent_path(), *file_context->meta_data.get());
+  } catch(...) {
+      return false;
+  }
+  return true;
+}
 
 template<typename Storage>
 class FuseDriveInUserSpace;
@@ -95,6 +107,7 @@ class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
 
   static int OpsCreate(const char *path, mode_t mode, struct fuse_file_info *file_info);
   static void OpsDestroy(void *fuse);
+
   static int OpsFlush(const char *path, struct fuse_file_info *file_info);
   static int OpsFtruncate(const char *path, off_t size, struct fuse_file_info *file_info);
   static int OpsMkdir(const char *path, mode_t mode);
@@ -177,7 +190,8 @@ inline fs::path RelativePath(const fs::path &mount_dir, const fs::path &absolute
 
 const int kMaxPath(4096);
 
-// FuseDriveInUserSpace *g_fuse_drive;
+template<typename Storage>
+using g_fuse_drive = FuseDriveInUserSpace<Storage>*;
 
 template<typename Storage>
 static inline struct FileContext<Storage> *GetFileContext(
@@ -254,9 +268,7 @@ void FuseDriveInUserSpace<Storage>::Init() {
   Global<Storage>::g_fuse_drive = this;
   maidsafe_ops_.create       = OpsCreate;
   maidsafe_ops_.destroy      = OpsDestroy;
-#ifdef MAIDSAFE_APPLE
-  maidsafe_ops_.flush        = OpsFlush;
-#endif
+//  maidsafe_ops_.flush        = OpsFlush;
   maidsafe_ops_.ftruncate    = OpsFtruncate;
   maidsafe_ops_.mkdir        = OpsMkdir;
   maidsafe_ops_.mknod        = OpsMknod;
@@ -483,17 +495,16 @@ void FuseDriveInUserSpace<Storage>::OpsDestroy(void */*fuse*/) {
 template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsFlush(const char *path, struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFlush: " << path << ", flags: " << file_info->flags;
-/*  FileContext<Storage> *file_context(GetFileContext(file_info));
+  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
   if (!file_context) {
     LOG(kError) << "OpsFlush: " << path << ", failed find filecontext for " << path;
     return -EINVAL;
   }
 
-  if (!ForceFlush(Global<Storage>::g_fuse_drive->directory_handler_, file_context)) {
-    LOG(kError) << "OpsFlush: " << path << ", failed to update. Result: " << result;
+  if (!ForceFlush(Global<Storage>::g_fuse_drive->root_handler_, file_context)) {
+    LOG(kError) << "OpsFlush: " << path << ", failed to update";
     return -EBADF;
   }
-*/
   return 0;
 }
 
@@ -1061,7 +1072,7 @@ template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsGetattr(const char *path, struct stat *stbuf) {
   LOG(kInfo) << "OpsGetattr: " << path;
 #ifdef MAIDSAFE_APPLE
-  if (!g_fuse_drive->unmount_mutex_.try_lock()) {
+  if (!Global<Storage>::g_fuse_drive->unmount_mutex_.try_lock()) {
     LOG(kInfo) << "try lock unmount_mutex_ failed";
     return -EIO;
   }
@@ -1432,11 +1443,12 @@ template<typename Storage>
 int FuseDriveInUserSpace<Storage>::Release(const char *path, struct fuse_file_info *file_info) {
   LOG(kInfo) << "Release - " << path;
 
-  // Transfer ownership of the pointer from CBFS' file_info.
+  // Transfer ownership of the pointer from Fuse file_info.
   auto deleter([&](FileContext<Storage>* ptr) {
     delete ptr;
     file_info->fh = 0;
   });
+  LOG(kInfo) << "About to get file context";
   std::unique_ptr<FileContext<Storage>, decltype(deleter)> file_context(
       static_cast<FileContext<Storage>*>(GetFileContext<Storage>(file_info)), deleter);
   assert(file_context);
@@ -1448,7 +1460,9 @@ int FuseDriveInUserSpace<Storage>::Release(const char *path, struct fuse_file_in
     if (file_context->content_changed) {
       try {
         fs::path full_path(path);
+        LOG(kInfo) << "About to Update Parent - ";
         Global<Storage>::g_fuse_drive->UpdateParent(file_context.get(), full_path.parent_path());
+        LOG(kInfo) << "After Update Parent - ";
       }
       catch(const std::exception& e) {
         LOG(kError) << "Release: " << path << ", failed to update.  " << e.what();

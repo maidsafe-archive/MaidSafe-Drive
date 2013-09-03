@@ -27,7 +27,6 @@ License.
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/meta_data.h"
 
-
 namespace maidsafe {
 
 namespace drive {
@@ -75,23 +74,24 @@ FileContext<Storage>::FileContext(std::shared_ptr<MetaData> meta_data_in)
       grandparent_directory_id(),
       parent_directory_id() {}
 
-#ifndef MAIDSAFE_WIN32
-// Not called by Windows...
-template<typename Storage>
-bool ForceFlush(std::shared_ptr<DirectoryHandler<Storage>> directory_handler,
-                FileContext<Storage>* file_context) {
-  BOOST_ASSERT(file_context);
-  file_context->self_encryptor->Flush();
+//TODO Delete
+//#ifndef MAIDSAFE_WIN32
+//// Not called by Windows...
+//template<typename Storage>
+//bool ForceFlush(const RootHandler<Storage>& root_handler,
+//                FileContext<Storage>* file_context) {
+//  BOOST_ASSERT(file_context);
+//  file_context->self_encryptor->Flush();
 
-  try {
-    directory_handler->UpdateParentDirectoryListing(
-        file_context->meta_data->name.parent_path(), *file_context->meta_data.get());
-  } catch(...) {
-      return false;
-  }
-  return true;
-}
-#endif
+//  try {
+//    root_handler->UpdateParentDirectoryListing(
+//        file_context->meta_data->name.parent_path(), *file_context->meta_data.get());
+//  } catch(...) {
+//      return false;
+//  }
+//  return true;
+//}
+//#endif
 
 bool ExcludedFilename(const boost::filesystem::path& path);
 
