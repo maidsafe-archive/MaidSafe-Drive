@@ -313,13 +313,13 @@ void RootHandler<Storage>::AddElement(const boost::filesystem::path& path,
                                       bool is_known_service_root) {
   SCOPED_PROFILE
   if (!CanAdd(path))
-    ThrowError(DriveErrors::permission_denied);
+    ThrowError(VaultErrors::permission_denied);
 
   auto alias(GetAlias(path));
   if (!is_known_service_root && alias &&
       directory_handlers_.find(*alias) != std::end(directory_handlers_)) {
     on_service_added_();
-    ThrowError(DriveErrors::permission_denied);
+    ThrowError(VaultErrors::permission_denied);
   }
 
   Directory grandparent, parent;
@@ -384,7 +384,7 @@ void RootHandler<Storage>::DeleteElement(const boost::filesystem::path& path,
   if (!is_known_service_root && alias &&
       directory_handlers_.find(*alias) != std::end(directory_handlers_)) {
     on_service_removed_(*alias);
-    ThrowError(DriveErrors::permission_denied);
+    ThrowError(VaultErrors::permission_denied);
   }
 
   Directory grandparent, parent;

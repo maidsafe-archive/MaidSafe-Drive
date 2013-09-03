@@ -73,7 +73,7 @@ void RootHandler<data_store::SureFileStore>::AddService(
   root_.listing->AddChild(service_meta_data);
   root_meta_data_.UpdateLastModifiedTime();
 #ifndef MAIDSAFE_WIN32
-  root_meta_data_.attributes.st_ctime = parent_meta_data.attributes.st_mtime;
+//  root_meta_data_.attributes.st_ctime = parent_meta_data.attributes.st_mtime;
   ++root_meta_data_.attributes.st_nlink;
 #endif
 }

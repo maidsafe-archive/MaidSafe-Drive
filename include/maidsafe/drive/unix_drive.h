@@ -37,6 +37,7 @@ License.
 #endif
 
 #include "maidsafe/drive/drive.h"
+#include "maidsafe/drive/utils.h"
 
 
 namespace fs = boost::filesystem;
@@ -429,7 +430,7 @@ int FuseDriveInUserSpace<Storage>::OpsCreate(const char *path,
              << std::boolalpha << S_ISDIR(mode);
 
   fs::path full_path(path);
-  if (ExcludedFilename(full_path)) {
+  if (detail::ExcludedFilename(full_path)) {
     LOG(kError) << "OpsCreate: invalid name " << full_path.filename();
     return -EINVAL;
   }
@@ -549,7 +550,7 @@ int FuseDriveInUserSpace<Storage>::OpsMkdir(const char *path, mode_t mode) {
              << mode << ", " << std::boolalpha << S_ISDIR(mode);
 
   fs::path full_path(path);
-  if (ExcludedFilename(full_path)) {
+  if (detail::ExcludedFilename(full_path)) {
     LOG(kError) << "OpsMkdir: invalid name " << full_path.filename();
     return -EINVAL;
   }
@@ -607,7 +608,7 @@ int FuseDriveInUserSpace<Storage>::OpsMknod(const char *path, mode_t mode, dev_t
     return -EIO;
   }
 
-  meta_data.attributes.st_size = kDirectorySize;
+  meta_data.attributes.st_size = detail::kDirectorySize;
 //  Global<Storage>::g_fuse_drive->used_space_ += kDirectorySize;
   return 0;
 }
@@ -1158,7 +1159,7 @@ int FuseDriveInUserSpace<Storage>::OpsReaddir(const char *path,
 
   filler(buf, ".", nullptr, 0);
   filler(buf, "..", nullptr, 0);
-  std::shared_ptr<DirectoryListing> dir_listing;
+  std::shared_ptr<detail::DirectoryListing> dir_listing;
   try {
     detail::Directory directory(Global<Storage>::g_fuse_drive->GetDirectory(fs::path(path)));
     dir_listing = directory.listing;
