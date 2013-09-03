@@ -54,11 +54,9 @@ class RootHandler {
               OnServiceRenamed on_service_renamed);
 
   void AddService(const boost::filesystem::path& service_alias,
-                  const boost::filesystem::path& store_path);
+                  const boost::filesystem::path& store_path,
+                  const Identity& service_root_id);
   void RemoveService(const boost::filesystem::path& service_alias);
-  void ReInitialiseService(const boost::filesystem::path& service_alias,
-                           const boost::filesystem::path& store_path,
-                           const Identity& service_root_id);
 
   // Returns nullptr if there isn't a subdir containig the given path (most likely path == kRoot)
   const DirectoryHandler<Storage>* GetHandler(const boost::filesystem::path& path) const;
@@ -76,10 +74,13 @@ class RootHandler {
   void AddElement(const boost::filesystem::path& path,
                   const MetaData& meta_data,
                   DirectoryId& grandparent_id,
-                  DirectoryId& parent_id);
+                  DirectoryId& parent_id,
+                  bool is_known_service_root = false);
 
   bool CanDelete(const boost::filesystem::path& path) const;
-  void DeleteElement(const boost::filesystem::path& path, MetaData& meta_data);
+  void DeleteElement(const boost::filesystem::path& path,
+                     MetaData& meta_data,
+                     bool is_known_service_root = false);
 
   void RenameElement(const boost::filesystem::path& old_path,
                      const boost::filesystem::path& new_path,
@@ -144,23 +145,6 @@ struct Default {
   }
 };
 
-//template<>
-//const std::vector<typename Default<nfs_client::MaidNodeNfs>::PathAndType>
-//    Default<nfs_client::MaidNodeNfs>::kValues =
-//        []()->std::vector<typename Default<nfs_client::MaidNodeNfs>::PathAndType> {
-//    std::vector<typename Default<nfs_client::MaidNodeNfs>::PathAndType> result;
-//    result.push_back(std::make_pair(boost::filesystem::path("/Owner").make_preferred(),
-//                                    DataTagValue::kOwnerDirectoryValue));
-//    result.push_back(std::make_pair(boost::filesystem::path("/Group"),
-//                                    DataTagValue::kGroupDirectoryValue));
-//    result.push_back(std::make_pair(boost::filesystem::path("/Group/Services").make_preferred(),
-//                                    DataTagValue::kGroupDirectoryValue));
-//    result.push_back(std::make_pair(boost::filesystem::path("/World"),
-//                                    DataTagValue::kWorldDirectoryValue));
-//    result.push_back(std::make_pair(boost::filesystem::path("/World/Services"),
-//                                    DataTagValue::kWorldDirectoryValue));
-//    return result;
-//}();
 
 
 template<typename Storage>
@@ -199,13 +183,12 @@ RootHandler<Storage>::RootHandler(const Identity& drive_root_id,
 template<>
 void RootHandler<data_store::SureFileStore>::AddService(
     const boost::filesystem::path& service_alias,
-    const boost::filesystem::path& store_path);
-
-template<>
-void RootHandler<data_store::SureFileStore>::ReInitialiseService(
-    const boost::filesystem::path& service_alias,
     const boost::filesystem::path& store_path,
     const Identity& service_root_id);
+
+template<>
+void RootHandler<data_store::SureFileStore>::RemoveService(
+    const boost::filesystem::path& service_alias);
 
 template<typename Storage>
 const DirectoryHandler<Storage>* RootHandler<Storage>::GetHandler(
@@ -326,10 +309,18 @@ template<typename Storage>
 void RootHandler<Storage>::AddElement(const boost::filesystem::path& path,
                                       const MetaData& meta_data,
                                       DirectoryId& grandparent_id,
-                                      DirectoryId& parent_id) {
+                                      DirectoryId& parent_id,
+                                      bool is_known_service_root) {
   SCOPED_PROFILE
   if (!CanAdd(path))
-    ThrowError(CommonErrors::invalid_parameter);
+    ThrowError(DriveErrors::permission_denied);
+
+  auto alias(GetAlias(path));
+  if (!is_known_service_root && alias &&
+      directory_handlers_.find(*alias) != std::end(directory_handlers_)) {
+    on_service_added_();
+    ThrowError(DriveErrors::permission_denied);
+  }
 
   Directory grandparent, parent;
   MetaData parent_meta_data;
@@ -376,10 +367,6 @@ void RootHandler<Storage>::AddElement(const boost::filesystem::path& path,
   if (grandparent.listing)
     grandparent_id = grandparent.listing->directory_id();
   parent_id = parent.listing->directory_id();
-
-  auto alias(GetAlias(path));
-  if (alias && IsDirectory(meta_data))
-    on_service_added_(*alias, parent_id, *meta_data.directory_id);
 }
 
 template<>
@@ -389,8 +376,17 @@ template<>
 bool RootHandler<data_store::SureFileStore>::CanDelete(const boost::filesystem::path& path) const;
 
 template<typename Storage>
-void RootHandler<Storage>::DeleteElement(const boost::filesystem::path& path, MetaData& meta_data) {
+void RootHandler<Storage>::DeleteElement(const boost::filesystem::path& path,
+                                         MetaData& meta_data,
+                                         bool is_known_service_root) {
   SCOPED_PROFILE
+  auto alias(GetAlias(path));
+  if (!is_known_service_root && alias &&
+      directory_handlers_.find(*alias) != std::end(directory_handlers_)) {
+    on_service_removed_(*alias);
+    ThrowError(DriveErrors::permission_denied);
+  }
+
   Directory grandparent, parent;
   MetaData parent_meta_data;
   GetParentAndGrandparent(path, grandparent, parent, parent_meta_data);
@@ -432,11 +428,8 @@ void RootHandler<Storage>::DeleteElement(const boost::filesystem::path& path, Me
 #endif
   Put(path.parent_path(), parent);
 
-  auto alias(GetAlias(path));
-  if (alias && directory_handlers_.find(*alias) != std::end(directory_handlers_)) {
+  if (alias)
     directory_handlers_.erase(*alias);
-    on_service_removed_(*alias);
-  }
 }
 
 template<>

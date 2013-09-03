@@ -38,9 +38,7 @@ namespace drive {
 
 struct MetaData;
 typedef Identity DirectoryId;
-typedef std::function<void(const boost::filesystem::path& /*service_alias*/,
-                           const Identity& /*drive_root_id*/,
-                           const Identity& /*service_root_id*/)> OnServiceAdded;
+typedef std::function<void()> OnServiceAdded;
 typedef std::function<void(const boost::filesystem::path& /*service_alias*/)> OnServiceRemoved;
 typedef std::function<void(const boost::filesystem::path& /*old_service_alias*/,
                            const boost::filesystem::path& /*new_service_alias*/)> OnServiceRenamed;

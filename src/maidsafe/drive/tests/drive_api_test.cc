@@ -95,24 +95,16 @@ testing::AssertionResult LastAccessTimesMatch(const MetaData &meta_data1,
 
 
 TEST(Drive, BEH_SureStore) {
-  fs::path svc_alias;
-  Identity root_id;
-  Identity svc_root_id;
-  OnServiceAdded on_added([&svc_alias, &root_id, &svc_root_id](const fs::path& alias,
-                                                               const Identity& drive_root_id,
-                                                               const Identity& service_root_id) {
-                            LOG(kInfo) << "Added " << alias << "  Root: "
-                                       << HexSubstr(drive_root_id) << "  Service: "
-                                       << HexSubstr(service_root_id);
-                            svc_alias = alias;
-                            root_id = drive_root_id;
-                            svc_root_id = service_root_id;
-                          });
-  OnServiceRemoved on_removed([](const fs::path& alias) { LOG(kInfo) << "Removed " << alias; });
+  OnServiceAdded on_added([] { LOG(kInfo) << "Trying to add a service."; });
+  OnServiceRemoved on_removed([](const fs::path& alias) {
+                                  LOG(kInfo) << "Trying to remove " << alias;
+                              });
   OnServiceRenamed on_renamed([](const fs::path& old_alias, const fs::path& new_alias) {
                                 LOG(kInfo) << "Renamed " << old_alias << " to " << new_alias;
                               });
   maidsafe::test::TestPath main_test_dir(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
+  Identity root_id;
+  Identity service_root_id(RandomString(64));
   fs::path service_name("AnotherService"), service_root, file_name("test.txt");
   std::string content("Content\n");
   {
@@ -122,19 +114,18 @@ TEST(Drive, BEH_SureStore) {
         Identity(), mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
     mount_dir /= "\\";
 #else
-            fs::path mount_dir(*main_test_dir / "mount");
-      detail::FuseDriveInUserSpace<data_store::SureFileStore> drive(
-          Identity(), mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
-
+    fs::path mount_dir(*main_test_dir / "mount");
+    detail::FuseDriveInUserSpace<data_store::SureFileStore> drive(
+        Identity(), mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
 #endif
-
+    root_id = drive.drive_root_id();
     MetaData meta_data("TestService", true);
     DirectoryId grandparent_id, parent_id;
-    drive.AddFile(detail::kRoot / "TestService", meta_data, grandparent_id, parent_id);
-    drive.AddService(meta_data.name, *main_test_dir / "TestService");
+    //expect throw: drive.AddFile(detail::kRoot / "TestService", meta_data, grandparent_id, parent_id);
+    drive.AddService(meta_data.name, *main_test_dir / "TestService", Identity(RandomString(64)));
 
-    fs::create_directory(mount_dir / service_name);
-    drive.AddService(service_name, *main_test_dir / service_name);
+    //expect throw/fail: fs::create_directory(mount_dir / service_name);
+    drive.AddService(service_name, *main_test_dir / service_name, service_root_id);
 
     service_root = mount_dir / service_name;
     EXPECT_TRUE(WriteFile(service_root / file_name, content));
@@ -145,15 +136,14 @@ TEST(Drive, BEH_SureStore) {
 #ifdef MAIDSAFE_WIN32
     auto mount_dir(GetNextAvailableDrivePath());
     detail::CbfsDriveInUserSpace<data_store::SureFileStore> drive(
-        Identity(), mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
+        root_id, mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
     mount_dir /= "\\";
 #else
-      fs::path mount_dir(*main_test_dir / "mount");
-      detail::FuseDriveInUserSpace<data_store::SureFileStore> drive(
-          Identity(), mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
-
+    fs::path mount_dir(*main_test_dir / "mount");
+    detail::FuseDriveInUserSpace<data_store::SureFileStore> drive(
+        root_id, mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
 #endif
-    drive.ReInitialiseService(svc_alias, *main_test_dir / svc_alias, svc_root_id);
+    drive.AddService(service_name, *main_test_dir / service_name, service_root_id);
     service_root = mount_dir / service_name;
     EXPECT_EQ(NonEmptyString(content), ReadFile(service_root / file_name));
   }

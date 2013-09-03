@@ -21,6 +21,24 @@ namespace drive {
 
 namespace detail {
 
+//template<>
+//const std::vector<typename Default<nfs_client::MaidNodeNfs>::PathAndType>
+//    Default<nfs_client::MaidNodeNfs>::kValues =
+//        []()->std::vector<typename Default<nfs_client::MaidNodeNfs>::PathAndType> {
+//    std::vector<typename Default<nfs_client::MaidNodeNfs>::PathAndType> result;
+//    result.push_back(std::make_pair(boost::filesystem::path("/Owner").make_preferred(),
+//                                    DataTagValue::kOwnerDirectoryValue));
+//    result.push_back(std::make_pair(boost::filesystem::path("/Group"),
+//                                    DataTagValue::kGroupDirectoryValue));
+//    result.push_back(std::make_pair(boost::filesystem::path("/Group/Services").make_preferred(),
+//                                    DataTagValue::kGroupDirectoryValue));
+//    result.push_back(std::make_pair(boost::filesystem::path("/World"),
+//                                    DataTagValue::kWorldDirectoryValue));
+//    result.push_back(std::make_pair(boost::filesystem::path("/World/Services"),
+//                                    DataTagValue::kWorldDirectoryValue));
+//    return result;
+//}();
+
 template<>
 const std::vector<typename Default<data_store::SureFileStore>::PathAndType>
     Default<data_store::SureFileStore>::kValues =
@@ -29,46 +47,42 @@ const std::vector<typename Default<data_store::SureFileStore>::PathAndType>
 template<>
 void RootHandler<data_store::SureFileStore>::AddService(
     const boost::filesystem::path& service_alias,
-    const boost::filesystem::path& store_path) {
-  MetaData meta_data;
-  root_.listing->GetChild(service_alias, meta_data);
-  auto listing(std::make_shared<DirectoryListing>(*meta_data.directory_id));
-  Directory service_root(root_.listing->directory_id(), listing, nullptr,
-                         DataTagValue::kOwnerDirectoryValue);
-
+    const boost::filesystem::path& store_path,
+    const Identity& service_root_id) {
   // TODO(Fraser#5#): 2013-08-26 - BEFORE_RELEASE - fix size
   auto storage(std::make_shared<data_store::SureFileStore>(store_path, DiskUsage(1 << 30)));
-  PutToStorage(*storage, service_root);
+  Directory service_root;
+  try {
+    // Logging back in
+    service_root = GetFromStorage(*storage, root_.listing->directory_id(), service_root_id,
+                                  DataTagValue::kOwnerDirectoryValue);
+  }
+  catch(...) {
+    // Creating new service
+    auto listing(std::make_shared<DirectoryListing>(service_root_id));
+    service_root = Directory(root_.listing->directory_id(), listing, nullptr,
+                             DataTagValue::kOwnerDirectoryValue);
+    PutToStorage(*storage, service_root);
+  }
+
   DirectoryHandler<data_store::SureFileStore> handler(storage, &root_,
                                                       DataTagValue::kOwnerDirectoryValue, true);
   directory_handlers_.insert(std::make_pair(service_alias, handler));
+  MetaData service_meta_data(service_alias, true);
+  *service_meta_data.directory_id = service_root_id;
+  root_.listing->AddChild(service_meta_data);
+  root_meta_data_.UpdateLastModifiedTime();
+#ifndef MAIDSAFE_WIN32
+  root_meta_data_.attributes.st_ctime = parent_meta_data.attributes.st_mtime;
+  ++root_meta_data_.attributes.st_nlink;
+#endif
 }
 
 template<>
 void RootHandler<data_store::SureFileStore>::RemoveService(
     const boost::filesystem::path& service_alias) {
-  // The service should not already have been added - this is only used to delete a new service's
-  // directory in the virtual drive when the user fails to provide a valid store_path for it.
-  assert(directory_handlers_.find(service_alias) == std::end(directory_handlers_));
   MetaData meta_data;
-  DeleteElement(kRoot / service_alias, meta_data);
-}
-
-template<>
-void RootHandler<data_store::SureFileStore>::ReInitialiseService(
-    const boost::filesystem::path& service_alias,
-    const boost::filesystem::path& store_path,
-    const Identity& service_root_id) {
-  // TODO(Fraser#5#): 2013-08-26 - BEFORE_RELEASE - fix size
-  auto storage(std::make_shared<data_store::SureFileStore>(store_path, DiskUsage(1 << 30)));
-  auto service_root(GetFromStorage(*storage, root_.listing->directory_id(), service_root_id,
-                                   DataTagValue::kOwnerDirectoryValue));
-  DirectoryHandler<data_store::SureFileStore> handler(storage, &root_,
-                                                      DataTagValue::kOwnerDirectoryValue, true);
-  directory_handlers_.insert(std::make_pair(service_alias, handler));
-  MetaData service_meta_data(service_alias, true);
-  *service_meta_data.directory_id = service_root.listing->directory_id();
-  root_.listing->AddChild(service_meta_data);
+  DeleteElement(kRoot / service_alias, meta_data, true);
 }
 
 template<>

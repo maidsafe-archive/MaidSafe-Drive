@@ -62,15 +62,11 @@ class ApiTestEnvironment : public testing::Environment {
       : main_test_dir_(maidsafe::test::CreateTestPath(test_directory)),
         virtual_filesystem_test_(test_directory == "MaidSafe_Test_Drive"),
         maid_node_nfs_(),
-        unique_user_id_(Identity(RandomString(64))),
-        drive_root_id_(Identity(crypto::Hash<crypto::SHA512>(main_test_dir_->string()))),
-        on_added_([](const fs::path& alias,
-                     const Identity& drive_root_id,
-                     const Identity& service_root_id) {
-                       LOG(kInfo) << "Added " << alias << "  Root: " << HexSubstr(drive_root_id)
-                                  << "  Service: " << HexSubstr(service_root_id);
-                  }),
-        on_removed_([](const fs::path& alias) { LOG(kInfo) << "Removed " << alias; }),
+        unique_user_id_(RandomString(64)),
+        drive_root_id_(crypto::Hash<crypto::SHA512>(main_test_dir_->string())),
+        owner_service_id_(RandomString(64)),
+        on_added_([] { LOG(kInfo) << "Tried to add service."; }),
+        on_removed_([](const fs::path& alias) { LOG(kInfo) << "Tried to remove " << alias; }),
         on_renamed_([](const fs::path& old_alias, const fs::path& new_alias) {
                         LOG(kInfo) << "Renamed " << old_alias << " to " << new_alias;
                     }),
@@ -104,7 +100,6 @@ class ApiTestEnvironment : public testing::Environment {
 #else
       g_mount_dir /= "Owner";
 #endif
-      AddOwnerDir(g_mount_dir);
     }
     GlobalDrive<Storage>::g_drive = drive_;
     g_virtual_filesystem_test = virtual_filesystem_test_;
@@ -124,12 +119,11 @@ class ApiTestEnvironment : public testing::Environment {
   ApiTestEnvironment& operator=(ApiTestEnvironment);
 
   void ConstructDrive();
-  void AddOwnerDir(const fs::path& owner_dir);
 
   maidsafe::test::TestPath main_test_dir_;
   bool virtual_filesystem_test_;
   std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs_;
-  Identity unique_user_id_, drive_root_id_;
+  Identity unique_user_id_, drive_root_id_, owner_service_id_;
   OnServiceAdded on_added_;
   OnServiceRemoved on_removed_;
   OnServiceRenamed on_renamed_;
@@ -147,19 +141,7 @@ template<>
 void ApiTestEnvironment<data_store::SureFileStore>::ConstructDrive() {
   drive_ = std::make_shared<typename Drive<data_store::SureFileStore>::TestDriveInUserSpace>(
                drive_root_id_, g_mount_dir, "MaidSafe", on_added_, on_removed_, on_renamed_);
-}
-
-template<>
-void ApiTestEnvironment<nfs_client::MaidNodeNfs>::AddOwnerDir(const fs::path&) {}  // no-op
-
-template<>
-void ApiTestEnvironment<data_store::SureFileStore>::AddOwnerDir(const fs::path& owner_dir) {
-  boost::system::error_code error_code;
-  EXPECT_TRUE(fs::create_directories(owner_dir, error_code)) << owner_dir
-              << ": " << error_code.message();
-  EXPECT_EQ(0, error_code.value()) << owner_dir << ": " << error_code.message();
-  EXPECT_TRUE(fs::exists(owner_dir, error_code)) << owner_dir << ": " << error_code.message();
-  drive_->AddService("Owner", *main_test_dir_ / "OwnerSureFileStore");
+  drive_->AddService("Owner", *main_test_dir_ / "OwnerSureFileStore", owner_service_id_);
 }
 
 template<typename Storage>
@@ -584,12 +566,12 @@ TYPED_TEST_P(CallbacksApiTest, BEH_AppendToFileTest) {
   fs::path file(g_mount_dir / (RandomAlphaNumericString(5) + ".txt"));
   int test_runs = 1000;
   WriteFile(file, "a");
-  for (int i = 0; i < test_runs; ++i) {  
+  for (int i = 0; i < test_runs; ++i) {
     NonEmptyString content(ReadFile(file));
     WriteFile(file, content.string() + "a");
     NonEmptyString updated_content(ReadFile(file));
     ASSERT_EQ(updated_content.string().size(), content.string().size() + 1);
-    ASSERT_EQ(updated_content.string().size() ,i + 2);
+    ASSERT_EQ(updated_content.string().size(), i + 2);
   }
 }
 

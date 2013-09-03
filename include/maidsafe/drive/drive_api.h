@@ -87,13 +87,9 @@ class DriveInUserSpace {
   // ********************* SureFile functions ******************************************************
 
   void AddService(const boost::filesystem::path& service_alias,
-                  const boost::filesystem::path& store_path);
-  // Only called if a service was added but the user failed to provide a valid store_path for it.
+                  const boost::filesystem::path& store_path,
+                  const Identity& service_root_id);
   void RemoveService(const boost::filesystem::path& service_alias);
-  // Called on login for each service found in config file.
-  void ReInitialiseService(const boost::filesystem::path& service_alias,
-                           const boost::filesystem::path& store_path,
-                           const Identity& service_root_id);
 
   // ********************* File / Folder Transfers *************************************************
 
@@ -256,20 +252,14 @@ void DriveInUserSpace<Storage>::WaitUntilUnMounted() {
 
 template<typename Storage>
 void DriveInUserSpace<Storage>::AddService(const boost::filesystem::path& service_alias,
-                                           const boost::filesystem::path& store_path) {
-  root_handler_.AddService(service_alias, store_path);
+                                           const boost::filesystem::path& store_path,
+                                           const Identity& service_root_id) {
+  root_handler_.AddService(service_alias, store_path, service_root_id);
 }
 
 template<typename Storage>
 void DriveInUserSpace<Storage>::RemoveService(const boost::filesystem::path& service_alias) {
   root_handler_.RemoveService(service_alias);
-}
-
-template<typename Storage>
-void DriveInUserSpace<Storage>::ReInitialiseService(const boost::filesystem::path& service_alias,
-                          const boost::filesystem::path& store_path,
-                          const Identity& service_root_id) {
-  root_handler_.ReInitialiseService(service_alias, store_path, service_root_id);
 }
 
 template<typename Storage>
