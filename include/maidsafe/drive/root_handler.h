@@ -163,11 +163,9 @@ struct Default {
 //}();
 
 // No default values for SureFile
-template<>
-const std::vector<typename Default<data_store::SureFileStore>::PathAndType>
-    Default<data_store::SureFileStore>::kValues =
-        std::vector<typename Default<data_store::SureFileStore>::PathAndType>();
-
+//template<>
+//const std::vector<typename Default<data_store::SureFileStore>::PathAndType>
+//Default<data_store::SureFileStore>::kValues;
 
 
 template<typename Storage>

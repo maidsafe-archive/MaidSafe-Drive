@@ -41,7 +41,11 @@ License.
 #include "maidsafe/drive/directory_listing.h"
 #include "maidsafe/drive/directory_handler.h"
 #include "maidsafe/drive/utils.h"
-#include "maidsafe/drive/win_drive.h"
+#ifdef MAIDSAFE_WIN32
+# include "maidsafe/drive/win_drive.h"
+#else
+# include "maidsafe/drive/unix_drive.h"
+#endif
 //#include "maidsafe/drive/tests/test_utils.h"
 
 
@@ -114,14 +118,16 @@ TEST(Drive, BEH_SureStore) {
   {
 #ifdef MAIDSAFE_WIN32
     auto mount_dir(GetNextAvailableDrivePath());
-#else
-    fs::path mount_dir();
-#endif
     detail::CbfsDriveInUserSpace<data_store::SureFileStore> drive(
         Identity(), mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
-#ifdef MAIDSAFE_WIN32
     mount_dir /= "\\";
+#else
+            fs::path mount_dir(*main_test_dir / "mount");
+      detail::FuseDriveInUserSpace<data_store::SureFileStore> drive(
+          Identity(), mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
+
 #endif
+
     MetaData meta_data("TestService", true);
     DirectoryId grandparent_id, parent_id;
     drive.AddFile(detail::kRoot / "TestService", meta_data, grandparent_id, parent_id);
@@ -138,13 +144,14 @@ TEST(Drive, BEH_SureStore) {
   {
 #ifdef MAIDSAFE_WIN32
     auto mount_dir(GetNextAvailableDrivePath());
-#else
-    fs::path mount_dir();
-#endif
     detail::CbfsDriveInUserSpace<data_store::SureFileStore> drive(
-        root_id, mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
-#ifdef MAIDSAFE_WIN32
+        Identity(), mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
     mount_dir /= "\\";
+#else
+      fs::path mount_dir(*main_test_dir / "mount");
+      detail::FuseDriveInUserSpace<data_store::SureFileStore> drive(
+          Identity(), mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
+
 #endif
     drive.ReInitialiseService(svc_alias, *main_test_dir / svc_alias, svc_root_id);
     service_root = mount_dir / service_name;

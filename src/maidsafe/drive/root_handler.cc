@@ -22,6 +22,11 @@ namespace drive {
 namespace detail {
 
 template<>
+const std::vector<typename Default<data_store::SureFileStore>::PathAndType>
+    Default<data_store::SureFileStore>::kValues =
+        std::vector<typename Default<data_store::SureFileStore>::PathAndType>();
+
+template<>
 void RootHandler<data_store::SureFileStore>::AddService(
     const boost::filesystem::path& service_alias,
     const boost::filesystem::path& store_path) {
@@ -80,7 +85,7 @@ DataTagValue RootHandler<data_store::SureFileStore>::GetDirectoryType(
 }
 
 // TODO(dirvine) uncomment for lifestuff  #BEFORE_RELEASE
-//template<>
+template<>
 void RootHandler<nfs_client::MaidNodeNfs>::CreateRoot(const Identity& /*unique_user_id*/) {
 //  drive_root_id_ = Identity(RandomString(64));
 //  // First run, setup working directories.
