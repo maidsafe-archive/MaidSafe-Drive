@@ -47,7 +47,7 @@ namespace detail {
 
 class DirectoryListing;
 
-enum OpType { kCreated, kRenamed, kAdded, kRemoved, kMoved, kModified };
+enum OpType : int32_t { kCreated, kRenamed, kAdded, kRemoved, kMoved, kModified };
 
 typedef std::shared_ptr<encrypt::DataMap> DataMapPtr;
 

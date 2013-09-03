@@ -74,7 +74,7 @@ FileContext<Storage>::FileContext(std::shared_ptr<MetaData> meta_data_in)
       grandparent_directory_id(),
       parent_directory_id() {}
 
-//TODO Delete
+// TODO(David) Delete
 //#ifndef MAIDSAFE_WIN32
 //// Not called by Windows...
 //template<typename Storage>

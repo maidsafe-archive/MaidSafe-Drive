@@ -29,15 +29,7 @@ License.
 #include "maidsafe/encrypt/data_map.h"
 #include "maidsafe/encrypt/self_encryptor.h"
 
-#ifdef MAIDSAFE_WIN32
-#  ifdef HAVE_CBFS
-#    include "maidsafe/drive/win_drive.h"
-#  else
-#    include "maidsafe/drive/dummy_win_drive.h"
-#  endif
-#else
-#  include "maidsafe/drive/unix_drive.h"
-#endif
+#include "maidsafe/drive/drive_api.h"
 
 
 namespace fs = boost::filesystem;
@@ -49,19 +41,6 @@ namespace drive {
 
 namespace detail {
 
-template<typename Storage>
-struct Drive {
-#ifdef MAIDSAFE_WIN32
-#  ifdef HAVE_CBFS
-  typedef CbfsDriveInUserSpace<Storage> TestDriveInUserSpace;
-#  else
-  typedef DummyWinDriveInUserSpace TestDriveInUserSpace;
-#  endif
-#else
-  typedef FuseDriveInUserSpace<Storage> TestDriveInUserSpace;
-#endif
-};
-
 namespace test {
 
 enum TestOperationCode {
@@ -72,11 +51,11 @@ enum TestOperationCode {
 
 template<typename Storage>
 struct GlobalDrive {
-  static std::shared_ptr<typename Drive<Storage>::TestDriveInUserSpace> g_drive;
+  static std::shared_ptr<typename VirtualDrive<Storage>::value_type> g_drive;
 };
 
 template<typename Storage>
-std::shared_ptr<typename Drive<Storage>::TestDriveInUserSpace> GlobalDrive<Storage>::g_drive;
+std::shared_ptr<typename VirtualDrive<Storage>::value_type> GlobalDrive<Storage>::g_drive;
 
 void PrintResult(const bptime::ptime &start_time,
                  const bptime::ptime &stop_time,

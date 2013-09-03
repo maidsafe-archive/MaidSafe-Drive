@@ -28,11 +28,6 @@ License.
 #include "maidsafe/data_store/sure_file_store.h"
 #include "maidsafe/nfs/client/maid_node_nfs.h"
 
-#ifdef MAIDSAFE_WIN32
-#  include "maidsafe/drive/win_drive.h"
-#else
-#  include "maidsafe/drive/unix_drive.h"
-#endif
 #include "maidsafe/drive/directory_handler.h"
 #include "maidsafe/drive/utils.h"
 #include "maidsafe/drive/tests/test_utils.h"
@@ -127,19 +122,19 @@ class ApiTestEnvironment : public testing::Environment {
   OnServiceAdded on_added_;
   OnServiceRemoved on_removed_;
   OnServiceRenamed on_renamed_;
-  std::shared_ptr<typename Drive<Storage>::TestDriveInUserSpace> drive_;
+  std::shared_ptr<typename VirtualDrive<Storage>::value_type> drive_;
 };
 
 template<>
 void ApiTestEnvironment<nfs_client::MaidNodeNfs>::ConstructDrive() {
   // TODO(Fraser#5#): 2013-09-02 - Construct maid_node_nfs_
-  drive_ = std::make_shared<typename Drive<nfs_client::MaidNodeNfs>::TestDriveInUserSpace>(
+  drive_ = std::make_shared<typename VirtualDrive<nfs_client::MaidNodeNfs>::value_type>(
                maid_node_nfs_, unique_user_id_, drive_root_id_, g_mount_dir, "MaidSafe", on_added_);
 }
 
 template<>
 void ApiTestEnvironment<data_store::SureFileStore>::ConstructDrive() {
-  drive_ = std::make_shared<typename Drive<data_store::SureFileStore>::TestDriveInUserSpace>(
+  drive_ = std::make_shared<typename VirtualDrive<data_store::SureFileStore>::value_type>(
                drive_root_id_, g_mount_dir, "MaidSafe", on_added_, on_removed_, on_renamed_);
   drive_->AddService("Owner", *main_test_dir_ / "OwnerSureFileStore", owner_service_id_);
 }

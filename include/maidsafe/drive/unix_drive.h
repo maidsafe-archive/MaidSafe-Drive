@@ -36,7 +36,7 @@ License.
 #  include "fuse/fuse_opt.h"
 #endif
 
-#include "maidsafe/drive/drive_api.h"
+#include "maidsafe/drive/drive.h"
 
 
 namespace fs = boost::filesystem;
@@ -48,8 +48,7 @@ namespace drive {
 namespace detail {
 
 template<typename Storage>
-bool ForceFlush(RootHandler<Storage>& root_handler,
-                FileContext<Storage>* file_context) {
+bool ForceFlush(RootHandler<Storage>& root_handler, FileContext<Storage>* file_context) {
   assert(file_context);
   file_context->self_encryptor->Flush();
 
@@ -61,6 +60,25 @@ bool ForceFlush(RootHandler<Storage>& root_handler,
   }
   return true;
 }
+
+template<typename Storage>
+static inline struct FileContext<Storage> *GetFileContext(struct fuse_file_info *file_info) {
+  if (file_info->fh == 0) {
+    LOG(kWarning) << "Bad pointer.";
+    return nullptr;
+  }
+  return reinterpret_cast<FileContext<Storage>*>(file_info->fh);
+}
+
+template<typename Storage>
+static inline void SetFileContext(struct fuse_file_info *file_info,
+                                  struct FileContext<Storage> *file_context) {
+  file_info->fh = reinterpret_cast<uint64_t>(file_context);
+}
+
+}  // namespace detail
+
+
 
 template<typename Storage>
 class FuseDriveInUserSpace;
@@ -168,7 +186,7 @@ class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
 #endif  // HAVE_SETXATTR
 
   static int Release(const char *path, struct fuse_file_info *file_info);
-  virtual void SetNewAttributes(FileContext<Storage> *file_context,
+  virtual void SetNewAttributes(detail::FileContext<Storage> *file_context,
                                 bool is_directory,
                                 bool read_only);
 
@@ -182,33 +200,10 @@ class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
 };
 
 
-inline fs::path RelativePath(const fs::path &mount_dir, const fs::path &absolute_path) {
-  if (absolute_path.string().substr(0, mount_dir.string().size()) != mount_dir.string())
-    return fs::path();
-  return fs::path(absolute_path.string().substr(mount_dir.string().size()));
-}
-
 const int kMaxPath(4096);
 
 template<typename Storage>
 using g_fuse_drive = FuseDriveInUserSpace<Storage>*;
-
-template<typename Storage>
-static inline struct FileContext<Storage> *GetFileContext(
-  struct fuse_file_info *file_info) {
-  if (file_info->fh == 0) {
-    LOG(kWarning) << "Bad pointer.";
-    return nullptr;
-  }
-  return reinterpret_cast<FileContext<Storage>*>(file_info->fh);
-}
-
-template<typename Storage>
-static inline void SetFileContext(
-    struct fuse_file_info *file_info,
-    struct FileContext<Storage> *file_context) {
-  file_info->fh = reinterpret_cast<uint64_t>(file_context);
-}
 
 template<typename Storage>
 struct fuse_operations FuseDriveInUserSpace<Storage>::maidsafe_ops_;
@@ -441,8 +436,8 @@ int FuseDriveInUserSpace<Storage>::OpsCreate(const char *path,
   bool is_directory(S_ISDIR(mode));
   file_info->fh = 0;
 
-  FileContext<Storage>* file_context(
-      new FileContext<Storage>(full_path.filename(), is_directory));
+  detail::FileContext<Storage>* file_context(
+      new detail::FileContext<Storage>(full_path.filename(), is_directory));
 
   time(&file_context->meta_data->attributes.st_atime);
   file_context->meta_data->attributes.st_ctime =
@@ -475,7 +470,7 @@ int FuseDriveInUserSpace<Storage>::OpsCreate(const char *path,
   }
 
   file_info->keep_cache = 1;
-  SetFileContext(file_info, file_context);
+  detail::SetFileContext(file_info, file_context);
 //   UniqueLock lock(Global<Storage>::g_fuse_drive->shared_mutex_);
 //  Global<Storage>::g_fuse_drive->open_files_.insert(std::make_pair(full_path, file_context));
 //#ifdef DEBUG
@@ -495,13 +490,13 @@ void FuseDriveInUserSpace<Storage>::OpsDestroy(void */*fuse*/) {
 template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsFlush(const char *path, struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFlush: " << path << ", flags: " << file_info->flags;
-  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
   if (!file_context) {
     LOG(kError) << "OpsFlush: " << path << ", failed find filecontext for " << path;
     return -EINVAL;
   }
 
-  if (!ForceFlush(Global<Storage>::g_fuse_drive->root_handler_, file_context)) {
+  if (!detail::ForceFlush(Global<Storage>::g_fuse_drive->root_handler_, file_context)) {
     LOG(kError) << "OpsFlush: " << path << ", failed to update";
     return -EBADF;
   }
@@ -513,7 +508,7 @@ int FuseDriveInUserSpace<Storage>::OpsFtruncate(const char *path,
                                        off_t size,
                                        struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFtruncate: " << path << ", size: " << size;
-  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -622,13 +617,14 @@ int FuseDriveInUserSpace<Storage>::OpsOpen(const char *path, struct fuse_file_in
   LOG(kInfo) << "OpsOpen: " << path << ", flags: " << file_info->flags
              << ", keep_cache: " << file_info->keep_cache << ", direct_io: "
              << file_info->direct_io;
-  std::unique_ptr<FileContext<Storage>> file_context(GetFileContext<Storage>(file_info));
+  std::unique_ptr<detail::FileContext<Storage>> file_context(
+      detail::GetFileContext<Storage>(file_info));
   if (file_context) {
     file_context.release();
     return 0;
   }
 
-  file_context.reset(new FileContext<Storage>());
+  file_context.reset(new detail::FileContext<Storage>());
 
   if ((file_info->flags & O_NOFOLLOW) &&
       (file_context->meta_data->link_to != fs::path())) {
@@ -665,7 +661,7 @@ int FuseDriveInUserSpace<Storage>::OpsOpen(const char *path, struct fuse_file_in
     }
   }
   // Transfer ownership of the pointer to fuse's file_info.
-  SetFileContext(file_info, file_context.get());
+  detail::SetFileContext(file_info, file_context.get());
   file_context.release();
   return 0;
 }
@@ -676,13 +672,14 @@ int FuseDriveInUserSpace<Storage>::OpsOpendir(const char *path, struct fuse_file
              << ", keep_cache: " << file_info->keep_cache << ", direct_io: "
              << file_info->direct_io;
 
-  std::unique_ptr<FileContext<Storage>> file_context(GetFileContext<Storage>(file_info));
+  std::unique_ptr<detail::FileContext<Storage>> file_context(
+      detail::GetFileContext<Storage>(file_info));
   if (file_context) {
     file_context.release();
     return 0;
   }
 
-  file_context.reset(new FileContext<Storage>());
+  file_context.reset(new detail::FileContext<Storage>());
 
   file_info->keep_cache = 1;
   fs::path full_path(path);
@@ -705,7 +702,7 @@ int FuseDriveInUserSpace<Storage>::OpsOpendir(const char *path, struct fuse_file
   }
 
   // Transfer ownership of the pointer to fuse's file_info.
-  SetFileContext(file_info, file_context.get());
+  detail::SetFileContext(file_info, file_context.get());
   file_context.release();
   return 0;
 }
@@ -719,7 +716,7 @@ int FuseDriveInUserSpace<Storage>::OpsRead(const char *path,
   LOG(kInfo) << "OpsRead: " << path << ", flags: 0x" << std::hex << file_info->flags << std::dec
              << " Size : " <<  size << " Offset : " << offset;
 
-  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -816,7 +813,7 @@ int FuseDriveInUserSpace<Storage>::OpsRmdir(const char *path) {
 template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsTruncate(const char *path, off_t size) {
   LOG(kInfo) << "OpsTruncate: " << path << ", size: " << size;
-  FileContext<Storage> file_context;
+  detail::FileContext<Storage> file_context;
   try {
     Global<Storage>::g_fuse_drive->GetMetaData(path,
                                                *file_context.meta_data.get(),
@@ -874,7 +871,7 @@ int FuseDriveInUserSpace<Storage>::OpsWrite(const char *path,
   LOG(kInfo) << "OpsWrite: " << path << ", flags: 0x" << std::hex << file_info->flags << std::dec
              << " Size : " <<  size << " Offset : " << offset;
 
-  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -943,7 +940,7 @@ int FuseDriveInUserSpace<Storage>::OpsWrite(const char *path,
 template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsChmod(const char *path, mode_t mode) {
   LOG(kInfo) << "OpsChmod: " << path << ", to " << std::oct << mode;
-  FileContext<Storage> file_context;
+  detail::FileContext<Storage> file_context;
   try {
     Global<Storage>::g_fuse_drive->GetMetaData(path,
                               *file_context.meta_data.get(),
@@ -970,7 +967,7 @@ int FuseDriveInUserSpace<Storage>::OpsChmod(const char *path, mode_t mode) {
 template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsChown(const char *path, uid_t uid, gid_t gid) {
   LOG(kInfo) << "OpsChown: " << path;
-  FileContext<Storage> file_context;
+  detail::FileContext<Storage> file_context;
   try {
     Global<Storage>::g_fuse_drive->GetMetaData(path,
                               *file_context.meta_data.get(),
@@ -1008,7 +1005,7 @@ int FuseDriveInUserSpace<Storage>::OpsFgetattr(const char *path,
                                       struct stat *stbuf,
                                       struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFgetattr: " << path;
-  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
   if (!file_context)
     return -ENOENT;
 
@@ -1029,11 +1026,11 @@ int FuseDriveInUserSpace<Storage>::OpsFsync(const char *path,
                                    int /*isdatasync*/,
                                    struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFsync: " << path;
-  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
-  if (!ForceFlush(Global<Storage>::g_fuse_drive->directory_handler_, file_context)) {
+  if (!detail::ForceFlush(Global<Storage>::g_fuse_drive->directory_handler_, file_context)) {
 //    int result(Update(Global<Storage>::g_fuse_drive->directory_handler_,
 //                      file_context,
 //                      false,
@@ -1052,7 +1049,7 @@ int FuseDriveInUserSpace<Storage>::OpsFsyncDir(const char *path,
                                       int /*isdatasync*/,
                                       struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFsyncDir: " << path;
-  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -1120,7 +1117,7 @@ int FuseDriveInUserSpace<Storage>::OpsLink(const char *to, const char *from) {
 
   fs::path path_to(to), path_from(from);
 
-  FileContext<Storage> file_context_to;
+  detail::FileContext<Storage> file_context_to;
   if (Global<Storage>::g_fuse_drive->GetMetaData(path_to, &file_context_to.meta_data,
                                 &file_context.parent_directory_id)) {
     if (!S_ISDIR(file_context_to.meta_data.attributes.st_mode))
@@ -1163,7 +1160,7 @@ int FuseDriveInUserSpace<Storage>::OpsReaddir(const char *path,
   filler(buf, "..", nullptr, 0);
   std::shared_ptr<DirectoryListing> dir_listing;
   try {
-    Directory directory(Global<Storage>::g_fuse_drive->GetDirectory(fs::path(path)));
+    detail::Directory directory(Global<Storage>::g_fuse_drive->GetDirectory(fs::path(path)));
     dir_listing = directory.listing;
   } catch(...) {}
 
@@ -1182,7 +1179,7 @@ int FuseDriveInUserSpace<Storage>::OpsReaddir(const char *path,
       break;
   }
 
-  FileContext<Storage> *file_context(GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
   if (file_context) {
     file_context->content_changed = true;
     time(&file_context->meta_data->attributes.st_atime);
@@ -1295,7 +1292,7 @@ int FuseDriveInUserSpace<Storage>::OpsStatfs(const char *path, struct statvfs *s
 template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsUtimens(const char *path, const struct timespec ts[2]) {
   LOG(kInfo) << "OpsUtimens: " << path;
-  FileContext<Storage> file_context;
+  detail::FileContext<Storage> file_context;
   try {
     Global<Storage>::g_fuse_drive->GetMetaData(path,
                               *file_context.meta_data.get(),
@@ -1444,13 +1441,14 @@ int FuseDriveInUserSpace<Storage>::Release(const char *path, struct fuse_file_in
   LOG(kInfo) << "Release - " << path;
 
   // Transfer ownership of the pointer from Fuse file_info.
-  auto deleter([&](FileContext<Storage>* ptr) {
+  auto deleter([&](detail::FileContext<Storage>* ptr) {
     delete ptr;
     file_info->fh = 0;
   });
   LOG(kInfo) << "About to get file context";
-  std::unique_ptr<FileContext<Storage>, decltype(deleter)> file_context(
-      static_cast<FileContext<Storage>*>(GetFileContext<Storage>(file_info)), deleter);
+  std::unique_ptr<detail::FileContext<Storage>, decltype(deleter)> file_context(
+      static_cast<detail::FileContext<Storage>*>(detail::GetFileContext<Storage>(file_info)),
+      deleter);
   assert(file_context);
 
   if (!file_context->self_encryptor)
@@ -1478,9 +1476,9 @@ int FuseDriveInUserSpace<Storage>::Release(const char *path, struct fuse_file_in
 }
 
 template<typename Storage>
-void FuseDriveInUserSpace<Storage>::SetNewAttributes(FileContext<Storage> *file_context,
-                                            bool is_directory,
-                                            bool read_only) {
+void FuseDriveInUserSpace<Storage>::SetNewAttributes(detail::FileContext<Storage> *file_context,
+                                                     bool is_directory,
+                                                     bool read_only) {
   LOG(kError) << "SetNewAttributes - name: " << file_context->meta_data->name
               << ", read_only: " << std::boolalpha << read_only;
   time(&file_context->meta_data->attributes.st_atime);
@@ -1513,8 +1511,6 @@ void FuseDriveInUserSpace<Storage>::SetNewAttributes(FileContext<Storage> *file_
 template<typename Storage>
 void FuseDriveInUserSpace<Storage>::NotifyRename(
     fs::path const& /*from_relative_path*/,fs::path const& /*to_relative_path*/) const {}
-
-}  // namespace detail
 
 }  // namespace drive
 
