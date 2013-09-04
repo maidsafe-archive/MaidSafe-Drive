@@ -112,9 +112,9 @@ class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
   virtual ~FuseDriveInUserSpace();
 
   virtual bool Unmount();
-  // Notifies filesystem of name change
-  virtual void NotifyRename(const fs::path& from_relative_path,
-                            const fs::path& to_relative_path) const;
+  // Notifies filesystem of change in directory.  No-op on Unix.
+  virtual void NotifyDirectoryChange(const boost::filesystem::path& /*relative_path*/,
+                                     detail::OpType /*op*/) const {}
 
  private:
   FuseDriveInUserSpace(const FuseDriveInUserSpace&);
@@ -1510,10 +1510,6 @@ void FuseDriveInUserSpace<Storage>::SetNewAttributes(detail::FileContext<Storage
         file_context->meta_data->attributes.st_size / 512;
   }
 }
-
-template<typename Storage>
-void FuseDriveInUserSpace<Storage>::NotifyRename(
-    fs::path const& /*from_relative_path*/,fs::path const& /*to_relative_path*/) const {}
 
 }  // namespace drive
 

@@ -74,13 +74,10 @@ class RootHandler {
   void AddElement(const boost::filesystem::path& path,
                   const MetaData& meta_data,
                   DirectoryId& grandparent_id,
-                  DirectoryId& parent_id,
-                  bool is_known_service_root = false);
+                  DirectoryId& parent_id);
 
   bool CanDelete(const boost::filesystem::path& path) const;
-  void DeleteElement(const boost::filesystem::path& path,
-                     MetaData& meta_data,
-                     bool is_known_service_root = false);
+  void DeleteElement(const boost::filesystem::path& path, MetaData& meta_data);
 
   void RenameElement(const boost::filesystem::path& old_path,
                      const boost::filesystem::path& new_path,
@@ -309,26 +306,21 @@ template<typename Storage>
 void RootHandler<Storage>::AddElement(const boost::filesystem::path& path,
                                       const MetaData& meta_data,
                                       DirectoryId& grandparent_id,
-                                      DirectoryId& parent_id,
-                                      bool is_known_service_root) {
+                                      DirectoryId& parent_id) {
   SCOPED_PROFILE
   if (!CanAdd(path))
-    ThrowError(VaultErrors::permission_denied);
+    ThrowError(DriveErrors::permission_denied);
 
-  auto alias(GetAlias(path));
-  if (!is_known_service_root && alias &&
-      directory_handlers_.find(*alias) != std::end(directory_handlers_)) {
+  if (GetAlias(path)) {
     on_service_added_();
-    ThrowError(VaultErrors::permission_denied);
+    ThrowError(DriveErrors::permission_denied);
   }
 
   Directory grandparent, parent;
   MetaData parent_meta_data;
   GetParentAndGrandparent(path, grandparent, parent, parent_meta_data);
 
-  if (!parent.listing)
-    ThrowError(DriveErrors::no_service_storage_allocated);
-
+  assert(parent.listing);
   parent.listing->AddChild(meta_data);
 
   if (IsDirectory(meta_data)) {
@@ -376,15 +368,13 @@ template<>
 bool RootHandler<data_store::SureFileStore>::CanDelete(const boost::filesystem::path& path) const;
 
 template<typename Storage>
-void RootHandler<Storage>::DeleteElement(const boost::filesystem::path& path,
-                                         MetaData& meta_data,
-                                         bool is_known_service_root) {
+void RootHandler<Storage>::DeleteElement(const boost::filesystem::path& path, MetaData& meta_data) {
   SCOPED_PROFILE
   auto alias(GetAlias(path));
-  if (!is_known_service_root && alias &&
-      directory_handlers_.find(*alias) != std::end(directory_handlers_)) {
+  if (alias) {
+    assert(directory_handlers_.find(*alias) != std::end(directory_handlers_));
     on_service_removed_(*alias);
-    ThrowError(VaultErrors::permission_denied);
+    ThrowError(DriveErrors::permission_denied);
   }
 
   Directory grandparent, parent;
@@ -427,9 +417,6 @@ void RootHandler<Storage>::DeleteElement(const boost::filesystem::path& path,
   Put(path.parent_path().parent_path(), grandparent);
 #endif
   Put(path.parent_path(), parent);
-
-  if (alias)
-    directory_handlers_.erase(*alias);
 }
 
 template<>
@@ -553,8 +540,7 @@ void RootHandler<Storage>::RenameDifferentParent(const boost::filesystem::path& 
   meta_data.attributes.st_ctime = meta_data.attributes.st_mtime;
 #endif
   assert(old_parent.listing);
-  if (!new_parent.listing)
-    ThrowError(DriveErrors::no_service_storage_allocated);
+  assert(new_parent.listing);
 
   if (IsDirectory(meta_data)) {
     Directory directory(GetFromPath(old_path));

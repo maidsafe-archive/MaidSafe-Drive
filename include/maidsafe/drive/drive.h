@@ -154,8 +154,10 @@ class DriveInUserSpace {
   bool TruncateFile(const boost::filesystem::path& relative_path,
                     detail::FileContext<Storage>* file_context,
                     const uint64_t& size);
-  virtual void NotifyRename(const boost::filesystem::path& from_relative_path,
-                            const boost::filesystem::path& to_relative_path) const = 0;
+  virtual void NotifyDirectoryChange(const boost::filesystem::path& relative_path,
+                                     detail::OpType op) const = 0;
+  void NotifyRename(const boost::filesystem::path& from_relative_path,
+                    const boost::filesystem::path& to_relative_path) const;
 
   enum DriveStage { kUnInitialised, kInitialised, kMounted, kUnMounted, kCleaned } drive_stage_;
   detail::RootHandler<Storage> root_handler_;
@@ -255,6 +257,9 @@ void DriveInUserSpace<Storage>::AddService(const boost::filesystem::path& servic
                                            const boost::filesystem::path& store_path,
                                            const Identity& service_root_id) {
   root_handler_.AddService(service_alias, store_path, service_root_id);
+#ifdef MAIDSAFE_WIN32
+  NotifyDirectoryChange(detail::kRoot / service_alias, detail::OpType::kAdded);
+#endif
 }
 
 template<typename Storage>
@@ -340,6 +345,15 @@ bool DriveInUserSpace<Storage>::TruncateFile(const boost::filesystem::path& rela
     file_context->content_changed = true;
   return result;
 }
+
+template<typename Storage>
+void DriveInUserSpace<Storage>::NotifyRename(
+    const boost::filesystem::path& from_relative_path,
+    const boost::filesystem::path& to_relative_path) const {
+  NotifyDirectoryChange(from_relative_path, detail::OpType::kRemoved);
+  NotifyDirectoryChange(to_relative_path, detail::OpType::kRemoved);
+}
+
 
 // ********************** File / Folder Transfers ******************************
 

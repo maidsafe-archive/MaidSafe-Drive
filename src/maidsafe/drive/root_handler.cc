@@ -81,8 +81,23 @@ void RootHandler<data_store::SureFileStore>::AddService(
 template<>
 void RootHandler<data_store::SureFileStore>::RemoveService(
     const boost::filesystem::path& service_alias) {
-  MetaData meta_data;
-  DeleteElement(kRoot / service_alias, meta_data, true);
+  auto itr(directory_handlers_.find(service_alias));
+  if (itr == std::end(directory_handlers_))
+    ThrowError(CommonErrors::invalid_parameter);
+
+  // TODO(Fraser#5#): 2013-09-04 - If required, delete 'itr->second.storage()' from disk.  If that
+  //                               *is* done here, no need to get Directory or call
+  //                               DeleteFromStorage (i.e. delete next 2 lines).
+  Directory directory(itr->second.GetFromPath(kRoot / service_alias));
+  DeleteFromStorage(*itr->second.storage(), directory);
+
+  root_.listing->RemoveChild(MetaData(service_alias, true));
+  root_meta_data_.UpdateLastModifiedTime();
+#ifndef MAIDSAFE_WIN32
+//  root_meta_data_.attributes.st_ctime = parent_meta_data.attributes.st_mtime;
+  --root_meta_data_.attributes.st_nlink;
+#endif
+  directory_handlers_.erase(itr);
 }
 
 template<>

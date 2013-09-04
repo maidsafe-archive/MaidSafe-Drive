@@ -95,10 +95,9 @@ class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
   virtual ~CbfsDriveInUserSpace() {}
   virtual bool Unmount();
   int Install();
-  void NotifyDirectoryChange(const boost::filesystem::path& relative_path, detail::OpType op) const;
+  virtual void NotifyDirectoryChange(const boost::filesystem::path& relative_path,
+                                     detail::OpType op) const;
   uint32_t max_file_path_length();
-  virtual void NotifyRename(const boost::filesystem::path& from_relative_path,
-                            const boost::filesystem::path& to_relative_path) const;
 
  private:
   CbfsDriveInUserSpace(const CbfsDriveInUserSpace&);
@@ -379,13 +378,6 @@ bool CbfsDriveInUserSpace<Storage>::Unmount() {
 }
 
 template<typename Storage>
-void CbfsDriveInUserSpace<Storage>::NotifyRename(const fs::path& from_relative_path,
-                                                 const fs::path& to_relative_path) const {
-  NotifyDirectoryChange(from_relative_path, detail::OpType::kRemoved);
-  NotifyDirectoryChange(to_relative_path, detail::OpType::kRemoved);
-}
-
-template<typename Storage>
 void CbfsDriveInUserSpace<Storage>::NotifyDirectoryChange(const fs::path& relative_path,
                                                           detail::OpType op) const {
   BOOL success(FALSE);
@@ -618,7 +610,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* sender,
   LOG(kInfo) << "CbFsCreateFile - " << relative_path << " 0x" << std::hex << file_attributes;
   file_info->set_UserContext(nullptr);
   bool is_directory((file_attributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY);
-  detail::FileContext<Storage>* file_context(
+  std::unique_ptr<detail::FileContext<Storage>> file_context(
       new detail::FileContext<Storage>(relative_path.filename(), is_directory));
   file_context->meta_data->attributes = file_attributes;
 
@@ -628,9 +620,9 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* sender,
                         file_context->grandparent_directory_id, file_context->parent_directory_id);
   }
   catch(const std::system_error& system_error) {
-    if (system_error.code() == make_error_code(DriveErrors::no_service_storage_allocated)) {
-      LOG(kError) << "User has added a service to root, but hasn't provided the store_path for it.";
-      throw ECBFSError(ERROR_SERVICE_DOES_NOT_EXIST);
+    if (system_error.code() == make_error_code(DriveErrors::permission_denied)) {
+      LOG(kError) << "User has tried to add a service to root without using the GUI.";
+      throw ECBFSError(ERROR_DISK_OPERATION_FAILED);
     } else {
       LOG(kError) << system_error.what();
       throw ECBFSError(ERROR_ACCESS_DENIED);
@@ -659,8 +651,9 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* sender,
                                             *directory_handler->storage()));
   }
 
-  file_info->set_UserContext(file_context);
-  assert(file_info->get_UserContext());
+  // Transfer ownership of the pointer to CBFS' file_info.
+  file_info->set_UserContext(file_context.get());
+  file_context.release();
 }
 
 template<typename Storage>
