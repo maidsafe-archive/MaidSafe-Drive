@@ -903,8 +903,8 @@ int FuseDriveInUserSpace<Storage>::OpsWrite(const char *path,
     return -EBADF;
   }
 
-//  int64_t max_size(std::max(static_cast<off_t>(offset + size),
-//                            file_context->meta_data->attributes.st_size));
+  int64_t max_size(std::max(static_cast<off_t>(offset + size),
+                            file_context->meta_data->attributes.st_size));
 //  if (file_context->meta_data->attributes.st_size != max_size) {
 //    int64_t additional_size(max_size - file_context->meta_data->attributes.st_size);
 //    if (additional_size + Global<Storage>::g_fuse_drive->used_space_ >
@@ -914,7 +914,7 @@ int FuseDriveInUserSpace<Storage>::OpsWrite(const char *path,
 //    } else {
 //      Global<Storage>::g_fuse_drive->used_space_ += additional_size;
 //    }
-//    file_context->meta_data->attributes.st_size = max_size;
+    file_context->meta_data->attributes.st_size = max_size;
 //  }
 
   file_context->meta_data->attributes.st_blocks = file_context->meta_data->attributes.st_size / 512;
@@ -1272,9 +1272,11 @@ int FuseDriveInUserSpace<Storage>::OpsStatfs(const char *path, struct statvfs *s
 //    stbuf->f_bfree = 8796093022208 / stbuf->f_bsize;
 #endif
 //  } else {
-    stbuf->f_blocks = 0;  // Global<Storage>::g_fuse_drive->max_space_ / stbuf->f_frsize;
-    stbuf->f_bfree = 0;  // (Global<Storage>::g_fuse_drive->max_space_ -
-                         // Global<Storage>::g_fuse_drive->used_space_) / stbuf->f_bsize;
+//    stbuf->f_blocks = 0;  // Global<Storage>::g_fuse_drive->max_space_ / stbuf->f_frsize;
+//    stbuf->f_bfree = 0;  // (Global<Storage>::g_fuse_drive->max_space_ -
+//                         // Global<Storage>::g_fuse_drive->used_space_) / stbuf->f_bsize;
+    stbuf->f_blocks = 100000 / stbuf->f_frsize;  // FIXME BEFORE_RELEASE
+    stbuf->f_bfree =  100000 / stbuf->f_bsize;
 //  }
   stbuf->f_bavail = stbuf->f_bfree;
 
