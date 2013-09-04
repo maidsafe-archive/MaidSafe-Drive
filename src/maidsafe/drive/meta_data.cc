@@ -30,27 +30,6 @@ License.
 namespace bptime = boost::posix_time;
 namespace fs = boost::filesystem;
 
-// TODO(Fraser#5#): 2012-09-02 - Get rid of these
-#define ATTRIBUTES_IFMT 0x0FFF
-#define ATTRIBUTES_IFREG 0x8000
-#define ATTRIBUTES_IFDIR 0x4000
-
-#define ATTRIBUTES_IRWXU 0x01C0
-#define ATTRIBUTES_IRUSR 0x0100
-#define ATTRIBUTES_IWUSR 0x0080
-#define ATTRIBUTES_IXUSR 0x0040
-
-#define ATTRIBUTES_IRWXG 0x0038
-#define ATTRIBUTES_IRGRP 0x0020
-#define ATTRIBUTES_IWGRP 0x0010
-#define ATTRIBUTES_IXGRP 0x0008
-
-#define ATTRIBUTES_IRWXO 0x0007
-#define ATTRIBUTES_IROTH 0x0004
-#define ATTRIBUTES_IWOTH 0x0002
-#define ATTRIBUTES_IXOTH 0x0001
-
-
 namespace maidsafe {
 
 namespace drive {
@@ -58,6 +37,11 @@ namespace drive {
 
 #ifdef MAIDSAFE_WIN32
 namespace {
+
+const uint32_t kAttributesFormat = 0x0FFF;
+const uint32_t kAttributesRegular = 0x8000;
+const uint32_t kAttributesDir = 0x4000;
+
 
 FILETIME BptimeToFileTime(bptime::ptime const &ptime) {
   SYSTEMTIME system_time;
@@ -140,7 +124,7 @@ MetaData::MetaData(const fs::path &name, bool is_directory)
 #ifdef MAIDSAFE_WIN32
       end_of_file(0),
       allocation_size(0),
-      attributes(is_directory?FILE_ATTRIBUTE_DIRECTORY:0xFFFFFFFF),
+      attributes(is_directory ? FILE_ATTRIBUTE_DIRECTORY : 0xFFFFFFFF),
       creation_time(),
       last_access_time(),
       last_write_time(),
@@ -242,7 +226,7 @@ MetaData::MetaData(const std::string& serialised_meta_data) {
   last_write_time = BptimeToFileTime(bptime::from_iso_string(attributes_archive.last_write_time()));
   end_of_file = attributes_archive.st_size();
 
-  if ((attributes_archive.st_mode() & ATTRIBUTES_IFDIR) == ATTRIBUTES_IFDIR) {
+  if ((attributes_archive.st_mode() & kAttributesDir) == kAttributesDir) {
     attributes |= FILE_ATTRIBUTE_DIRECTORY;
     end_of_file = 0;
   }
@@ -283,7 +267,7 @@ MetaData::MetaData(const std::string& serialised_meta_data) {
   if (attributes_archive.has_st_blocks())
     attributes.st_blocks = attributes_archive.st_blocks();
 
-  if ((attributes_archive.st_mode() & ATTRIBUTES_IFDIR) == ATTRIBUTES_IFDIR)
+  if ((attributes_archive.st_mode() & kAttributesDir) == kAttributesDir)
     attributes.st_size = 4096;
 #endif
 
@@ -315,11 +299,11 @@ std::string MetaData::Serialise() const {
   attributes_archive->set_st_size(end_of_file);
 
   uint32_t st_mode(0x01FF);
-  st_mode &= ATTRIBUTES_IFMT;
+  st_mode &= kAttributesFormat;
   if ((attributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY)
-    st_mode |= ATTRIBUTES_IFDIR;
+    st_mode |= kAttributesDir;
   else
-    st_mode |= ATTRIBUTES_IFREG;
+    st_mode |= kAttributesRegular;
   attributes_archive->set_st_mode(st_mode);
   attributes_archive->set_win_attributes(attributes);
 #else
