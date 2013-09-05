@@ -278,11 +278,11 @@ class DirectoryHandlerTest : public testing::Test {
 };
 
 TEST_F(DirectoryHandlerTest, BEH_Construct) {
-  Directory root(Identity(RandomString(64)),
-                 std::make_shared<DirectoryListing>(Identity(RandomString(64))),
-                 nullptr, DataTagValue::kOwnerDirectoryValue);
+  //Directory root(Identity(RandomString(64)),
+  //               std::make_shared<DirectoryListing>(Identity(RandomString(64))),
+  //               nullptr, DataTagValue::kOwnerDirectoryValue);
   listing_handler_.reset(new detail::DirectoryHandler<data_store::SureFileStore>(
-      data_store_, &root, DataTagValue::kOwnerDirectoryValue));
+      data_store_, DataTagValue::kOwnerDirectoryValue));
 
   Directory owner(Identity(RandomString(64)),
                   std::make_shared<DirectoryListing>(Identity(RandomString(64))), nullptr,

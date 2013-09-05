@@ -20,6 +20,8 @@ License.
 #include <functional>
 #include <iterator>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -59,17 +61,14 @@ class RootHandler {
   void RemoveService(const boost::filesystem::path& service_alias);
 
   // Returns nullptr if there isn't a subdir containig the given path (most likely path == kRoot)
-  const DirectoryHandler<Storage>* GetHandler(const boost::filesystem::path& path) const;
-  DirectoryHandler<Storage>* GetHandler(const boost::filesystem::path& path);
+  std::unique_ptr<DirectoryHandler<Storage>> GetHandler(const boost::filesystem::path& path) const;
+  std::unique_ptr<DirectoryHandler<Storage>> GetHandler(const boost::filesystem::path& path);
 
   Storage* GetStorage(const boost::filesystem::path& path) const;
 
   DataTagValue GetDirectoryType(const boost::filesystem::path& path) const;
 
-  void GetMetaData(const boost::filesystem::path& path,
-                   MetaData& meta_data,
-                   DirectoryId* grandparent_directory_id,
-                   DirectoryId* parent_directory_id) const;
+  FileContext<Storage> GetFileContext(const boost::filesystem::path& path) const;
 
   void AddElement(const boost::filesystem::path& path,
                   const MetaData& meta_data,
@@ -81,8 +80,7 @@ class RootHandler {
 
   void RenameElement(const boost::filesystem::path& old_path,
                      const boost::filesystem::path& new_path,
-                     MetaData& meta_data,
-                     int64_t& reclaimed_space);
+                     MetaData& meta_data);
 
   void UpdateParentDirectoryListing(const boost::filesystem::path& parent_path, MetaData meta_data);
   Directory GetFromPath(const boost::filesystem::path& path) const;
@@ -91,6 +89,10 @@ class RootHandler {
   std::shared_ptr<Storage> default_storage() const { return default_storage_; }
 
  private:
+  RootHandler(const RootHandler&);
+  RootHandler(RootHandler&&);
+  RootHandler& operator=(RootHandler);
+
   // Called on the first run ever for this Drive (creating new user account)
   void CreateRoot(const Identity& unique_user_id);
   // Called when starting up a new session (user logging back in)
@@ -107,12 +109,10 @@ class RootHandler {
                  const boost::filesystem::path& to_path) const;
   void RenameSameParent(const boost::filesystem::path& old_path,
                         const boost::filesystem::path& new_path,
-                        MetaData& meta_data,
-                        int64_t& reclaimed_space);
+                        MetaData& meta_data);
   void RenameDifferentParent(const boost::filesystem::path& old_path,
                              const boost::filesystem::path& new_path,
-                             MetaData& meta_data,
-                             int64_t& reclaimed_space);
+                             MetaData& meta_data);
   void ReStoreDirectories(const boost::filesystem::path& old_path,
                           const boost::filesystem::path& new_path);
 
@@ -120,6 +120,8 @@ class RootHandler {
   void Delete(const boost::filesystem::path& path, const Directory& directory) const;
 
   std::shared_ptr<Storage> default_storage_;  // MaidNodeNfs or nullptr
+  mutable std::mutex root_mutex_;  // protects root_ & root_meta_data_
+  mutable std::mutex handlers_mutex_;  // protects directory_handlers_
   Directory root_;
   MetaData root_meta_data_;
   std::map<boost::filesystem::path, DirectoryHandler<Storage>> directory_handlers_;
@@ -150,6 +152,8 @@ RootHandler<Storage>::RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_
                                   const Identity& drive_root_id,
                                   OnServiceAdded on_service_added)
     : default_storage_(maid_node_nfs),
+      root_mutex_(),
+      handlers_mutex_(),
       root_(),
       root_meta_data_(kRoot, true),
       directory_handlers_(),
@@ -188,22 +192,27 @@ void RootHandler<data_store::SureFileStore>::RemoveService(
     const boost::filesystem::path& service_alias);
 
 template<typename Storage>
-const DirectoryHandler<Storage>* RootHandler<Storage>::GetHandler(
+std::unique_ptr<DirectoryHandler<Storage>> RootHandler<Storage>::GetHandler(
     const boost::filesystem::path& path) const {
   if (path.empty())
     return nullptr;
   auto alias(*(++std::begin(path)));
+  std::lock_guard<std::mutex> handlers_lock(handlers_mutex_);
   auto itr(directory_handlers_.find(alias));
-  return itr == std::end(directory_handlers_) ? nullptr : &(itr->second);
+  return itr == std::end(directory_handlers_) ? nullptr :
+      std::unique_ptr<DirectoryHandler<Storage>>(new DirectoryHandler<Storage>(itr->second));
 }
 
 template<typename Storage>
-DirectoryHandler<Storage>* RootHandler<Storage>::GetHandler(const boost::filesystem::path& path) {
+std::unique_ptr<DirectoryHandler<Storage>> RootHandler<Storage>::GetHandler(
+    const boost::filesystem::path& path) {
   if (path.empty())
     return nullptr;
   auto alias(*(++std::begin(path)));
+  std::lock_guard<std::mutex> handlers_lock(handlers_mutex_);
   auto itr(directory_handlers_.find(alias));
-  return itr == std::end(directory_handlers_) ? nullptr : &(itr->second);
+  return itr == std::end(directory_handlers_) ? nullptr :
+      std::unique_ptr<DirectoryHandler<Storage>>(new DirectoryHandler<Storage>(itr->second));
 }
 
 template<>
@@ -223,27 +232,35 @@ DataTagValue RootHandler<data_store::SureFileStore>::GetDirectoryType(
     const boost::filesystem::path& path) const;
 
 template<typename Storage>
-void RootHandler<Storage>::GetMetaData(const boost::filesystem::path& path,
-                                       MetaData& meta_data,
-                                       DirectoryId* grandparent_directory_id,
-                                       DirectoryId* parent_directory_id) const {
-  auto directory_handler(GetHandler(path));
-  auto parent(directory_handler ? directory_handler->GetFromPath(path.parent_path()) : root_);
-  if (path == kRoot)
-    meta_data = root_meta_data_;
-  else
-    parent.listing->GetChild(path.filename(), meta_data);
+FileContext<Storage> RootHandler<Storage>::GetFileContext(
+    const boost::filesystem::path& path) const {
+  auto dir_handler(GetHandler(path));
+  FileContext<Storage> file_context;
+  Directory parent;
+  {
+    std::lock_guard<std::mutex> root_lock(root_mutex_);
+    parent = root_;
+    *file_context.meta_data = root_meta_data_;
+  }
+  if (dir_handler)
+    parent = dir_handler->GetFromPath(parent, path.parent_path());
+  if (path != kRoot)
+    parent.listing->GetChild(path.filename(), *file_context.meta_data);
+  file_context.grandparent_directory_id = parent.parent_id;
+  file_context.parent_directory_id = parent.listing->directory_id();
 
-  if (grandparent_directory_id)
-    *grandparent_directory_id = parent.parent_id;
-  if (parent_directory_id)
-    *parent_directory_id = parent.listing->directory_id();
+  return file_context;
 }
 
 template<typename Storage>
 Directory RootHandler<Storage>::GetFromPath(const boost::filesystem::path& path) const {
   auto directory_handler(GetHandler(path));
-  return directory_handler ? directory_handler->GetFromPath(path) : root_;
+  Directory root_copy;
+  {
+    std::lock_guard<std::mutex> root_lock(root_mutex_);
+    root_copy = root_;
+  }
+  return directory_handler ? directory_handler->GetFromPath(root_copy, path) : root_copy;
 }
 
 template<typename Storage>
@@ -291,6 +308,7 @@ void RootHandler<Storage>::GetParentAndGrandparent(const boost::filesystem::path
 
   if (path.parent_path() == kRoot) {
     grandparent = Directory();
+    std::lock_guard<std::mutex> root_lock(root_mutex_);
     parent = root_;
     parent_meta_data = root_meta_data_;
   }
@@ -372,7 +390,12 @@ void RootHandler<Storage>::DeleteElement(const boost::filesystem::path& path, Me
   SCOPED_PROFILE
   auto alias(GetAlias(path));
   if (alias) {
-    assert(directory_handlers_.find(*alias) != std::end(directory_handlers_));
+#ifndef NDEBUG
+    {
+      std::lock_guard<std::mutex> handlers_lock(handlers_mutex_);
+      assert(directory_handlers_.find(*alias) != std::end(directory_handlers_));
+    }
+#endif
     on_service_removed_(*alias);
     ThrowError(DriveErrors::permission_denied);
   }
@@ -432,8 +455,7 @@ bool RootHandler<data_store::SureFileStore>::CanRename(
 template<typename Storage>
 void RootHandler<Storage>::RenameElement(const boost::filesystem::path& old_path,
                                          const boost::filesystem::path& new_path,
-                                         MetaData& meta_data,
-                                         int64_t& reclaimed_space) {
+                                         MetaData& meta_data) {
   SCOPED_PROFILE
   if (old_path == new_path)
     return;
@@ -441,16 +463,15 @@ void RootHandler<Storage>::RenameElement(const boost::filesystem::path& old_path
     ThrowError(CommonErrors::invalid_parameter);
 
   if (old_path.parent_path() == new_path.parent_path())
-    RenameSameParent(old_path, new_path, meta_data, reclaimed_space);
+    RenameSameParent(old_path, new_path, meta_data);
   else
-    RenameDifferentParent(old_path, new_path, meta_data, reclaimed_space);
+    RenameDifferentParent(old_path, new_path, meta_data);
 }
 
 template<typename Storage>
 void RootHandler<Storage>::RenameSameParent(const boost::filesystem::path& old_path,
                                             const boost::filesystem::path& new_path,
-                                            MetaData& meta_data,
-                                            int64_t& /*reclaimed_space*/) {
+                                            MetaData& meta_data) {
   Directory grandparent, parent;
   MetaData parent_meta_data;
   GetParentAndGrandparent(old_path, grandparent, parent, parent_meta_data);
@@ -481,7 +502,6 @@ void RootHandler<Storage>::RenameSameParent(const boost::filesystem::path& old_p
       boost::throw_exception(exception);
     }
     parent.listing->RemoveChild(old_meta_data);
-//    reclaimed_space = old_meta_data.GetAllocatedSize();
     parent.listing->RemoveChild(meta_data);
     meta_data.name = new_path.filename();
     parent.listing->AddChild(meta_data);
@@ -515,6 +535,7 @@ void RootHandler<Storage>::RenameSameParent(const boost::filesystem::path& old_p
   auto old_alias(GetAlias(old_path));
   auto new_alias(GetAlias(new_path));
   if (old_alias && new_alias && IsDirectory(meta_data)) {
+    std::lock_guard<std::mutex> handlers_lock(handlers_mutex_);
     auto itr(directory_handlers_.find(*old_alias));
     assert(itr != std::end(directory_handlers_));
     directory_handlers_.insert(std::make_pair(*new_alias, itr->second));
@@ -526,8 +547,7 @@ void RootHandler<Storage>::RenameSameParent(const boost::filesystem::path& old_p
 template<typename Storage>
 void RootHandler<Storage>::RenameDifferentParent(const boost::filesystem::path& old_path,
                                                  const boost::filesystem::path& new_path,
-                                                 MetaData& meta_data,
-                                                 int64_t& /*reclaimed_space*/) {
+                                                 MetaData& meta_data) {
   Directory old_grandparent, old_parent, new_grandparent, new_parent;
   MetaData old_parent_meta_data, new_parent_meta_data;
   GetParentAndGrandparent(old_path, old_grandparent, old_parent, old_parent_meta_data);
@@ -576,7 +596,6 @@ void RootHandler<Storage>::RenameDifferentParent(const boost::filesystem::path& 
       boost::throw_exception(exception);
     }
     new_parent.listing->RemoveChild(old_meta_data);
-//    reclaimed_space = old_meta_data.GetAllocatedSize();
     meta_data.name = new_path.filename();
     new_parent.listing->AddChild(meta_data);
   }

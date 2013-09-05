@@ -62,7 +62,6 @@ template<typename Storage>
 class DirectoryHandler {
  public:
   DirectoryHandler(std::shared_ptr<Storage> storage,
-                   Directory* parent,
                    DataTagValue directory_type,
                    bool immutable_root = false);
   DirectoryHandler(const DirectoryHandler& other);
@@ -70,7 +69,7 @@ class DirectoryHandler {
   DirectoryHandler& operator=(DirectoryHandler other);
   virtual ~DirectoryHandler() {}
 
-  Directory GetFromPath(const boost::filesystem::path& path) const;
+  Directory GetFromPath(Directory start_directory, const boost::filesystem::path& path) const;
 
   void SetWorldReadWrite() { world_is_writeable_ = true; }
   void SetWorldReadOnly() { world_is_writeable_ = false; }
@@ -82,7 +81,6 @@ class DirectoryHandler {
   friend void swap(DirectoryHandler& lhs, DirectoryHandler& rhs) {
     using std::swap;
     swap(lhs.storage_, rhs.storage_);
-    swap(lhs.parent_, rhs.parent_);
     swap(lhs.directory_type_, rhs.directory_type_);
     swap(lhs.world_is_writeable_, rhs.world_is_writeable_);
     swap(lhs.immutable_root_, rhs.immutable_root_);
@@ -91,7 +89,6 @@ class DirectoryHandler {
 
  private:
   std::shared_ptr<Storage> storage_;
-  Directory* parent_;
   DataTagValue directory_type_;
   bool world_is_writeable_, immutable_root_;
 };
@@ -164,11 +161,9 @@ typename std::enable_if<!is_encrypted_dir<DirectoryType>::value>::type
 
 template<typename Storage>
 DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
-                                            Directory* parent,
                                             DataTagValue directory_type,
                                             bool immutable_root)
     : storage_(storage),
-      parent_(parent),
       directory_type_(directory_type),
       world_is_writeable_(true),
       immutable_root_(immutable_root) {}
@@ -176,7 +171,6 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
 template<typename Storage>
 DirectoryHandler<Storage>::DirectoryHandler(const DirectoryHandler& other)
     : storage_(other.storage_),
-      parent_(other.parent_),
       directory_type_(other.directory_type_),
       world_is_writeable_(other.world_is_writeable_),
       immutable_root_(other.immutable_root_) {}
@@ -184,7 +178,6 @@ DirectoryHandler<Storage>::DirectoryHandler(const DirectoryHandler& other)
 template<typename Storage>
 DirectoryHandler<Storage>::DirectoryHandler(DirectoryHandler&& other)
     : storage_(std::move(other.storage_)),
-      parent_(std::move(other.parent_)),
       directory_type_(std::move(other.directory_type_)),
       world_is_writeable_(std::move(other.world_is_writeable_)),
       immutable_root_(std::move(other.immutable_root_)) {}
@@ -196,23 +189,23 @@ DirectoryHandler<Storage>& DirectoryHandler<Storage>::operator=(DirectoryHandler
 }
 
 template<typename Storage>
-Directory DirectoryHandler<Storage>::GetFromPath(const boost::filesystem::path& path) const {
+Directory DirectoryHandler<Storage>::GetFromPath(Directory start_directory,
+                                                 const boost::filesystem::path& path) const {
   SCOPED_PROFILE
   auto itr(++std::begin(path));
   if (itr == std::end(path))
-    return *parent_;
+    return start_directory;
 
-  Directory directory(*parent_);
   // Get successive directory listings until found.
   MetaData meta_data;
   while (itr != std::end(path)) {
-    directory.listing->GetChild((*itr++), meta_data);
+    start_directory.listing->GetChild((*itr++), meta_data);
     if (!IsDirectory(meta_data))
       ThrowError(CommonErrors::invalid_parameter);
-    directory = GetFromStorage(*storage_, directory.listing->directory_id(),
-                               *meta_data.directory_id, directory_type_);
+    start_directory = GetFromStorage(*storage_, start_directory.listing->directory_id(),
+                                     *meta_data.directory_id, directory_type_);
   }
-  return directory;
+  return start_directory;
 }
 
 template<typename Storage>
