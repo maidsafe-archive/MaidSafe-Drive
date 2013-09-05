@@ -34,13 +34,13 @@ namespace maidsafe {
 
 namespace drive {
 
+const uint32_t kAttributesDir = 0x4000;
 
 #ifdef MAIDSAFE_WIN32
 namespace {
 
 const uint32_t kAttributesFormat = 0x0FFF;
 const uint32_t kAttributesRegular = 0x8000;
-const uint32_t kAttributesDir = 0x4000;
 
 
 FILETIME BptimeToFileTime(bptime::ptime const &ptime) {
