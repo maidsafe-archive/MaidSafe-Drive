@@ -32,8 +32,7 @@ namespace drive {
 
 namespace detail {
 
-bool ExcludedFilename(const fs::path& path) {
-  std::string file_name(path.filename().stem().string());
+bool ExcludedFilename(const std::string& file_name) {
   if (file_name.size() == 4 && isdigit(file_name[3])) {
     if (file_name[3] != '0') {
       std::string name(file_name.substr(0, 3));
