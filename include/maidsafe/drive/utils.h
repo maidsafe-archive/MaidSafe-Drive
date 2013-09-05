@@ -93,7 +93,7 @@ FileContext<Storage>::FileContext(std::shared_ptr<MetaData> meta_data_in)
 //}
 //#endif
 
-bool ExcludedFilename(const boost::filesystem::path& path);
+bool ExcludedFilename(const std::string& file_name);
 
 bool MatchesMask(std::wstring mask, const boost::filesystem::path& file_name);
 bool SearchesMask(std::wstring mask, const boost::filesystem::path& file_name);
