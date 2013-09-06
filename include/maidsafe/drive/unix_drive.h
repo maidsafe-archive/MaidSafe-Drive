@@ -430,7 +430,7 @@ int FuseDriveInUserSpace<Storage>::OpsCreate(const char *path,
              << std::boolalpha << S_ISDIR(mode);
 
   fs::path full_path(path);
-  if (detail::ExcludedFilename(full_path)) {
+  if (detail::ExcludedFilename(full_path.filename().stem().string())) {
     LOG(kError) << "OpsCreate: invalid name " << full_path.filename();
     return -EINVAL;
   }
@@ -532,7 +532,7 @@ int FuseDriveInUserSpace<Storage>::OpsMkdir(const char *path, mode_t mode) {
              << mode << ", " << std::boolalpha << S_ISDIR(mode);
 
   fs::path full_path(path);
-  if (detail::ExcludedFilename(full_path)) {
+  if (detail::ExcludedFilename(full_path.filename().stem().string())) {
     LOG(kError) << "OpsMkdir: invalid name " << full_path.filename();
     return -EINVAL;
   }
@@ -880,7 +880,7 @@ int FuseDriveInUserSpace<Storage>::OpsWrite(const char *path,
 template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsChmod(const char *path, mode_t mode) {
   LOG(kInfo) << "OpsChmod: " << path << ", to " << std::oct << mode;
-  detail::FileContext<Storage> file_context;
+  std::unique_ptr<detail::FileContext<Storage>> file_context;
   try {
     file_context.reset(
         new detail::FileContext<Storage>(Global<Storage>::g_fuse_drive->GetFileContext(path)));
@@ -889,9 +889,9 @@ int FuseDriveInUserSpace<Storage>::OpsChmod(const char *path, mode_t mode) {
     return -ENOENT;
   }
 
-  file_context.meta_data->attributes.st_mode = mode;
-  time(&file_context.meta_data->attributes.st_ctime);
-  file_context.content_changed = true;
+  file_context->meta_data->attributes.st_mode = mode;
+  time(&file_context->meta_data->attributes.st_ctime);
+  file_context->content_changed = true;
 //  int result(Update(Global<Storage>::g_fuse_drive->directory_handler_, &file_context,
 //                    false, true));
 //  if (result != kSuccess) {

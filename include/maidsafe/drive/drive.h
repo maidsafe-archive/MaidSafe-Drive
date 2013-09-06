@@ -167,7 +167,8 @@ class DriveInUserSpace {
  private:
   DriveInUserSpace(const DriveInUserSpace&);
   DriveInUserSpace(DriveInUserSpace&&);
-  DriveInUserSpace& operator=(DriveInUserSpace);
+  template <typename T>
+  DriveInUserSpace& operator=(DriveInUserSpace<T>);
 
   std::unique_ptr<detail::DirectoryHandler<Storage>> GetHandler(
       const boost::filesystem::path& relative_path);
@@ -276,7 +277,7 @@ void DriveInUserSpace<Storage>::GetMetaData(const boost::filesystem::path& relat
                                             MetaData& meta_data,
                                             DirectoryId& grandparent_directory_id,
                                             DirectoryId& parent_directory_id) {
-  auto file_context(root_handler_.GetFileContext(path));
+  auto file_context(root_handler_.GetFileContext(relative_path));
   meta_data = *file_context.meta_data;
   grandparent_directory_id = file_context.grandparent_directory_id;
   parent_directory_id = file_context.parent_directory_id;

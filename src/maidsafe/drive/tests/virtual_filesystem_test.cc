@@ -1018,7 +1018,7 @@ fs::path GenerateFile(const fs::path &path,
   size_t filename_size(RandomUint32() % 4 + 4);
   fs::path file_name(RandomAlphaNumericString(filename_size) + ".txt");
 #ifndef MAIDSAFE_WIN32
-  while (ExcludedFilename(file_name))
+  while (ExcludedFilename(file_name.filename().stem().string()))
     file_name = RandomAlphaNumericString(filename_size);
 #endif
   file_name = path / file_name;
@@ -1043,7 +1043,7 @@ fs::path GenerateDirectory(const fs::path &path) {
   size_t directory_name_size(RandomUint32() % 8 + 1);
   fs::path file_name(RandomAlphaNumericString(directory_name_size));
 #ifndef MAIDSAFE_WIN32
-  while (ExcludedFilename(file_name))
+  while (ExcludedFilename(file_name.filename().stem().string()))
     file_name = RandomAlphaNumericString(directory_name_size);
 #endif
   file_name = path / file_name;
