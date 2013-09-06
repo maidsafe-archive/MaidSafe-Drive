@@ -167,8 +167,7 @@ class DriveInUserSpace {
  private:
   DriveInUserSpace(const DriveInUserSpace&);
   DriveInUserSpace(DriveInUserSpace&&);
-  template <typename T>
-  DriveInUserSpace& operator=(DriveInUserSpace<T>);
+  DriveInUserSpace& operator=(const DriveInUserSpace&);
 
   std::unique_ptr<detail::DirectoryHandler<Storage>> GetHandler(
       const boost::filesystem::path& relative_path);

@@ -611,7 +611,7 @@ int FuseDriveInUserSpace<Storage>::OpsOpen(const char *path, struct fuse_file_in
 
   file_info->keep_cache = 1;
   fs::path full_path(path);
-  assert(!(file_info->flags & O_DIRECTORY));
+//  assert(!(file_info->flags & O_DIRECTORY));
 
   try {
     file_context.reset(
@@ -656,7 +656,7 @@ int FuseDriveInUserSpace<Storage>::OpsOpendir(const char *path, struct fuse_file
 
   file_info->keep_cache = 1;
   fs::path full_path(path);
-  assert(file_info->flags & O_DIRECTORY);
+//  assert(file_info->flags & O_DIRECTORY);
   if (file_info->flags & O_NOFOLLOW) {
     LOG(kError) << "OpsOpendir: " << path << " is a symlink.";
     return -ELOOP;
@@ -880,18 +880,17 @@ int FuseDriveInUserSpace<Storage>::OpsWrite(const char *path,
 template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsChmod(const char *path, mode_t mode) {
   LOG(kInfo) << "OpsChmod: " << path << ", to " << std::oct << mode;
-  std::unique_ptr<detail::FileContext<Storage>> file_context;
+  detail::FileContext<Storage> file_context;
   try {
-    file_context.reset(
-        new detail::FileContext<Storage>(Global<Storage>::g_fuse_drive->GetFileContext(path)));
+    file_context = detail::FileContext<Storage>(Global<Storage>::g_fuse_drive->GetFileContext(path));
   } catch(...) {
     LOG(kError) << "OpsChmod: " << path << ", can't get meta data.";
     return -ENOENT;
   }
 
-  file_context->meta_data->attributes.st_mode = mode;
-  time(&file_context->meta_data->attributes.st_ctime);
-  file_context->content_changed = true;
+  file_context.meta_data->attributes.st_mode = mode;
+  time(&file_context.meta_data->attributes.st_ctime);
+  file_context.content_changed = true;
 //  int result(Update(Global<Storage>::g_fuse_drive->directory_handler_, &file_context,
 //                    false, true));
 //  if (result != kSuccess) {
