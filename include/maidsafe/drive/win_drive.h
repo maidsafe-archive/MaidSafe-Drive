@@ -327,7 +327,7 @@ void CbfsDriveInUserSpace<Storage>::Mount() {
     callback_filesystem_.MountMedia(timeout_milliseconds);
     // The following can only be called when the media is mounted.
     LOG(kInfo) << "Started mount point.";
-    callback_filesystem_.AddMountingPoint(mount_dir_.c_str());
+    callback_filesystem_.AddMountingPoint(kMountDir_.c_str());
     UpdateMountingPoints();
     LOG(kInfo) << "Added mount point.";
   }
@@ -616,7 +616,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* sender,
 
   auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
   try {
-    cbfs_drive->AddFile(relative_path, *file_context->meta_data.get(),
+    cbfs_drive->AddFile(relative_path, *file_context->meta_data,
                         file_context->grandparent_directory_id, file_context->parent_directory_id);
   }
   catch(const std::system_error& system_error) {
@@ -637,18 +637,14 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* sender,
     throw ECBFSError(ERROR_ACCESS_DENIED);
   }
 
-  if (is_directory) {
-//    cbfs_drive->used_space_ += kDirectorySize;
-  } else {
+  if (!is_directory) {
     encrypt::DataMapPtr data_map(new encrypt::DataMap());
     *data_map = *file_context->meta_data->data_map;
     file_context->meta_data->data_map = data_map;
-    auto directory_handler(cbfs_drive->GetHandler(relative_path));
-    assert(directory_handler);
-
+    auto storage(cbfs_drive->GetStorage(relative_path));
+    assert(storage);
     file_context->self_encryptor.reset(
-        new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
-                                            *directory_handler->storage()));
+        new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map, *storage));
   }
 
   // Transfer ownership of the pointer to CBFS' file_info.
@@ -670,13 +666,10 @@ void CbfsDriveInUserSpace<Storage>::CbFsOpenFile(CallbackFileSystem* sender,
     return;
 
   fs::path relative_path(file_name);
-  std::unique_ptr<detail::FileContext<Storage>> file_context(new detail::FileContext<Storage>);
-  file_context->meta_data->name = relative_path.filename();
+  std::unique_ptr<detail::FileContext<Storage>> file_context;
   auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
   try {
-    cbfs_drive->GetMetaData(relative_path, *file_context->meta_data.get(),
-                            &file_context->grandparent_directory_id,
-                            &file_context->parent_directory_id);
+    file_context.reset(new detail::FileContext<Storage>(cbfs_drive->GetFileContext(relative_path)));
   }
   catch(...) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -690,11 +683,10 @@ void CbfsDriveInUserSpace<Storage>::CbFsOpenFile(CallbackFileSystem* sender,
       encrypt::DataMapPtr data_map(new encrypt::DataMap);
       *data_map = *file_context->meta_data->data_map;
       file_context->meta_data->data_map = data_map;
-      auto directory_handler(cbfs_drive->GetHandler(relative_path));
-      assert(directory_handler);
+      auto storage(cbfs_drive->GetStorage(relative_path));
+      assert(storage);
       file_context->self_encryptor.reset(
-         new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
-                                             *directory_handler->storage()));
+         new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map, *storage));
     }
   }
   // Transfer ownership of the pointer to CBFS' file_info.
@@ -769,12 +761,10 @@ void CbfsDriveInUserSpace<Storage>::CbFsGetFileInfo(CallbackFileSystem* sender,
 
   if (relative_path.extension() == detail::kMsHidden)
     throw ECBFSError(ERROR_INVALID_NAME);
-  std::unique_ptr<detail::FileContext<Storage>> file_context(new detail::FileContext<Storage>);
+  std::unique_ptr<detail::FileContext<Storage>> file_context;
   try {
     auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
-    cbfs_drive->GetMetaData(relative_path, *file_context->meta_data.get(),
-                            &file_context->grandparent_directory_id,
-                            &file_context->parent_directory_id);
+    file_context.reset(new detail::FileContext<Storage>(cbfs_drive->GetFileContext(relative_path)));
   }
   catch(...) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -915,38 +905,11 @@ void CbfsDriveInUserSpace<Storage>::CbFsSetAllocationSize(CallbackFileSystem* se
   if (file_context->meta_data->allocation_size == file_context->meta_data->end_of_file)
     return;
 
-//  if (file_context->meta_data->allocation_size < static_cast<uint64_t>(allocation_size)) {
-//    int64_t additional_size(allocation_size - file_context->meta_data->allocation_size);
-//    if (additional_size + Global<Storage>::g_cbfs_drive->used_space_ >
-//            Global<Storage>::g_cbfs_drive->max_space_) {
-//      LOG(kError) << "CbFsSetAllocationSize: " << relative_path << ", not enough memory.";
-//      throw ECBFSError(ERROR_DISK_FULL);
-//    } else {
-//      Global<Storage>::g_cbfs_drive->used_space_ += additional_size;
-//    }
-//  } else if (file_context->meta_data->allocation_size > static_cast<uint64_t>(allocation_size)) {
-//    int64_t reduced_size(file_context->meta_data->allocation_size - allocation_size);
-//    if (cbfs_drive->used_space_ < reduced_size)
-//      cbfs_drive->used_space_ = 0;
-//    else
-//      cbfs_drive->used_space_ -= reduced_size;
-//  }
   if (cbfs_drive->TruncateFile(relative_path, file_context, allocation_size)) {
     file_context->meta_data->allocation_size = allocation_size;
     if (!file_context->self_encryptor->Flush()) {
       LOG(kError) << "CbFsSetAllocationSize: " << relative_path << ", failed to flush";
     }
-//  } else {
-//    LOG(kError) << "Truncate failed for " << file_context->meta_data->name.c_str();
-//    if (file_context->meta_data->allocation_size < static_cast<uint64_t>(allocation_size)) {
-//      int64_t additional_size(allocation_size - file_context->meta_data->allocation_size);
-//        cbfs_drive->used_space_ -= additional_size;
-//    } else if (file_context->meta_data->allocation_size >
-//                static_cast<uint64_t>(allocation_size)) {
-//      int64_t reduced_size(file_context->meta_data->allocation_size - allocation_size);
-//      cbfs_drive->used_space_ += reduced_size;
-//    }
-//    return;
   }
   file_context->content_changed = true;
 }
@@ -976,21 +939,6 @@ void CbfsDriveInUserSpace<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender,
   if (file_context->meta_data->allocation_size == static_cast<uint64_t>(end_of_file))
     return;
 
-//  if (file_context->meta_data->allocation_size < static_cast<uint64_t>(end_of_file)) {
-//    int64_t additional_size(end_of_file - file_context->meta_data->allocation_size);
-//    if (additional_size + cbfs_drive->used_space_ > cbfs_drive->max_space_) {
-//      LOG(kError) << "CbFsSetEndOfFile: " << relative_path << ", not enough memory.";
-//      throw ECBFSError(ERROR_DISK_FULL);
-//    } else {
-//      cbfs_drive->used_space_ += additional_size;
-//    }
-//  } else {
-//    int64_t reduced_size(file_context->meta_data->allocation_size - end_of_file);
-//    if (cbfs_drive->used_space_ < reduced_size)
-//      cbfs_drive->used_space_ = 0;
-//    else
-//      cbfs_drive->used_space_ -= reduced_size;
-//  }
   file_context->meta_data->allocation_size = end_of_file;
   file_context->content_changed = true;
 }
@@ -1045,16 +993,11 @@ void CbfsDriveInUserSpace<Storage>::CbFsDeleteFile(CallbackFileSystem* sender,
   LOG(kInfo) << "CbFsDeleteFile - " << relative_path;
   detail::FileContext<Storage> file_context;
   try {
-//    cbfs_drive->GetMetaData(relative_path, *file_context.meta_data.get(), nullptr, nullptr);
     cbfs_drive->RemoveFile(relative_path);
   }
   catch(...) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
-//  if (!file_context.meta_data->directory_id)
-//    cbfs_drive->used_space_ -= file_context.meta_data->allocation_size;
-//  else
-//    cbfs_drive->used_space_ -= kDirectorySize;
 }
 
 template<typename Storage>
@@ -1068,20 +1011,17 @@ void CbfsDriveInUserSpace<Storage>::CbFsRenameOrMoveFile(CallbackFileSystem* sen
   fs::path new_relative_path(new_file_name);
   detail::FileContext<Storage> file_context;
   try {
-    cbfs_drive->GetMetaData(relative_path, *file_context.meta_data.get(), nullptr, nullptr);
+    file_context = detail::FileContext<Storage>(cbfs_drive->GetFileContext(relative_path));
   }
   catch(...) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
-  int64_t reclaimed_space(0);
   try {
-    cbfs_drive->RenameFile(relative_path, new_file_name, *file_context.meta_data.get(),
-                           reclaimed_space);
+    cbfs_drive->RenameFile(relative_path, new_file_name, *file_context.meta_data);
   }
   catch(...) {
     throw ECBFSError(ERROR_ACCESS_DENIED);
   }
-//  cbfs_drive->used_space_ -= reclaimed_space;
 }
 
 template<typename Storage>
@@ -1155,10 +1095,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsIsDirectoryEmpty(CallbackFileSystem* sen
   LOG(kInfo) << "CbFsIsDirectoryEmpty - " << fs::path(file_name);
   try {
     auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
-    auto directory_handler(cbfs_drive->GetHandler(fs::path(file_name)));
-    assert(directory_handler);
-    auto directory(directory_handler->GetFromPath(file_name));
-    *is_empty = directory.listing->empty();
+    *is_empty = cbfs_drive->GetDirectory(fs::path(file_name)).listing->empty();
   }
   catch(...) {
     throw ECBFSError(ERROR_PATH_NOT_FOUND);
@@ -1224,11 +1161,14 @@ void CbfsDriveInUserSpace<Storage>::SetNewAttributes(detail::FileContext<Storage
     else
       file_context->meta_data->attributes = FILE_ATTRIBUTE_NORMAL;
 
-    auto directory_handler(GetHandler(file_context->meta_data->name));
-    assert(directory_handler);
 
-    file_context->self_encryptor.reset(new encrypt::SelfEncryptor<Storage>(
-        file_context->meta_data->data_map, *directory_handler->storage()));
+    // TODO(Fraser#5#): 2013-09-05 - BEFORE_RELEASE - Must be relative_path passed here, not name.
+    //auto storage(cbfs_drive->GetStorage(file_context->meta_data->name));
+    //assert(storage);
+
+    //file_context->self_encryptor.reset(new encrypt::SelfEncryptor<Storage>(
+    //    file_context->meta_data->data_map, *directory_handler->storage()));
+    assert(file_context->self_encryptor);
     file_context->meta_data->end_of_file = file_context->meta_data->allocation_size =
         file_context->self_encryptor->size();
   }

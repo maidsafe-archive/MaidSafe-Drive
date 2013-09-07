@@ -63,7 +63,7 @@ bool ForceFlush(RootHandler<Storage>& root_handler, FileContext<Storage>* file_c
 }
 
 template<typename Storage>
-static inline struct FileContext<Storage> *GetFileContext(struct fuse_file_info *file_info) {
+static inline struct FileContext<Storage> *RecoverFileContext(struct fuse_file_info *file_info) {
   if (file_info->fh == 0) {
     LOG(kWarning) << "Bad pointer.";
     return nullptr;
@@ -308,22 +308,22 @@ void FuseDriveInUserSpace<Storage>::Init() {
 template<typename Storage>
 void FuseDriveInUserSpace<Storage>::Mount() {
   boost::system::error_code error_code;
-  if (!fs::exists(DriveInUserSpace<Storage>::mount_dir_, error_code) || error_code) {
-    LOG(kError) << "Mount dir " << DriveInUserSpace<Storage>::mount_dir_ << " doesn't exist."
+  if (!fs::exists(DriveInUserSpace<Storage>::kMountDir_, error_code) || error_code) {
+    LOG(kError) << "Mount dir " << DriveInUserSpace<Storage>::kMountDir_ << " doesn't exist."
                 << (error_code ? ("  " + error_code.message()) : "");
     ThrowError(DriveErrors::failed_to_mount);
   }
 
 
-  if (!fs::is_empty(DriveInUserSpace<Storage>::mount_dir_, error_code) || error_code) {
-    LOG(kError) << "Mount dir " << DriveInUserSpace<Storage>::mount_dir_ << " isn't empty."
+  if (!fs::is_empty(DriveInUserSpace<Storage>::kMountDir_, error_code) || error_code) {
+    LOG(kError) << "Mount dir " << DriveInUserSpace<Storage>::kMountDir_ << " isn't empty."
                 << (error_code ? ("  " + error_code.message()) : "");
     ThrowError(DriveErrors::failed_to_mount);
   }
 
   boost::shared_array<char*> opts(new char*[2]);
   opts[0] = const_cast<char*>(drive_name_.c_str());
-  opts[1] = const_cast<char*>(DriveInUserSpace<Storage>::mount_dir_.c_str());
+  opts[1] = const_cast<char*>(DriveInUserSpace<Storage>::kMountDir_.c_str());
 
   struct fuse_args args = FUSE_ARGS_INIT(2, opts.get());
   // fuse helper macros for options
@@ -424,13 +424,13 @@ bool FuseDriveInUserSpace<Storage>::Unmount() {
 
 template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsCreate(const char *path,
-                                    mode_t mode,
-                                    struct fuse_file_info *file_info) {
+                                             mode_t mode,
+                                             struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsCreate: " << path << ", mode: " << std::oct << mode << ", "
              << std::boolalpha << S_ISDIR(mode);
 
   fs::path full_path(path);
-  if (detail::ExcludedFilename(full_path)) {
+  if (detail::ExcludedFilename(full_path.filename().stem().string())) {
     LOG(kError) << "OpsCreate: invalid name " << full_path.filename();
     return -EINVAL;
   }
@@ -463,11 +463,10 @@ int FuseDriveInUserSpace<Storage>::OpsCreate(const char *path,
     encrypt::DataMapPtr data_map(new encrypt::DataMap());
     *data_map = *file_context->meta_data->data_map;
     file_context->meta_data->data_map = data_map;
-    auto directory_handler(Global<Storage>::g_fuse_drive->GetHandler(full_path));
-    assert(directory_handler);
+    auto storage(Global<Storage>::g_fuse_drive->GetStorage(full_path));
+    assert(storage);
     file_context->self_encryptor.reset(
-        new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
-                                            *directory_handler->storage()));
+        new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map, *storage));
   }
 
   file_info->keep_cache = 1;
@@ -491,7 +490,7 @@ void FuseDriveInUserSpace<Storage>::OpsDestroy(void */*fuse*/) {
 template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsFlush(const char *path, struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFlush: " << path << ", flags: " << file_info->flags;
-  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::RecoverFileContext<Storage>(file_info));
   if (!file_context) {
     LOG(kError) << "OpsFlush: " << path << ", failed find filecontext for " << path;
     return -EINVAL;
@@ -509,28 +508,11 @@ int FuseDriveInUserSpace<Storage>::OpsFtruncate(const char *path,
                                        off_t size,
                                        struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFtruncate: " << path << ", size: " << size;
-  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::RecoverFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
   if (Global<Storage>::g_fuse_drive->TruncateFile(fs::path(path), file_context, size)) {
-//    if (file_context->meta_data->attributes.st_size < size) {
-//      int64_t additional_size(size - file_context->meta_data->attributes.st_size);
-//      if (additional_size + Global<Storage>::g_fuse_drive->used_space_ >
-//          Global<Storage>::g_fuse_drive->max_space_) {
-//        LOG(kError) << "OpsTruncate: " << path << ", not enough memory.";
-//        return -ENOSPC;
-//      } else {
-//        Global<Storage>::g_fuse_drive->used_space_ += additional_size;
-//      }
-//    } else if (file_context->meta_data->attributes.st_size > size) {
-//      int64_t reduced_size(file_context->meta_data->attributes.st_size - size);
-//      if (Global<Storage>::g_fuse_drive->used_space_ < reduced_size) {
-//        Global<Storage>::g_fuse_drive->used_space_ = 0;
-//      } else {
-//        Global<Storage>::g_fuse_drive->used_space_ -= reduced_size;
-//      }
-//    }
     file_context->meta_data->attributes.st_size = size;
     time(&file_context->meta_data->attributes.st_mtime);
     file_context->meta_data->attributes.st_ctime =
@@ -550,7 +532,7 @@ int FuseDriveInUserSpace<Storage>::OpsMkdir(const char *path, mode_t mode) {
              << mode << ", " << std::boolalpha << S_ISDIR(mode);
 
   fs::path full_path(path);
-  if (detail::ExcludedFilename(full_path)) {
+  if (detail::ExcludedFilename(full_path.filename().stem().string())) {
     LOG(kError) << "OpsMkdir: invalid name " << full_path.filename();
     return -EINVAL;
   }
@@ -567,8 +549,6 @@ int FuseDriveInUserSpace<Storage>::OpsMkdir(const char *path, mode_t mode) {
     LOG(kError) << "OpsMkdir: " << path << ", failed to AddNewMetaData.  ";
     return -EIO;
   }
-
-//  Global<Storage>::g_fuse_drive->used_space_ += kDirectorySize;
   return 0;
 }
 
@@ -609,7 +589,6 @@ int FuseDriveInUserSpace<Storage>::OpsMknod(const char *path, mode_t mode, dev_t
   }
 
   meta_data.attributes.st_size = detail::kDirectorySize;
-//  Global<Storage>::g_fuse_drive->used_space_ += kDirectorySize;
   return 0;
 }
 
@@ -619,29 +598,24 @@ int FuseDriveInUserSpace<Storage>::OpsOpen(const char *path, struct fuse_file_in
              << ", keep_cache: " << file_info->keep_cache << ", direct_io: "
              << file_info->direct_io;
   std::unique_ptr<detail::FileContext<Storage>> file_context(
-      detail::GetFileContext<Storage>(file_info));
+      detail::RecoverFileContext<Storage>(file_info));
   if (file_context) {
     file_context.release();
     return 0;
   }
 
-  file_context.reset(new detail::FileContext<Storage>());
-
-  if ((file_info->flags & O_NOFOLLOW) &&
-      (file_context->meta_data->link_to != fs::path())) {
+  if (file_info->flags & O_NOFOLLOW) {
     LOG(kError) << "OpsOpen: " << path << " is a symlink.";
     return -ELOOP;
   }
 
   file_info->keep_cache = 1;
   fs::path full_path(path);
-  assert(!(file_info->flags & O_DIRECTORY));
+//  assert(!(file_info->flags & O_DIRECTORY));
 
-  file_context->meta_data->name = full_path.filename();
   try {
-    Global<Storage>::g_fuse_drive->GetMetaData(full_path, *file_context->meta_data.get(),
-                                               &file_context->grandparent_directory_id,
-                                               &file_context->parent_directory_id);
+    file_context.reset(
+        new detail::FileContext<Storage>(Global<Storage>::g_fuse_drive->GetFileContext(full_path)));
   }
   catch(...) {
     LOG(kError) << "OpsOpen: " << path << ", failed to GetMetaData.";
@@ -674,28 +648,23 @@ int FuseDriveInUserSpace<Storage>::OpsOpendir(const char *path, struct fuse_file
              << file_info->direct_io;
 
   std::unique_ptr<detail::FileContext<Storage>> file_context(
-      detail::GetFileContext<Storage>(file_info));
+      detail::RecoverFileContext<Storage>(file_info));
   if (file_context) {
     file_context.release();
     return 0;
   }
 
-  file_context.reset(new detail::FileContext<Storage>());
-
   file_info->keep_cache = 1;
   fs::path full_path(path);
-  assert(file_info->flags & O_DIRECTORY);
-  if ((file_info->flags & O_NOFOLLOW) &&
-      (file_context->meta_data->link_to != fs::path())) {
+//  assert(file_info->flags & O_DIRECTORY);
+  if (file_info->flags & O_NOFOLLOW) {
     LOG(kError) << "OpsOpendir: " << path << " is a symlink.";
     return -ELOOP;
   }
 
-  file_context->meta_data->name = full_path.filename();
   try {
-    Global<Storage>::g_fuse_drive->GetMetaData(full_path, *file_context->meta_data.get(),
-                                               &file_context->grandparent_directory_id,
-                                               &file_context->parent_directory_id);
+    file_context.reset(
+        new detail::FileContext<Storage>(Global<Storage>::g_fuse_drive->GetFileContext(full_path)));
   }
   catch(...) {
     LOG(kError) << "OpsOpendir: " << path << ", failed to GetMetaData.";
@@ -717,7 +686,7 @@ int FuseDriveInUserSpace<Storage>::OpsRead(const char *path,
   LOG(kInfo) << "OpsRead: " << path << ", flags: 0x" << std::hex << file_info->flags << std::dec
              << " Size : " <<  size << " Offset : " << offset;
 
-  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::RecoverFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -791,16 +760,14 @@ template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsRmdir(const char *path) {
   LOG(kInfo) << "OpsRmdir: " << path;
 
-  fs::path full_path(path);
-  MetaData meta_data;
-  try {
-    Global<Storage>::g_fuse_drive->GetMetaData(full_path, meta_data, nullptr, nullptr);
-  } catch(...) {
-    LOG(kError) << "OpsRmdir " << full_path << ", failed to get data for the item.";
-    return -ENOENT;
-  }
+  //try {
+  //  fs::path full_path(path);
+  //  Global<Storage>::g_fuse_drive->GetFileContext(full_path);
+  //} catch(...) {
+  //  LOG(kError) << "OpsRmdir " << full_path << ", failed to get data for the item.";
+  //  return -ENOENT;
+  //}
 
-//  Global<Storage>::g_fuse_drive->used_space_ -= meta_data.attributes.st_size;
   try {
     Global<Storage>::g_fuse_drive->RemoveFile(path);
   } catch(...) {
@@ -814,13 +781,9 @@ int FuseDriveInUserSpace<Storage>::OpsRmdir(const char *path) {
 template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsTruncate(const char *path, off_t size) {
   LOG(kInfo) << "OpsTruncate: " << path << ", size: " << size;
-  detail::FileContext<Storage> file_context;
   try {
-    Global<Storage>::g_fuse_drive->GetMetaData(path,
-                                               *file_context.meta_data.get(),
-                                               &file_context.grandparent_directory_id,
-                                               &file_context.parent_directory_id);
     fs::path full_path(path);
+    auto file_context(Global<Storage>::g_fuse_drive->GetFileContext(full_path));
     if (Global<Storage>::g_fuse_drive->TruncateFile(full_path, &file_context, size)) {
       file_context.meta_data->attributes.st_size = size;
       time(&file_context.meta_data->attributes.st_mtime);
@@ -842,15 +805,13 @@ int FuseDriveInUserSpace<Storage>::OpsTruncate(const char *path, off_t size) {
 template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsUnlink(const char *path) {
   LOG(kInfo) << "OpsUnlink: " << path;
-
-  fs::path full_path(path);
-  MetaData temp_meta;
-  try {
-    Global<Storage>::g_fuse_drive->GetMetaData(full_path, temp_meta, nullptr, nullptr);
-  } catch(...) {
-    LOG(kError) << "OpsUnlink " << full_path << ", failed to get parent data for the item.";
-    return -ENOENT;
-  }
+  //try {
+  //  fs::path full_path(path);
+  //  Global<Storage>::g_fuse_drive->GetFileContext(full_path);
+  //} catch(...) {
+  //  LOG(kError) << "OpsUnlink " << full_path << ", failed to get parent data for the item.";
+  //  return -ENOENT;
+  //}
 
   try {
     Global<Storage>::g_fuse_drive->RemoveFile(path);
@@ -859,7 +820,6 @@ int FuseDriveInUserSpace<Storage>::OpsUnlink(const char *path) {
     return -EIO;
   }
 
-//  Global<Storage>::g_fuse_drive->used_space_ -= temp_meta.attributes.st_size;
   return 0;
 }
 
@@ -872,7 +832,7 @@ int FuseDriveInUserSpace<Storage>::OpsWrite(const char *path,
   LOG(kInfo) << "OpsWrite: " << path << ", flags: 0x" << std::hex << file_info->flags << std::dec
              << " Size : " <<  size << " Offset : " << offset;
 
-  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::RecoverFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -882,17 +842,6 @@ int FuseDriveInUserSpace<Storage>::OpsWrite(const char *path,
           new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
               *Global<Storage>::g_fuse_drive->GetStorage(fs::path(path))));
   }
-
-  // check for sufficient space before writing
-//   if (((Global<Storage>::g_fuse_drive->max_space_ != 0) &&
-//           static_cast<int64_t>(size + Global<Storage>::g_fuse_drive->used_space_) >
-//           Global<Storage>::g_fuse_drive->max_space_) ||
-//       (Global<Storage>::g_fuse_drive->client_nfs_.Capacity() != 0 &&
-//           (size + Global<Storage>::g_fuse_drive->client_nfs_.Size()) >
-//               Global<Storage>::g_fuse_drive->client_nfs_.Capacity())) {
-//     LOG(kError) << "OpsWrite: " << path << ", insufficient space available.";
-//     return -ENOSPC;
-//   }
 
   // TODO(JLB): 2011-06-02 - look into SSIZE_MAX?
 
@@ -905,17 +854,7 @@ int FuseDriveInUserSpace<Storage>::OpsWrite(const char *path,
 
   int64_t max_size(std::max(static_cast<off_t>(offset + size),
                             file_context->meta_data->attributes.st_size));
-//  if (file_context->meta_data->attributes.st_size != max_size) {
-//    int64_t additional_size(max_size - file_context->meta_data->attributes.st_size);
-//    if (additional_size + Global<Storage>::g_fuse_drive->used_space_ >
-//        Global<Storage>::g_fuse_drive->max_space_) {
-//      LOG(kError) << "OpsWrite: " << path << ", not enough memory.";
-//      return -ENOSPC;
-//    } else {
-//      Global<Storage>::g_fuse_drive->used_space_ += additional_size;
-//    }
     file_context->meta_data->attributes.st_size = max_size;
-//  }
 
   file_context->meta_data->attributes.st_blocks = file_context->meta_data->attributes.st_size / 512;
   LOG(kInfo) << "OpsWrite: " << path << ", bytes written: " << size
@@ -943,10 +882,7 @@ int FuseDriveInUserSpace<Storage>::OpsChmod(const char *path, mode_t mode) {
   LOG(kInfo) << "OpsChmod: " << path << ", to " << std::oct << mode;
   detail::FileContext<Storage> file_context;
   try {
-    Global<Storage>::g_fuse_drive->GetMetaData(path,
-                              *file_context.meta_data.get(),
-                              &file_context.grandparent_directory_id,
-                              &file_context.parent_directory_id);
+    file_context = detail::FileContext<Storage>(Global<Storage>::g_fuse_drive->GetFileContext(path));
   } catch(...) {
     LOG(kError) << "OpsChmod: " << path << ", can't get meta data.";
     return -ENOENT;
@@ -970,10 +906,7 @@ int FuseDriveInUserSpace<Storage>::OpsChown(const char *path, uid_t uid, gid_t g
   LOG(kInfo) << "OpsChown: " << path;
   detail::FileContext<Storage> file_context;
   try {
-    Global<Storage>::g_fuse_drive->GetMetaData(path,
-                              *file_context.meta_data.get(),
-                              &file_context.grandparent_directory_id,
-                              &file_context.parent_directory_id);
+    file_context = Global<Storage>::g_fuse_drive->GetFileContext(path);
   } catch(...) {
     LOG(kError) << "OpsChown: " << path << ", can't get meta data.";
     return -ENOENT;
@@ -1006,7 +939,7 @@ int FuseDriveInUserSpace<Storage>::OpsFgetattr(const char *path,
                                       struct stat *stbuf,
                                       struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFgetattr: " << path;
-  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::RecoverFileContext<Storage>(file_info));
   if (!file_context)
     return -ENOENT;
 
@@ -1027,7 +960,7 @@ int FuseDriveInUserSpace<Storage>::OpsFsync(const char *path,
                                    int /*isdatasync*/,
                                    struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFsync: " << path;
-  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::RecoverFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -1050,7 +983,7 @@ int FuseDriveInUserSpace<Storage>::OpsFsyncDir(const char *path,
                                       int /*isdatasync*/,
                                       struct fuse_file_info *file_info) {
   LOG(kInfo) << "OpsFsyncDir: " << path;
-  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::RecoverFileContext<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -1077,9 +1010,28 @@ int FuseDriveInUserSpace<Storage>::OpsGetattr(const char *path, struct stat *stb
 #endif
   int result(0);
   fs::path full_path(path);
-  MetaData meta_data;
   try {
-    Global<Storage>::g_fuse_drive->GetMetaData(full_path, meta_data, nullptr, nullptr);
+    auto file_context(Global<Storage>::g_fuse_drive->GetFileContext(full_path));
+    *stbuf = file_context.meta_data->attributes;
+//    LOG(kInfo) << " meta_data info  = ";
+//    LOG(kInfo) << "     name =  " << file_context.meta_data->name.c_str();
+//    LOG(kInfo) << "     st_dev = " << file_context.meta_data->attributes.st_dev;
+//    LOG(kInfo) << "     st_ino = " << file_context.meta_data->attributes.st_ino;
+    LOG(kInfo) << "     st_mode = " << file_context.meta_data->attributes.st_mode;
+//    LOG(kInfo) << "     st_nlink = " << file_context.meta_data->attributes.st_nlink;
+//    LOG(kInfo) << "     st_uid = " << file_context.meta_data->attributes.st_uid;
+//    LOG(kInfo) << "     st_gid = " << file_context.meta_data->attributes.st_gid;
+//    LOG(kInfo) << "     st_rdev = " << file_context.meta_data->attributes.st_rdev;
+//    LOG(kInfo) << "     st_size = " << file_context.meta_data->attributes.st_size;
+//    LOG(kInfo) << "     st_blksize = " << file_context.meta_data->attributes.st_blksize;
+//    LOG(kInfo) << "     st_blocks = " << file_context.meta_data->attributes.st_blocks;
+//    LOG(kInfo) << "     st_atim = " << file_context.meta_data->attributes.st_atime;
+//    LOG(kInfo) << "     st_mtim = " << file_context.meta_data->attributes.st_mtime;
+//    LOG(kInfo) << "     st_ctim = " << file_context.meta_data->attributes.st_ctime;
+
+#ifdef MAIDSAFE_APPLE
+    Global<Storage>::g_fuse_drive->unmount_mutex_.unlock();
+#endif
   } catch(...) {
     if (full_path.filename().string().size() > 255) {
       LOG(kError) << "OpsGetattr: " << full_path.filename() << " too long.";
@@ -1088,27 +1040,6 @@ int FuseDriveInUserSpace<Storage>::OpsGetattr(const char *path, struct stat *stb
     LOG(kWarning) << "OpsGetattr: " << full_path << ", can't get meta data.";
     return -ENOENT;
   }
-
-  *stbuf = meta_data.attributes;
-//    LOG(kInfo) << " meta_data info  = ";
-//    LOG(kInfo) << "     name =  " << meta_data.name.c_str();
-//    LOG(kInfo) << "     st_dev = " << meta_data.attributes.st_dev;
-//    LOG(kInfo) << "     st_ino = " << meta_data.attributes.st_ino;
-  LOG(kInfo) << "     st_mode = " << meta_data.attributes.st_mode;
-//    LOG(kInfo) << "     st_nlink = " << meta_data.attributes.st_nlink;
-//    LOG(kInfo) << "     st_uid = " << meta_data.attributes.st_uid;
-//    LOG(kInfo) << "     st_gid = " << meta_data.attributes.st_gid;
-//    LOG(kInfo) << "     st_rdev = " << meta_data.attributes.st_rdev;
-//    LOG(kInfo) << "     st_size = " << meta_data.attributes.st_size;
-//    LOG(kInfo) << "     st_blksize = " << meta_data.attributes.st_blksize;
-//    LOG(kInfo) << "     st_blocks = " << meta_data.attributes.st_blocks;
-//    LOG(kInfo) << "     st_atim = " << meta_data.attributes.st_atime;
-//    LOG(kInfo) << "     st_mtim = " << meta_data.attributes.st_mtime;
-//    LOG(kInfo) << "     st_ctim = " << meta_data.attributes.st_ctime;
-
-#ifdef MAIDSAFE_APPLE
-  Global<Storage>::g_fuse_drive->unmount_mutex_.unlock();
-#endif
   return result;
 }
 
@@ -1118,9 +1049,8 @@ int FuseDriveInUserSpace<Storage>::OpsLink(const char *to, const char *from) {
 
   fs::path path_to(to), path_from(from);
 
-  detail::FileContext<Storage> file_context_to;
-  if (Global<Storage>::g_fuse_drive->GetMetaData(path_to, &file_context_to.meta_data,
-                                &file_context.parent_directory_id)) {
+  try {
+    auto file_context_to(Global<Storage>::g_fuse_drive->GetFileContext(path_to));
     if (!S_ISDIR(file_context_to.meta_data.attributes.st_mode))
       ++file_context_to.meta_data.attributes.st_nlink;
     time(&file_context_to.meta_data.attributes.st_ctime);
@@ -1142,8 +1072,9 @@ int FuseDriveInUserSpace<Storage>::OpsLink(const char *to, const char *from) {
       return -EIO;
     }
     return 0;
-  } else {
-    LOG(kError) << "OpsLink: " << path_to << ", can't get meta data.";
+  }
+  catch(const std::exception& e) {
+    LOG(kError) << "OpsLink: " << path_to << ", can't get meta data." << e.what();
     return -ENOENT;
   }
 }
@@ -1180,7 +1111,7 @@ int FuseDriveInUserSpace<Storage>::OpsReaddir(const char *path,
       break;
   }
 
-  detail::FileContext<Storage> *file_context(detail::GetFileContext<Storage>(file_info));
+  detail::FileContext<Storage> *file_context(detail::RecoverFileContext<Storage>(file_info));
   if (file_context) {
     file_context->content_changed = true;
     time(&file_context->meta_data->attributes.st_atime);
@@ -1193,19 +1124,18 @@ int FuseDriveInUserSpace<Storage>::OpsReadlink(const char *path,
                                       char *buf,
                                       size_t /*size*/) {
   LOG(kInfo) << "OpsReadlink: " << path;
-  MetaData meta_data;
   try {
-    Global<Storage>::g_fuse_drive->GetMetaData(path, meta_data, nullptr, nullptr);
+    auto file_context(Global<Storage>::g_fuse_drive->GetFileContext(path));
+    if (S_ISLNK(file_context.meta_data->attributes.st_mode)) {
+      snprintf(buf, file_context.meta_data->link_to.string().size() + 1, "%s",
+               file_context.meta_data->link_to.string().c_str());
+    } else {
+      LOG(kError) << "OpsReadlink " << path << ", no link returned.";
+      return -EINVAL;
+    }
   } catch(...) {
     LOG(kWarning) << "OpsReadlink: " << path << ", can't get meta data.";
     return -ENOENT;
-  }
-
-  if (S_ISLNK(meta_data.attributes.st_mode)) {
-    snprintf(buf, meta_data.link_to.string().size() + 1, "%s", meta_data.link_to.string().c_str());
-  } else {
-    LOG(kError) << "OpsReadlink " << path << ", no link returned.";
-    return -EINVAL;
   }
   return 0;
 }
@@ -1215,9 +1145,9 @@ int FuseDriveInUserSpace<Storage>::OpsRename(const char *old_name, const char *n
   LOG(kInfo) << "OpsRename: " << old_name << " --> " << new_name;
 
   fs::path old_path(old_name), new_path(new_name);
-  MetaData meta_data;
+  detail::FileContext<Storage> old_file_context;
   try {
-    Global<Storage>::g_fuse_drive->GetMetaData(old_path, meta_data, nullptr, nullptr);
+    old_file_context = Global<Storage>::g_fuse_drive->GetFileContext(old_path);
   } catch(...) {
     LOG(kError) << "OpsRename " << old_path << " --> " << new_path << ", failed to get meta data.";
     return -ENOENT;
@@ -1226,9 +1156,8 @@ int FuseDriveInUserSpace<Storage>::OpsRename(const char *old_name, const char *n
   // TODO(JLB): 2011-06-01 - look into value of LINK_MAX for potentially
   // exceeding, requiring a return of EMLINK
 
-  int64_t reclaimed_space(0);
   try {
-    Global<Storage>::g_fuse_drive->RenameFile(old_path, new_path, meta_data, reclaimed_space);
+    Global<Storage>::g_fuse_drive->RenameFile(old_path, new_path, *old_file_context.meta_data);
   } catch(...) {
     LOG(kError) << "OpsRename " << old_path << " --> " << new_path
                 << ", failed to rename meta data.";
@@ -1245,7 +1174,6 @@ int FuseDriveInUserSpace<Storage>::OpsRename(const char *old_name, const char *n
 //     }
     return -EIO;
   }
-//  Global<Storage>::g_fuse_drive->used_space_ -= reclaimed_space;
   return 0;
 }
 
@@ -1297,10 +1225,7 @@ int FuseDriveInUserSpace<Storage>::OpsUtimens(const char *path, const struct tim
   LOG(kInfo) << "OpsUtimens: " << path;
   detail::FileContext<Storage> file_context;
   try {
-    Global<Storage>::g_fuse_drive->GetMetaData(path,
-                              *file_context.meta_data.get(),
-                              &file_context.grandparent_directory_id,
-                              &file_context.parent_directory_id);
+    file_context = Global<Storage>::g_fuse_drive->GetFileContext(path);
   } catch(...) {
     LOG(kError) << "OpsUtimens: " << path << ", can't get meta data.";
     return -ENOENT;
@@ -1450,7 +1375,7 @@ int FuseDriveInUserSpace<Storage>::Release(const char *path, struct fuse_file_in
   });
   LOG(kInfo) << "About to get file context";
   std::unique_ptr<detail::FileContext<Storage>, decltype(deleter)> file_context(
-      static_cast<detail::FileContext<Storage>*>(detail::GetFileContext<Storage>(file_info)),
+      static_cast<detail::FileContext<Storage>*>(detail::RecoverFileContext<Storage>(file_info)),
       deleter);
   assert(file_context);
 

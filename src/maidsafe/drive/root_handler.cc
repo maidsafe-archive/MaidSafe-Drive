@@ -65,8 +65,8 @@ void RootHandler<data_store::SureFileStore>::AddService(
     PutToStorage(*storage, service_root);
   }
 
-  DirectoryHandler<data_store::SureFileStore> handler(storage, &root_,
-                                                      DataTagValue::kOwnerDirectoryValue, true);
+  DirectoryHandler<data_store::SureFileStore> handler(storage, DataTagValue::kOwnerDirectoryValue,
+                                                      true);
   directory_handlers_.insert(std::make_pair(service_alias, handler));
   MetaData service_meta_data(service_alias, true);
   *service_meta_data.directory_id = service_root_id;
@@ -88,7 +88,7 @@ void RootHandler<data_store::SureFileStore>::RemoveService(
   // TODO(Fraser#5#): 2013-09-04 - If required, delete 'itr->second.storage()' from disk.  If that
   //                               *is* done here, no need to get Directory or call
   //                               DeleteFromStorage (i.e. delete next 2 lines).
-  Directory directory(itr->second.GetFromPath(kRoot / service_alias));
+  Directory directory(itr->second.GetFromPath(root_, kRoot / service_alias));
   DeleteFromStorage(*itr->second.storage(), directory);
 
   root_.listing->RemoveChild(MetaData(service_alias, true));

@@ -66,7 +66,7 @@ class DriveInUserSpace {
   virtual bool Unmount() = 0;
 
 #ifdef MAIDSAFE_APPLE
-  boost::filesystem::path GetMountDir() const { return mount_dir_; }
+  boost::filesystem::path GetMountDir() const { return kMountDir_; }
 #endif
 
   Identity drive_root_id() const;
@@ -103,8 +103,8 @@ class DriveInUserSpace {
                      const std::string& serialised_data_map);
   void GetMetaData(const boost::filesystem::path& relative_path,
                    MetaData& meta_data,
-                   DirectoryId* grandparent_directory_id,
-                   DirectoryId* parent_directory_id);
+                   DirectoryId& grandparent_directory_id,
+                   DirectoryId& parent_directory_id);
   // Adds a directory or file represented by 'meta_data' and 'relative_path' to the appropriate
   // parent directory listing. If the element is a directory, a new directory listing is created
   // and stored. The parent directory's ID is returned in 'parent_id' and its parent directory's ID
@@ -121,8 +121,7 @@ class DriveInUserSpace {
   // 'reclaimed_space' to a non-zero value if the paths are identical and the file sizes differ.
   void RenameFile(const boost::filesystem::path& old_relative_path,
                   const boost::filesystem::path& new_relative_path,
-                  MetaData& meta_data,
-                  int64_t& reclaimed_space);
+                  MetaData& meta_data);
 
   // *************************** Hidden Files ******************************************************
 
@@ -144,10 +143,10 @@ class DriveInUserSpace {
   void AddNote(const boost::filesystem::path& relative_path, const std::string& note);
 
  protected:
-  detail::DirectoryHandler<Storage>* GetHandler(const boost::filesystem::path& relative_path);
   detail::Directory GetDirectory(const boost::filesystem::path& relative_path);
-  // Updates parent directory at 'parent_path' with the values contained in the 'file_context'.
   Storage* GetStorage(const boost::filesystem::path& path) const;
+  detail::FileContext<Storage> GetFileContext(const boost::filesystem::path& path) const;
+  // Updates parent directory at 'parent_path' with the values contained in the 'file_context'.
   void UpdateParent(detail::FileContext<Storage>* file_context,
                     const boost::filesystem::path& parent_path);
   // Resizes the file.
@@ -161,12 +160,17 @@ class DriveInUserSpace {
 
   enum DriveStage { kUnInitialised, kInitialised, kMounted, kUnMounted, kCleaned } drive_stage_;
   detail::RootHandler<Storage> root_handler_;
-  boost::filesystem::path mount_dir_;
-//  int64_t max_space_, used_space_;
+  const boost::filesystem::path kMountDir_;
   std::mutex unmount_mutex_;
   mutable std::mutex api_mutex_;
 
  private:
+  DriveInUserSpace(const DriveInUserSpace&);
+  DriveInUserSpace(DriveInUserSpace&&);
+  DriveInUserSpace& operator=(const DriveInUserSpace&);
+
+  std::unique_ptr<detail::DirectoryHandler<Storage>> GetHandler(
+      const boost::filesystem::path& relative_path);
   virtual void SetNewAttributes(detail::FileContext<Storage>* file_context,
                                 bool is_directory,
                                 bool read_only) = 0;
@@ -192,7 +196,7 @@ DriveInUserSpace<Storage>::DriveInUserSpace(std::shared_ptr<nfs_client::MaidNode
                                             OnServiceAdded on_service_added)
     : drive_stage_(kUnInitialised),
       root_handler_(maid_node_nfs, unique_user_id, drive_root_id, on_service_added),
-      mount_dir_(mount_dir),
+      kMountDir_(mount_dir),
       unmount_mutex_(),
       api_mutex_(),
       unmount_condition_variable_(),
@@ -210,7 +214,7 @@ DriveInUserSpace<Storage>::DriveInUserSpace(const Identity& drive_root_id,
                                             OnServiceRenamed on_service_renamed)
     : drive_stage_(kUnInitialised),
       root_handler_(drive_root_id, on_service_added, on_service_removed, on_service_renamed),
-      mount_dir_(mount_dir),
+      kMountDir_(mount_dir),
       unmount_mutex_(),
       api_mutex_(),
       unmount_condition_variable_(),
@@ -240,9 +244,9 @@ bool DriveInUserSpace<Storage>::WaitUntilMounted() {
   std::unique_lock<std::mutex> lock(mount_mutex_);
   bool result(mount_condition_variable_.wait_for(lock, std::chrono::seconds(10),
                                                  [this] { return drive_stage_ == kMounted; }));
-#ifdef MAIDSAFE_APPLE
-//  Sleep(std::chrono::seconds(1));
-#endif
+// #ifdef MAIDSAFE_APPLE
+//   Sleep(std::chrono::seconds(1));
+// #endif
   return result;
 }
 
@@ -270,16 +274,18 @@ void DriveInUserSpace<Storage>::RemoveService(const boost::filesystem::path& ser
 template<typename Storage>
 void DriveInUserSpace<Storage>::GetMetaData(const boost::filesystem::path& relative_path,
                                             MetaData& meta_data,
-                                            DirectoryId* grandparent_directory_id,
-                                            DirectoryId* parent_directory_id) {
-  return root_handler_.GetMetaData(relative_path, meta_data, grandparent_directory_id,
-                                   parent_directory_id);
+                                            DirectoryId& grandparent_directory_id,
+                                            DirectoryId& parent_directory_id) {
+  auto file_context(root_handler_.GetFileContext(relative_path));
+  meta_data = *file_context.meta_data;
+  grandparent_directory_id = file_context.grandparent_directory_id;
+  parent_directory_id = file_context.parent_directory_id;
 }
 
 template<typename Storage>
-detail::DirectoryHandler<Storage>* DriveInUserSpace<Storage>::GetHandler(
+std::unique_ptr<detail::DirectoryHandler<Storage>> DriveInUserSpace<Storage>::GetHandler(
     const boost::filesystem::path& relative_path) {
-  return root_handler_.GetHandler(relative_path);
+  return std::move(root_handler_.GetHandler(relative_path));
 }
 
 template<typename Storage>
@@ -291,6 +297,12 @@ detail::Directory DriveInUserSpace<Storage>::GetDirectory(
 template<typename Storage>
 Storage* DriveInUserSpace<Storage>::GetStorage(const boost::filesystem::path& path) const {
   return root_handler_.GetStorage(path);
+}
+
+template<typename Storage>
+detail::FileContext<Storage> DriveInUserSpace<Storage>::GetFileContext(
+    const boost::filesystem::path& path) const {
+  return root_handler_.GetFileContext(path);
 }
 
 template<typename Storage>
@@ -321,9 +333,8 @@ void DriveInUserSpace<Storage>::RemoveFile(const boost::filesystem::path& relati
 template<typename Storage>
 void DriveInUserSpace<Storage>::RenameFile(const boost::filesystem::path& old_relative_path,
                                            const boost::filesystem::path& new_relative_path,
-                                           MetaData& meta_data,
-                                           int64_t& reclaimed_space) {
-  root_handler_.RenameElement(old_relative_path, new_relative_path, meta_data, reclaimed_space);
+                                           MetaData& meta_data) {
+  root_handler_.RenameElement(old_relative_path, new_relative_path, meta_data);
 }
 
 template<typename Storage>
@@ -378,10 +389,7 @@ void DriveInUserSpace<Storage>::ReadDataMap(const boost::filesystem::path& relat
     ThrowError(CommonErrors::invalid_parameter);
 
   serialised_data_map->clear();
-  detail::FileContext<Storage> file_context;
-  file_context.meta_data->name = relative_path.filename();
-  GetMetaData(relative_path, *file_context.meta_data.get(), nullptr, nullptr);
-
+  auto file_context(GetFileContext(relative_path));
   if (!file_context.meta_data->data_map)
     ThrowError(CommonErrors::invalid_parameter);
 
@@ -422,13 +430,8 @@ void DriveInUserSpace<Storage>::ReadHiddenFile(const boost::filesystem::path& re
   if (relative_path.empty() || (relative_path.extension() != detail::kMsHidden) || !content)
     ThrowError(CommonErrors::invalid_parameter);
 
-  detail::FileContext<Storage> file_context;
-  file_context.meta_data->name = relative_path.filename();
-  GetMetaData(relative_path,
-              *file_context.meta_data.get(),
-              &file_context.grandparent_directory_id,
-              &file_context.parent_directory_id);
-  BOOST_ASSERT(!file_context.meta_data->directory_id);
+  auto file_context(GetFileContext(relative_path));
+  assert(!file_context.meta_data->directory_id);
 
   file_context.self_encryptor.reset(new encrypt::SelfEncryptor<Storage>(
       file_context.meta_data->data_map, *root_handler_.GetStorage(relative_path)));
@@ -451,18 +454,14 @@ void DriveInUserSpace<Storage>::WriteHiddenFile(const boost::filesystem::path &r
   boost::filesystem::path hidden_file_path(relative_path);
   // Try getting FileContext to existing
   detail::FileContext<Storage> file_context;
-  file_context.meta_data->name = relative_path.filename();
   try {
-    GetMetaData(relative_path,
-                *file_context.meta_data.get(),
-                &file_context.grandparent_directory_id,
-                &file_context.parent_directory_id);
+    file_context = GetFileContext(relative_path);
     if (!overwrite_existing)
       ThrowError(CommonErrors::invalid_parameter);
   }
   catch(...) {
     // Try adding a new entry if the hidden file doesn't already exist
-    file_context = detail::FileContext<Storage>(hidden_file_path.filename(), false);
+    *file_context.meta_data = MetaData(hidden_file_path.filename(), false);
     AddFile(hidden_file_path,
             *file_context.meta_data.get(),
             file_context.grandparent_directory_id,
@@ -515,9 +514,7 @@ void DriveInUserSpace<Storage>::GetNotes(const boost::filesystem::path& relative
     ThrowError(CommonErrors::invalid_parameter);
 
   notes->clear();
-  detail::FileContext<Storage> file_context;
-  file_context.meta_data->name = relative_path.filename();
-  GetMetaData(relative_path, *file_context.meta_data.get(), nullptr, nullptr);
+  auto file_context(GetFileContext(relative_path));
   *notes = file_context.meta_data->notes;
 }
 
@@ -529,12 +526,7 @@ void DriveInUserSpace<Storage>::AddNote(const boost::filesystem::path& relative_
   if (relative_path.empty())
     ThrowError(CommonErrors::invalid_parameter);
 
-  detail::FileContext<Storage> file_context;
-  file_context.meta_data->name = relative_path.filename();
-  GetMetaData(relative_path,
-              *file_context.meta_data.get(),
-              &file_context.grandparent_directory_id,
-              &file_context.parent_directory_id);
+  auto file_context(GetFileContext(relative_path));
   file_context.meta_data->notes.push_back(note);
   UpdateParent(&file_context, relative_path.parent_path());
 }
