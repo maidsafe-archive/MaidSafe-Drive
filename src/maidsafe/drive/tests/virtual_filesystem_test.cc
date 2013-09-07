@@ -867,11 +867,6 @@ TYPED_TEST_P(CallbacksApiTest, BEH_CreateFileOnDriveThenRead) {
   ASSERT_EQ(error_code.value(), 0);
 }
 
-// Allowing a manual test on virtual drive during the sleeping period
-TYPED_TEST_P(CallbacksApiTest, BEH_LongSleep) {
-  Sleep(std::chrono::minutes(5));
-}
-
 // Linux allowing renaming across different parent
 // say : rename root/parent/child.txt to root/child.txt
 // this will happen during unzip, and this test is to mimic this kind of behaviour.
@@ -1346,7 +1341,6 @@ REGISTER_TYPED_TEST_CASE_P(CallbacksApiTest,
                            FUNC_CopyFileThenCopyCopiedFile,
                            FUNC_CopyFileDeleteThenRecopy,
                            FUNC_CopyFileRenameThenRecopy,
-                           BEH_LongSleep,
                            BEH_RenameDifferentParent,
                            BEH_CopyFileThenRead,
                            FUNC_CopyFileRenameThenRead,
