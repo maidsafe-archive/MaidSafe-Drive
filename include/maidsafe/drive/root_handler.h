@@ -618,12 +618,14 @@ void RootHandler<Storage>::RenameDifferentParent(const boost::filesystem::path& 
   Put(new_path.parent_path(), new_parent);
 
 #ifndef MAIDSAFE_WIN32
-  try {
-    if (old_grandparent.listing)
-      old_grandparent.listing->UpdateChild(old_parent_meta_data);
+  if (new_path.parent_path() != old_path.parent_path().parent_path()) {
+    try {
+      if (old_grandparent.listing)
+        old_grandparent.listing->UpdateChild(old_parent_meta_data);
+    }
+    catch(...) { /*Non-critical*/ }
+    Put(old_path.parent_path().parent_path(), old_grandparent);
   }
-  catch(...) { /*Non-critical*/ }
-  Put(old_path.parent_path().parent_path(), old_grandparent);
 #endif
 }
 
