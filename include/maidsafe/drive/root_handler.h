@@ -119,15 +119,17 @@ class RootHandler {
   void ReStoreDirectories(const boost::filesystem::path& old_path,
                           const boost::filesystem::path& new_path);
 
-  void Put(const boost::filesystem::path& path, Directory& directory) const;
-  void Delete(const boost::filesystem::path& path, const Directory& directory) const;
+  void Put(const boost::filesystem::path& path, Directory& directory);
+  void Delete(const boost::filesystem::path& path, const Directory& directory);
 
   std::shared_ptr<Storage> default_storage_;  // MaidNodeNfs or nullptr
   mutable std::mutex root_mutex_;  // protects root_ & root_meta_data_
   mutable std::mutex handlers_mutex_;  // protects directory_handlers_
+  mutable std::mutex directories_mutex_;  // protects recent_directories_
   Directory root_;
   MetaData root_meta_data_;
   std::map<boost::filesystem::path, DirectoryHandler<Storage>> directory_handlers_;
+  std::map<boost::filesystem::path, Directory> recent_directories_;
   OnServiceAdded on_service_added_;
   OnServiceRemoved on_service_removed_;
   OnServiceRenamed on_service_renamed_;
@@ -157,9 +159,11 @@ RootHandler<Storage>::RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_
     : default_storage_(maid_node_nfs),
       root_mutex_(),
       handlers_mutex_(),
+      directories_mutex_(),
       root_(),
       root_meta_data_(kRoot, true),
       directory_handlers_(),
+      recent_directories_(),
       on_service_added_(on_service_added),
       on_service_removed_(nullptr),
       on_service_renamed_(nullptr) {
@@ -175,9 +179,13 @@ RootHandler<Storage>::RootHandler(const Identity& drive_root_id,
                                   OnServiceRemoved on_service_removed,
                                   OnServiceRenamed on_service_renamed)
     : default_storage_(),
+      root_mutex_(),
+      handlers_mutex_(),
+      directories_mutex_(),
       root_(),
       root_meta_data_(kRoot, true),
       directory_handlers_(),
+      recent_directories_(),
       on_service_added_(on_service_added),
       on_service_removed_(on_service_removed),
       on_service_renamed_(on_service_renamed) {
@@ -257,6 +265,12 @@ FileContext<Storage> RootHandler<Storage>::GetFileContext(
 
 template<typename Storage>
 Directory RootHandler<Storage>::GetFromPath(const boost::filesystem::path& path) const {
+  {
+    std::lock_guard<std::mutex> dir_lock(directories_mutex_);
+    auto itr(recent_directories_.find(path));
+    if (itr != std::end(recent_directories_))
+      return itr->second;
+  }
   auto directory_handler(GetHandler(path));
   Directory root_copy;
   {
@@ -660,19 +674,19 @@ void RootHandler<Storage>::UpdateParentDirectoryListing(const boost::filesystem:
 
 template<>
 void RootHandler<nfs_client::MaidNodeNfs>::Put(const boost::filesystem::path& path,
-                                               Directory& directory) const;
+                                               Directory& directory);
 
 template<>
 void RootHandler<data_store::SureFileStore>::Put(const boost::filesystem::path& path,
-                                                 Directory& directory) const;
+                                                 Directory& directory);
 
 template<>
 void RootHandler<nfs_client::MaidNodeNfs>::Delete(const boost::filesystem::path& path,
-                                                  const Directory& directory) const;
+                                                  const Directory& directory);
 
 template<>
 void RootHandler<data_store::SureFileStore>::Delete(const boost::filesystem::path& path,
-                                                    const Directory& directory) const;
+                                                    const Directory& directory);
 
 }  // namespace detail
 

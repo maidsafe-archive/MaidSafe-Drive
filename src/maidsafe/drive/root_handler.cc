@@ -66,6 +66,10 @@ void RootHandler<data_store::SureFileStore>::AddService(
     service_root = Directory(root_.listing->directory_id(), listing, nullptr,
                              DataTagValue::kOwnerDirectoryValue);
     PutToStorage(*storage, service_root);
+    {
+      std::lock_guard<std::mutex> dir_lock(directories_mutex_);
+      recent_directories_[kRoot / service_alias] = service_root;
+    }
   }
 
   DirectoryHandler<data_store::SureFileStore> handler(storage, DataTagValue::kOwnerDirectoryValue,
@@ -93,6 +97,11 @@ void RootHandler<data_store::SureFileStore>::RemoveService(
   //                               DeleteFromStorage (i.e. delete next 2 lines).
   Directory directory(itr->second.GetFromPath(root_, kRoot / service_alias));
   DeleteFromStorage(*itr->second.storage(), directory);
+
+  {
+    std::lock_guard<std::mutex> dir_lock(directories_mutex_);
+    recent_directories_.erase(kRoot / service_alias);
+  }
 
   root_.listing->RemoveChild(MetaData(service_alias, true));
   root_meta_data_.UpdateLastModifiedTime();
@@ -270,28 +279,45 @@ bool RootHandler<data_store::SureFileStore>::CanRename(
 }
 
 template<>
-void RootHandler<nfs_client::MaidNodeNfs>::Put(const boost::filesystem::path& /*path*/,
-                                               Directory& directory) const {
+void RootHandler<nfs_client::MaidNodeNfs>::Put(const boost::filesystem::path& path,
+                                               Directory& directory) {
+  {
+    std::lock_guard<std::mutex> dir_lock(directories_mutex_);
+    recent_directories_[path] = directory;
+  }
   PutToStorage(*default_storage_, directory);
 }
 
 template<>
 void RootHandler<data_store::SureFileStore>::Put(const boost::filesystem::path& path,
-                                                 Directory& directory) const {
+                                                 Directory& directory) {
+  SCOPED_PROFILE
+  {
+    std::lock_guard<std::mutex> dir_lock(directories_mutex_);
+    recent_directories_[path] = directory;
+  }
   auto directory_handler(GetHandler(path));
   if (directory_handler)
     PutToStorage(*directory_handler->storage(), directory);
 }
 
 template<>
-void RootHandler<nfs_client::MaidNodeNfs>::Delete(const boost::filesystem::path& /*path*/,
-                                                  const Directory& directory) const {
+void RootHandler<nfs_client::MaidNodeNfs>::Delete(const boost::filesystem::path& path,
+                                                  const Directory& directory) {
+  {
+    std::lock_guard<std::mutex> dir_lock(directories_mutex_);
+    recent_directories_.erase(path);
+  }
   DeleteFromStorage(*default_storage_, directory);
 }
 
 template<>
 void RootHandler<data_store::SureFileStore>::Delete(const boost::filesystem::path& path,
-                                                    const Directory& directory) const {
+                                                    const Directory& directory) {
+  {
+    std::lock_guard<std::mutex> dir_lock(directories_mutex_);
+    recent_directories_.erase(path);
+  }
   auto directory_handler(GetHandler(path));
   if (directory_handler)
     DeleteFromStorage(*directory_handler->storage(), directory);

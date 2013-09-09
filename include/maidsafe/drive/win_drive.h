@@ -553,13 +553,11 @@ int CbfsDriveInUserSpace<Storage>::OnCallbackFsInstall() {
 // =============================== CALLBACKS =======================================================
 template<typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsMount(CallbackFileSystem* /*sender*/) {
-  SCOPED_PROFILE
   LOG(kInfo) << "CbFsMount";
 }
 
 template<typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsUnmount(CallbackFileSystem* /*sender*/) {
-  SCOPED_PROFILE
   LOG(kInfo) << "CbFsUnmount";
 }
 
@@ -567,7 +565,6 @@ template<typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsGetVolumeSize(CallbackFileSystem* sender,
                                                       int64_t* total_number_of_sectors,
                                                       int64_t* number_of_free_sectors) {
-  SCOPED_PROFILE
   LOG(kInfo) << "CbFsGetVolumeSize";
 
   WORD sector_size(sender->GetSectorSize());
@@ -578,7 +575,6 @@ void CbfsDriveInUserSpace<Storage>::CbFsGetVolumeSize(CallbackFileSystem* sender
 template<typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsGetVolumeLabel(CallbackFileSystem* sender,
                                                        LPTSTR volume_label) {
-  SCOPED_PROFILE
   LOG(kInfo) << "CbFsGetVolumeLabel";
   auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
   wcsncpy_s(volume_label, cbfs_drive->drive_name().size() + 1, &cbfs_drive->drive_name()[0],
@@ -588,14 +584,12 @@ void CbfsDriveInUserSpace<Storage>::CbFsGetVolumeLabel(CallbackFileSystem* sende
 template<typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsSetVolumeLabel(CallbackFileSystem* /*sender*/,
                                                        LPCTSTR /*volume_label*/) {
-  SCOPED_PROFILE
   LOG(kInfo) << "CbFsSetVolumeLabel";
 }
 
 template<typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsGetVolumeId(CallbackFileSystem* /*sender*/,
                                                     PDWORD volume_id) {
-  SCOPED_PROFILE
   LOG(kInfo) << "CbFsGetVolumeId";
   *volume_id = 0x68451321;
 }
@@ -1070,11 +1064,10 @@ void CbfsDriveInUserSpace<Storage>::CbFsWriteFile(CallbackFileSystem* sender,
   SCOPED_PROFILE
   auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
   fs::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
-  if (!file_info->get_UserContext())
-    return;
 
   detail::FileContext<Storage>* file_context(
       static_cast<detail::FileContext<Storage>*>(file_info->get_UserContext()));
+  assert(file_context);
   LOG(kInfo) << "CbFsWriteFile- " << relative_path << " writing " << bytes_to_write
              << " bytes at position " << position;
   assert(file_context->self_encryptor);
@@ -1140,7 +1133,6 @@ void CbfsDriveInUserSpace<Storage>::CbFsFlushFile(CallbackFileSystem* sender,
 
 template<typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsOnEjectStorage(CallbackFileSystem* sender) {
-  SCOPED_PROFILE
   LOG(kInfo) << "CbFsOnEjectStorage";
   auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
   cbfs_drive->SetMountState(false);
