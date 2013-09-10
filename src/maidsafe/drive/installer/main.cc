@@ -16,63 +16,56 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
-#include<Windows.h>
+#include <Windows.h>
 #include <string>
-#include<iostream> // NOLINT
-#include "boost/filesystem.hpp"
 #include "boost/filesystem/path.hpp"
+#include "boost/filesystem/operations.hpp"
 #include "boost/system/error_code.hpp"
 #include "CbFs.h"  // NOLINT
 
 namespace fs = boost::filesystem;
 
 bool ModuleDriverStatus(const fs::path &dll_path,
+                        const std::string& product_id,
                         BOOL *installed,
                         DWORD *version_high,
                         DWORD *version_low) {
   bool success;
-  // Get dll handle...
   HINSTANCE dll_handle = LoadLibrary(dll_path.wstring().c_str());
   if (dll_handle != NULL) {
-    // Obtain a pointer to required function in the dll...
     FARPROC ProcessID = GetProcAddress(HMODULE(dll_handle), "GetModuleStatusA");
     if (ProcessID != NULL) {
-      // Function prototype...
       typedef bool (__stdcall * pFunction)(LPCSTR, DWORD, BOOL*, PDWORD, PDWORD);
       pFunction GetModuleStatusA = pFunction(ProcessID);
-      // Call the dll function...
-      success = GetModuleStatusA("713CC6CE-B3E2-4fd9-838D-E28F558F6866",
+      success = GetModuleStatusA(product_id.data(),
                                  CBFS_MODULE_DRIVER,
                                  installed,
                                  version_high,
                                  version_low);
     } else {
-      // Release dll handle...
       FreeLibrary(dll_handle);
       return false;
     }
   } else {
     return false;
   }
-  // Release dll handle...
   FreeLibrary(dll_handle);
   return success;
 }
 
-bool ModuleDriverInstall(const fs::path &cab_path, const fs::path &dll_path, DWORD *reboot) {
+bool ModuleDriverInstall(const fs::path &cab_path,
+                         const fs::path &dll_path,
+                         const std::string& product_id,
+                         DWORD *reboot) {
   bool success;
-  // Get dll handle...
   HINSTANCE dll_handle = LoadLibrary(dll_path.wstring().c_str());
   if (dll_handle != NULL) {
-    // Obtain a pointer to required function in the dll...
     FARPROC ProcessID = GetProcAddress(HMODULE(dll_handle), "InstallA");
     if (ProcessID != NULL) {
-      // Function prototype...
       typedef bool (__stdcall * pFunction)(LPCSTR, LPCSTR, LPCSTR, bool, DWORD, DWORD*);
       pFunction InstallA = pFunction(ProcessID);
-      // Call the dll function...
       success = InstallA(cab_path.string().c_str(),
-                         "713CC6CE-B3E2-4fd9-838D-E28F558F6866",
+                         product_id.data(),
                          "",
                          true,
                          CBFS_MODULE_DRIVER |
@@ -80,150 +73,122 @@ bool ModuleDriverInstall(const fs::path &cab_path, const fs::path &dll_path, DWO
                            CBFS_MODULE_MOUNT_NOTIFIER_DLL,
                          reboot);
     } else {
-      // Release dll handle...
       FreeLibrary(dll_handle);
       return false;
     }
   } else {
     return false;
   }
-  // Release dll handle...
   FreeLibrary(dll_handle);
   return success;
 }
 
-bool ModuleDriverUninstall(const fs::path &cab_path, const fs::path &dll_path, DWORD *reboot) {
+bool ModuleDriverUninstall(const fs::path &cab_path,
+                           const fs::path &dll_path,
+                           const std::string& product_id,
+                           DWORD *reboot) {
   bool success;
-  // Get dll handle...
   HINSTANCE dll_handle = LoadLibrary(dll_path.wstring().c_str());
   if (dll_handle != NULL) {
-    // Obtain a pointer to required function in the dll...
     FARPROC ProcessID = GetProcAddress(HMODULE(dll_handle), "UninstallA");
     if (ProcessID != NULL) {
-      // Function prototype...
       typedef bool (__stdcall * pFunction)(LPCSTR, LPCSTR, LPCSTR, DWORD*);
       pFunction UninstallA = pFunction(ProcessID);
-      // Call the dll function...
       success = UninstallA(cab_path.string().c_str(),
-                           "713CC6CE-B3E2-4fd9-838D-E28F558F6866",
+                           product_id.data(),
                            "",
                            reboot);
     } else {
-      // Release dll handle...
       FreeLibrary(dll_handle);
       return false;
     }
   } else {
     return false;
   }
-  // Release dll handle...
   FreeLibrary(dll_handle);
   return success;
 }
 
-DWORD InstallDriver(const fs::path &cab_path, const fs::path &dll_path, DWORD *reboot) {
-  bool success = ModuleDriverInstall(cab_path, dll_path, reboot);
-  if (!success) {
-    // std::cout << "cbfs driver installation failed";
+DWORD InstallDriver(const fs::path &cab_path,
+                    const fs::path &dll_path,
+                    const std::string& product_id,
+                    DWORD *reboot) {
+  bool success = ModuleDriverInstall(cab_path, dll_path, product_id, reboot);
+  if (!success)
     return GetLastError();
-  } else {
+  else
     return 0;
-  }
 }
 
-DWORD UninstallDriver(const fs::path &cab_path, const fs::path &dll_path, DWORD *reboot) {
+DWORD UninstallDriver(const fs::path &cab_path, const fs::path &dll_path, const std::string& product_id, DWORD *reboot) {
   BOOL installed;
   DWORD version_high, version_low;
 
-  bool success = ModuleDriverStatus(dll_path, &installed, &version_high, &version_low);
+  bool success = ModuleDriverStatus(dll_path, product_id, &installed, &version_high, &version_low);
   if (success) {
     if (installed) {
-      success = ModuleDriverUninstall(cab_path, dll_path, reboot);
+      success = ModuleDriverUninstall(cab_path, dll_path, product_id, reboot);
       if (!success) {
-        // std::cout << "cbfs driver uninstallation failed";
         return GetLastError();
       } else {
         return 0;
       }
     } else {
-      // std::cout << "Cbfs Driver doesn't exit.";
       return 0;
     }
   } else {
-      std::cout << "Failed to get cbfs driver status";
-      return GetLastError();
+    return GetLastError();
   }
 }
 
 fs::path GetInstallerDllPath(fs::path cab_path) {
     boost::system::error_code ec;
     fs::path dll_path(fs::path(cab_path).parent_path() / "cbfsinst.dll");
-    if (!fs::exists(dll_path, ec)) {
-      // std::cout << "Unable to find cbfsinst.dll at "
-      //           << dll_path.string() << " : " << ec.value();
+    if (!fs::exists(dll_path, ec))
       return fs::path();
-    }
-    // std::cout << "Dll file found at : " << dll_path.string() << std::endl;
     return dll_path;
 }
 
 fs::path GetCabinateFilePath() {
   TCHAR file_name[MAX_PATH];
-  if (!GetModuleFileName(NULL, file_name, MAX_PATH)) {
-    // std::cout << "GetCabinateFilePath" << GetLastError();
+  if (!GetModuleFileName(NULL, file_name, MAX_PATH))
     return fs::path();
-  }
+
   try {
     boost::system::error_code ec;
     fs::path path(fs::path(file_name).parent_path());
     fs::path cab_path(path / "driver\\cbfs.cab");
-    if (!fs::exists(cab_path, ec)) {
-       // std::cout << "Unable to find cbfs cabinet file at path : "
-       //           << cab_path.string() << " : "
-       //           << ec.value();
-       return fs::path();
-    }
-// std::cout << "Cabinet file found at : " << cab_path.string() << std::endl;
+    if (!fs::exists(cab_path, ec))
+      return fs::path();
     return cab_path;
   } catch(...) {
-    // std::cout << "Exception : " << GetLastError();
     return fs::path();
   }
 }
 
 int main(int argc, char *argv[]) {
-  // Initialising logging
   DWORD reboot(0);
-  if (argc == 2) {
+  if (argc == 3) {
     std::string argument(argv[1]);
+    std::string product_id(argv[2]);
     fs::path cab_path(GetCabinateFilePath());
     fs::path dll_path(GetInstallerDllPath(cab_path));
-    if ((fs::path() == cab_path) || (fs::path() == dll_path)) {
+
+    if ((fs::path() == cab_path) || (fs::path() == dll_path) || product_id.empty())
       return 1;
-    }
+
     if (argument == "install") {
-      DWORD installed = InstallDriver(cab_path, dll_path, &reboot);
-      if (installed != 0) {
-        // std::cout << "Filesystem driver installation failed." << std::endl;
+      DWORD installed = InstallDriver(cab_path, dll_path, product_id, &reboot);
+      if (installed != 0)
         return 0;
-      }
-      // std::cout << "Return value : " << installed << std::endl;
     } else if (argument == "uninstall") {
-      DWORD uninstalled = UninstallDriver(cab_path, dll_path, &reboot);
-      if (uninstalled != 0) {
-        // std::cout << "Filesystem driver uninstallation failed." << std::endl;
+      DWORD uninstalled = UninstallDriver(cab_path, dll_path, product_id, &reboot);
+      if (uninstalled != 0)
         return 0;
-      }
-      // std::cout << "Return value : " << uninstalled << std::endl;
-    } else if (argument == "update") {
-      // DWORD updated = UpdateDriver(cab_path, dll_path);
-      return 0;
     } else {
-      // std::cout << "Unknown option." << std::endl;
       return 0;
     }
   } else {
-    // std::cout << "Invalid number of arguments " << std::endl;
     return 0;
   }
   return reboot;

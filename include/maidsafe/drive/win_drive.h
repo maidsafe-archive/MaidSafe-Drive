@@ -85,11 +85,13 @@ class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
                        const Identity& unique_user_id,
                        const Identity& drive_root_id,
                        const boost::filesystem::path& mount_dir,
+                       const std::string& product_id,
                        const boost::filesystem::path& drive_name,
                        OnServiceAdded on_service_added);
 
   CbfsDriveInUserSpace(const Identity& drive_root_id,
                        const boost::filesystem::path& mount_dir,
+                       const std::string& product_id,
                        const boost::filesystem::path& drive_name,
                        OnServiceAdded on_service_added,
                        OnServiceRemoved on_service_removed,
@@ -245,7 +247,7 @@ class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
   static void CbFsOnEjectStorage(CallbackFileSystem* sender);
 
   mutable CallbackFileSystem callback_filesystem_;
-  LPCSTR guid_;
+  std::string guid_;
   LPCWSTR icon_id_;
   std::wstring drive_name_;
   LPCSTR registration_key_;
@@ -257,12 +259,13 @@ CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(
     const Identity& unique_user_id,
     const Identity& drive_root_id,
     const boost::filesystem::path& mount_dir,
+    const std::string& product_id,
     const boost::filesystem::path& drive_name,
     OnServiceAdded on_service_added)
         : DriveInUserSpace<Storage>(maid_node_nfs, unique_user_id, drive_root_id, mount_dir,
                                     on_service_added),
           callback_filesystem_(),
-          guid_("713CC6CE-B3E2-4fd9-838D-E28F558F6866"),
+          guid_(product_id.empty() ? "713CC6CE-B3E2-4fd9-838D-E28F558F6866" : product_id),
           icon_id_(L"MaidSafeDriveIcon"),
           drive_name_(drive_name.wstring()),
           registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)) {
@@ -272,6 +275,7 @@ CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(
 template<typename Storage>
 CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(const Identity& drive_root_id,
                                                     const boost::filesystem::path& mount_dir,
+                                                    const std::string& product_id,
                                                     const boost::filesystem::path& drive_name,
                                                     OnServiceAdded on_service_added,
                                                     OnServiceRemoved on_service_removed,
@@ -279,7 +283,7 @@ CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(const Identity& drive_root_i
     : DriveInUserSpace<Storage>(drive_root_id, mount_dir, on_service_added, on_service_removed,
                                 on_service_renamed),
       callback_filesystem_(),
-      guid_("713CC6CE-B3E2-4fd9-838D-E28F558F6866"),
+      guid_(product_id.empty() ? "713CC6CE-B3E2-4fd9-838D-E28F558F6866" : product_id),
       icon_id_(L"MaidSafeDriveIcon"),
       drive_name_(drive_name.wstring()),
       registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)) {
@@ -294,7 +298,7 @@ void CbfsDriveInUserSpace<Storage>::Init() {
   }
 
   try {
-    callback_filesystem_.Initialize(guid_);
+    callback_filesystem_.Initialize(guid_.data());
     callback_filesystem_.CreateStorage();
     LOG(kInfo) << "Created Storage.";
   }
@@ -423,7 +427,7 @@ void CbfsDriveInUserSpace<Storage>::UpdateDriverStatus() {
   BOOL installed = false;
   INT version_high = 0, version_low = 0;
   SERVICE_STATUS status;
-  CallbackFileSystem::GetModuleStatus(guid_,
+  CallbackFileSystem::GetModuleStatus(guid_.data(),
                                       CBFS_MODULE_DRIVER,
                                       &installed,
                                       &version_high,
@@ -536,7 +540,7 @@ int CbfsDriveInUserSpace<Storage>::OnCallbackFsInstall() {
 
     callback_filesystem_.Install(
         cab_path.wstring().c_str(),
-        guid_,
+        guid_.data(),
         fs::path().wstring().c_str(),
         false,
         CBFS_MODULE_DRIVER | CBFS_MODULE_NET_REDIRECTOR_DLL | CBFS_MODULE_MOUNT_NOTIFIER_DLL,
