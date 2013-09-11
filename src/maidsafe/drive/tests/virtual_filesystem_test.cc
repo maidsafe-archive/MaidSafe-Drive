@@ -132,13 +132,13 @@ template<>
 void ApiTestEnvironment<nfs_client::MaidNodeNfs>::ConstructDrive() {
   // TODO(Fraser#5#): 2013-09-02 - Construct maid_node_nfs_
   drive_ = std::make_shared<typename VirtualDrive<nfs_client::MaidNodeNfs>::value_type>(
-               maid_node_nfs_, unique_user_id_, drive_root_id_, g_mount_dir, "MaidSafe", on_added_);
+               maid_node_nfs_, unique_user_id_, drive_root_id_, g_mount_dir, "", "MaidSafe", on_added_);
 }
 
 template<>
 void ApiTestEnvironment<data_store::SureFileStore>::ConstructDrive() {
   drive_ = std::make_shared<typename VirtualDrive<data_store::SureFileStore>::value_type>(
-               drive_root_id_, g_mount_dir, "MaidSafe", on_added_, on_removed_, on_renamed_);
+               drive_root_id_, g_mount_dir, "", "MaidSafe", on_added_, on_removed_, on_renamed_);
   drive_->AddService("Owner", *main_test_dir_ / "OwnerSureFileStore", owner_service_id_);
 }
 
