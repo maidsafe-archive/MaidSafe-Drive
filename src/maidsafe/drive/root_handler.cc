@@ -74,9 +74,14 @@ void RootHandler<data_store::SureFileStore>::AddService(
 
   DirectoryHandler<data_store::SureFileStore> handler(storage, DataTagValue::kOwnerDirectoryValue,
                                                       true);
-  directory_handlers_.insert(std::make_pair(service_alias, handler));
+  {
+    std::lock_guard<std::mutex> handlers_lock(handlers_mutex_);
+    directory_handlers_.insert(std::make_pair(service_alias, handler));
+  }
+
   MetaData service_meta_data(service_alias, true);
   *service_meta_data.directory_id = service_root_id;
+  std::lock_guard<std::mutex> root_lock(root_mutex_);
   root_.listing->AddChild(service_meta_data);
   root_meta_data_.UpdateLastModifiedTime();
 #ifndef MAIDSAFE_WIN32

@@ -1064,18 +1064,17 @@ void CbfsDriveInUserSpace<Storage>::CbFsWriteFile(CallbackFileSystem* sender,
   SCOPED_PROFILE
   auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
   fs::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
+  LOG(kInfo) << "CbFsWriteFile- " << relative_path << " writing " << bytes_to_write
+             << " bytes at position " << position;
 
   detail::FileContext<Storage>* file_context(
       static_cast<detail::FileContext<Storage>*>(file_info->get_UserContext()));
   assert(file_context);
-  LOG(kInfo) << "CbFsWriteFile- " << relative_path << " writing " << bytes_to_write
-             << " bytes at position " << position;
   assert(file_context->self_encryptor);
-  *bytes_written = 0;
-  if (!file_context->self_encryptor)
-    throw ECBFSError(ERROR_INVALID_PARAMETER);
-  if (!file_context->self_encryptor->Write(static_cast<char*>(buffer), bytes_to_write, position))
+  if (!file_context->self_encryptor->Write(static_cast<char*>(buffer), bytes_to_write, position)) {
+    *bytes_written = 0;
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
+  }
 
   *bytes_written = bytes_to_write;
   GetSystemTimeAsFileTime(&file_context->meta_data->last_write_time);

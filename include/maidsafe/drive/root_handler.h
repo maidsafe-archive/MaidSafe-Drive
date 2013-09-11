@@ -245,7 +245,6 @@ DataTagValue RootHandler<data_store::SureFileStore>::GetDirectoryType(
 template<typename Storage>
 FileContext<Storage> RootHandler<Storage>::GetFileContext(
     const boost::filesystem::path& path) const {
-  auto dir_handler(GetHandler(path));
   FileContext<Storage> file_context;
   Directory parent;
   {
@@ -253,8 +252,22 @@ FileContext<Storage> RootHandler<Storage>::GetFileContext(
     parent = root_;
     *file_context.meta_data = root_meta_data_;
   }
-  if (dir_handler)
-    parent = dir_handler->GetFromPath(parent, path.parent_path());
+  bool found(true);
+  {
+    std::lock_guard<std::mutex> dir_lock(directories_mutex_);
+    auto itr(recent_directories_.find(path.parent_path()));
+    if (itr == std::end(recent_directories_))
+      found = false;
+    else
+      parent = itr->second;
+  }
+
+  if (!found) {
+    auto dir_handler(GetHandler(path));
+    if (dir_handler)
+      parent = dir_handler->GetFromPath(parent, path.parent_path());
+  }
+
   if (path != kRoot)
     parent.listing->GetChild(path.filename(), *file_context.meta_data);
   file_context.grandparent_directory_id = parent.parent_id;
