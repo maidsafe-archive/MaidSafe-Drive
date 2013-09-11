@@ -131,14 +131,25 @@ class ApiTestEnvironment : public testing::Environment {
 template<>
 void ApiTestEnvironment<nfs_client::MaidNodeNfs>::ConstructDrive() {
   // TODO(Fraser#5#): 2013-09-02 - Construct maid_node_nfs_
+#ifdef MAIDSAFE_WIN32
   drive_ = std::make_shared<typename VirtualDrive<nfs_client::MaidNodeNfs>::value_type>(
       maid_node_nfs_, unique_user_id_, drive_root_id_, g_mount_dir, "", "MaidSafe", on_added_);
+#else
+  drive_ = std::make_shared<typename VirtualDrive<nfs_client::MaidNodeNfs>::value_type>(
+      maid_node_nfs_, unique_user_id_, drive_root_id_, g_mount_dir, "MaidSafe", on_added_);
+#endif
 }
 
 template<>
 void ApiTestEnvironment<data_store::SureFileStore>::ConstructDrive() {
+#ifdef MAIDSAFE_WIN32
   drive_ = std::make_shared<typename VirtualDrive<data_store::SureFileStore>::value_type>(
                drive_root_id_, g_mount_dir, "", "MaidSafe", on_added_, on_removed_, on_renamed_);
+#else
+  drive_ = std::make_shared<typename VirtualDrive<data_store::SureFileStore>::value_type>(
+               drive_root_id_, g_mount_dir, "MaidSafe", on_added_, on_removed_, on_renamed_);
+#endif
+
   drive_->AddService("Owner", *main_test_dir_ / "OwnerSureFileStore", owner_service_id_);
 }
 

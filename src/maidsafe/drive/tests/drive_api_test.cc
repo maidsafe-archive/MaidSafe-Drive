@@ -114,7 +114,7 @@ TEST(Drive, BEH_SureStore) {
 #else
     fs::path mount_dir(*main_test_dir / "mount");
     VirtualDrive<data_store::SureFileStore>::value_type drive(
-        Identity(), mount_dir, "SureFileDrive", "", on_added, on_removed, on_renamed);
+        Identity(), mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
 #endif
     root_id = drive.drive_root_id();
     MetaData meta_data("TestService", true);
@@ -139,7 +139,7 @@ TEST(Drive, BEH_SureStore) {
 #else
     fs::path mount_dir(*main_test_dir / "mount");
     VirtualDrive<data_store::SureFileStore>::value_type drive(
-        root_id, mount_dir, "SureFileDrive", "", on_added, on_removed, on_renamed);
+        root_id, mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
 #endif
     drive.AddService(service_name, *main_test_dir / service_name, service_root_id);
     service_root = mount_dir / service_name;
