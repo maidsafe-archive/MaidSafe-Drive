@@ -120,7 +120,10 @@ DWORD InstallDriver(const fs::path &cab_path,
     return 0;
 }
 
-DWORD UninstallDriver(const fs::path &cab_path, const fs::path &dll_path, const std::string& product_id, DWORD *reboot) {
+DWORD UninstallDriver(const fs::path &cab_path,
+                      const fs::path &dll_path,
+                      const std::string& product_id,
+                      DWORD *reboot) {
   BOOL installed;
   DWORD version_high, version_low;
 
