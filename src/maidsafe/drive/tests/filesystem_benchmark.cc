@@ -41,6 +41,15 @@ namespace test {
 
 namespace {
 
+#ifdef __MSVC__
+// This function is needed to avoid use of po::bool_switch causing MSVC warning C4505:
+// 'boost::program_options::typed_value<bool>::name' : unreferenced local function has been removed.
+void UseUnreferenced() {
+  auto dummy = po::typed_value<bool>(nullptr);
+  static_cast<void>(dummy);
+}
+#endif
+
 fs::path root_, temp_;
 
 bool ValidateRoot() {
@@ -77,7 +86,7 @@ std::function<void()> clean_root([] {
     fs::remove_all(*directory_itr, error_code);
 });
 
-fs::path GenerateFile(const fs::path& parent, uint32_t size) {
+fs::path GenerateFile(const fs::path& parent, size_t size) {
   if (size == 0)
     ThrowError(CommonErrors::invalid_parameter);
 
