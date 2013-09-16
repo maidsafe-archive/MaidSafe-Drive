@@ -149,7 +149,7 @@ bool CopyDirectory(const fs::path& from, const fs::path& to) {
     return false;
   }
   return true;
-};
+}
 
 void RequireDirectoriesEqual(const fs::path& lhs, const fs::path& rhs, bool check_file_contents) {
   std::set<std::string> lhs_files, rhs_files;
@@ -184,7 +184,7 @@ void RequireDirectoriesEqual(const fs::path& lhs, const fs::path& rhs, bool chec
       REQUIRE(ReadFile(lhs / lhs_file) == ReadFile(rhs / (*rhs_itr++)));
     }
   }
-};
+}
 
 fs::path CreateDirectoryContainingFiles(const fs::path& parent) {
   auto directory(CreateDirectory(parent));
@@ -192,7 +192,7 @@ fs::path CreateDirectoryContainingFiles(const fs::path& parent) {
   for (uint32_t i(0); i != file_count; ++i)
     CreateFile(directory, RandomUint32() % 1024);
   return directory;
-};
+}
 
 }  // unnamed namespace
 
@@ -218,7 +218,7 @@ TEST_CASE("Append to file", "[Filesystem]") {
     WriteFile(filepath, content.string() + "a");
     auto updated_content(ReadFile(filepath));
     REQUIRE(updated_content.string().size() == content.string().size() + 1);
-    REQUIRE(updated_content.string().size() == i + 2);
+    REQUIRE(updated_content.string().size() == i + 2U);
   }
 }
 

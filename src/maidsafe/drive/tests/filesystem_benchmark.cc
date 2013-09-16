@@ -73,6 +73,7 @@ std::vector<uint32_t> GenerateFileSizes(uint32_t max_size, uint32_t min_size, si
   file_sizes.reserve(count);
   while (file_sizes.size() < count)
     file_sizes.push_back((RandomUint32() % max_size) + min_size);
+  return file_sizes;
 }
 
 uint32_t CreateTestTreeStructure(const fs::path& base_path,
