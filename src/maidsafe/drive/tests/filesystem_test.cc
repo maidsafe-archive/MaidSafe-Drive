@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <set>
@@ -85,12 +86,12 @@ int RunCatch(int argc, char** argv) {
   return session.run();
 }
 
-void CleanRoot() {
+std::function<void()> clean_root([] {
   boost::system::error_code error_code;
   fs::directory_iterator end;
   for (fs::directory_iterator directory_itr(root_); directory_itr != end; ++directory_itr)
     fs::remove_all(*directory_itr, error_code);
-}
+});
 
 void RequireExists(const fs::path& path) {
   boost::system::error_code error_code;
@@ -199,17 +200,17 @@ fs::path CreateDirectoryContainingFiles(const fs::path& parent) {
 
 
 TEST_CASE("Create empty file", "[Filesystem]") {
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   CreateFile(root_, 0);
 }
 
 TEST_CASE("Create empty directory", "[Filesystem]") {
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   CreateDirectory(root_);
 }
 
 TEST_CASE("Append to file", "[Filesystem]") {
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   auto filepath(CreateFile(root_, 0).first);
   int test_runs = 1000;
   WriteFile(filepath, "a");
@@ -218,12 +219,12 @@ TEST_CASE("Append to file", "[Filesystem]") {
     WriteFile(filepath, content.string() + "a");
     auto updated_content(ReadFile(filepath));
     REQUIRE(updated_content.string().size() == content.string().size() + 1);
-    REQUIRE(updated_content.string().size() == i + 2);
+    REQUIRE(updated_content.string().size() == i + 2U);
   }
 }
 
 TEST_CASE("Copy empty directory", "[Filesystem]") {
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   auto directory(CreateDirectory(temp_));
 
   // Copy 'temp_' directory to 'root_'
@@ -235,7 +236,7 @@ TEST_CASE("Copy empty directory", "[Filesystem]") {
 
 TEST_CASE("Copy directory then delete", "[Filesystem]") {
   // Create a file and directory in a newly created directory in 'temp_'
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   auto directory(CreateDirectory(temp_));
   auto filepath(CreateFile(directory, RandomUint32() % 1024).first);
   auto nested_directory(CreateDirectory(directory));
@@ -260,7 +261,7 @@ TEST_CASE("Copy directory then delete", "[Filesystem]") {
 
 TEST_CASE("Copy directory, delete then re-copy", "[Filesystem]") {
   // Create a file and directory in a newly created directory in 'temp_'
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   auto directory(CreateDirectory(temp_));
   auto filepath(CreateFile(directory, RandomUint32() % 1024).first);
   auto nested_directory(CreateDirectory(directory));
@@ -282,7 +283,7 @@ TEST_CASE("Copy directory, delete then re-copy", "[Filesystem]") {
 
 TEST_CASE("Copy directory then rename", "[Filesystem]") {
   // Create a file and directory in a newly created directory in 'temp_'
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   auto directory(CreateDirectory(temp_));
   auto filepath(CreateFile(directory, RandomUint32() % 1024).first);
   auto nested_directory(CreateDirectory(directory));
@@ -303,7 +304,7 @@ TEST_CASE("Copy directory then rename", "[Filesystem]") {
 
 TEST_CASE("Copy directory, rename then re-copy", "[Filesystem]") {
   // Create a file and directory in a newly created directory in 'temp_'
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   auto directory(CreateDirectory(temp_));
   auto filepath(CreateFile(directory, RandomUint32() % 1024).first);
   auto nested_directory(CreateDirectory(directory));
@@ -327,7 +328,7 @@ TEST_CASE("Copy directory, rename then re-copy", "[Filesystem]") {
 
 TEST_CASE("Copy directory containing multiple files", "[Filesystem]") {
   // Create files in a newly created directory in 'temp_'
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   auto directory(CreateDirectoryContainingFiles(temp_));
 
   // Copy directory to 'root_'
@@ -342,7 +343,7 @@ TEST_CASE("Copy directory containing multiple files", "[Filesystem]") {
 
 TEST_CASE("Copy directory hierarchy", "[Filesystem]") {
   // Create a new directory in 'temp_'
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   std::vector<fs::path> directories;
   auto directory(CreateDirectory(temp_));
   directories.push_back(directory);
@@ -378,7 +379,7 @@ TEST_CASE("Copy directory hierarchy", "[Filesystem]") {
 
 TEST_CASE("Copy then copy copied file", "[Filesystem]") {
   // Create a file in 'temp_'
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   auto filepath(CreateFile(temp_, RandomUint32() % 1048577).first);
 
   // Copy file to 'root_'
@@ -398,7 +399,7 @@ TEST_CASE("Copy then copy copied file", "[Filesystem]") {
 
 TEST_CASE("Copy file, delete then re-copy", "[Filesystem]") {
   // Create a file in 'temp_'
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   auto filepath(CreateFile(temp_, RandomUint32() % 1048577).first);
 
   // Copy file to 'root_'
@@ -421,7 +422,7 @@ TEST_CASE("Copy file, delete then re-copy", "[Filesystem]") {
 
 TEST_CASE("Copy file, rename then re-copy", "[Filesystem]") {
   // Create a file in 'temp_'
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   auto filepath(CreateFile(temp_, RandomUint32() % 1048577).first);
 
   // Copy file to 'root_'
@@ -447,7 +448,7 @@ TEST_CASE("Copy file, rename then re-copy", "[Filesystem]") {
 
 TEST_CASE("Copy file, delete then try to read", "[Filesystem]") {
   // Create a file in 'temp_'
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   auto filepath(CreateFile(temp_, RandomUint32() % 1048577).first);
 
   // Copy file to 'root_'
@@ -470,14 +471,14 @@ TEST_CASE("Copy file, delete then try to read", "[Filesystem]") {
 
 TEST_CASE("Create file", "[Filesystem]") {
   // Create a file in 'root_' and read back its contents
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   auto filepath_and_contents(CreateFile(root_, RandomUint32() % 1048577));
   REQUIRE(ReadFile(filepath_and_contents.first).string() == filepath_and_contents.second);
 }
 
 TEST_CASE("Create file, modify then read", "[Filesystem]") {
   // Create a file in 'root_'
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   auto filepath_and_contents(CreateFile(root_, RandomUint32() % 1048577));
 
   // Modify the file
@@ -498,7 +499,7 @@ TEST_CASE("Create file, modify then read", "[Filesystem]") {
 
 TEST_CASE("Rename file to different parent directory", "[Filesystem]") {
   // Create a file in a newly created directory in 'temp_'
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   auto directory(CreateDirectory(temp_));
   auto filepath_and_contents(CreateFile(directory, RandomUint32() % 1024));
 
@@ -519,7 +520,7 @@ TEST_CASE("Rename file to different parent directory", "[Filesystem]") {
 
 TEST_CASE("Check failures", "[Filesystem]") {
   // Create a file in 'temp_'
-  on_scope_exit cleanup(CleanRoot);
+  on_scope_exit cleanup(clean_root);
   auto filepath0(CreateFile(temp_, RandomUint32() % 1048577).first);
 
   // Copy file to 'root_'
