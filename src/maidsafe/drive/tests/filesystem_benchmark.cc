@@ -16,7 +16,10 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
+#include <chrono>
 #include <cstdint>
+#include <cstdio>
+#include <functional>
 #include <string>
 
 #include "boost/filesystem/path.hpp"
@@ -40,6 +43,40 @@ namespace {
 
 fs::path root_, temp_;
 
+bool ValidateRoot() {
+  if (root_.empty()) {
+    LOG(kError)
+        << "Failed to pass valid root directory.\nRun with '--root <path to empty root dir>'";
+    return false;
+  }
+
+  boost::system::error_code error_code;
+  if (!fs::is_directory(root_, error_code) || error_code) {
+    LOG(kError) << root_ << " is not a directory.\nRun with '--root <path to empty root dir>'";
+    return false;
+  }
+
+  if (!fs::is_empty(root_, error_code) || error_code) {
+    LOG(kError) << root_ << " is not empty.\nRun with '--root <path to empty root dir>'";
+    return false;
+  }
+
+  if (!WriteFile(root_ / "a.check", "check\n")) {
+    LOG(kError) << root_ << " is not writable.\nRun with '--root <path to writable empty dir>'";
+    return false;
+  }
+  fs::remove(root_ / "a.check", error_code);
+
+  return true;
+}
+
+std::function<void()> clean_root([] {
+  boost::system::error_code error_code;
+  fs::directory_iterator end;
+  for (fs::directory_iterator directory_itr(root_); directory_itr != end; ++directory_itr)
+    fs::remove_all(*directory_itr, error_code);
+});
+
 fs::path GenerateFile(const fs::path& parent, uint32_t size) {
   if (size == 0)
     ThrowError(CommonErrors::invalid_parameter);
@@ -50,10 +87,13 @@ fs::path GenerateFile(const fs::path& parent, uint32_t size) {
   if (!output_stream.is_open() || output_stream.bad())
     ThrowError(CommonErrors::filesystem_io_error);
 
-  std::string random_string(RandomString(size % 1024));
-  size_t rounds = size / 1024, count = 0;
-  while (count++ < rounds)
-    output_stream.write(random_string.data(), random_string.size());
+  auto random_string(RandomString(1024 * 1024));
+  size_t written(0);
+  while (written < size) {
+    size_t to_write(std::min(random_string.size(), size - written));
+    output_stream.write(random_string.data(), to_write);
+    written += to_write;
+  }
 
   output_stream.close();
   return file_name;
@@ -122,50 +162,80 @@ void CopyRecursiveDirectory(const fs::path &src, const fs::path &dest) {
     } else {
       fs::copy_file(current->path(), str, fs::copy_option::overwrite_if_exists, ec);
     }
-    if (!fs::exists(str));
+    if (!fs::exists(str))
       ThrowError(CommonErrors::filesystem_io_error);
   }
+}
+
+bool CompareFileContents(const fs::path& path1, const fs::path& path2) {
+  std::ifstream efile, ofile;
+  efile.open(path1.c_str());
+  ofile.open(path2.c_str());
+
+  if (efile.bad() || ofile.bad() || !efile.is_open() || !ofile.is_open())
+    return false;
+  while (efile.good() && ofile.good()) {
+    if (efile.get() != ofile.get())
+      return false;
+  }
+  return efile.eof() && ofile.eof();
+}
+
+void PrintResult(const std::chrono::high_resolution_clock::time_point& start,
+                 const std::chrono::high_resolution_clock::time_point& stop,
+                 size_t size,
+                 std::string action_type) {
+  auto duration(std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count());
+  if (duration == 0)
+    duration = 1;
+  uint64_t rate((static_cast<uint64_t>(size) * 1000000000) / duration);
+  printf("%s %s of data in %f seconds at a speed of %s/s\n", action_type.c_str(),
+         BytesToBinarySiUnits(size).c_str(), (duration / 1000000000.0),
+         BytesToBinarySiUnits(rate).c_str());
 }
 
 }  // namespace
 
 void CopyThenReadLargeFile() {
-  boost::system::error_code error_code;
+  on_scope_exit cleanup(clean_root);
 
   // Create file on disk...
   size_t size = 300 * 1024 * 1024;
-  fs::path file(CreateTestFileWithSize(g_test_mirror, size));
-  ASSERT_TRUE(fs::exists(file, error_code));
-  ASSERT_EQ(error_code.value(), 0);
+  fs::path file(GenerateFile(temp_, size));
+  if (!fs::exists(file) || fs::file_size(file) != size)
+    ThrowError(CommonErrors::filesystem_io_error);
 
   // Copy file to virtual drive...
-  bptime::ptime copy_start_time(bptime::microsec_clock::universal_time());
-  fs::copy_file(file, g_mount_dir / file.filename(), fs::copy_option::fail_if_exists, error_code);
-  bptime::ptime copy_stop_time(bptime::microsec_clock::universal_time());
-  PrintResult(copy_start_time, copy_stop_time, size, kCopy);
-  ASSERT_EQ(error_code.value(), 0);
-  ASSERT_TRUE(fs::exists(g_mount_dir / file.filename(), error_code));
-  ASSERT_EQ(error_code.value(), 0);
+  auto copy_start_time(std::chrono::high_resolution_clock::now());
+  fs::copy_file(file, root_ / file.filename(), fs::copy_option::fail_if_exists);
+  auto copy_stop_time(std::chrono::high_resolution_clock::now());
+  PrintResult(copy_start_time, copy_stop_time, size, "Copied");
+  if (!fs::exists(root_ / file.filename()))
+    ThrowError(CommonErrors::filesystem_io_error);
 
   // Read the file back to a disk file...
   // Because of the system caching, the pure read can't reflect the real speed
-  fs::path test_file(g_test_mirror / (RandomAlphaNumericString(5) + ".txt"));
-  bptime::ptime read_start_time(bptime::microsec_clock::universal_time());
-  fs::copy_file(g_mount_dir / file.filename(), test_file, fs::copy_option::overwrite_if_exists);
-  bptime::ptime read_stop_time(bptime::microsec_clock::universal_time());
-  PrintResult(read_start_time, read_stop_time, size, kRead);
-  ASSERT_TRUE(fs::exists(test_file, error_code));
-  ASSERT_EQ(error_code.value(), 0);
+  fs::path test_file(temp_ / (RandomAlphaNumericString(5) + ".txt"));
+  auto read_start_time(std::chrono::high_resolution_clock::now());
+  fs::copy_file(root_ / file.filename(), test_file, fs::copy_option::overwrite_if_exists);
+  auto read_stop_time(std::chrono::high_resolution_clock::now());
+  PrintResult(read_start_time, read_stop_time, size, "Read");
+  if (!fs::exists(test_file))
+    ThrowError(CommonErrors::filesystem_io_error);
 
   // Compare content in the two files...
-  ASSERT_EQ(fs::file_size(g_mount_dir / file.filename()), fs::file_size(file));
-  bptime::ptime compare_start_time(bptime::microsec_clock::universal_time());
-  ASSERT_TRUE(this->CompareFileContents(g_mount_dir / file.filename(), file));
-  bptime::ptime compare_stop_time(bptime::microsec_clock::universal_time());
-  PrintResult(compare_start_time, compare_stop_time, size, kCompare);
+  if (fs::file_size(root_ / file.filename()) != fs::file_size(file))
+    ThrowError(CommonErrors::filesystem_io_error);
+  auto compare_start_time(std::chrono::high_resolution_clock::now());
+  if (!CompareFileContents(root_ / file.filename(), file))
+    ThrowError(CommonErrors::filesystem_io_error);
+  auto compare_stop_time(std::chrono::high_resolution_clock::now());
+  PrintResult(compare_start_time, compare_stop_time, size, "Compared");
 }
 
 void CopyThenReadManySmallFiles() {
+  on_scope_exit cleanup(clean_root);
+
   std::vector<fs::path> directories;
   std::set<fs::path> files;
   uint32_t num_of_directories(100);
@@ -175,45 +245,48 @@ void CopyThenReadManySmallFiles() {
   std::cout << "Creating a test tree with " << num_of_directories << " directories holding "
             << num_of_files << " files with file size range from "
             << BytesToBinarySiUnits(min_filesize) << " to "
-            << BytesToBinarySiUnits(max_filesize) << std::endl;
-  uint32_t total_data_size = CreateTestTreeStructure(g_test_mirror, directories, files,
+            << BytesToBinarySiUnits(max_filesize) << '\n';
+  uint32_t total_data_size = CreateTestTreeStructure(temp_, directories, files,
                                                      num_of_directories, num_of_files,
                                                      max_filesize, min_filesize);
 
   // Copy test_tree to virtual drive...
-  bptime::ptime copy_start_time(bptime::microsec_clock::universal_time());
-  CopyRecursiveDirectory(directories.at(0), g_mount_dir);
-  bptime::ptime copy_stop_time(bptime::microsec_clock::universal_time());
-  PrintResult(copy_start_time, copy_stop_time, total_data_size, kCopy);
+  auto copy_start_time(std::chrono::high_resolution_clock::now());
+  CopyRecursiveDirectory(directories.at(0), root_);
+  auto copy_stop_time(std::chrono::high_resolution_clock::now());
+  PrintResult(copy_start_time, copy_stop_time, total_data_size, "Copied");
 
-   // Read the test_tree back to a disk file...
-   std::string str = directories.at(0).string();
-   boost::algorithm::replace_first(str, g_test_mirror.string(), g_mount_dir.string());
-   fs::path from_directory(str);
-   fs::path read_back_directory(GenerateDirectory(g_test_mirror));
-   bptime::ptime read_start_time(bptime::microsec_clock::universal_time());
-   CopyRecursiveDirectory(from_directory, read_back_directory);
-   bptime::ptime read_stop_time(bptime::microsec_clock::universal_time());
-   PrintResult(read_start_time, read_stop_time, total_data_size, kRead);
+  // Read the test_tree back to a disk file...
+  std::string str = directories.at(0).string();
+  boost::algorithm::replace_first(str, temp_.string(), root_.string());
+  fs::path from_directory(str);
+  fs::path read_back_directory(GenerateDirectory(temp_));
+  auto read_start_time(std::chrono::high_resolution_clock::now());
+  CopyRecursiveDirectory(from_directory, read_back_directory);
+  auto read_stop_time(std::chrono::high_resolution_clock::now());
+  PrintResult(read_start_time, read_stop_time, total_data_size, "Read");
 
-   // Compare content in the two test_trees...
-   bptime::ptime compare_start_time(bptime::microsec_clock::universal_time());
-   for (auto it = files.begin(); it != files.end(); ++it) {
-     std::string str = (*it).string();
-     boost::algorithm::replace_first(str, g_test_mirror.string(), g_mount_dir.string());
-     if (!fs::exists(str))
-       Sleep(std::chrono::seconds(1));
-     ASSERT_TRUE(fs::exists(str))  << "Missing " << str;
-     ASSERT_TRUE(this->CompareFileContents(*it, str)) << "Comparing " << *it << " with " << str;
-   }
-   bptime::ptime compare_stop_time(bptime::microsec_clock::universal_time());
-   PrintResult(compare_start_time, compare_stop_time, total_data_size, kCompare);
+  // Compare content in the two test_trees...
+  auto compare_start_time(std::chrono::high_resolution_clock::now());
+  for (auto it = files.begin(); it != files.end(); ++it) {
+    std::string str = (*it).string();
+    boost::algorithm::replace_first(str, temp_.string(), root_.string());
+    if (!fs::exists(str))
+      Sleep(std::chrono::seconds(1));
+    if (!fs::exists(str))
+      ThrowError(CommonErrors::filesystem_io_error);
+    if (!CompareFileContents(*it, str))
+      ThrowError(CommonErrors::filesystem_io_error);
+  }
+  auto compare_stop_time(std::chrono::high_resolution_clock::now());
+  PrintResult(compare_start_time, compare_stop_time, total_data_size, "Compared");
 
-   for (size_t i = 0; i < directories.size(); ++i) {
-     std::string str = directories[i].string();
-     boost::algorithm::replace_first(str, g_test_mirror.string(), g_mount_dir.string());
-     ASSERT_TRUE(fs::exists(str)) << "Missing " << str;
-   }
+  for (size_t i = 0; i < directories.size(); ++i) {
+    std::string str = directories[i].string();
+    boost::algorithm::replace_first(str, temp_.string(), root_.string());
+    if (!fs::exists(str))
+      ThrowError(CommonErrors::filesystem_io_error);
+  }
 }
 
 }  // namespace test
@@ -225,56 +298,61 @@ void CopyThenReadManySmallFiles() {
 int main(int argc, char** argv) {
   auto unused_options(maidsafe::log::Logging::Instance().Initialise(argc, argv));
 
-  // Handle passing path to test root via command line
-  po::options_description command_line_options("Command line options");
-  std::string description("Path to root directory for test, e.g. " +
-                          fs::temp_directory_path().string());
-  bool no_big_test(false), no_small_test(false);
-  command_line_options.add_options()
-      ("help,h", "Show help message.")
-      ("root", po::value<std::string>(), description.c_str())
-      ("no_big_test", po::bool_switch(&no_big_test), "Disable single large file test.")
-      ("no_small_test", po::bool_switch(&no_small_test), "Disable multiple small files test.");
-  po::parsed_options parsed(po::command_line_parser(unused_options).
-      options(command_line_options).allow_unregistered().run());
+  try {
+    // Handle passing path to test root via command line
+    po::options_description command_line_options("Command line options");
+    std::string description("Path to root directory for test, e.g. " +
+                            fs::temp_directory_path().string());
+    bool no_big_test(false), no_small_test(false);
+    command_line_options.add_options()
+        ("help,h", "Show help message.")
+        ("root", po::value<std::string>(), description.c_str())
+        ("no_big_test", po::bool_switch(&no_big_test), "Disable single large file test.")
+        ("no_small_test", po::bool_switch(&no_small_test), "Disable multiple small files test.");
+    po::parsed_options parsed(po::command_line_parser(unused_options).
+        options(command_line_options).allow_unregistered().run());
 
-  po::variables_map variables_map;
-  po::store(parsed, variables_map);
-  po::notify(variables_map);
+    po::variables_map variables_map;
+    po::store(parsed, variables_map);
+    po::notify(variables_map);
 
-  if (variables_map.count("help")) {
-    std::cout << command_line_options << '\n';
-    return 0;
+    if (variables_map.count("help")) {
+      std::cout << command_line_options << '\n';
+      return 0;
+    }
+
+    // Set up root_ directory
+    maidsafe::test::root_ = maidsafe::GetPathFromProgramOptions("root", variables_map, true, false);
+    if (!maidsafe::test::ValidateRoot())
+      return -1;
+
+    // Set up 'temp_' directory
+    maidsafe::test::temp_ = fs::unique_path(fs::temp_directory_path() /
+                                            "MaidSafe_Test_Filesystem_%%%%-%%%%-%%%%");
+    if (!fs::create_directories(maidsafe::test::temp_)) {
+      LOG(kWarning) << "Failed to create test directory " << maidsafe::test::temp_;
+      return -2;
+    }
+    LOG(kInfo) << "Created test directory " << maidsafe::test::temp_;
+
+    // Run benchmark tests
+    if (!no_big_test)
+      maidsafe::test::CopyThenReadLargeFile();
+    if (!no_small_test)
+      maidsafe::test::CopyThenReadManySmallFiles();
+
+    // Clean up 'temp_' directory
+    boost::system::error_code error_code;
+    if (fs::remove_all(maidsafe::test::temp_, error_code) == 0) {
+      LOG(kWarning) << "Failed to remove " << maidsafe::test::temp_;
+    }
+    if (error_code.value() != 0) {
+      LOG(kWarning) << "Error removing " << maidsafe::test::temp_ << "  " << error_code.message();
+    }
   }
-
-  // Set up root_ directory
-  maidsafe::test::root_ = maidsafe::GetPathFromProgramOptions("root", variables_map, true, false);
-  if (!maidsafe::test::ValidateRoot())
-    return -1;
-
-  // Set up 'temp_' directory
-  maidsafe::test::temp_ = fs::unique_path(fs::temp_directory_path() /
-                                          "MaidSafe_Test_Filesystem_%%%%-%%%%-%%%%");
-  if (!fs::create_directories(maidsafe::test::temp_)) {
-    LOG(kWarning) << "Failed to create test directory " << maidsafe::test::temp_;
-    return -2;
+  catch(const std::exception& e) {
+    std::cout << "Error: " << e.what() << '\n';
+    return -3;
   }
-  LOG(kInfo) << "Created test directory " << maidsafe::test::temp_;
-
-  // Run benchmark tests
-  if (!no_big_test)
-    maidsafe::test::CopyThenReadLargeFile();
-  if (!no_small_test)
-    maidsafe::test::CopyThenReadManySmallFiles();
-
-  // Clean up 'temp_' directory
-  boost::system::error_code error_code;
-  if (fs::remove_all(maidsafe::test::temp_, error_code) == 0) {
-    LOG(kWarning) << "Failed to remove " << maidsafe::test::temp_;
-  }
-  if (error_code.value() != 0) {
-    LOG(kWarning) << "Error removing " << maidsafe::test::temp_ << "  " << error_code.message();
-  }
-
   return 0;
 }
