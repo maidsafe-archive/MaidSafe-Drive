@@ -75,15 +75,15 @@ else()
 endif()
 
 glob_dir(DriveTests ${DriveSourcesDir}/tests Tests)
-list(REMOVE_ITEM DriveTestsAllFiles ${DriveSourcesDir}/tests/virtual_filesystem_test.cc)
-list(REMOVE_ITEM DriveTestsAllFiles ${DriveSourcesDir}/tests/shares_test.cc)
+list(REMOVE_ITEM DriveTestsAllFiles ${DriveSourcesDir}/tests/filesystem_benchmark.cc
+                                    ${DriveSourcesDir}/tests/filesystem_test.cc
+                                    ${DriveSourcesDir}/tests/shares_test.cc)
 set(TestSharesFiles ${DriveSourcesDir}/tests/shares_test.cc
                     ${DriveSourcesDir}/tests/test_main.cc
                     ${DriveSourcesDir}/tests/test_utils.cc
                     ${DriveSourcesDir}/tests/test_utils.h)
-set(TestVfsFiles ${DriveSourcesDir}/tests/virtual_filesystem_test.cc
-                 ${DriveSourcesDir}/tests/test_utils.cc
-                 ${DriveSourcesDir}/tests/test_utils.h)
+source_group("Source Files" FILES ${DriveSourcesDir}/tests/filesystem_benchmark.cc
+                                  ${DriveSourcesDir}/tests/filesystem_test.cc)
 if(WIN32)
   glob_dir(Installer ${DriveSourcesDir}/installer Installer)
 endif()
@@ -109,13 +109,14 @@ endif()
 
 #TODO (TEAM) Create unit test target for directory listing to build even with dummy win dependency
 if(MaidsafeTesting AND (Cbfs_FOUND OR NOT WIN32))
-  ms_add_executable(TESTdrive_listings_api "Tests/Drive" ${DriveTestsAllFiles})
-  ms_add_executable(TESTdrive_virtual_filesystem "Tests/Drive" ${TestVfsFiles})
-  ms_add_executable(TESTdrive_real_filesystem "Tests/Drive" ${TestVfsFiles})
+  ms_add_executable(filesystem_benchmark "Tools/Drive" ${DriveSourcesDir}/tests/filesystem_benchmark.cc)
+  ms_add_executable(FilesystemTest "Tests/Drive" ${DriveSourcesDir}/tests/filesystem_test.cc)
+  ms_add_executable(TESTdrive "Tests/Drive" ${DriveTestsAllFiles})
 
-  target_link_libraries(TESTdrive_listings_api maidsafe_drive)
-  target_link_libraries(TESTdrive_virtual_filesystem maidsafe_drive)
-  target_link_libraries(TESTdrive_real_filesystem maidsafe_drive)
+  target_link_libraries(filesystem_benchmark maidsafe_common)
+  target_link_libraries(FilesystemTest maidsafe_common)
+  add_dependencies(FilesystemTest catch)
+  target_link_libraries(TESTdrive maidsafe_drive)
 endif()
 
 rename_outdated_built_exes()
@@ -129,9 +130,6 @@ if(Cbfs_FOUND)
   add_definitions(-DCBFS_KEY=${Cbfs_KEY} -DHAVE_CBFS)
 endif()
 
-if(MaidsafeTesting AND (Cbfs_FOUND OR NOT WIN32))
-  set_target_properties(TESTdrive_real_filesystem PROPERTIES COMPILE_DEFINITIONS "DISK_TEST")
-endif()
 if(Cbfs_FOUND)
   set_target_properties(cbfs_driver PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")
 endif()
@@ -143,8 +141,7 @@ endif()
 if(MaidsafeTesting)
   add_style_test()
   if(Cbfs_FOUND OR NOT WIN32)
-    add_gtests(TESTdrive_listings_api)
-    add_gtests(TESTdrive_virtual_filesystem)
+    add_gtests(TESTdrive)
   endif()
   add_project_experimental()
   test_summary_output()
