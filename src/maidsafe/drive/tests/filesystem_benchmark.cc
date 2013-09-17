@@ -197,9 +197,9 @@ void PrintResult(const std::chrono::high_resolution_clock::time_point& start,
   auto duration(std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count());
   if (duration == 0)
     duration = 1;
-  uint64_t rate((static_cast<uint64_t>(size) * 1000000000) / duration);
+  uint64_t rate((static_cast<uint64_t>(size) * 1000000) / duration);
   printf("%s %s of data in %f seconds at a speed of %s/s\n", action_type.c_str(),
-         BytesToBinarySiUnits(size).c_str(), (duration / 1000000000.0),
+         BytesToBinarySiUnits(size).c_str(), (duration / 1000000.0),
          BytesToBinarySiUnits(rate).c_str());
 }
 
