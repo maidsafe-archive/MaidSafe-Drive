@@ -25,11 +25,11 @@
 
 namespace fs = boost::filesystem;
 
-bool ModuleDriverStatus(const fs::path &dll_path,
-                        const std::string& product_id,
-                        BOOL *installed,
-                        DWORD *version_high,
-                        DWORD *version_low) {
+bool DriverStatus(const fs::path& dll_path,
+                  const std::string& product_id,
+                  PBOOL installed,
+                  PDWORD version_high,
+                  PDWORD version_low) {
   bool success;
   HINSTANCE dll_handle = LoadLibrary(dll_path.wstring().c_str());
   if (dll_handle != NULL) {
@@ -53,16 +53,16 @@ bool ModuleDriverStatus(const fs::path &dll_path,
   return success;
 }
 
-bool ModuleDriverInstall(const fs::path &cab_path,
-                         const fs::path &dll_path,
-                         const std::string& product_id,
-                         DWORD *reboot) {
+bool DriverInstall(const fs::path &cab_path,
+                   const fs::path &dll_path,
+                   const std::string& product_id,
+                   PDWORD reboot) {
   bool success;
   HINSTANCE dll_handle = LoadLibrary(dll_path.wstring().c_str());
   if (dll_handle != NULL) {
     FARPROC ProcessID = GetProcAddress(HMODULE(dll_handle), "InstallA");
     if (ProcessID != NULL) {
-      typedef bool (__stdcall * pFunction)(LPCSTR, LPCSTR, LPCSTR, bool, DWORD, DWORD*);
+      typedef bool (__stdcall * pFunction)(LPCSTR, LPCSTR, LPCSTR, bool, DWORD, PDWORD);
       pFunction InstallA = pFunction(ProcessID);
       success = InstallA(cab_path.string().c_str(),
                          product_id.data(),
@@ -83,16 +83,16 @@ bool ModuleDriverInstall(const fs::path &cab_path,
   return success;
 }
 
-bool ModuleDriverUninstall(const fs::path &cab_path,
-                           const fs::path &dll_path,
-                           const std::string& product_id,
-                           DWORD *reboot) {
+bool DriverUninstall(const fs::path &cab_path,
+                     const fs::path &dll_path,
+                     const std::string& product_id,
+                     PDWORD reboot) {
   bool success;
   HINSTANCE dll_handle = LoadLibrary(dll_path.wstring().c_str());
   if (dll_handle != NULL) {
     FARPROC ProcessID = GetProcAddress(HMODULE(dll_handle), "UninstallA");
     if (ProcessID != NULL) {
-      typedef bool (__stdcall * pFunction)(LPCSTR, LPCSTR, LPCSTR, DWORD*);
+      typedef bool (__stdcall * pFunction)(LPCSTR, LPCSTR, LPCSTR, PDWORD);
       pFunction UninstallA = pFunction(ProcessID);
       success = UninstallA(cab_path.string().c_str(),
                            product_id.data(),
@@ -112,8 +112,8 @@ bool ModuleDriverUninstall(const fs::path &cab_path,
 DWORD InstallDriver(const fs::path &cab_path,
                     const fs::path &dll_path,
                     const std::string& product_id,
-                    DWORD *reboot) {
-  bool success = ModuleDriverInstall(cab_path, dll_path, product_id, reboot);
+                    PDWORD reboot) {
+  bool success = DriverInstall(cab_path, dll_path, product_id, reboot);
   if (!success)
     return GetLastError();
   else
@@ -123,14 +123,14 @@ DWORD InstallDriver(const fs::path &cab_path,
 DWORD UninstallDriver(const fs::path &cab_path,
                       const fs::path &dll_path,
                       const std::string& product_id,
-                      DWORD *reboot) {
+                      PDWORD reboot) {
   BOOL installed;
   DWORD version_high, version_low;
 
-  bool success = ModuleDriverStatus(dll_path, product_id, &installed, &version_high, &version_low);
+  bool success = DriverStatus(dll_path, product_id, &installed, &version_high, &version_low);
   if (success) {
     if (installed) {
-      success = ModuleDriverUninstall(cab_path, dll_path, product_id, reboot);
+      success = DriverUninstall(cab_path, dll_path, product_id, reboot);
       if (!success) {
         return GetLastError();
       } else {
@@ -144,29 +144,25 @@ DWORD UninstallDriver(const fs::path &cab_path,
   }
 }
 
-fs::path GetInstallerDllPath(fs::path cab_path) {
-    boost::system::error_code ec;
-    fs::path dll_path(fs::path(cab_path).parent_path() / "cbfsinst.dll");
-    if (!fs::exists(dll_path, ec))
-      return fs::path();
-    return dll_path;
+fs::path InstallerDllPath(fs::path cab_path) {
+  boost::system::error_code ec;
+  fs::path dll_path(fs::path(cab_path).parent_path() / "cbfsinst.dll");
+  if (!fs::exists(dll_path, ec))
+    return fs::path();
+  return dll_path;
 }
 
-fs::path GetCabinateFilePath() {
+fs::path CabinetFilePath() {
   TCHAR file_name[MAX_PATH];
   if (!GetModuleFileName(NULL, file_name, MAX_PATH))
     return fs::path();
 
-  try {
-    boost::system::error_code ec;
-    fs::path path(fs::path(file_name).parent_path());
-    fs::path cab_path(path / "driver\\cbfs.cab");
-    if (!fs::exists(cab_path, ec))
-      return fs::path();
-    return cab_path;
-  } catch(...) {
+  boost::system::error_code ec;
+  fs::path path(fs::path(file_name).parent_path());
+  fs::path cab_path(path / "driver\\cbfs.cab");
+  if (!fs::exists(cab_path, ec))
     return fs::path();
-  }
+  return cab_path;
 }
 
 int main(int argc, char *argv[]) {
@@ -174,11 +170,11 @@ int main(int argc, char *argv[]) {
   if (argc == 3) {
     std::string argument(argv[1]);
     std::string product_id(argv[2]);
-    fs::path cab_path(GetCabinateFilePath());
-    fs::path dll_path(GetInstallerDllPath(cab_path));
+    fs::path cab_path(CabinetFilePath());
+    fs::path dll_path(InstallerDllPath(cab_path));
 
     if ((fs::path() == cab_path) || (fs::path() == dll_path) || product_id.empty())
-      return 1;
+      return 0;
 
     if (argument == "install") {
       DWORD installed = InstallDriver(cab_path, dll_path, product_id, &reboot);
@@ -191,8 +187,6 @@ int main(int argc, char *argv[]) {
     } else {
       return 0;
     }
-  } else {
-    return 0;
   }
   return reboot;
 }
