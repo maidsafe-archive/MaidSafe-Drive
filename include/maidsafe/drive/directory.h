@@ -36,14 +36,14 @@ namespace drive {
 namespace detail {
 
 struct Directory {
-  Directory(const DirectoryId& parent_id_in,
+  Directory(DirectoryId parent_id_in,
             std::shared_ptr<DirectoryListing> listing_in,
-            std::shared_ptr<encrypt::DataMap> data_map_in,
-            DataTagValue type_in) : parent_id(parent_id_in),
-                                    listing(listing_in),
-                                    data_map(data_map_in),
-                                    type(type_in),
-                                    content_changed(false) {
+            std::shared_ptr<encrypt::DataMap> data_map_in, DataTagValue type_in)
+      : parent_id(std::move(parent_id_in)),
+        listing(std::move(listing_in)),
+        data_map(std::move(data_map_in)),
+        type(type_in),
+        content_changed(false) {
     assert(type == DataTagValue::kOwnerDirectoryValue ||
            type == DataTagValue::kGroupDirectoryValue ||
            type == DataTagValue::kWorldDirectoryValue);

@@ -160,13 +160,11 @@ template<typename Storage, typename DirectoryType>
 typename std::enable_if<!is_encrypted_dir<DirectoryType>::value>::type
     DeleteFromStorage(Storage& storage, const Directory& directory);
 
-
-
-template<typename Storage>
+template <typename Storage>
 DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
                                             DataTagValue directory_type,
                                             bool immutable_root)
-    : storage_(storage),
+    : storage_(std::move(storage)),
       directory_type_(directory_type),
       world_is_writeable_(true),
       immutable_root_(immutable_root) {}

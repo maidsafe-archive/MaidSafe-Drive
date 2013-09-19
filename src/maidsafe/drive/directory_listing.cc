@@ -52,10 +52,8 @@ bool MetaDataHasName(const MetaData& meta_data, const fs::path& name) {
 
 }  // unnamed namespace
 
-
-
-DirectoryListing::DirectoryListing(const DirectoryId& directory_id)
-    : directory_id_(directory_id),
+DirectoryListing::DirectoryListing(DirectoryId directory_id)
+    : directory_id_(std::move(directory_id)),
       children_(),
       children_itr_position_(0) {}
 

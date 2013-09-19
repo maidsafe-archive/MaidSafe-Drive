@@ -277,21 +277,21 @@ void CopyThenReadManySmallFiles() {
 
   // Compare content in the two test_trees...
   auto compare_start_time(std::chrono::high_resolution_clock::now());
-  for (auto it = files.begin(); it != files.end(); ++it) {
-    std::string str = (*it).string();
+  for (const auto& file : files) {
+    std::string str = (file).string();
     boost::algorithm::replace_first(str, temp_.string(), root_.string());
     if (!fs::exists(str))
       Sleep(std::chrono::seconds(1));
     if (!fs::exists(str))
       ThrowError(CommonErrors::filesystem_io_error);
-    if (!CompareFileContents(*it, str))
+    if (!CompareFileContents(file, str))
       ThrowError(CommonErrors::filesystem_io_error);
   }
   auto compare_stop_time(std::chrono::high_resolution_clock::now());
   PrintResult(compare_start_time, compare_stop_time, total_data_size, "Compared");
 
-  for (size_t i = 0; i < directories.size(); ++i) {
-    std::string str = directories[i].string();
+  for (auto& directorie : directories) {
+    std::string str = directorie.string();
     boost::algorithm::replace_first(str, temp_.string(), root_.string());
     if (!fs::exists(str))
       ThrowError(CommonErrors::filesystem_io_error);

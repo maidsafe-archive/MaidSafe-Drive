@@ -149,13 +149,11 @@ struct Default {
   }
 };
 
-
-
-template<typename Storage>
-RootHandler<Storage>::RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
-                                  const Identity& unique_user_id,
-                                  const Identity& drive_root_id,
-                                  OnServiceAdded on_service_added)
+template <typename Storage>
+RootHandler<Storage>::RootHandler(
+    std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
+    const Identity& unique_user_id, const Identity& drive_root_id,
+    OnServiceAdded on_service_added)
     : default_storage_(maid_node_nfs),
       root_mutex_(),
       handlers_mutex_(),
@@ -164,7 +162,7 @@ RootHandler<Storage>::RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_
       root_meta_data_(kRoot, true),
       directory_handlers_(),
       recent_directories_(),
-      on_service_added_(on_service_added),
+      on_service_added_(std::move(on_service_added)),
       on_service_removed_(nullptr),
       on_service_renamed_(nullptr) {
   if (!unique_user_id.IsInitialised())
@@ -173,7 +171,7 @@ RootHandler<Storage>::RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_
                                   CreateRoot(unique_user_id);
 }
 
-template<typename Storage>
+template <typename Storage>
 RootHandler<Storage>::RootHandler(const Identity& drive_root_id,
                                   OnServiceAdded on_service_added,
                                   OnServiceRemoved on_service_removed,
@@ -186,9 +184,9 @@ RootHandler<Storage>::RootHandler(const Identity& drive_root_id,
       root_meta_data_(kRoot, true),
       directory_handlers_(),
       recent_directories_(),
-      on_service_added_(on_service_added),
-      on_service_removed_(on_service_removed),
-      on_service_renamed_(on_service_renamed) {
+      on_service_added_(std::move(on_service_added)),
+      on_service_removed_(std::move(on_service_removed)),
+      on_service_renamed_(std::move(on_service_renamed)) {
   drive_root_id.IsInitialised() ? InitRoot(Identity(), drive_root_id) : CreateRoot(Identity());
 }
 

@@ -51,7 +51,7 @@ class DirectoryListingTest_BEH_IteratorResetAndFailures_Test;
 
 class DirectoryListing {
  public:
-  explicit DirectoryListing(const DirectoryId& directory_id);
+  explicit DirectoryListing(DirectoryId directory_id);
   explicit DirectoryListing(const std::string& serialised_directory_listing);
   DirectoryListing(const DirectoryListing& other);
   DirectoryListing(DirectoryListing&& other);

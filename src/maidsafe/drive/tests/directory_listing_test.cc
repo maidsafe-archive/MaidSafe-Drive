@@ -67,9 +67,9 @@ class DirectoryListingTest : public testing::Test {
         relative_root_(fs::path("/").make_preferred()) {}
 
  protected:
-  void SetUp() {}
+  void SetUp() override {}
 
-  void TearDown() {}
+  void TearDown() override {}
 
   void GenerateDirectoryListingEntryForDirectory(DirectoryListing& directory_listing,
                                                  fs::path const& path) {
