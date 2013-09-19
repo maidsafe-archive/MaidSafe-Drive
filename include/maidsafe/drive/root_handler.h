@@ -149,11 +149,11 @@ struct Default {
   }
 };
 
-template <typename Storage>
-RootHandler<Storage>::RootHandler(
-    std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
-    const Identity& unique_user_id, const Identity& drive_root_id,
-    OnServiceAdded on_service_added)
+template<typename Storage>
+RootHandler<Storage>::RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
+                                  const Identity& unique_user_id,
+                                  const Identity& drive_root_id,
+                                  OnServiceAdded on_service_added)
     : default_storage_(maid_node_nfs),
       root_mutex_(),
       handlers_mutex_(),
@@ -171,7 +171,7 @@ RootHandler<Storage>::RootHandler(
                                   CreateRoot(unique_user_id);
 }
 
-template <typename Storage>
+template<typename Storage>
 RootHandler<Storage>::RootHandler(const Identity& drive_root_id,
                                   OnServiceAdded on_service_added,
                                   OnServiceRemoved on_service_removed,

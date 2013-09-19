@@ -38,7 +38,8 @@ namespace detail {
 struct Directory {
   Directory(DirectoryId parent_id_in,
             std::shared_ptr<DirectoryListing> listing_in,
-            std::shared_ptr<encrypt::DataMap> data_map_in, DataTagValue type_in)
+            std::shared_ptr<encrypt::DataMap> data_map_in,
+            DataTagValue type_in)
       : parent_id(std::move(parent_id_in)),
         listing(std::move(listing_in)),
         data_map(std::move(data_map_in)),

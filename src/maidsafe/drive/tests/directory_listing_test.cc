@@ -20,7 +20,7 @@
 #  include <windows.h>
 #endif
 
-#include <fstream>  // NOLINT
+#include <fstream>
 #include <string>
 #include "boost/filesystem.hpp"
 #include "boost/thread.hpp"
@@ -67,10 +67,6 @@ class DirectoryListingTest : public testing::Test {
         relative_root_(fs::path("/").make_preferred()) {}
 
  protected:
-  void SetUp() override {}
-
-  void TearDown() override {}
-
   void GenerateDirectoryListingEntryForDirectory(DirectoryListing& directory_listing,
                                                  fs::path const& path) {
     MetaData meta_data(path.filename(), true);
