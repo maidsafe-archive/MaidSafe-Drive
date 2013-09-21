@@ -681,9 +681,6 @@ void CbfsDriveInUserSpace<Storage>::CbFsOpenFile(CallbackFileSystem* sender,
     *data_map = *file_context->meta_data->data_map;
     file_context->meta_data->data_map = data_map;
     if (!file_context->self_encryptor) {
-      encrypt::DataMapPtr data_map(new encrypt::DataMap);
-      *data_map = *file_context->meta_data->data_map;
-      file_context->meta_data->data_map = data_map;
       auto storage(cbfs_drive->GetStorage(relative_path));
       assert(storage);
       file_context->self_encryptor.reset(

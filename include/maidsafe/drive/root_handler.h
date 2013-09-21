@@ -320,25 +320,23 @@ void RootHandler<Storage>::GetParentAndGrandparent(const boost::filesystem::path
                                                    MetaData& parent_meta_data) const {
   auto directory_handler(GetHandler(path));
   if (directory_handler) {
-    grandparent = GetFromPath(path.parent_path().parent_path());
-    grandparent.listing->GetChild(path.parent_path().filename(), parent_meta_data);
-    if (!(parent_meta_data.directory_id))
-      ThrowError(CommonErrors::invalid_parameter);
-    parent = GetFromPath(path.parent_path());
-    return;
-  }
-
-  if (path == kRoot) {
-    grandparent = parent = Directory();
-    parent_meta_data = MetaData();
-    return;
-  }
-
-  if (path.parent_path() == kRoot) {
-    grandparent = Directory();
-    std::lock_guard<std::mutex> root_lock(root_mutex_);
-    parent = root_;
-    parent_meta_data = root_meta_data_;
+    if (path == kRoot) {
+      grandparent = parent = Directory();
+      parent_meta_data = MetaData();
+    } else if (path.parent_path() == kRoot) {
+      grandparent = Directory();
+      std::lock_guard<std::mutex> root_lock(root_mutex_);
+      parent = root_;
+      parent_meta_data = root_meta_data_;
+    } else {
+      grandparent = GetFromPath(path.parent_path().parent_path());
+      grandparent.listing->GetChild(path.parent_path().filename(), parent_meta_data);
+      if (!(parent_meta_data.directory_id))
+        ThrowError(CommonErrors::invalid_parameter);
+      parent = GetFromPath(path.parent_path());
+    }
+  } else {
+    ThrowError(CommonErrors::invalid_parameter);
   }
 }
 
@@ -425,7 +423,6 @@ void RootHandler<Storage>::DeleteElement(const boost::filesystem::path& path, Me
     }
 #endif
     on_service_removed_(*alias);
-    ThrowError(DriveErrors::permission_denied);
   }
 
   Directory grandparent, parent;
