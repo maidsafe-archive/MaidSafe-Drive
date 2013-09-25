@@ -24,6 +24,7 @@
 #include <set>
 #include <utility>
 #include <vector>
+#include <algorithm>
 
 #include "boost/filesystem/path.hpp"
 

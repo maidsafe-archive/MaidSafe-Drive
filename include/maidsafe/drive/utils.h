@@ -22,6 +22,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include "boost/filesystem/path.hpp"
 
@@ -107,10 +108,10 @@ void swap(FileContext<Storage>& lhs, FileContext<Storage>& rhs) {
 }
 
 // TODO(David) Delete
-//#ifndef MAIDSAFE_WIN32
+// #ifndef MAIDSAFE_WIN32
 //// Not called by Windows...
-//template<typename Storage>
-//bool ForceFlush(const RootHandler<Storage>& root_handler,
+// template<typename Storage>
+// bool ForceFlush(const RootHandler<Storage>& root_handler,
 //                FileContext<Storage>* file_context) {
 //  assert(file_context);
 //  file_context->self_encryptor->Flush();
@@ -122,8 +123,8 @@ void swap(FileContext<Storage>& lhs, FileContext<Storage>& rhs) {
 //      return false;
 //  }
 //  return true;
-//}
-//#endif
+// }
+// #endif
 
 bool ExcludedFilename(const std::string& file_name);
 

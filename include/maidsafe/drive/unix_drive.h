@@ -476,11 +476,11 @@ int FuseDriveInUserSpace<Storage>::OpsCreate(const char *path,
   detail::SetFileContext(file_info, file_context);
 //   UniqueLock lock(Global<Storage>::g_fuse_drive->shared_mutex_);
 //  Global<Storage>::g_fuse_drive->open_files_.insert(std::make_pair(full_path, file_context));
-//#ifdef DEBUG
+// #ifdef DEBUG
 //  for (auto i = Global<Storage>::g_fuse_drive->open_files_.begin();
 //       i != Global<Storage>::g_fuse_drive->open_files_.end(); ++i)
 //    LOG(kInfo) << "\t\t" << (*i).first;
-//#endif
+// #endif
   return 0;
 }
 
@@ -763,13 +763,13 @@ template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsRmdir(const char *path) {
   LOG(kInfo) << "OpsRmdir: " << path;
 
-  //try {
+  // try {
   //  fs::path full_path(path);
   //  Global<Storage>::g_fuse_drive->GetFileContext(full_path);
-  //} catch(...) {
+  // } catch(...) {
   //  LOG(kError) << "OpsRmdir " << full_path << ", failed to get data for the item.";
   //  return -ENOENT;
-  //}
+  // }
 
   try {
     Global<Storage>::g_fuse_drive->RemoveFile(path);
@@ -808,13 +808,13 @@ int FuseDriveInUserSpace<Storage>::OpsTruncate(const char *path, off_t size) {
 template<typename Storage>
 int FuseDriveInUserSpace<Storage>::OpsUnlink(const char *path) {
   LOG(kInfo) << "OpsUnlink: " << path;
-  //try {
+  // try {
   //  fs::path full_path(path);
   //  Global<Storage>::g_fuse_drive->GetFileContext(full_path);
-  //} catch(...) {
+  // } catch(...) {
   //  LOG(kError) << "OpsUnlink " << full_path << ", failed to get parent data for the item.";
   //  return -ENOENT;
-  //}
+  // }
 
   try {
     Global<Storage>::g_fuse_drive->RemoveFile(path);
@@ -885,7 +885,8 @@ int FuseDriveInUserSpace<Storage>::OpsChmod(const char *path, mode_t mode) {
   LOG(kInfo) << "OpsChmod: " << path << ", to " << std::oct << mode;
   detail::FileContext<Storage> file_context;
   try {
-    file_context = detail::FileContext<Storage>(Global<Storage>::g_fuse_drive->GetFileContext(path));
+    file_context =
+      detail::FileContext<Storage>(Global<Storage>::g_fuse_drive->GetFileContext(path));
   } catch(...) {
     LOG(kError) << "OpsChmod: " << path << ", can't get meta data.";
     return -ENOENT;

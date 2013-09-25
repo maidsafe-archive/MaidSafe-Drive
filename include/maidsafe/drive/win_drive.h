@@ -1158,10 +1158,10 @@ void CbfsDriveInUserSpace<Storage>::SetNewAttributes(detail::FileContext<Storage
 
 
     // TODO(Fraser#5#): 2013-09-05 - BEFORE_RELEASE - Must be relative_path passed here, not name.
-    //auto storage(cbfs_drive->GetStorage(file_context->meta_data->name));
-    //assert(storage);
+    // auto storage(cbfs_drive->GetStorage(file_context->meta_data->name));
+    // assert(storage);
 
-    //file_context->self_encryptor.reset(new encrypt::SelfEncryptor<Storage>(
+    // file_context->self_encryptor.reset(new encrypt::SelfEncryptor<Storage>(
     //    file_context->meta_data->data_map, *directory_handler->storage()));
     assert(file_context->self_encryptor);
     file_context->meta_data->end_of_file = file_context->meta_data->allocation_size =

@@ -57,8 +57,9 @@ namespace detail {
 
 namespace test {
 
-//template<typename Storage>
-//class FailDirectoryHandler : public DirectoryHandler<Storage> {
+// TODO(Team): 2013-09-25 - Uncomment and fix or delete
+// template<typename Storage>
+// class FailDirectoryHandler : public DirectoryHandler<Storage> {
 // public:
 //  typedef nfs::ClientMaidNfs ClientNfs;
 //  typedef data_store::PermanentStore DataStore;
@@ -104,7 +105,7 @@ namespace test {
 //  int fail_for_put_;
 //  int fail_count_;
 //  bool use_real_;
-//};
+// };
 
 struct TestTreeEntry {
   TestTreeEntry() : path(), leaf(true) {}
@@ -175,15 +176,15 @@ class DirectoryHandlerTest : public testing::Test {
 //    // Adding some_dir
 //    fs::path path(owner_ / "some_dir");
 //    MetaData meta_data(path.filename(), true);
-//#ifdef MAIDSAFE_WIN32
+// #ifdef MAIDSAFE_WIN32
 //    meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
 //    GetSystemTimeAsFileTime(&meta_data.creation_time);
 //    GetSystemTimeAsFileTime(&meta_data.last_access_time);
 //    GetSystemTimeAsFileTime(&meta_data.last_write_time);
-//#else
+// #else
 //    time(&meta_data.attributes.st_atime);
 //    time(&meta_data.attributes.st_mtime);
-//#endif
+// #endif
 //    DirectoryId grandparent_dir_id, parent_dir_id;
 //    EXPECT_NO_THROW(listing_handler_->AddElement(path, meta_data, nullptr, nullptr));
 //    EXPECT_NO_THROW(listing_handler_->DeleteElement(path, meta_data));
@@ -281,7 +282,7 @@ class DirectoryHandlerTest : public testing::Test {
 };
 
 TEST_F(DirectoryHandlerTest, BEH_Construct) {
-  //Directory root(Identity(RandomString(64)),
+  // Directory root(Identity(RandomString(64)),
   //               std::make_shared<DirectoryListing>(Identity(RandomString(64))),
   //               nullptr, DataTagValue::kOwnerDirectoryValue);
   listing_handler_.reset(new detail::DirectoryHandler<data_store::SureFileStore>(
@@ -311,7 +312,8 @@ TEST_F(DirectoryHandlerTest, BEH_Construct) {
   DeleteFromStorage(*data_store_, world);
 }
 
-//TEST_F(DirectoryHandlerTest, BEH_Construct) {
+// TODO(Team): 2013-09-25 - Uncomment and fix or delete
+// TEST_F(DirectoryHandlerTest, BEH_Construct) {
 //  EXPECT_NO_THROW(DirectoryHandler local_listing_handler(*client_nfs_,
 //                                                                *data_store_,
 //                                                                unique_user_id_,
@@ -332,17 +334,17 @@ TEST_F(DirectoryHandlerTest, BEH_Construct) {
 //                                                                2,
 //                                                                true),
 //               std::exception);*/
-//}
+// }
 //
-//TEST_F(DirectoryHandlerTest, BEH_GetDirectoryDataByPath) {
+// TEST_F(DirectoryHandlerTest, BEH_GetDirectoryDataByPath) {
 //  FullCoverageByPath();
-//}
+// }
 //
-//TEST_F(DirectoryHandlerTest, BEH_AddElement) {
+// TEST_F(DirectoryHandlerTest, BEH_AddElement) {
 //  FullCoverageAddElement();
-//}
+// }
 //
-//TEST_F(DirectoryHandlerTest, BEH_AddThenDelete) {
+// TEST_F(DirectoryHandlerTest, BEH_AddThenDelete) {
 //  {
 //    // Add then Delete Directory Element
 //    MetaData directory_meta("directory_test", true);
@@ -361,9 +363,9 @@ TEST_F(DirectoryHandlerTest, BEH_Construct) {
 //                                                 &(*owner_meta_data_.directory_id)));
 //    EXPECT_NO_THROW(listing_handler_->DeleteElement(owner_ / "file_test", file_meta));
 //  }
-//}
+// }
 //
-//TEST_F(DirectoryHandlerTest, BEH_RenameElement) {
+// TEST_F(DirectoryHandlerTest, BEH_RenameElement) {
 //  MetaData directory_meta("test", true);
 //  EXPECT_NO_THROW(listing_handler_->AddElement(owner_ / "test",
 //                                               directory_meta,
@@ -378,9 +380,9 @@ TEST_F(DirectoryHandlerTest, BEH_Construct) {
 //               std::exception);
 //  MetaData new_meta("new_test", true);
 //  EXPECT_NO_THROW(listing_handler_->DeleteElement(owner_ / "new_test", new_meta));
-//}
+// }
 //
-//TEST_F(DirectoryHandlerTest, BEH_UpdateParentDirectoryListing) {
+// TEST_F(DirectoryHandlerTest, BEH_UpdateParentDirectoryListing) {
 //  MetaData directory_meta("test", true);
 //  EXPECT_NO_THROW(listing_handler_->AddElement(owner_ / "test",
 //                                               directory_meta,
@@ -390,25 +392,25 @@ TEST_F(DirectoryHandlerTest, BEH_Construct) {
 //  EXPECT_THROW(listing_handler_->UpdateParentDirectoryListing(owner_, non_exists_meta),
 //               std::exception);
 //  MetaData new_meta("test", true);
-//#ifdef MAIDSAFE_WIN32
+// #ifdef MAIDSAFE_WIN32
 //  GetSystemTimeAsFileTime(&new_meta.last_access_time);
-//#else
+// #else
 //  time(&new_meta.attributes.st_atime);
-//#endif
+// #endif
 //  EXPECT_NO_THROW(listing_handler_->UpdateParentDirectoryListing(owner_, new_meta));
 //  MetaData result_temp;
 //  EXPECT_NO_THROW(
 //    listing_handler_->GetFromPath(owner_).first.listing->GetChild("test", result_temp));
-//#ifdef MAIDSAFE_WIN32
+// #ifdef MAIDSAFE_WIN32
 //  EXPECT_EQ(new_meta.last_access_time.dwHighDateTime,
 //            result_temp.last_access_time.dwHighDateTime);
 //  // This fails due to time conversion inaccuracies...
 //  /*EXPECT_EQ(new_meta.last_access_time.dwLowDateTime,
 //            result_temp.last_access_time.dwLowDateTime);*/
-//#else
+// #else
 //  EXPECT_EQ(new_meta.attributes.st_atime, result_temp.attributes.st_atime);
-//#endif
-//}
+// #endif
+// }
 
 }  // namespace test
 

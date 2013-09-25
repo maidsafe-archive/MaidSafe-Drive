@@ -28,6 +28,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include "boost/filesystem/path.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"

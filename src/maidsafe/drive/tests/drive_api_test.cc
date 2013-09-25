@@ -109,7 +109,7 @@ TEST(Drive, BEH_SureStore) {
 #ifdef MAIDSAFE_WIN32
     auto mount_dir(GetNextAvailableDrivePath());
     VirtualDrive<data_store::SureFileStore>::value_type drive(
-        Identity(), mount_dir, "SureFileDrive", "", on_added, on_removed, on_renamed);
+        Identity(), mount_dir, std::string(), "SureFileDrive", on_added, on_removed, on_renamed);
     mount_dir /= "\\";
 #else
     fs::path mount_dir(*main_test_dir / "mount");
@@ -119,10 +119,7 @@ TEST(Drive, BEH_SureStore) {
     root_id = drive.drive_root_id();
     MetaData meta_data("TestService", true);
     DirectoryId grandparent_id, parent_id;
-    //expect throw: drive.AddFile(detail::kRoot / "TestService", meta_data, grandparent_id, parent_id);
     drive.AddService(meta_data.name, *main_test_dir / "TestService", Identity(RandomString(64)));
-
-    //expect throw/fail: fs::create_directory(mount_dir / service_name);
     drive.AddService(service_name, *main_test_dir / service_name, service_root_id);
 
     service_root = mount_dir / service_name;
@@ -134,7 +131,7 @@ TEST(Drive, BEH_SureStore) {
 #ifdef MAIDSAFE_WIN32
     auto mount_dir(GetNextAvailableDrivePath());
     VirtualDrive<data_store::SureFileStore>::value_type drive(
-        root_id, mount_dir, "SureFileDrive", "", on_added, on_removed, on_renamed);
+        root_id, mount_dir, std::string(), "SureFileDrive", on_added, on_removed, on_renamed);
     mount_dir /= "\\";
 #else
     fs::path mount_dir(*main_test_dir / "mount");
@@ -147,8 +144,8 @@ TEST(Drive, BEH_SureStore) {
   }
 }
 
-
-//class DriveApiTest : public testing::Test {
+// TODO(Team): 2013-09-25 - Uncomment and fix or delete
+// class DriveApiTest : public testing::Test {
 // public:
 //  typedef data_store::PermanentStore DataStore;
 //
@@ -195,9 +192,9 @@ TEST(Drive, BEH_SureStore) {
 //  int64_t max_space_, used_space_;
 //  std::shared_ptr<Drive<Storage>::TestDriveInUserSpace> drive_;
 //  std::shared_ptr<detail::DirectoryHandler> directory_handler_;
-//};
+// };
 //
-//TEST_F(DriveApiTest, BEH_AddThenGetMetaData) {
+// TEST_F(DriveApiTest, BEH_AddThenGetMetaData) {
 //  MetaData new_meta("test", true);
 //  SetLastAccessTime(&new_meta);
 //  EXPECT_NO_THROW(drive_->AddFile(owner_ / "test",
@@ -211,9 +208,9 @@ TEST(Drive, BEH_SureStore) {
 //                                      nullptr));
 //  // Fails due to inaccurate time conversions...
 //  // EXPECT_TRUE(LastAccessTimesMatch(new_meta, result_meta_data));
-//}
+// }
 //
-//TEST_F(DriveApiTest, BEH_RenameMetaData) {
+// TEST_F(DriveApiTest, BEH_RenameMetaData) {
 //  MetaData meta_data("test", true);
 //  SetLastAccessTime(&meta_data);
 //  EXPECT_NO_THROW(drive_->AddFile(owner_ / "test",
@@ -237,9 +234,9 @@ TEST(Drive, BEH_SureStore) {
 //                                      nullptr));
 //  // Fails due to inaccurate time conversions...
 //  // EXPECT_TRUE(LastAccessTimesMatch(meta_data, result_meta_data));
-//}
+// }
 //
-//TEST_F(DriveApiTest, BEH_Update) {
+// TEST_F(DriveApiTest, BEH_Update) {
 //  MetaData meta_data("test", true);
 //  EXPECT_NO_THROW(drive_->AddFile(owner_ / "test",
 //                                  meta_data,
@@ -259,10 +256,10 @@ TEST(Drive, BEH_SureStore) {
 //                                      nullptr));
 //  // Fails due to inaccurate time conversions...
 //  // EXPECT_TRUE(LastAccessTimesMatch(*file_context.meta_data, result_meta_data));
-//}
+// }
 //
 //// Self encryption tests were using free functions which are now gone...
-//TEST_F(DriveApiTest, BEH_WriteReadThenFlush) {
+// TEST_F(DriveApiTest, BEH_WriteReadThenFlush) {
 //  std::shared_ptr<encrypt::DataMap> data_map(new encrypt::DataMap);
 //  std::string initial_content(RandomString(100));
 //  data_map->content = initial_content;
@@ -285,9 +282,9 @@ TEST(Drive, BEH_SureStore) {
 //    ASSERT_EQ(data_to_write[i], read_result[i]) << "difference at " << i;
 //  for (uint32_t i = 50; i < 100; ++i)
 //    ASSERT_EQ(initial_content[i], read_result[i]) << "difference at " << i;
-//}
+// }
 //
-//TEST_F(DriveApiTest, BEH_Delete) {
+// TEST_F(DriveApiTest, BEH_Delete) {
 //  MetaData meta_data("test", false);
 //  {
 //    SelfEncryptorPtr self_encryptor(new encrypt::SelfEncryptor(meta_data.data_map,
@@ -310,9 +307,9 @@ TEST(Drive, BEH_SureStore) {
 //  EXPECT_NO_THROW(drive_->RemoveFile(owner_ / "test"));
 //  EXPECT_THROW(drive_->GetMetaData(owner_ / "test", meta_data, nullptr, nullptr),
 //               std::exception);
-//}
+// }
 //
-//TEST_F(DriveApiTest, BEH_WriteAndReadRandomChunks) {
+// TEST_F(DriveApiTest, BEH_WriteAndReadRandomChunks) {
 //  // writes data in random sizes pieces in a random order,
 //  // rewrites part overlapping the original piece (may be at the end, increasing
 //  // the file size and final chunk size to a non-standard size)
@@ -379,9 +376,9 @@ TEST(Drive, BEH_SureStore) {
 //  EXPECT_TRUE(self_encryptor->Read(read_result.get(), file_size, 0));
 //  for (uint32_t i = 0; i < file_size; ++i)
 //    ASSERT_EQ(original[i], read_result[i]) << "difference at " << i;
-//}
+// }
 //
-//TEST_F(DriveApiTest, BEH_WriteAndReadRandomContent) {
+// TEST_F(DriveApiTest, BEH_WriteAndReadRandomContent) {
 //  // As per previous WriteAndReadRandomChunks test, but this time with a file
 //  // too small to result in chunking - all should be written to datamap's
 //  // content
@@ -446,9 +443,9 @@ TEST(Drive, BEH_SureStore) {
 //  EXPECT_TRUE(self_encryptor->Read(read_result.get(), file_size, 0));
 //  for (uint32_t i = 0; i < file_size; ++i)
 //    ASSERT_EQ(original[i], read_result[i]) << "difference at " << i;
-//}
+// }
 //
-//TEST_F(DriveApiTest, BEH_WriteAndReadIncompressible) {
+// TEST_F(DriveApiTest, BEH_WriteAndReadIncompressible) {
 //  typedef std::chrono::time_point<std::chrono::system_clock> chrono_time_point;
 //
 //  MetaData meta_data("test", false);
@@ -494,9 +491,9 @@ TEST(Drive, BEH_SureStore) {
 //
 //  for (uint32_t i = 0; i < kTestDataSize; ++i)
 //    ASSERT_EQ(plain_text[i], answer[i]) << "failed at count " << i;
-//}
+// }
 //
-//TEST_F(DriveApiTest, BEH_WriteAndReadCompressible) {
+// TEST_F(DriveApiTest, BEH_WriteAndReadCompressible) {
 //  typedef std::chrono::time_point<std::chrono::system_clock> chrono_time_point;
 //
 //  MetaData meta_data("test", false);
@@ -545,7 +542,7 @@ TEST(Drive, BEH_SureStore) {
 //
 //  for (uint32_t i = 0; i < kTestDataSize; ++i)
 //    ASSERT_EQ(plain_data[i], answer[i]) << "failed at count " << i;
-//}
+// }
 
 }  // namespace test
 
