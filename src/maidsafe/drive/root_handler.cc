@@ -24,8 +24,9 @@ namespace drive {
 
 namespace detail {
 
-//template<>
-//const std::vector<typename Default<nfs_client::MaidNodeNfs>::PathAndType>
+// TODO(Team): 2013-09-25 - Uncomment and fix or delete
+// template<>
+// const std::vector<typename Default<nfs_client::MaidNodeNfs>::PathAndType>
 //    Default<nfs_client::MaidNodeNfs>::kValues =
 //        []()->std::vector<typename Default<nfs_client::MaidNodeNfs>::PathAndType> {
 //    std::vector<typename Default<nfs_client::MaidNodeNfs>::PathAndType> result;
@@ -40,7 +41,7 @@ namespace detail {
 //    result.push_back(std::make_pair(boost::filesystem::path("/World/Services"),
 //                                    DataTagValue::kWorldDirectoryValue));
 //    return result;
-//}();
+// }();
 
 template<>
 const std::vector<typename Default<data_store::SureFileStore>::PathAndType>
@@ -250,10 +251,11 @@ template<>
 bool RootHandler<nfs_client::MaidNodeNfs>::CanRename(
     const boost::filesystem::path& /*from_path*/,
     const boost::filesystem::path& /*to_path*/) const {
-  //boost::filesystem::path from_filename(from_path.filename()), to_filename(to_path.filename()),
+  // TODO(Team): 2013-09-25 - Uncomment and fix or delete
+  // boost::filesystem::path from_filename(from_path.filename()), to_filename(to_path.filename()),
   //         from_parent_filename(from_path.parent_path().filename()),
   //         to_parent_filename(to_path.parent_path().filename());
-  //if ((from_filename == kRoot || to_filename == kRoot)
+  // if ((from_filename == kRoot || to_filename == kRoot)
   //    || (from_parent_filename == kRoot || to_parent_filename == kRoot)
   //    || (from_filename == "Owner" && from_parent_filename == kRoot)
   //    || (to_filename == "Owner" && to_parent_filename == kRoot)
@@ -262,16 +264,16 @@ bool RootHandler<nfs_client::MaidNodeNfs>::CanRename(
   //    || (from_filename == "World" && from_parent_filename == kRoot)
   //    || (to_filename == "World" && to_parent_filename == kRoot))
   //  return false;
-  //auto from_type(GetDirectoryType(from_path)), to_type(GetDirectoryType(to_path));
-  //if (from_type != to_type) {
+  // auto from_type(GetDirectoryType(from_path)), to_type(GetDirectoryType(to_path));
+  // if (from_type != to_type) {
   //  if (from_type == DataTagValue::kGroupDirectoryValue ||
   //      to_type == DataTagValue::kGroupDirectoryValue ||
   //          (from_type != DataTagValue::kWorldDirectoryValue &&
   //          to_type == DataTagValue::kWorldDirectoryValue && !world_is_writeable_)) {
       return false;
   //  }
-  //}
-  //return from_type != DataTagValue::kWorldDirectoryValue ||
+  // }
+  // return from_type != DataTagValue::kWorldDirectoryValue ||
   //       from_parent_filename != "World" ||
   //       from_filename != "Services";
 }
@@ -297,7 +299,7 @@ template<>
 void RootHandler<data_store::SureFileStore>::Put(const boost::filesystem::path& path,
                                                  Directory& directory) {
   SCOPED_PROFILE
-  {
+  {  // NOLINT
     std::lock_guard<std::mutex> dir_lock(directories_mutex_);
     recent_directories_[path] = directory;
   }
