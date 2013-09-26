@@ -118,6 +118,7 @@ class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
   // Notifies filesystem of change in directory.  No-op on Unix.
   virtual void NotifyDirectoryChange(const boost::filesystem::path& /*relative_path*/,
                                      detail::OpType /*op*/) const {}
+  void Mount();
 
  private:
   FuseDriveInUserSpace(const FuseDriveInUserSpace&);
@@ -125,7 +126,7 @@ class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
   FuseDriveInUserSpace& operator=(FuseDriveInUserSpace);
 
   void Init();
-  void Mount();
+//  void Mount();
 
   static int OpsCreate(const char *path, mode_t mode, struct fuse_file_info *file_info);
   static void OpsDestroy(void *fuse);
