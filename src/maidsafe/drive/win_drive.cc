@@ -24,7 +24,6 @@
 #include "maidsafe/common/error.h"
 #include "maidsafe/common/log.h"
 
-
 namespace maidsafe {
 
 namespace drive {
@@ -41,12 +40,10 @@ fs::path GetNextAvailableDrivePath() {
   return fs::path(path);
 }
 
-
-
 namespace detail {
 
 #ifndef CBFS_KEY
-#  error CBFS_KEY must be defined.
+#error CBFS_KEY must be defined.
 #endif
 
 fs::path RelativePath(const fs::path& mount_path, const fs::path& absolute_path) {
@@ -56,15 +53,15 @@ fs::path RelativePath(const fs::path& mount_path, const fs::path& absolute_path)
   return absolute_path.root_directory() / absolute_path.relative_path();
 }
 
-std::string WstringToString(const std::wstring &input) {
+std::string WstringToString(const std::wstring& input) {
   std::locale locale("");
   std::string string_buffer(input.size() * 4 + 1, 0);
-  std::use_facet<std::ctype<wchar_t>>(locale).narrow(
-        &input[0], &input[0] + input.size(), '?', &string_buffer[0]);
+  std::use_facet<std::ctype<wchar_t>>(locale)
+      .narrow(&input[0], &input[0] + input.size(), '?', &string_buffer[0]);
   return std::string(&string_buffer[0]);
 }
 
-void ErrorMessage(const std::string &method_name, ECBFSError error) {
+void ErrorMessage(const std::string& method_name, ECBFSError error) {
   LOG(kError) << "Cbfs::" << method_name << ": " << WstringToString(error.Message());
 }
 

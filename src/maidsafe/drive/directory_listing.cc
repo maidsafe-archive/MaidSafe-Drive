@@ -36,7 +36,6 @@
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/proto_structs.pb.h"
 
-
 namespace maidsafe {
 
 namespace drive {
@@ -53,9 +52,7 @@ bool MetaDataHasName(const MetaData& meta_data, const fs::path& name) {
 }  // unnamed namespace
 
 DirectoryListing::DirectoryListing(DirectoryId directory_id)
-    : directory_id_(std::move(directory_id)),
-      children_(),
-      children_itr_position_(0) {}
+    : directory_id_(std::move(directory_id)), children_(), children_itr_position_(0) {}
 
 DirectoryListing::DirectoryListing(const DirectoryListing& other)
     : directory_id_(other.directory_id_),
@@ -68,9 +65,7 @@ DirectoryListing::DirectoryListing(DirectoryListing&& other)
       children_itr_position_(std::move(other.children_itr_position_)) {}
 
 DirectoryListing::DirectoryListing(const std::string& serialised_directory_listing)
-    : directory_id_(),
-      children_(),
-      children_itr_position_(0) {
+    : directory_id_(), children_(), children_itr_position_(0) {
   protobuf::DirectoryListing pb_directory;
   if (!pb_directory.ParseFromString(serialised_directory_listing))
     ThrowError(CommonErrors::parsing_error);
@@ -88,25 +83,21 @@ DirectoryListing::DirectoryListing(const std::string& serialised_directory_listi
   std::sort(std::begin(children_), std::end(children_));
 }
 
-
-
 DirectoryListing& DirectoryListing::operator=(DirectoryListing other) {
   swap(*this, other);
   return *this;
 }
 
 bool DirectoryListing::HasChild(const fs::path& name) const {
-  return std::any_of(std::begin(children_), std::end(children_),
-                     [&name] (const MetaData& meta_data) {
-                       return MetaDataHasName(meta_data, name);
-                     });
+  return std::any_of(
+      std::begin(children_), std::end(children_),
+      [&name](const MetaData & meta_data) { return MetaDataHasName(meta_data, name); });
 }
 
 void DirectoryListing::GetChild(const fs::path& name, MetaData& meta_data) const {
-  auto itr(std::find_if(std::begin(children_), std::end(children_),
-                        [&name] (const MetaData& meta_data) {
-                          return MetaDataHasName(meta_data, name);
-                        }));
+  auto itr(std::find_if(
+      std::begin(children_), std::end(children_),
+      [&name](const MetaData & meta_data) { return MetaDataHasName(meta_data, name); }));
   if (itr != std::end(children_)) {
     meta_data = *itr;
   } else {
@@ -129,16 +120,15 @@ bool DirectoryListing::GetChildAndIncrementItr(MetaData& meta_data) {
 }
 
 void DirectoryListing::AddChild(const MetaData& child) {
-  assert(!std::any_of(std::begin(children_),
-                      std::end(children_),
-                      [&child](const MetaData& entry) { return child.name == entry.name; }));
+  assert(!std::any_of(std::begin(children_), std::end(children_),
+                      [&child](const MetaData & entry) { return child.name == entry.name; }));
   children_.push_back(child);
   SortAndResetChildrenIterator();
 }
 
 void DirectoryListing::RemoveChild(const MetaData& child) {
   auto itr(std::find_if(std::begin(children_), std::end(children_),
-                        [&child](const MetaData& entry) { return child.name == entry.name; }));
+                        [&child](const MetaData & entry) { return child.name == entry.name; }));
   if (itr == std::end(children_))
     ThrowError(CommonErrors::invalid_parameter);
   children_.erase(itr);
@@ -147,16 +137,14 @@ void DirectoryListing::RemoveChild(const MetaData& child) {
 
 void DirectoryListing::UpdateChild(const MetaData& child) {
   auto itr(std::find_if(std::begin(children_), std::end(children_),
-                        [&child](const MetaData& entry) { return child.name == entry.name; }));
+                        [&child](const MetaData & entry) { return child.name == entry.name; }));
   if (itr == std::end(children_))
     ThrowError(CommonErrors::invalid_parameter);
   *itr = child;
   SortAndResetChildrenIterator();
 }
 
-void DirectoryListing::ResetChildrenIterator() {
-  children_itr_position_ = 0;
-}
+void DirectoryListing::ResetChildrenIterator() { children_itr_position_ = 0; }
 
 void DirectoryListing::SortAndResetChildrenIterator() {
   std::sort(std::begin(children_), std::end(children_));
@@ -166,8 +154,9 @@ void DirectoryListing::SortAndResetChildrenIterator() {
 bool DirectoryListing::empty() const {
   if (children_.empty())
     return true;
-  return std::any_of(std::begin(children_), std::end(children_),
-                     [](const MetaData& element) { return element.name.extension() == kMsHidden; });
+  return std::any_of(std::begin(children_), std::end(children_), [](const MetaData & element) {
+    return element.name.extension() == kMsHidden;
+  });
 }
 
 std::string DirectoryListing::Serialise() const {
@@ -182,11 +171,10 @@ std::string DirectoryListing::Serialise() const {
 
 std::vector<std::string> DirectoryListing::GetHiddenChildNames() const {
   std::vector<std::string> names;
-  std::for_each(std::begin(children_), std::end(children_),
-                [&](const MetaData& child) {
-                  if (child.name.extension() == kMsHidden)
-                    names.push_back(child.name.string());
-                });
+  std::for_each(std::begin(children_), std::end(children_), [&](const MetaData & child) {
+    if (child.name.extension() == kMsHidden)
+      names.push_back(child.name.string());
+  });
   return names;
 }
 

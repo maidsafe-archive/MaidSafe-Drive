@@ -29,7 +29,6 @@
 #include "maidsafe/drive/proto_structs.pb.h"
 #include "maidsafe/drive/utils.h"
 
-
 namespace bptime = boost::posix_time;
 namespace fs = boost::filesystem;
 
@@ -45,8 +44,7 @@ namespace {
 const uint32_t kAttributesFormat = 0x0FFF;
 const uint32_t kAttributesRegular = 0x8000;
 
-
-FILETIME BptimeToFileTime(bptime::ptime const &ptime) {
+FILETIME BptimeToFileTime(bptime::ptime const& ptime) {
   SYSTEMTIME system_time;
   boost::gregorian::date::ymd_type year_month_day = ptime.date().year_month_day();
 
@@ -89,14 +87,12 @@ FILETIME BptimeToFileTime(bptime::ptime const &ptime) {
   return file_time;
 }
 
-bptime::ptime FileTimeToBptime(FILETIME const &ftime) {
+bptime::ptime FileTimeToBptime(FILETIME const& ftime) {
   return bptime::from_ftime<bptime::ptime>(ftime);
 }
 
 }  // unnamed namespace
 #endif
-
-
 
 MetaData::MetaData()
     : name(),
@@ -108,13 +104,10 @@ MetaData::MetaData()
       last_access_time(),
       last_write_time(),
       data_map(),
-      directory_id() {}
+      directory_id() {
+}
 #else
-      attributes(),
-      link_to(),
-      data_map(),
-      directory_id(),
-      notes() {
+attributes(), link_to(), data_map(), directory_id(), notes() {
   attributes.st_gid = getgid();
   attributes.st_uid = getuid();
   attributes.st_mode = 0644;
@@ -122,7 +115,7 @@ MetaData::MetaData()
 }
 #endif
 
-MetaData::MetaData(const fs::path &name, bool is_directory)
+MetaData::MetaData(const fs::path& name, bool is_directory)
     : name(name),
 #ifdef MAIDSAFE_WIN32
       end_of_file(0),
@@ -141,11 +134,9 @@ MetaData::MetaData(const fs::path &name, bool is_directory)
   last_write_time = file_time;
 }
 #else
-      attributes(),
-      link_to(),
-      data_map(is_directory ? nullptr : std::make_shared<encrypt::DataMap>()),
-      directory_id(is_directory ? std::make_shared<DirectoryId>(RandomString(64)) : nullptr),
-      notes() {
+attributes(), link_to(), data_map(is_directory ? nullptr : std::make_shared<encrypt::DataMap>()),
+    directory_id(is_directory ? std::make_shared<DirectoryId>(RandomString(64)) : nullptr),
+    notes() {
   attributes.st_gid = getgid();
   attributes.st_uid = getuid();
   attributes.st_mode = 0644;
@@ -243,8 +234,8 @@ MetaData::MetaData(const std::string& serialised_meta_data) {
   attributes.st_size = attributes_archive.st_size();
 
   static bptime::ptime epoch(boost::gregorian::date(1970, 1, 1));
-  bptime::time_duration diff(
-      bptime::from_iso_string(attributes_archive.last_access_time()) - epoch);
+  bptime::time_duration diff(bptime::from_iso_string(attributes_archive.last_access_time()) -
+                             epoch);
   attributes.st_atime = diff.ticks() / diff.ticks_per_second();
   diff = bptime::from_iso_string(attributes_archive.last_write_time()) - epoch;
   attributes.st_mtime = diff.ticks() / diff.ticks_per_second();

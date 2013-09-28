@@ -31,7 +31,6 @@
 #include "maidsafe/common/on_scope_exit.h"
 #include "maidsafe/common/utils.h"
 
-
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 
@@ -125,10 +124,8 @@ std::vector<uint32_t> GenerateFileSizes(uint32_t max_size, uint32_t min_size, si
   return file_sizes;
 }
 
-uint32_t CreateTestTreeStructure(const fs::path& base_path,
-                                 std::vector<fs::path>& directories,
-                                 std::set<fs::path>& files,
-                                 uint32_t directory_node_count,
+uint32_t CreateTestTreeStructure(const fs::path& base_path, std::vector<fs::path>& directories,
+                                 std::set<fs::path>& files, uint32_t directory_node_count,
                                  uint32_t file_node_count = 100,
                                  uint32_t max_filesize = 5 * 1024 * 1024,
                                  uint32_t min_size = 1024) {
@@ -156,7 +153,7 @@ uint32_t CreateTestTreeStructure(const fs::path& base_path,
   return total_file_size;
 }
 
-void CopyRecursiveDirectory(const fs::path &src, const fs::path &dest) {
+void CopyRecursiveDirectory(const fs::path& src, const fs::path& dest) {
   boost::system::error_code ec;
   fs::copy_directory(src, dest / src.filename(), ec);
   for (fs::recursive_directory_iterator end, current(src); current != end; ++current) {
@@ -191,8 +188,7 @@ bool CompareFileContents(const fs::path& path1, const fs::path& path2) {
 }
 
 void PrintResult(const std::chrono::high_resolution_clock::time_point& start,
-                 const std::chrono::high_resolution_clock::time_point& stop,
-                 size_t size,
+                 const std::chrono::high_resolution_clock::time_point& stop, size_t size,
                  std::string action_type) {
   auto duration(std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count());
   if (duration == 0)
@@ -253,11 +249,10 @@ void CopyThenReadManySmallFiles() {
   uint32_t min_filesize(1);
   std::cout << "Creating a test tree with " << num_of_directories << " directories holding "
             << num_of_files << " files with file size range from "
-            << BytesToBinarySiUnits(min_filesize) << " to "
-            << BytesToBinarySiUnits(max_filesize) << '\n';
-  uint32_t total_data_size = CreateTestTreeStructure(temp_, directories, files,
-                                                     num_of_directories, num_of_files,
-                                                     max_filesize, min_filesize);
+            << BytesToBinarySiUnits(min_filesize) << " to " << BytesToBinarySiUnits(max_filesize)
+            << '\n';
+  uint32_t total_data_size = CreateTestTreeStructure(temp_, directories, files, num_of_directories,
+                                                     num_of_files, max_filesize, min_filesize);
 
   // Copy test_tree to virtual drive...
   auto copy_start_time(std::chrono::high_resolution_clock::now());
@@ -302,8 +297,6 @@ void CopyThenReadManySmallFiles() {
 
 }  // namespace maidsafe
 
-
-
 int main(int argc, char** argv) {
   auto unused_options(maidsafe::log::Logging::Instance().Initialise(argc, argv));
 
@@ -313,13 +306,14 @@ int main(int argc, char** argv) {
     std::string description("Path to root directory for test, e.g. " +
                             fs::temp_directory_path().string());
     bool no_big_test(false), no_small_test(false);
-    command_line_options.add_options()
-        ("help,h", "Show help message.")
-        ("root", po::value<std::string>(), description.c_str())
-        ("no_big_test", po::bool_switch(&no_big_test), "Disable single large file test.")
-        ("no_small_test", po::bool_switch(&no_small_test), "Disable multiple small files test.");
-    po::parsed_options parsed(po::command_line_parser(unused_options).
-        options(command_line_options).allow_unregistered().run());
+    command_line_options.add_options()("help,h", "Show help message.")(
+        "root", po::value<std::string>(), description.c_str())(
+        "no_big_test", po::bool_switch(&no_big_test), "Disable single large file test.")(
+        "no_small_test", po::bool_switch(&no_small_test), "Disable multiple small files test.");
+    po::parsed_options parsed(po::command_line_parser(unused_options)
+                                  .options(command_line_options)
+                                  .allow_unregistered()
+                                  .run());
 
     po::variables_map variables_map;
     po::store(parsed, variables_map);
@@ -336,8 +330,8 @@ int main(int argc, char** argv) {
       return -1;
 
     // Set up 'temp_' directory
-    maidsafe::test::temp_ = fs::unique_path(fs::temp_directory_path() /
-                                            "MaidSafe_Test_Filesystem_%%%%-%%%%-%%%%");
+    maidsafe::test::temp_ =
+        fs::unique_path(fs::temp_directory_path() / "MaidSafe_Test_Filesystem_%%%%-%%%%-%%%%");
     if (!fs::create_directories(maidsafe::test::temp_)) {
       LOG(kWarning) << "Failed to create test directory " << maidsafe::test::temp_;
       return -2;
@@ -359,7 +353,7 @@ int main(int argc, char** argv) {
       LOG(kWarning) << "Error removing " << maidsafe::test::temp_ << "  " << error_code.message();
     }
   }
-  catch(const std::exception& e) {
+  catch (const std::exception& e) {
     std::cout << "Error: " << e.what() << '\n';
     return -3;
   }

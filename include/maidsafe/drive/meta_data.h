@@ -20,9 +20,9 @@
 #define MAIDSAFE_DRIVE_META_DATA_H_
 
 #ifdef MAIDSAFE_WIN32
-#  include <windows.h>
+#include <windows.h>
 #else
-#  include <sys/stat.h>
+#include <sys/stat.h>
 #endif
 
 #include <memory>
@@ -34,17 +34,16 @@
 #include "boost/date_time/posix_time/posix_time.hpp"
 
 #ifndef MAIDSAFE_WIN32
-#  ifdef MAIDSAFE_APPLE
-#    undef FUSE_USE_VERSION
-#    define FUSE_USE_VERSION 26
-#    include "osxfuse/fuse/fuse.h"
-#  else
-#    include "fuse/fuse.h"
-#  endif
+#ifdef MAIDSAFE_APPLE
+#undef FUSE_USE_VERSION
+#define FUSE_USE_VERSION 26
+#include "osxfuse/fuse/fuse.h"
+#else
+#include "fuse/fuse.h"
+#endif
 #endif
 #include "maidsafe/encrypt/data_map.h"
 #include "maidsafe/drive/config.h"
-
 
 namespace maidsafe {
 
@@ -53,7 +52,7 @@ namespace drive {
 // Represents directory and file information
 struct MetaData {
   MetaData();
-  MetaData(const boost::filesystem::path &name, bool is_directory);
+  MetaData(const boost::filesystem::path& name, bool is_directory);
   MetaData(const MetaData& meta_data);
   MetaData(MetaData&& meta_data);
   MetaData& operator=(MetaData other);

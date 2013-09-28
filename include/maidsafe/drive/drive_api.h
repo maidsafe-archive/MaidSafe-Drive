@@ -20,28 +20,27 @@
 #define MAIDSAFE_DRIVE_DRIVE_API_H_
 
 #ifdef MAIDSAFE_WIN32
-#  ifdef HAVE_CBFS
-#    include "maidsafe/drive/win_drive.h"
-#  else
-#    include "maidsafe/drive/dummy_win_drive.h"
-#  endif
+#ifdef HAVE_CBFS
+#include "maidsafe/drive/win_drive.h"
 #else
-#  include "maidsafe/drive/unix_drive.h"
+#include "maidsafe/drive/dummy_win_drive.h"
 #endif
-
+#else
+#include "maidsafe/drive/unix_drive.h"
+#endif
 
 namespace maidsafe {
 
 namespace drive {
 
-template<typename Storage>
+template <typename Storage>
 struct VirtualDrive {
 #ifdef MAIDSAFE_WIN32
-#  ifdef HAVE_CBFS
+#ifdef HAVE_CBFS
   typedef CbfsDriveInUserSpace<Storage> value_type;
-#  else
+#else
   typedef DummyWinDriveInUserSpace value_type;
-#  endif
+#endif
 #else
   typedef FuseDriveInUserSpace<Storage> value_type;
 #endif

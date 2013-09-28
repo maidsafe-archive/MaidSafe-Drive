@@ -34,7 +34,6 @@
 
 #include "maidsafe/drive/drive_api.h"
 
-
 namespace fs = boost::filesystem;
 namespace bptime = boost::posix_time;
 
@@ -52,32 +51,29 @@ enum TestOperationCode {
   kCompare = 2
 };
 
-template<typename Storage>
+template <typename Storage>
 struct GlobalDrive {
   static std::shared_ptr<typename VirtualDrive<Storage>::value_type> g_drive;
 };
 
-template<typename Storage>
+template <typename Storage>
 std::shared_ptr<typename VirtualDrive<Storage>::value_type> GlobalDrive<Storage>::g_drive;
 
-void PrintResult(const bptime::ptime &start_time,
-                 const bptime::ptime &stop_time,
-                 size_t size,
+void PrintResult(const bptime::ptime& start_time, const bptime::ptime& stop_time, size_t size,
                  TestOperationCode operation_code);
-fs::path CreateTestFile(fs::path const& path, int64_t &file_size);
+fs::path CreateTestFile(fs::path const& path, int64_t& file_size);
 fs::path CreateTestFileWithSize(fs::path const& path, size_t size);
-fs::path CreateTestFileWithContent(fs::path const& path, const std::string &content);
+fs::path CreateTestFileWithContent(fs::path const& path, const std::string& content);
 fs::path CreateTestDirectory(fs::path const& path);
 fs::path CreateTestDirectoriesAndFiles(fs::path const& path);
-fs::path CreateNamedFile(fs::path const& path, const std::string &name, int64_t &file_size);
-fs::path CreateNamedDirectory(fs::path const& path, const std::string &name);
-bool ModifyFile(fs::path const& path, int64_t &file_size);
+fs::path CreateNamedFile(fs::path const& path, const std::string& name, int64_t& file_size);
+fs::path CreateNamedDirectory(fs::path const& path, const std::string& name);
+bool ModifyFile(fs::path const& path, int64_t& file_size);
 bool SameFileContents(fs::path const& path1, fs::path const& path2);
 
 uint64_t TotalSize(encrypt::DataMapPtr data_map);
 
-void GenerateDirectoryListingEntryForFile(DirectoryListing& directory_listing,
-                                          const fs::path& path,
+void GenerateDirectoryListingEntryForFile(DirectoryListing& directory_listing, const fs::path& path,
                                           const uintmax_t& file_size);
 
 }  // namespace test

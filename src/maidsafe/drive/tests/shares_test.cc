@@ -31,9 +31,9 @@
 #include "maidsafe/private/utils/utilities.h"
 
 #ifdef WIN32
-#  include "maidsafe/drive/win_drive.h"
+#include "maidsafe/drive/win_drive.h"
 #else
-#  include "maidsafe/drive/unix_drive.h"
+#include "maidsafe/drive/unix_drive.h"
 #endif
 #include "maidsafe/drive/directory_listing_handler.h"
 #include "maidsafe/drive/utils.h"
@@ -60,17 +60,14 @@ typedef std::shared_ptr<DerivedDriveInUserSpace> DrivePtr;
 
 class ShareTestsBase {
  public:
-  ShareTestsBase() : main_test_dir_(maidsafe::test::CreateTestPath()),
-                     chunk_store_(),
-                     asio_service_(5) {}
+  ShareTestsBase()
+      : main_test_dir_(maidsafe::test::CreateTestPath()), chunk_store_(), asio_service_(5) {}
 
  protected:
-  DrivePtr CreateAndMountDrive(const std::string &root_parent_id,
-                               std::string *unique_user_id,
-                               const int64_t &max_space,
-                               const int64_t &used_space,
-                               fs::path *test_mount_dir = nullptr,
-                               asymm::Keys *key_ring = nullptr) {
+  DrivePtr CreateAndMountDrive(const std::string& root_parent_id, std::string* unique_user_id,
+                               const int64_t& max_space, const int64_t& used_space,
+                               fs::path* test_mount_dir = nullptr,
+                               asymm::Keys* key_ring = nullptr) {
     if (!unique_user_id) {
       LOG(kError) << "null unique_user_id";
       return DrivePtr();
@@ -79,10 +76,9 @@ class ShareTestsBase {
     if (unique_user_id->empty())
       *unique_user_id = crypto::Hash<crypto::SHA512>(RandomString(8));
     fs::path buffered_chunk_store_path(*main_test_dir_ / RandomAlphaNumericString(8));
-    chunk_store_ = pcs::CreateLocalChunkStore(buffered_chunk_store_path,
-                                              *main_test_dir_ / "local",
-                                              *main_test_dir_ / "lock_path",
-                                              asio_service_.service());
+    chunk_store_ =
+        pcs::CreateLocalChunkStore(buffered_chunk_store_path, *main_test_dir_ / "local",
+                                   *main_test_dir_ / "lock_path", asio_service_.service());
 
     asymm::Keys keyring;
     if (!key_ring || key_ring->identity.empty()) {
@@ -137,8 +133,8 @@ class ShareTestsBase {
 #else
     // TODO(Team): Find out why, if the mount is put on the asio service,
     //             unmount hangs
-    boost::thread th(std::bind(&DriveInUserSpace::Mount, drive, mount_dir, "TestDrive",
-                               max_space, used_space, false, false));
+    boost::thread th(std::bind(&DriveInUserSpace::Mount, drive, mount_dir, "TestDrive", max_space,
+                               used_space, false, false));
     if (!drive->WaitUntilMounted()) {
       LOG(kError) << "Drive failed to mount";
       asio_service_.Stop();
@@ -153,13 +149,13 @@ class ShareTestsBase {
     boost::system::error_code error_code_1;
     fs::path directory(mount_dir / kMsShareRoot);
     if (!(fs::exists(directory, error_code_1)))
-      EXPECT_TRUE(fs::create_directories(directory, error_code_1)) << directory
-                  << ": " << error_code_1.message();
+      EXPECT_TRUE(fs::create_directories(directory, error_code_1)) << directory << ": "
+                                                                   << error_code_1.message();
 
     return drive;
   }
 
-  void UnmountDrive(DrivePtr drive, int64_t &max_space, int64_t &used_space) {
+  void UnmountDrive(DrivePtr drive, int64_t& max_space, int64_t& used_space) {
 #ifdef WIN32
     EXPECT_EQ(kSuccess, drive->Unmount(max_space, used_space));
 #else
@@ -176,23 +172,20 @@ class ShareTestsBase {
   AsioService asio_service_;
 };
 
-class PrivateOpenShareTests : public ShareTestsBase,
-                              public testing::TestWithParam<bool> {
+class PrivateOpenShareTests : public ShareTestsBase, public testing::TestWithParam<bool> {
  public:
-  PrivateOpenShareTests() : ShareTestsBase(),
-                            private_share_(GetParam()),
-                            signaled_(false) {}
+  PrivateOpenShareTests() : ShareTestsBase(), private_share_(GetParam()), signaled_(false) {}
 
-  void ShareRenamedSlot(const std::string&, const std::string&) {
-    signaled_ = true;
-  }
+  void ShareRenamedSlot(const std::string&, const std::string&) { signaled_ = true; }
 
   bool private_share_;
   bool signaled_;
 
  protected:
-  void SetUp() { /*asio_service_.Start(5);*/ }
-  void TearDown() { /*asio_service_.Stop();*/ }
+  void SetUp() {/*asio_service_.Start(5);*/
+  }
+  void TearDown() {/*asio_service_.Stop();*/
+  }
 };
 
 class SharesTest : public ShareTestsBase, public testing::Test {
@@ -200,13 +193,14 @@ class SharesTest : public ShareTestsBase, public testing::Test {
   SharesTest() : ShareTestsBase() {}
 
  protected:
-  void SetUp() { /*asio_service_.Start(5);*/ }
-  void TearDown() { /*asio_service_.Stop();*/ }
+  void SetUp() {/*asio_service_.Start(5);*/
+  }
+  void TearDown() {/*asio_service_.Stop();*/
+  }
 };
 
 INSTANTIATE_TEST_CASE_P(PivateAndOpenShareTests, PrivateOpenShareTests,
                         testing::Values(kMsOpenShare, kMsPrivateShare));
-
 
 TEST_P(PrivateOpenShareTests, BEH_Share) {
   maidsafe::test::TestPath test_path(maidsafe::test::CreateTestPath());
@@ -217,28 +211,20 @@ TEST_P(PrivateOpenShareTests, BEH_Share) {
   asymm::Keys keys;
   int64_t max_space(1073741824), used_space(0), file_size(0);
   ASSERT_EQ(kSuccess, priv::utilities::CreateMaidsafeIdentity(keys));
-  DrivePtr drive(MakeAndMountDrive(unique_user_id,
-                                   root_parent_id,
-                                   keys,
-                                   false,
-                                   test_path,
-                                   max_space,
-                                   used_space,
-                                   asio_service,
-                                   chunk_store,
+  DrivePtr drive(MakeAndMountDrive(unique_user_id, root_parent_id, keys, false, test_path,
+                                   max_space, used_space, asio_service, chunk_store,
                                    test_mount_dir));
   ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
 
   // Create file on virtual drive
   fs::path dir0(CreateTestDirectory(test_mount_dir));
-  fs::path dir1(CreateTestDirectory(dir0)),
-           dir1_relative_path(RelativePath(test_mount_dir, dir1));
+  fs::path dir1(CreateTestDirectory(dir0)), dir1_relative_path(RelativePath(test_mount_dir, dir1));
   fs::path new_dir(dir0);
   new_dir /= RandomAlphaNumericString(8);
   fs::path new_dir_relative_path(RelativePath(test_mount_dir, new_dir));
   fs::path dir2(CreateTestDirectory(dir1));
   fs::path file1(CreateTestFile(dir1, file_size)),
-           file1_relative_path(RelativePath(test_mount_dir, file1));
+      file1_relative_path(RelativePath(test_mount_dir, file1));
   fs::path file2(CreateTestFile(dir2, file_size));
   boost::system::error_code error_code;
   EXPECT_TRUE(fs::exists(file1, error_code));
@@ -247,88 +233,47 @@ TEST_P(PrivateOpenShareTests, BEH_Share) {
   EXPECT_EQ(error_code.value(), 0);
 
   // Try getting with invalid parameters
-  std::string directory_id,
-              share_id(RandomAlphaNumericString(64)),
-              this_user_id(RandomAlphaNumericString(64));
+  std::string directory_id, share_id(RandomAlphaNumericString(64)),
+      this_user_id(RandomAlphaNumericString(64));
   asymm::Keys share_keyring;
   maidsafe::asymm::GenerateKeyPair(&share_keyring);
   share_keyring.identity = RandomAlphaNumericString(64);
-  EXPECT_EQ(kNullParameter, drive->SetShareDetails(dir1_relative_path,
-                                                   share_id,
-                                                   share_keyring,
-                                                   this_user_id,
-                                                   private_share_,
-                                                   nullptr));
-  EXPECT_EQ(kInvalidPath, drive->SetShareDetails("",
-                                                 share_id,
-                                                 share_keyring,
-                                                 this_user_id,
-                                                 private_share_,
-                                                 &directory_id));
-  EXPECT_EQ(kNoDirectoryId, drive->SetShareDetails(file1_relative_path,
-                                                   share_id,
-                                                   share_keyring,
-                                                   this_user_id,
-                                                   private_share_,
-                                                   &directory_id));
+  EXPECT_EQ(kNullParameter, drive->SetShareDetails(dir1_relative_path, share_id, share_keyring,
+                                                   this_user_id, private_share_, nullptr));
+  EXPECT_EQ(kInvalidPath, drive->SetShareDetails("", share_id, share_keyring, this_user_id,
+                                                 private_share_, &directory_id));
+  EXPECT_EQ(kNoDirectoryId, drive->SetShareDetails(file1_relative_path, share_id, share_keyring,
+                                                   this_user_id, private_share_, &directory_id));
   EXPECT_EQ(kFailedToGetMetaData,
-            drive->SetShareDetails(dir1_relative_path / "Rubbish",
-                                   share_id,
-                                   share_keyring,
-                                   this_user_id,
-                                   private_share_,
-                                   &directory_id));
+            drive->SetShareDetails(dir1_relative_path / "Rubbish", share_id, share_keyring,
+                                   this_user_id, private_share_, &directory_id));
 
   // Set to "not shared" (i.e. share status unchanged) by passing empty
   // share_id
   directory_id = "A";
-  EXPECT_EQ(kSuccess, drive->SetShareDetails(dir1_relative_path,
-                                             "",
-                                             share_keyring,
-                                             this_user_id,
-                                             private_share_,
-                                             &directory_id));
+  EXPECT_EQ(kSuccess, drive->SetShareDetails(dir1_relative_path, "", share_keyring, this_user_id,
+                                             private_share_, &directory_id));
   EXPECT_TRUE(directory_id.empty());
 
   // Set to "shared"
-  EXPECT_EQ(kSuccess, drive->SetShareDetails(dir1_relative_path,
-                                             share_id,
-                                             share_keyring,
-                                             this_user_id,
-                                             private_share_,
-                                             &directory_id));
+  EXPECT_EQ(kSuccess, drive->SetShareDetails(dir1_relative_path, share_id, share_keyring,
+                                             this_user_id, private_share_, &directory_id));
   EXPECT_FALSE(directory_id.empty());
 
   // Try inserting with invalid parameters
   EXPECT_EQ(kFailedToGetMetaData,
-            drive->InsertShare(new_dir_relative_path / "Rubbish" / "Path",
-                               this_user_id,
-                               directory_id,
-                               share_id,
-                               share_keyring));
+            drive->InsertShare(new_dir_relative_path / "Rubbish" / "Path", this_user_id,
+                               directory_id, share_id, share_keyring));
   EXPECT_EQ(kInvalidPath,
-            drive->InsertShare("", this_user_id, directory_id,
-                               share_id, share_keyring));
-  EXPECT_EQ(kInvalidIds, drive->InsertShare(new_dir_relative_path,
-                                            this_user_id,
-                                            "Rubbish",
-                                            share_id,
-                                            share_keyring));
-  EXPECT_EQ(kInvalidIds, drive->InsertShare(new_dir_relative_path,
-                                            this_user_id,
-                                            share_id,
-                                            "Rubbish",
-                                            share_keyring));
-  EXPECT_EQ(kNoDirectoryId, drive->InsertShare(file1_relative_path / "Rubbish",
-                                               this_user_id,
-                                               directory_id,
-                                               share_id,
-                                               share_keyring));
-  EXPECT_EQ(kInvalidPath, drive->InsertShare(dir1_relative_path,
-                                             this_user_id,
-                                             directory_id,
-                                             share_id,
-                                             share_keyring));
+            drive->InsertShare("", this_user_id, directory_id, share_id, share_keyring));
+  EXPECT_EQ(kInvalidIds, drive->InsertShare(new_dir_relative_path, this_user_id, "Rubbish",
+                                            share_id, share_keyring));
+  EXPECT_EQ(kInvalidIds, drive->InsertShare(new_dir_relative_path, this_user_id, share_id,
+                                            "Rubbish", share_keyring));
+  EXPECT_EQ(kNoDirectoryId, drive->InsertShare(file1_relative_path / "Rubbish", this_user_id,
+                                               directory_id, share_id, share_keyring));
+  EXPECT_EQ(kInvalidPath, drive->InsertShare(dir1_relative_path, this_user_id, directory_id,
+                                             share_id, share_keyring));
 
   // Store cached directory listings...
   EXPECT_EQ(kSuccess, drive->directory_listing_handler()->SaveCached(true));
@@ -343,17 +288,12 @@ TEST_P(PrivateOpenShareTests, BEH_Share) {
   for (uint32_t i = 0; i != share_data_vector.size(); ++i) {
     // Get share details...
     DirectoryId directory_id;
-    EXPECT_EQ(kSuccess, drive->GetShareDetails(share_data_vector[i].share_id,
-                                               &root_share_path,
-                                               &recovered_share_keyring,
-                                               &directory_id,
-                                               &share_users_map));
+    EXPECT_EQ(kSuccess,
+              drive->GetShareDetails(share_data_vector[i].share_id, &root_share_path,
+                                     &recovered_share_keyring, &directory_id, &share_users_map));
     // Remove the share...
-    EXPECT_EQ(kSuccess, drive->SetShareDetails(root_share_path,
-                                               "",
-                                               recovered_share_keyring,
-                                               share_users_map.begin()->first,
-                                               private_share_,
+    EXPECT_EQ(kSuccess, drive->SetShareDetails(root_share_path, "", recovered_share_keyring,
+                                               share_users_map.begin()->first, private_share_,
                                                &directory_id));
   }
   EXPECT_EQ(CalculateUsedSpace(test_mount_dir), drive->GetUsedSpace());
@@ -369,29 +309,20 @@ TEST_P(PrivateOpenShareTests, BEH_SetShare) {
   asymm::Keys keys;
   int64_t max_space(1073741824), used_space(0), file_size(0);
   ASSERT_EQ(kSuccess, priv::utilities::CreateMaidsafeIdentity(keys));
-  DrivePtr drive(MakeAndMountDrive(unique_user_id,
-                                   root_parent_id,
-                                   keys,
-                                   false,
-                                   test_path,
-                                   max_space,
-                                   used_space,
-                                   asio_service,
-                                   chunk_store,
+  DrivePtr drive(MakeAndMountDrive(unique_user_id, root_parent_id, keys, false, test_path,
+                                   max_space, used_space, asio_service, chunk_store,
                                    test_mount_dir));
   ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
 
   // Create a directory hierarchy...
   fs::path directory0(CreateTestDirectory(test_mount_dir)),
-           directory1(CreateTestDirectory(directory0)),
-           directory2(CreateTestDirectory(directory1)),
-           directory3(CreateTestDirectory(directory2)),
-           directory4(CreateTestDirectory(directory2)),
-           directory5(CreateTestDirectory(directory4));
+      directory1(CreateTestDirectory(directory0)), directory2(CreateTestDirectory(directory1)),
+      directory3(CreateTestDirectory(directory2)), directory4(CreateTestDirectory(directory2)),
+      directory5(CreateTestDirectory(directory4));
 
   fs::path directory3_relative_path(RelativePath(test_mount_dir, directory3)),
-           directory1_relative_path(RelativePath(test_mount_dir, directory1)),
-           directory4_relative_path(RelativePath(test_mount_dir, directory4));
+      directory1_relative_path(RelativePath(test_mount_dir, directory1)),
+      directory4_relative_path(RelativePath(test_mount_dir, directory4));
 
   // Create a file in directory1...
   boost::system::error_code error_code;
@@ -409,18 +340,12 @@ TEST_P(PrivateOpenShareTests, BEH_SetShare) {
   EXPECT_TRUE(fs::exists(file5, error_code));
   EXPECT_EQ(error_code.value(), 0);
 
-  std::string directory_id,
-              update_directory_id(RandomAlphaNumericString(64)),
-              first_share_id(RandomAlphaNumericString(64)),
-              second_share_id(RandomAlphaNumericString(64)),
-              first_user_id(drive->unique_user_id()),
-              second_user_id(RandomAlphaNumericString(64)),
-              third_user_id(RandomAlphaNumericString(64)),
-              update_share_id(RandomAlphaNumericString(64));
+  std::string directory_id, update_directory_id(RandomAlphaNumericString(64)),
+      first_share_id(RandomAlphaNumericString(64)), second_share_id(RandomAlphaNumericString(64)),
+      first_user_id(drive->unique_user_id()), second_user_id(RandomAlphaNumericString(64)),
+      third_user_id(RandomAlphaNumericString(64)), update_share_id(RandomAlphaNumericString(64));
 
-  asymm::Keys first_share_keyring,
-              second_share_keyring,
-              recovered_share_keyring;
+  asymm::Keys first_share_keyring, second_share_keyring, recovered_share_keyring;
   maidsafe::asymm::GenerateKeyPair(&first_share_keyring);
   first_share_keyring.identity = RandomAlphaNumericString(64);
   maidsafe::asymm::GenerateKeyPair(&second_share_keyring);
@@ -437,32 +362,23 @@ TEST_P(PrivateOpenShareTests, BEH_SetShare) {
   for (size_t i(0); i != share_data_vector.size(); ++i) {
     DirectoryId directory_identity;
     // Get share details...
-    EXPECT_EQ(kSuccess, drive->GetShareDetails(share_data_vector[i].share_id,
-                                               &root_share_path,
-                                               &recovered_share_keyring,
-                                               &directory_identity,
+    EXPECT_EQ(kSuccess, drive->GetShareDetails(share_data_vector[i].share_id, &root_share_path,
+                                               &recovered_share_keyring, &directory_identity,
                                                &share_users_map));
     // Remove the share...
-    EXPECT_EQ(kSuccess, drive->SetShareDetails(root_share_path,
-                                               "",
-                                               recovered_share_keyring,
-                                               share_users_map.begin()->first,
-                                               private_share_,
+    EXPECT_EQ(kSuccess, drive->SetShareDetails(root_share_path, "", recovered_share_keyring,
+                                               share_users_map.begin()->first, private_share_,
                                                &directory_identity));
   }
 
   // Set directory3 to shared...
-  EXPECT_EQ(kSuccess, drive->SetShareDetails(directory3_relative_path,
-                                             first_share_id,
-                                             first_share_keyring,
-                                             first_user_id,
-                                             private_share_,
-                                             &directory_id));
+  EXPECT_EQ(kSuccess,
+            drive->SetShareDetails(directory3_relative_path, first_share_id, first_share_keyring,
+                                   first_user_id, private_share_, &directory_id));
   share_users_map.insert(std::make_pair(second_user_id, kShareReadWrite));
   share_users_map.insert(std::make_pair(third_user_id, kShareReadOnly));
-  EXPECT_EQ(kSuccess, drive->AddShareUsers(directory3_relative_path,
-                                           share_users_map,
-                                           private_share_));
+  EXPECT_EQ(kSuccess,
+            drive->AddShareUsers(directory3_relative_path, share_users_map, private_share_));
 
   // Store cached directory listings...
   EXPECT_EQ(kSuccess, drive->directory_listing_handler()->SaveCached(true));
@@ -472,59 +388,41 @@ TEST_P(PrivateOpenShareTests, BEH_SetShare) {
   drive->directory_listing_handler()->share_keys().GetAll(share_data_vector);
   EXPECT_EQ(1, share_data_vector.size());
   EXPECT_EQ(first_share_id, share_data_vector[0].share_id);
-  EXPECT_EQ(first_share_keyring.identity,
-            share_data_vector[0].keyring.identity);
+  EXPECT_EQ(first_share_keyring.identity, share_data_vector[0].keyring.identity);
 #ifdef WIN32
-  EXPECT_EQ(directory3, test_mount_dir.parent_path() /
-                        share_data_vector[0].share_root_dir);
+  EXPECT_EQ(directory3, test_mount_dir.parent_path() / share_data_vector[0].share_root_dir);
 #else
   EXPECT_EQ(directory3, test_mount_dir / share_data_vector[0].share_root_dir);
 #endif
   // Check a user's rights...
-  EXPECT_EQ(kSuccess, drive->GetShareUsersRights(directory3_relative_path,
-                                                 third_user_id,
-                                                 &has_admin_rights));
+  EXPECT_EQ(kSuccess,
+            drive->GetShareUsersRights(directory3_relative_path, third_user_id, &has_admin_rights));
   EXPECT_EQ(kShareReadOnlyUnConfirmed, has_admin_rights);
   // Change a user's rights...
-  EXPECT_EQ(kSuccess, drive->SetShareUsersRights(directory3_relative_path,
-                                                 third_user_id,
-                                                 kShareReadWrite));
-  EXPECT_EQ(kSuccess, drive->GetShareUsersRights(directory3_relative_path,
-                                                 third_user_id,
-                                                 &has_admin_rights));
+  EXPECT_EQ(kSuccess,
+            drive->SetShareUsersRights(directory3_relative_path, third_user_id, kShareReadWrite));
+  EXPECT_EQ(kSuccess,
+            drive->GetShareUsersRights(directory3_relative_path, third_user_id, &has_admin_rights));
   EXPECT_EQ(kShareReadWrite, has_admin_rights);
 
   // Try to set directory1 to shared...
   EXPECT_EQ(kShareAlreadyExistsInHierarchy,
-            drive->SetShareDetails(directory1_relative_path,
-                                   second_share_id,
-                                   first_share_keyring,
-                                   first_user_id,
-                                   private_share_,
-                                   &directory_id));
+            drive->SetShareDetails(directory1_relative_path, second_share_id, first_share_keyring,
+                                   first_user_id, private_share_, &directory_id));
   boost::this_thread::sleep(boost::posix_time::milliseconds(10));
   // Try setting directory4 to shared using first_share_id as share id,
   // i.e. attempt to insert same id in shares_ set twice...
   EXPECT_EQ(kFailedToUpdateShareKeys,
-            drive->SetShareDetails(directory4_relative_path,
-                                   first_share_id,
-                                   first_share_keyring,
-                                   first_user_id,
-                                   private_share_,
-                                   &directory_id));
+            drive->SetShareDetails(directory4_relative_path, first_share_id, first_share_keyring,
+                                   first_user_id, private_share_, &directory_id));
   // Set directory4 to shared...
-  EXPECT_EQ(kSuccess, drive->SetShareDetails(directory4_relative_path,
-                                             second_share_id,
-                                             second_share_keyring,
-                                             first_user_id,
-                                             private_share_,
-                                             &directory_id));
+  EXPECT_EQ(kSuccess,
+            drive->SetShareDetails(directory4_relative_path, second_share_id, second_share_keyring,
+                                   first_user_id, private_share_, &directory_id));
   share_users_map.clear();
   share_users_map.insert(std::make_pair(third_user_id, kShareReadOnly));
   EXPECT_EQ(kSuccess,
-            drive->AddShareUsers(directory4_relative_path,
-                                 share_users_map,
-                                 private_share_));
+            drive->AddShareUsers(directory4_relative_path, share_users_map, private_share_));
   // Store cached directory listings...
   EXPECT_EQ(kSuccess, drive->directory_listing_handler()->SaveCached(true));
   // Get shares...
@@ -534,50 +432,34 @@ TEST_P(PrivateOpenShareTests, BEH_SetShare) {
               second_share_id == share_data_vector[0].share_id);
   EXPECT_TRUE(first_share_id == share_data_vector[1].share_id ||
               second_share_id == share_data_vector[1].share_id);
-  EXPECT_TRUE(first_share_keyring.identity ==
-              share_data_vector[0].keyring.identity ||
-              second_share_keyring.identity ==
-              share_data_vector[0].keyring.identity);
-  EXPECT_TRUE(first_share_keyring.identity ==
-              share_data_vector[1].keyring.identity ||
-              second_share_keyring.identity ==
-              share_data_vector[1].keyring.identity);
+  EXPECT_TRUE(first_share_keyring.identity == share_data_vector[0].keyring.identity ||
+              second_share_keyring.identity == share_data_vector[0].keyring.identity);
+  EXPECT_TRUE(first_share_keyring.identity == share_data_vector[1].keyring.identity ||
+              second_share_keyring.identity == share_data_vector[1].keyring.identity);
 #ifdef WIN32
-  EXPECT_TRUE(directory3 == test_mount_dir.parent_path() /
-                            share_data_vector[0].share_root_dir ||
-              directory4 == test_mount_dir.parent_path() /
-                            share_data_vector[0].share_root_dir);
-  EXPECT_TRUE(directory3 == test_mount_dir.parent_path() /
-                            share_data_vector[1].share_root_dir ||
-              directory4 == test_mount_dir.parent_path() /
-                            share_data_vector[1].share_root_dir);
+  EXPECT_TRUE(directory3 == test_mount_dir.parent_path() / share_data_vector[0].share_root_dir ||
+              directory4 == test_mount_dir.parent_path() / share_data_vector[0].share_root_dir);
+  EXPECT_TRUE(directory3 == test_mount_dir.parent_path() / share_data_vector[1].share_root_dir ||
+              directory4 == test_mount_dir.parent_path() / share_data_vector[1].share_root_dir);
 #else
-  EXPECT_TRUE(directory3 ==
-                  test_mount_dir / share_data_vector[0].share_root_dir ||
-              directory4 ==
-                  test_mount_dir / share_data_vector[0].share_root_dir);
-  EXPECT_TRUE(directory3 ==
-                  test_mount_dir / share_data_vector[1].share_root_dir ||
-              directory4 ==
-                  test_mount_dir / share_data_vector[1].share_root_dir);
+  EXPECT_TRUE(directory3 == test_mount_dir / share_data_vector[0].share_root_dir ||
+              directory4 == test_mount_dir / share_data_vector[0].share_root_dir);
+  EXPECT_TRUE(directory3 == test_mount_dir / share_data_vector[1].share_root_dir ||
+              directory4 == test_mount_dir / share_data_vector[1].share_root_dir);
 #endif
   // Remove users...
   share_users_vector.clear();
   share_users_vector.push_back(first_user_id);
   share_users_vector.push_back(third_user_id);
   // Remove share users from first share...
-  EXPECT_EQ(kSuccess, drive->RemoveShareUsers(first_share_id,
-                                              share_users_vector));
+  EXPECT_EQ(kSuccess, drive->RemoveShareUsers(first_share_id, share_users_vector));
   // Remove all users from second share...
-  EXPECT_EQ(kSuccess, drive->RemoveShareUsers(second_share_id,
-                                              share_users_vector));
+  EXPECT_EQ(kSuccess, drive->RemoveShareUsers(second_share_id, share_users_vector));
   // Get share details for first share...
   share_users_map.clear();
-  EXPECT_EQ(kSuccess, drive->GetShareDetails(first_share_id,
-                                             &root_share_path,
-                                             &recovered_share_keyring,
-                                             &directory_id,
-                                             &share_users_map));
+  EXPECT_EQ(kSuccess,
+            drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                   &directory_id, &share_users_map));
 #ifdef WIN32
   EXPECT_EQ(directory3, test_mount_dir.parent_path() / root_share_path);
 #else
@@ -592,22 +474,16 @@ TEST_P(PrivateOpenShareTests, BEH_SetShare) {
 
 TEST_P(PrivateOpenShareTests, FUNC_InsertShare) {
   boost::system::error_code error_code;
-  fs::path directory00, directory10, directory20, directory30, directory40,
-           directory50, directory20_relative_path, directory61,
-           directory61_relative_path;
+  fs::path directory00, directory10, directory20, directory30, directory40, directory50,
+      directory20_relative_path, directory61, directory61_relative_path;
   std::string directory_id, first_user_id, first_root_parent_id,
-              update_directory_id(RandomAlphaNumericString(64)),
-              first_share_id(RandomAlphaNumericString(64)),
-              second_share_id(RandomAlphaNumericString(64)),
-              second_user_id(crypto::Hash<crypto::SHA512>(RandomAlphaNumericString(64))),
-              second_root_parent_id,
-              third_user_id(RandomAlphaNumericString(64));
+      update_directory_id(RandomAlphaNumericString(64)),
+      first_share_id(RandomAlphaNumericString(64)), second_share_id(RandomAlphaNumericString(64)),
+      second_user_id(crypto::Hash<crypto::SHA512>(RandomAlphaNumericString(64))),
+      second_root_parent_id, third_user_id(RandomAlphaNumericString(64));
 
-  asymm::Keys first_user_keyring,
-              second_user_keyring,
-              first_share_keyring,
-              second_share_keyring,
-              recovered_share_keyring;
+  asymm::Keys first_user_keyring, second_user_keyring, first_share_keyring, second_share_keyring,
+      recovered_share_keyring;
 
   maidsafe::asymm::GenerateKeyPair(&first_share_keyring);
   first_share_keyring.identity = RandomAlphaNumericString(64);
@@ -621,11 +497,7 @@ TEST_P(PrivateOpenShareTests, FUNC_InsertShare) {
 
   fs::path test_mount_dir;
   {  // user 1
-    DrivePtr drive(CreateAndMountDrive("",
-                                       &first_user_id,
-                                       max_space,
-                                       used_space1,
-                                       &test_mount_dir,
+    DrivePtr drive(CreateAndMountDrive("", &first_user_id, max_space, used_space1, &test_mount_dir,
                                        &first_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     first_root_parent_id = drive->root_parent_id();
@@ -652,26 +524,18 @@ TEST_P(PrivateOpenShareTests, FUNC_InsertShare) {
     EXPECT_EQ(error_code.value(), 0);
 
     // Set directory20 to shared...
-    EXPECT_EQ(kSuccess, drive->SetShareDetails(directory20_relative_path,
-                                               first_share_id,
-                                               first_share_keyring,
-                                               first_user_id,
-                                               private_share_,
-                                               &directory_id));
+    EXPECT_EQ(kSuccess,
+              drive->SetShareDetails(directory20_relative_path, first_share_id, first_share_keyring,
+                                     first_user_id, private_share_, &directory_id));
     share_users_map.insert(std::make_pair(second_user_id, kShareReadWrite));
     share_users_map.insert(std::make_pair(third_user_id, kShareReadOnly));
-    EXPECT_EQ(kSuccess, drive->AddShareUsers(directory20_relative_path,
-                                             share_users_map,
-                                             private_share_));
+    EXPECT_EQ(kSuccess,
+              drive->AddShareUsers(directory20_relative_path, share_users_map, private_share_));
     // Unmount...
     UnmountDrive(drive, max_space, used_space1);
   }
   {  // user 2
-    DrivePtr drive(CreateAndMountDrive("",
-                                       &second_user_id,
-                                       max_space,
-                                       used_space2,
-                                       &test_mount_dir,
+    DrivePtr drive(CreateAndMountDrive("", &second_user_id, max_space, used_space2, &test_mount_dir,
                                        &second_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     // Save second user root parent id...
@@ -679,11 +543,11 @@ TEST_P(PrivateOpenShareTests, FUNC_InsertShare) {
 
     // Create a directory hierarchy...
     fs::path directory01(CreateTestDirectory(test_mount_dir)),
-             directory11(CreateTestDirectory(directory01)),
-             directory21(CreateTestDirectory(directory01)),
-             directory31(CreateTestDirectory(directory01)),
-             directory41(CreateTestDirectory(directory21)),
-             directory51(CreateTestDirectory(directory41));
+        directory11(CreateTestDirectory(directory01)),
+        directory21(CreateTestDirectory(directory01)),
+        directory31(CreateTestDirectory(directory01)),
+        directory41(CreateTestDirectory(directory21)),
+        directory51(CreateTestDirectory(directory41));
     directory61 = directory41 / RandomAlphaNumericString(5);
     directory61_relative_path = RelativePath(test_mount_dir, directory61);
     int64_t file_size(0);
@@ -701,25 +565,18 @@ TEST_P(PrivateOpenShareTests, FUNC_InsertShare) {
     EXPECT_EQ(error_code.value(), 0);
 
     // Insert share...
-    EXPECT_EQ(kSuccess, drive->InsertShare(directory61_relative_path,
-                                           first_user_id,
-                                           directory_id,
-                                           first_share_id,
-                                           first_share_keyring));
+    EXPECT_EQ(kSuccess, drive->InsertShare(directory61_relative_path, first_user_id, directory_id,
+                                           first_share_id, first_share_keyring));
     // Get details...
     share_users_map.clear();
     if (private_share_)
-      EXPECT_EQ(kNoMsHidden, drive->GetShareDetails(first_share_id,
-                                                    &root_share_path,
-                                                    &recovered_share_keyring,
-                                                    &directory_id,
-                                                    &share_users_map));
+      EXPECT_EQ(kNoMsHidden,
+                drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
     else
-      EXPECT_EQ(kSuccess, drive->GetShareDetails(first_share_id,
-                                                &root_share_path,
-                                                &recovered_share_keyring,
-                                                &directory_id,
-                                                &share_users_map));
+      EXPECT_EQ(kSuccess,
+                drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
 #ifdef WIN32
     EXPECT_EQ(directory61, test_mount_dir.parent_path() / root_share_path);
 #else
@@ -741,63 +598,43 @@ TEST_P(PrivateOpenShareTests, FUNC_InsertShare) {
     UnmountDrive(drive, max_space, used_space2);
   }
   {  // user 1
-    DrivePtr drive(CreateAndMountDrive(first_root_parent_id,
-                                       &first_user_id,
-                                       max_space,
-                                       used_space1,
-                                       &test_mount_dir,
-                                       &first_user_keyring));
+    DrivePtr drive(CreateAndMountDrive(first_root_parent_id, &first_user_id, max_space, used_space1,
+                                       &test_mount_dir, &first_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
 
     // Reset directory20 details...
-    EXPECT_EQ(kSuccess, drive->SetShareDetails(directory20_relative_path,
-                                               second_share_id,
-                                               second_share_keyring,
-                                               first_user_id,
-                                               private_share_,
+    EXPECT_EQ(kSuccess, drive->SetShareDetails(directory20_relative_path, second_share_id,
+                                               second_share_keyring, first_user_id, private_share_,
                                                &directory_id));
     // Confirm a share user ...
     share_users_vector.clear();
     share_users_vector.push_back(second_user_id);
-    EXPECT_EQ(kSuccess, drive->ConfirmShareUsers(second_share_id,
-                                                 share_users_vector));
+    EXPECT_EQ(kSuccess, drive->ConfirmShareUsers(second_share_id, share_users_vector));
     // Remove a share user...
     share_users_vector.clear();
     share_users_vector.push_back(third_user_id);
-    EXPECT_EQ(kSuccess, drive->RemoveShareUsers(second_share_id,
-                                                share_users_vector));
+    EXPECT_EQ(kSuccess, drive->RemoveShareUsers(second_share_id, share_users_vector));
     // Unmount...
     UnmountDrive(drive, max_space, used_space1);
   }
   {  // user 2
-    DrivePtr drive(CreateAndMountDrive(second_root_parent_id,
-                                       &second_user_id,
-                                       max_space,
-                                       used_space2,
-                                       &test_mount_dir,
-                                       &second_user_keyring));
+    DrivePtr drive(CreateAndMountDrive(second_root_parent_id, &second_user_id, max_space,
+                                       used_space2, &test_mount_dir, &second_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
 
     // Update share details for share...
-    EXPECT_EQ(kSuccess, drive->UpdateShare(directory61_relative_path,
-                                           first_share_id,
-                                           &second_share_id,
-                                           &directory_id,
-                                           &second_share_keyring));
+    EXPECT_EQ(kSuccess, drive->UpdateShare(directory61_relative_path, first_share_id,
+                                           &second_share_id, &directory_id, &second_share_keyring));
     // Get details...
     share_users_map.clear();
     if (private_share_)
-      EXPECT_EQ(kNoMsHidden, drive->GetShareDetails(second_share_id,
-                                                    &root_share_path,
-                                                    &recovered_share_keyring,
-                                                    &directory_id,
-                                                    &share_users_map));
+      EXPECT_EQ(kNoMsHidden,
+                drive->GetShareDetails(second_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
     else
-      EXPECT_EQ(kSuccess, drive->GetShareDetails(second_share_id,
-                                                &root_share_path,
-                                                &recovered_share_keyring,
-                                                &directory_id,
-                                                &share_users_map));
+      EXPECT_EQ(kSuccess,
+                drive->GetShareDetails(second_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
 #ifdef WIN32
     EXPECT_EQ(directory61, test_mount_dir.parent_path() / root_share_path);
 #else
@@ -820,17 +657,13 @@ TEST_P(PrivateOpenShareTests, FUNC_InsertShare) {
 
 TEST_P(PrivateOpenShareTests, BEH_RemoveShare) {
   std::string directory_id, first_user_id, first_root_parent_id,
-              update_directory_id(RandomAlphaNumericString(64)),
-              first_share_id(RandomAlphaNumericString(64)),
-              second_share_id(RandomAlphaNumericString(64)),
-              second_user_id(
-                  crypto::Hash<crypto::SHA512>(RandomAlphaNumericString(64))),
-              second_root_parent_id,
-              third_user_id(RandomAlphaNumericString(64));
+      update_directory_id(RandomAlphaNumericString(64)),
+      first_share_id(RandomAlphaNumericString(64)), second_share_id(RandomAlphaNumericString(64)),
+      second_user_id(crypto::Hash<crypto::SHA512>(RandomAlphaNumericString(64))),
+      second_root_parent_id, third_user_id(RandomAlphaNumericString(64));
 
-  asymm::Keys first_user_keyring, second_user_keyring,
-              first_share_keyring, second_share_keyring,
-              recovered_share_keyring;
+  asymm::Keys first_user_keyring, second_user_keyring, first_share_keyring, second_share_keyring,
+      recovered_share_keyring;
 
   maidsafe::asymm::GenerateKeyPair(&first_share_keyring);
   first_share_keyring.identity = RandomAlphaNumericString(64);
@@ -840,17 +673,13 @@ TEST_P(PrivateOpenShareTests, BEH_RemoveShare) {
   std::map<std::string, int> share_users_map;
   std::vector<ShareId> share_users_vector;
   fs::path root_share_path;
-  fs::path directory00, directory10, directory20, directory10_relative_path,
-           directory11, directory11_relative_path, file10, file20;
+  fs::path directory00, directory10, directory20, directory10_relative_path, directory11,
+      directory11_relative_path, file10, file20;
   fs::path test_mount_dir;
   int64_t max_space(1073741824), used_space1(0), used_space2(0);
 
   {  // user 1
-    DrivePtr drive(CreateAndMountDrive("",
-                                       &first_user_id,
-                                       max_space,
-                                       used_space1,
-                                       &test_mount_dir,
+    DrivePtr drive(CreateAndMountDrive("", &first_user_id, max_space, used_space1, &test_mount_dir,
                                        &first_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     first_root_parent_id = drive->root_parent_id();
@@ -871,27 +700,19 @@ TEST_P(PrivateOpenShareTests, BEH_RemoveShare) {
     EXPECT_EQ(error_code.value(), 0);
 
     // Set directory10 to shared...
-    EXPECT_EQ(kSuccess, drive->SetShareDetails(directory10_relative_path,
-                                               first_share_id,
-                                               first_share_keyring,
-                                               first_user_id,
-                                               private_share_,
-                                               &directory_id));
+    EXPECT_EQ(kSuccess,
+              drive->SetShareDetails(directory10_relative_path, first_share_id, first_share_keyring,
+                                     first_user_id, private_share_, &directory_id));
 
     share_users_map.insert(std::make_pair(second_user_id, kShareReadWrite));
     share_users_map.insert(std::make_pair(third_user_id, kShareReadOnly));
-    EXPECT_EQ(kSuccess, drive->AddShareUsers(directory10_relative_path,
-                                             share_users_map,
-                                             private_share_));
+    EXPECT_EQ(kSuccess,
+              drive->AddShareUsers(directory10_relative_path, share_users_map, private_share_));
     // Unmount...
     UnmountDrive(drive, max_space, used_space1);
   }
   {  // user 2
-    DrivePtr drive(CreateAndMountDrive("",
-                                       &second_user_id,
-                                       max_space,
-                                       used_space2,
-                                       &test_mount_dir,
+    DrivePtr drive(CreateAndMountDrive("", &second_user_id, max_space, used_space2, &test_mount_dir,
                                        &second_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     // Save second user root parent id...
@@ -904,25 +725,18 @@ TEST_P(PrivateOpenShareTests, BEH_RemoveShare) {
     EXPECT_FALSE(fs::exists(directory11)) << directory11;
 
     // Insert share...
-    EXPECT_EQ(kSuccess, drive->InsertShare(directory11_relative_path,
-                                           first_user_id,
-                                           directory_id,
-                                           first_share_id,
-                                           first_share_keyring));
+    EXPECT_EQ(kSuccess, drive->InsertShare(directory11_relative_path, first_user_id, directory_id,
+                                           first_share_id, first_share_keyring));
     // Get details...
     share_users_map.clear();
     if (private_share_)
-      EXPECT_EQ(kNoMsHidden, drive->GetShareDetails(first_share_id,
-                                                    &root_share_path,
-                                                    &recovered_share_keyring,
-                                                    &directory_id,
-                                                    &share_users_map));
+      EXPECT_EQ(kNoMsHidden,
+                drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
     else
-      EXPECT_EQ(kSuccess, drive->GetShareDetails(first_share_id,
-                                                &root_share_path,
-                                                &recovered_share_keyring,
-                                                &directory_id,
-                                                &share_users_map));
+      EXPECT_EQ(kSuccess,
+                drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
     EXPECT_TRUE(fs::exists(directory11)) << directory11;
 #ifdef WIN32
     EXPECT_EQ(directory11, test_mount_dir.parent_path() / root_share_path);
@@ -945,31 +759,19 @@ TEST_P(PrivateOpenShareTests, BEH_RemoveShare) {
     UnmountDrive(drive, max_space, used_space2);
   }
   {  // user 1
-    DrivePtr drive(CreateAndMountDrive(first_root_parent_id,
-                                       &first_user_id,
-                                       max_space,
-                                       used_space1,
-                                       &test_mount_dir,
-                                       &first_user_keyring));
+    DrivePtr drive(CreateAndMountDrive(first_root_parent_id, &first_user_id, max_space, used_space1,
+                                       &test_mount_dir, &first_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
 
     // Reset directory10 details...
-    EXPECT_EQ(kSuccess, drive->SetShareDetails(directory10_relative_path,
-                                               "",
-                                               first_share_keyring,
-                                               first_user_id,
-                                               private_share_,
-                                               &directory_id));
+    EXPECT_EQ(kSuccess, drive->SetShareDetails(directory10_relative_path, "", first_share_keyring,
+                                               first_user_id, private_share_, &directory_id));
     // Unmount...
     UnmountDrive(drive, max_space, used_space1);
   }
   {  // user 2
-    DrivePtr drive(CreateAndMountDrive(second_root_parent_id,
-                                       &second_user_id,
-                                       max_space,
-                                       used_space2,
-                                       &test_mount_dir,
-                                       &second_user_keyring));
+    DrivePtr drive(CreateAndMountDrive(second_root_parent_id, &second_user_id, max_space,
+                                       used_space2, &test_mount_dir, &second_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
 
     // Remove share...
@@ -988,12 +790,8 @@ TEST_P(PrivateOpenShareTests, BEH_RemoveShare) {
     UnmountDrive(drive, max_space, used_space2);
   }
   {  // user 1
-    DrivePtr drive(CreateAndMountDrive(first_root_parent_id,
-                                       &first_user_id,
-                                       max_space,
-                                       used_space1,
-                                       &test_mount_dir,
-                                       &first_user_keyring));
+    DrivePtr drive(CreateAndMountDrive(first_root_parent_id, &first_user_id, max_space, used_space1,
+                                       &test_mount_dir, &first_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
 
     EXPECT_TRUE(fs::exists(directory10)) << directory10;
@@ -1007,17 +805,13 @@ TEST_P(PrivateOpenShareTests, BEH_RemoveShare) {
 }
 
 TEST_P(PrivateOpenShareTests, FUNC_RemoveUser) {
-  std::string first_unique_user_id, second_unique_user_id,
-              first_root_parent_id, second_root_parent_id,
-              first_user_id(RandomAlphaNumericString(8)),
-              second_user_id(RandomAlphaNumericString(8)),
-              first_share_id(RandomAlphaNumericString(64)),
-              updated_share_id(RandomAlphaNumericString(64)),
-              directory_id;
+  std::string first_unique_user_id, second_unique_user_id, first_root_parent_id,
+      second_root_parent_id, first_user_id(RandomAlphaNumericString(8)),
+      second_user_id(RandomAlphaNumericString(8)), first_share_id(RandomAlphaNumericString(64)),
+      updated_share_id(RandomAlphaNumericString(64)), directory_id;
 
-  asymm::Keys first_user_keyring, second_user_keyring,
-              first_share_keyring, updated_share_keyring,
-              second_share_keyring, recovered_share_keyring;
+  asymm::Keys first_user_keyring, second_user_keyring, first_share_keyring, updated_share_keyring,
+      second_share_keyring, recovered_share_keyring;
   maidsafe::asymm::GenerateKeyPair(&first_share_keyring);
   first_share_keyring.identity = RandomAlphaNumericString(64);
   maidsafe::asymm::GenerateKeyPair(&updated_share_keyring);
@@ -1027,21 +821,15 @@ TEST_P(PrivateOpenShareTests, FUNC_RemoveUser) {
   std::map<std::string, int> share_users_map;
   std::vector<std::string> user_ids;
 
-  fs::path directory00, directory00_relative_path,
-           subdirectory00, subdirectory00_relative_path,
-           directory10, directory10_relative_path,
-           subdirectory10, root_share_path;
+  fs::path directory00, directory00_relative_path, subdirectory00, subdirectory00_relative_path,
+      directory10, directory10_relative_path, subdirectory10, root_share_path;
   fs::path test_mount_dir;
   int64_t max_space(1073741824), used_space1(0), used_space2(0);
   boost::system::error_code error_code;
 
   {  // user 1
-    DrivePtr drive(CreateAndMountDrive("",
-                                       &first_unique_user_id,
-                                       max_space,
-                                       used_space1,
-                                       &test_mount_dir,
-                                       &first_user_keyring));
+    DrivePtr drive(CreateAndMountDrive("", &first_unique_user_id, max_space, used_space1,
+                                       &test_mount_dir, &first_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     // Save first user root parent id...
     first_root_parent_id = drive->root_parent_id();
@@ -1049,27 +837,19 @@ TEST_P(PrivateOpenShareTests, FUNC_RemoveUser) {
     directory00 = CreateTestDirectory(test_mount_dir);
     directory00_relative_path = RelativePath(test_mount_dir, directory00);
     // Set directory00 to shared...
-    EXPECT_EQ(kSuccess, drive->SetShareDetails(directory00_relative_path,
-                                               first_share_id,
-                                               first_share_keyring,
-                                               first_user_id,
-                                               private_share_,
-                                               &directory_id));
+    EXPECT_EQ(kSuccess,
+              drive->SetShareDetails(directory00_relative_path, first_share_id, first_share_keyring,
+                                     first_user_id, private_share_, &directory_id));
     share_users_map.insert(std::make_pair(second_user_id, kShareReadOnly));
-    EXPECT_EQ(kSuccess, drive->AddShareUsers(directory00_relative_path,
-                                             share_users_map,
-                                             private_share_));
+    EXPECT_EQ(kSuccess,
+              drive->AddShareUsers(directory00_relative_path, share_users_map, private_share_));
     // Unmount...
     UnmountDrive(drive, max_space, used_space1);
   }
 
   {  // user 2
-    DrivePtr drive(CreateAndMountDrive("",
-                                       &second_unique_user_id,
-                                       max_space,
-                                       used_space2,
-                                       &test_mount_dir,
-                                       &second_user_keyring));
+    DrivePtr drive(CreateAndMountDrive("", &second_unique_user_id, max_space, used_space2,
+                                       &test_mount_dir, &second_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     // Save second user root parent id...
     second_root_parent_id = drive->root_parent_id();
@@ -1078,11 +858,8 @@ TEST_P(PrivateOpenShareTests, FUNC_RemoveUser) {
     directory10_relative_path = RelativePath(test_mount_dir, directory10);
     EXPECT_FALSE(fs::exists(directory10)) << directory10;
     // Insert share...
-    EXPECT_EQ(kSuccess, drive->InsertShare(directory10_relative_path,
-                                           first_user_id,
-                                           directory_id,
-                                           first_share_id,
-                                           second_share_keyring));
+    EXPECT_EQ(kSuccess, drive->InsertShare(directory10_relative_path, first_user_id, directory_id,
+                                           first_share_id, second_share_keyring));
     // Creating a directory should be disallowed...
     subdirectory10 = directory10 / RandomAlphaNumericString(5);
     EXPECT_FALSE(fs::exists(subdirectory10, error_code)) << subdirectory10;
@@ -1092,17 +869,13 @@ TEST_P(PrivateOpenShareTests, FUNC_RemoveUser) {
     // Get details...
     share_users_map.clear();
     if (private_share_)
-      EXPECT_EQ(kNoMsHidden, drive->GetShareDetails(first_share_id,
-                                                    &root_share_path,
-                                                    &recovered_share_keyring,
-                                                    &directory_id,
-                                                    &share_users_map));
+      EXPECT_EQ(kNoMsHidden,
+                drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
     else
-      EXPECT_EQ(kSuccess, drive->GetShareDetails(first_share_id,
-                                                &root_share_path,
-                                                &recovered_share_keyring,
-                                                &directory_id,
-                                                &share_users_map));
+      EXPECT_EQ(kSuccess,
+                drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
     EXPECT_TRUE(fs::exists(directory10)) << directory10;
 #ifdef WIN32
     EXPECT_EQ(directory10, test_mount_dir.parent_path() / root_share_path);
@@ -1124,12 +897,8 @@ TEST_P(PrivateOpenShareTests, FUNC_RemoveUser) {
   }
 
   {  // user 1
-    DrivePtr drive(CreateAndMountDrive(first_root_parent_id,
-                                       &first_unique_user_id,
-                                       max_space,
-                                       used_space1,
-                                       &test_mount_dir,
-                                       &first_user_keyring));
+    DrivePtr drive(CreateAndMountDrive(first_root_parent_id, &first_unique_user_id, max_space,
+                                       used_space1, &test_mount_dir, &first_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     EXPECT_TRUE(fs::exists(directory00, error_code)) << directory00;
     // Creating a directory should be allowed...
@@ -1141,28 +910,20 @@ TEST_P(PrivateOpenShareTests, FUNC_RemoveUser) {
     // Remove second user...
     user_ids.push_back(second_user_id);
     share_users_map.clear();
-    EXPECT_EQ(kSuccess, drive->RemoveShareUsers(first_share_id,
-                                                user_ids));
-    EXPECT_EQ(kSuccess, drive->GetShareDetails(first_share_id,
-                                               &root_share_path,
-                                               &recovered_share_keyring,
-                                               &directory_id,
-                                               &share_users_map));
+    EXPECT_EQ(kSuccess, drive->RemoveShareUsers(first_share_id, user_ids));
+    EXPECT_EQ(kSuccess,
+              drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                     &directory_id, &share_users_map));
     EXPECT_EQ(1, share_users_map.size());
     // Reset share details for directory00...
-    EXPECT_EQ(kSuccess, drive->SetShareDetails(directory00_relative_path,
-                                               updated_share_id,
-                                               updated_share_keyring,
-                                               first_user_id,
-                                               private_share_,
+    EXPECT_EQ(kSuccess, drive->SetShareDetails(directory00_relative_path, updated_share_id,
+                                               updated_share_keyring, first_user_id, private_share_,
                                                &directory_id));
     // Get details...
     share_users_map.clear();
-    EXPECT_EQ(kSuccess, drive->GetShareDetails(updated_share_id,
-                                               &root_share_path,
-                                               &recovered_share_keyring,
-                                               &directory_id,
-                                               &share_users_map));
+    EXPECT_EQ(kSuccess,
+              drive->GetShareDetails(updated_share_id, &root_share_path, &recovered_share_keyring,
+                                     &directory_id, &share_users_map));
     EXPECT_TRUE(fs::exists(directory00)) << directory00;
 #ifdef WIN32
     EXPECT_EQ(directory00, test_mount_dir.parent_path() / root_share_path);
@@ -1179,12 +940,8 @@ TEST_P(PrivateOpenShareTests, FUNC_RemoveUser) {
   }
 
   {  // user 2
-    DrivePtr drive(CreateAndMountDrive(second_root_parent_id,
-                                       &second_unique_user_id,
-                                       max_space,
-                                       used_space2,
-                                       &test_mount_dir,
-                                       &second_user_keyring));
+    DrivePtr drive(CreateAndMountDrive(second_root_parent_id, &second_unique_user_id, max_space,
+                                       used_space2, &test_mount_dir, &second_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     EXPECT_TRUE(fs::exists(directory10, error_code)) << directory10;
     EXPECT_EQ(kSuccess, drive->RemoveShare(directory10_relative_path));
@@ -1199,12 +956,8 @@ TEST_P(PrivateOpenShareTests, FUNC_RemoveUser) {
   }
 
   {  // user 1
-    DrivePtr drive(CreateAndMountDrive(first_root_parent_id,
-                                       &first_unique_user_id,
-                                       max_space,
-                                       used_space1,
-                                       &test_mount_dir,
-                                       &first_user_keyring));
+    DrivePtr drive(CreateAndMountDrive(first_root_parent_id, &first_unique_user_id, max_space,
+                                       used_space1, &test_mount_dir, &first_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     EXPECT_TRUE(fs::exists(directory00, error_code)) << directory00;
     EXPECT_TRUE(fs::exists(subdirectory00, error_code)) << subdirectory00;
@@ -1214,18 +967,14 @@ TEST_P(PrivateOpenShareTests, FUNC_RemoveUser) {
 }
 
 TEST_P(PrivateOpenShareTests, BEH_ShareUserRights) {
-  std::string first_unique_user_id, second_unique_user_id,
-              third_unique_user_id, first_root_parent_id,
-              first_user_id(RandomAlphaNumericString(8)),
-              second_user_id(RandomAlphaNumericString(8)),
-              third_user_id(RandomAlphaNumericString(8)),
-              first_share_id(RandomAlphaNumericString(64)),
-              directory_id, first_user_copy, second_user_copy, third_user_copy,
-              unmodified_third_user_copy;
+  std::string first_unique_user_id, second_unique_user_id, third_unique_user_id,
+      first_root_parent_id, first_user_id(RandomAlphaNumericString(8)),
+      second_user_id(RandomAlphaNumericString(8)), third_user_id(RandomAlphaNumericString(8)),
+      first_share_id(RandomAlphaNumericString(64)), directory_id, first_user_copy, second_user_copy,
+      third_user_copy, unmodified_third_user_copy;
 
-  asymm::Keys first_user_keyring, second_user_keyring, third_user_keyring,
-              first_share_keyring, third_share_keyring,
-              recovered_share_keyring;
+  asymm::Keys first_user_keyring, second_user_keyring, third_user_keyring, first_share_keyring,
+      third_share_keyring, recovered_share_keyring;
   maidsafe::asymm::GenerateKeyPair(&first_share_keyring);
   first_share_keyring.identity = RandomAlphaNumericString(64);
   third_share_keyring.identity = first_share_keyring.identity;
@@ -1233,19 +982,15 @@ TEST_P(PrivateOpenShareTests, BEH_ShareUserRights) {
   std::map<std::string, int> share_users_map;
   std::vector<ShareId> share_users_vector;
 
-  fs::path directory00, directory10, directory20, directory10_relative_path,
-           file10, root_share_path;
+  fs::path directory00, directory10, directory20, directory10_relative_path, file10,
+      root_share_path;
   fs::path test_mount_dir;
   int64_t max_space(1073741824), used_space1(0), used_space2(0), used_space3(0), file_size(0);
   boost::system::error_code error_code;
 
   {  // user 1
-    DrivePtr drive(CreateAndMountDrive("",
-                                       &first_unique_user_id,
-                                       max_space,
-                                       used_space1,
-                                       &test_mount_dir,
-                                       &first_user_keyring));
+    DrivePtr drive(CreateAndMountDrive("", &first_unique_user_id, max_space, used_space1,
+                                       &test_mount_dir, &first_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     // Save first user root parent id...
     first_root_parent_id = drive->root_parent_id();
@@ -1268,54 +1013,39 @@ TEST_P(PrivateOpenShareTests, BEH_ShareUserRights) {
     EXPECT_TRUE(fs::exists(*main_test_dir_ / first_user_copy, error_code));
     EXPECT_EQ(error_code.value(), 0);
     // Set directory10 to shared...
-    EXPECT_EQ(kSuccess, drive->SetShareDetails(directory10_relative_path,
-                                               first_share_id,
-                                               first_share_keyring,
-                                               first_user_id,
-                                               private_share_,
-                                               &directory_id));
+    EXPECT_EQ(kSuccess,
+              drive->SetShareDetails(directory10_relative_path, first_share_id, first_share_keyring,
+                                     first_user_id, private_share_, &directory_id));
     share_users_map.insert(std::make_pair(second_user_id, kShareReadWrite));
     share_users_map.insert(std::make_pair(third_user_id, kShareReadOnly));
-    EXPECT_EQ(kSuccess, drive->AddShareUsers(directory10_relative_path,
-                                             share_users_map,
-                                             private_share_));
+    EXPECT_EQ(kSuccess,
+              drive->AddShareUsers(directory10_relative_path, share_users_map, private_share_));
     // Unmount...
     UnmountDrive(drive, max_space, used_space1);
   }
 
   {  // user 2
-    DrivePtr drive(CreateAndMountDrive("",
-                                       &second_unique_user_id,
-                                       max_space,
-                                       used_space2,
-                                       &test_mount_dir,
-                                       &second_user_keyring));
+    DrivePtr drive(CreateAndMountDrive("", &second_unique_user_id, max_space, used_space2,
+                                       &test_mount_dir, &second_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     // Create a directory hierarchy...
     fs::path directory01(CreateTestDirectory(test_mount_dir)),
-             directory11(directory01 / RandomAlphaNumericString(5)),
-             directory11_relative_path(RelativePath(test_mount_dir, directory11));
+        directory11(directory01 / RandomAlphaNumericString(5)),
+        directory11_relative_path(RelativePath(test_mount_dir, directory11));
     EXPECT_FALSE(fs::exists(directory11)) << directory11;
     // Insert share...
-    EXPECT_EQ(kSuccess, drive->InsertShare(directory11_relative_path,
-                                           first_user_id,
-                                           directory_id,
-                                           first_share_id,
-                                           first_share_keyring));
+    EXPECT_EQ(kSuccess, drive->InsertShare(directory11_relative_path, first_user_id, directory_id,
+                                           first_share_id, first_share_keyring));
     // Get details...
     share_users_map.clear();
     if (private_share_)
-      EXPECT_EQ(kNoMsHidden, drive->GetShareDetails(first_share_id,
-                                                    &root_share_path,
-                                                    &recovered_share_keyring,
-                                                    &directory_id,
-                                                    &share_users_map));
+      EXPECT_EQ(kNoMsHidden,
+                drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
     else
-      EXPECT_EQ(kSuccess, drive->GetShareDetails(first_share_id,
-                                                &root_share_path,
-                                                &recovered_share_keyring,
-                                                &directory_id,
-                                                &share_users_map));
+      EXPECT_EQ(kSuccess,
+                drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
     EXPECT_TRUE(fs::exists(directory11)) << directory11;
 #ifdef WIN32
     EXPECT_EQ(directory11, test_mount_dir.parent_path() / root_share_path);
@@ -1343,8 +1073,8 @@ TEST_P(PrivateOpenShareTests, BEH_ShareUserRights) {
     EXPECT_TRUE(fs::exists(*main_test_dir_ / second_user_copy, error_code));
     EXPECT_EQ(error_code.value(), 0);
     // Compare contents...
-    EXPECT_TRUE(SameFileContents(*main_test_dir_ / first_user_copy,
-                                 *main_test_dir_ / second_user_copy));
+    EXPECT_TRUE(
+        SameFileContents(*main_test_dir_ / first_user_copy, *main_test_dir_ / second_user_copy));
     // Write to file10...
     EXPECT_TRUE(ModifyFile(second_user_file10, file_size));
     fs::copy_file(second_user_file10, *main_test_dir_ / second_user_copy,
@@ -1355,38 +1085,27 @@ TEST_P(PrivateOpenShareTests, BEH_ShareUserRights) {
   }
 
   {  // user 3
-    DrivePtr drive(CreateAndMountDrive("",
-                                       &third_unique_user_id,
-                                       max_space,
-                                       used_space3,
-                                       &test_mount_dir,
-                                       &third_user_keyring));
+    DrivePtr drive(CreateAndMountDrive("", &third_unique_user_id, max_space, used_space3,
+                                       &test_mount_dir, &third_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     // Create a directory hierarchy...
     fs::path directory02(CreateTestDirectory(test_mount_dir)),
-             directory12(directory02 / RandomAlphaNumericString(5)),
-             directory12_relative_path(RelativePath(test_mount_dir, directory12));
+        directory12(directory02 / RandomAlphaNumericString(5)),
+        directory12_relative_path(RelativePath(test_mount_dir, directory12));
     EXPECT_FALSE(fs::exists(directory12)) << directory12;
     // Insert share...
-    EXPECT_EQ(kSuccess, drive->InsertShare(directory12_relative_path,
-                                           first_user_id,
-                                           directory_id,
-                                           first_share_id,
-                                           third_share_keyring));
+    EXPECT_EQ(kSuccess, drive->InsertShare(directory12_relative_path, first_user_id, directory_id,
+                                           first_share_id, third_share_keyring));
     // Get details...
     share_users_map.clear();
     if (private_share_)
-      EXPECT_EQ(kNoMsHidden, drive->GetShareDetails(first_share_id,
-                                                    &root_share_path,
-                                                    &recovered_share_keyring,
-                                                    &directory_id,
-                                                    &share_users_map));
+      EXPECT_EQ(kNoMsHidden,
+                drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
     else
-      EXPECT_EQ(kSuccess, drive->GetShareDetails(first_share_id,
-                                                &root_share_path,
-                                                &recovered_share_keyring,
-                                                &directory_id,
-                                                &share_users_map));
+      EXPECT_EQ(kSuccess,
+                drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
     EXPECT_TRUE(fs::exists(directory12)) << directory12;
 #ifdef WIN32
     EXPECT_EQ(directory12, test_mount_dir.parent_path() / root_share_path);
@@ -1411,14 +1130,13 @@ TEST_P(PrivateOpenShareTests, BEH_ShareUserRights) {
     unmodified_third_user_copy = file10.filename().string() + ".unmodified_third_user_copy";
     fs::path third_user_file10(directory12 / file10.filename());
     EXPECT_TRUE(fs::exists(third_user_file10, error_code)) << third_user_file10;
-    fs::copy_file(third_user_file10, *main_test_dir_ / third_user_copy,
-                  error_code);
+    fs::copy_file(third_user_file10, *main_test_dir_ / third_user_copy, error_code);
     EXPECT_TRUE(fs::exists(*main_test_dir_ / third_user_copy, error_code));
     EXPECT_EQ(error_code.value(), 0);
 
     // Compare contents...
-    EXPECT_TRUE(SameFileContents(*main_test_dir_ / third_user_copy,
-                                 *main_test_dir_ / second_user_copy));
+    EXPECT_TRUE(
+        SameFileContents(*main_test_dir_ / third_user_copy, *main_test_dir_ / second_user_copy));
     // Try to write to file10...
     EXPECT_FALSE(ModifyFile(third_user_file10, file_size)) << third_user_file10;
 
@@ -1433,61 +1151,49 @@ TEST_P(PrivateOpenShareTests, BEH_ShareUserRights) {
   }
 
   {  // user 1
-    DrivePtr drive(CreateAndMountDrive(first_root_parent_id,
-                                       &first_unique_user_id,
-                                       max_space,
-                                       used_space1,
-                                       &test_mount_dir,
-                                       &first_user_keyring));
+    DrivePtr drive(CreateAndMountDrive(first_root_parent_id, &first_unique_user_id, max_space,
+                                       used_space1, &test_mount_dir, &first_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     // First user...
     // Read file10...
     EXPECT_TRUE(fs::exists(*main_test_dir_ / first_user_copy, error_code));
     EXPECT_EQ(error_code.value(), 0);
     // Compare contents...
-    EXPECT_FALSE(SameFileContents(*main_test_dir_ / first_user_copy,
-                                  *main_test_dir_ / second_user_copy));
+    EXPECT_FALSE(
+        SameFileContents(*main_test_dir_ / first_user_copy, *main_test_dir_ / second_user_copy));
     // Copy the file again...
-    fs::copy_file(file10, *main_test_dir_ / first_user_copy,
-                  fs::copy_option::overwrite_if_exists, error_code);
+    fs::copy_file(file10, *main_test_dir_ / first_user_copy, fs::copy_option::overwrite_if_exists,
+                  error_code);
     EXPECT_EQ(error_code.value(), 0);
     // Compare contents...
-    EXPECT_TRUE(SameFileContents(*main_test_dir_ / first_user_copy,
-                                 *main_test_dir_ / second_user_copy));
+    EXPECT_TRUE(
+        SameFileContents(*main_test_dir_ / first_user_copy, *main_test_dir_ / second_user_copy));
     // Unmount...
     UnmountDrive(drive, max_space, used_space1);
   }
 }
 
 TEST_P(PrivateOpenShareTests, BEH_InsertShareExisted) {
-  std::string first_unique_user_id, second_unique_user_id,
-              first_root_parent_id,
-              first_user_id(RandomAlphaNumericString(8)),
-              second_user_id(RandomAlphaNumericString(8)),
-              first_share_id(RandomAlphaNumericString(64)),
-              directory_id, first_user_copy, second_user_copy;
+  std::string first_unique_user_id, second_unique_user_id, first_root_parent_id,
+      first_user_id(RandomAlphaNumericString(8)), second_user_id(RandomAlphaNumericString(8)),
+      first_share_id(RandomAlphaNumericString(64)), directory_id, first_user_copy, second_user_copy;
 
-  asymm::Keys first_user_keyring, second_user_keyring, first_share_keyring,
-              recovered_share_keyring;
+  asymm::Keys first_user_keyring, second_user_keyring, first_share_keyring, recovered_share_keyring;
   maidsafe::asymm::GenerateKeyPair(&first_share_keyring);
   first_share_keyring.identity = RandomAlphaNumericString(64);
 
   std::map<std::string, int> share_users_map;
   std::vector<ShareId> share_users_vector;
 
-  fs::path directory00, directory10, directory20, directory10_relative_path,
-           file10, root_share_path;
+  fs::path directory00, directory10, directory20, directory10_relative_path, file10,
+      root_share_path;
   fs::path test_mount_dir;
   int64_t max_space(1073741824), used_space1(0), used_space2(0);
   boost::system::error_code error_code;
 
   {  // user 1
-    DrivePtr drive(CreateAndMountDrive("",
-                                       &first_unique_user_id,
-                                       max_space,
-                                       used_space1,
-                                       &test_mount_dir,
-                                       &first_user_keyring));
+    DrivePtr drive(CreateAndMountDrive("", &first_unique_user_id, max_space, used_space1,
+                                       &test_mount_dir, &first_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     // Save first user root parent id...
     first_root_parent_id = drive->root_parent_id();
@@ -1511,63 +1217,47 @@ TEST_P(PrivateOpenShareTests, BEH_InsertShareExisted) {
     EXPECT_TRUE(fs::exists(*main_test_dir_ / first_user_copy, error_code));
     EXPECT_EQ(error_code.value(), 0);
     // Set directory10 to shared...
-    EXPECT_EQ(kSuccess, drive->SetShareDetails(directory10_relative_path,
-                                               first_share_id,
-                                               first_share_keyring,
-                                               first_user_id,
-                                               private_share_,
-                                               &directory_id));
+    EXPECT_EQ(kSuccess,
+              drive->SetShareDetails(directory10_relative_path, first_share_id, first_share_keyring,
+                                     first_user_id, private_share_, &directory_id));
     share_users_map.insert(std::make_pair(second_user_id, kShareReadWrite));
-    EXPECT_EQ(kSuccess, drive->AddShareUsers(directory10_relative_path,
-                                             share_users_map,
-                                             private_share_));
+    EXPECT_EQ(kSuccess,
+              drive->AddShareUsers(directory10_relative_path, share_users_map, private_share_));
     // Unmount...
     UnmountDrive(drive, max_space, used_space1);
   }
   {  // user 2
-    DrivePtr drive(CreateAndMountDrive("",
-                                       &second_unique_user_id,
-                                       max_space,
-                                       used_space2,
-                                       &test_mount_dir,
-                                       &second_user_keyring));
+    DrivePtr drive(CreateAndMountDrive("", &second_unique_user_id, max_space, used_space2,
+                                       &test_mount_dir, &second_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     // Create a directory hierarchy...
     fs::path directory01(CreateTestDirectory(test_mount_dir));
     fs::path directory(directory01 / directory10_relative_path.filename());
     boost::system::error_code error_code;
-    EXPECT_TRUE(fs::create_directories(directory, error_code)) << directory
-                << ": " << error_code.message();
+    EXPECT_TRUE(fs::create_directories(directory, error_code)) << directory << ": "
+                                                               << error_code.message();
     fs::path directory_relative(RelativePath(test_mount_dir, directory));
 
     // Insert share...
-    EXPECT_EQ(kInvalidPath,
-              drive->InsertShare(directory_relative, first_user_id,
-                                 directory_id, first_share_id,
-                                 first_share_keyring));
+    EXPECT_EQ(kInvalidPath, drive->InsertShare(directory_relative, first_user_id, directory_id,
+                                               first_share_id, first_share_keyring));
     std::string new_path_file(directory10_relative_path.filename().string() +
                               RandomAlphaNumericString(5));
     fs::path new_path(directory01 / new_path_file);
     fs::path new_path_relative(RelativePath(test_mount_dir, new_path));
-    EXPECT_EQ(kSuccess,
-              drive->InsertShare(new_path_relative, first_user_id,
-                                 directory_id, first_share_id,
-                                 first_share_keyring));
+    EXPECT_EQ(kSuccess, drive->InsertShare(new_path_relative, first_user_id, directory_id,
+                                           first_share_id, first_share_keyring));
     EXPECT_TRUE(fs::exists(new_path)) << new_path;
     // Get details...
     share_users_map.clear();
     if (private_share_)
-      EXPECT_EQ(kNoMsHidden, drive->GetShareDetails(first_share_id,
-                                                    &root_share_path,
-                                                    &recovered_share_keyring,
-                                                    &directory_id,
-                                                    &share_users_map));
+      EXPECT_EQ(kNoMsHidden,
+                drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
     else
-      EXPECT_EQ(kSuccess, drive->GetShareDetails(first_share_id,
-                                                &root_share_path,
-                                                &recovered_share_keyring,
-                                                &directory_id,
-                                                &share_users_map));
+      EXPECT_EQ(kSuccess,
+                drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
     EXPECT_EQ(new_path_relative, root_share_path);
     EXPECT_EQ(first_share_keyring.identity, recovered_share_keyring.identity);
     if (private_share_) {
@@ -1588,8 +1278,8 @@ TEST_P(PrivateOpenShareTests, BEH_InsertShareExisted) {
     EXPECT_TRUE(fs::exists(*main_test_dir_ / second_user_copy, error_code));
     EXPECT_EQ(error_code.value(), 0);
     // Compare contents...
-    EXPECT_TRUE(SameFileContents(*main_test_dir_ / first_user_copy,
-                                 *main_test_dir_ / second_user_copy));
+    EXPECT_TRUE(
+        SameFileContents(*main_test_dir_ / first_user_copy, *main_test_dir_ / second_user_copy));
     int64_t file_size(0);
     // Write to file10...
     EXPECT_TRUE(ModifyFile(second_user_file10, file_size));
@@ -1602,34 +1292,28 @@ TEST_P(PrivateOpenShareTests, BEH_InsertShareExisted) {
     UnmountDrive(drive, max_space, used_space2);
   }
   {  // user 1
-    DrivePtr drive(CreateAndMountDrive(first_root_parent_id,
-                                       &first_unique_user_id,
-                                       max_space,
-                                       used_space1,
-                                       &test_mount_dir,
-                                       &first_user_keyring));
+    DrivePtr drive(CreateAndMountDrive(first_root_parent_id, &first_unique_user_id, max_space,
+                                       used_space1, &test_mount_dir, &first_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     // First user...
     // Read file10...
     EXPECT_TRUE(fs::exists(*main_test_dir_ / first_user_copy, error_code));
     EXPECT_EQ(error_code.value(), 0);
     // Compare contents...
-    EXPECT_FALSE(SameFileContents(*main_test_dir_ / first_user_copy,
-                                  *main_test_dir_ / second_user_copy));
+    EXPECT_FALSE(
+        SameFileContents(*main_test_dir_ / first_user_copy, *main_test_dir_ / second_user_copy));
     // Copy the file again...
-    fs::copy_file(file10, *main_test_dir_ / first_user_copy,
-                  fs::copy_option::overwrite_if_exists, error_code);
+    fs::copy_file(file10, *main_test_dir_ / first_user_copy, fs::copy_option::overwrite_if_exists,
+                  error_code);
     EXPECT_EQ(error_code.value(), 0);
     // Compare contents...
-    EXPECT_TRUE(SameFileContents(*main_test_dir_ / first_user_copy,
-                                 *main_test_dir_ / second_user_copy));
+    EXPECT_TRUE(
+        SameFileContents(*main_test_dir_ / first_user_copy, *main_test_dir_ / second_user_copy));
     // Get details...
     share_users_map.clear();
-    EXPECT_EQ(kSuccess, drive->GetShareDetails(first_share_id,
-                                               &root_share_path,
-                                               &recovered_share_keyring,
-                                               &directory_id,
-                                               &share_users_map));
+    EXPECT_EQ(kSuccess,
+              drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                     &directory_id, &share_users_map));
     EXPECT_EQ(directory10_relative_path, root_share_path);
     // Unmount...
     UnmountDrive(drive, max_space, used_space1);
@@ -1637,34 +1321,26 @@ TEST_P(PrivateOpenShareTests, BEH_InsertShareExisted) {
 }
 
 TEST_P(PrivateOpenShareTests, BEH_UserRenameShare) {
-  std::string first_unique_user_id, second_unique_user_id,
-              first_root_parent_id,
-              first_user_id(RandomAlphaNumericString(8)),
-              second_user_id(RandomAlphaNumericString(8)),
-              first_share_id(RandomAlphaNumericString(64)),
-              directory_id, first_user_copy, second_user_copy;
+  std::string first_unique_user_id, second_unique_user_id, first_root_parent_id,
+      first_user_id(RandomAlphaNumericString(8)), second_user_id(RandomAlphaNumericString(8)),
+      first_share_id(RandomAlphaNumericString(64)), directory_id, first_user_copy, second_user_copy;
 
-  asymm::Keys first_user_keyring, second_user_keyring, first_share_keyring,
-              recovered_share_keyring;
+  asymm::Keys first_user_keyring, second_user_keyring, first_share_keyring, recovered_share_keyring;
   maidsafe::asymm::GenerateKeyPair(&first_share_keyring);
   first_share_keyring.identity = RandomAlphaNumericString(64);
 
   std::map<std::string, int> share_users_map;
   std::vector<ShareId> share_users_vector;
 
-  fs::path directory00, directory10, directory20, directory10_relative_path,
-           file10, root_share_path;
+  fs::path directory00, directory10, directory20, directory10_relative_path, file10,
+      root_share_path;
   fs::path test_mount_dir;
   int64_t max_space(1073741824), used_space1(0), used_space2(0);
   boost::system::error_code error_code;
 
   {  // user 1
-    DrivePtr drive(CreateAndMountDrive("",
-                                       &first_unique_user_id,
-                                       max_space,
-                                       used_space1,
-                                       &test_mount_dir,
-                                       &first_user_keyring));
+    DrivePtr drive(CreateAndMountDrive("", &first_unique_user_id, max_space, used_space1,
+                                       &test_mount_dir, &first_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     // Save first user root parent id...
     first_root_parent_id = drive->root_parent_id();
@@ -1688,50 +1364,37 @@ TEST_P(PrivateOpenShareTests, BEH_UserRenameShare) {
     EXPECT_TRUE(fs::exists(*main_test_dir_ / first_user_copy, error_code));
     EXPECT_EQ(error_code.value(), 0);
     // Set directory10 to shared...
-    EXPECT_EQ(kSuccess, drive->SetShareDetails(directory10_relative_path,
-                                               first_share_id,
-                                               first_share_keyring,
-                                               first_user_id,
-                                               private_share_,
-                                               &directory_id));
+    EXPECT_EQ(kSuccess,
+              drive->SetShareDetails(directory10_relative_path, first_share_id, first_share_keyring,
+                                     first_user_id, private_share_, &directory_id));
     share_users_map.insert(std::make_pair(second_user_id, kShareReadWrite));
-    EXPECT_EQ(kSuccess, drive->AddShareUsers(directory10_relative_path,
-                                             share_users_map,
-                                             private_share_));
+    EXPECT_EQ(kSuccess,
+              drive->AddShareUsers(directory10_relative_path, share_users_map, private_share_));
     // Unmount...
     UnmountDrive(drive, max_space, used_space1);
   }
   {  // user 2
-    DrivePtr drive(CreateAndMountDrive("",
-                                       &second_unique_user_id,
-                                       max_space,
-                                       used_space2,
-                                       &test_mount_dir,
-                                       &second_user_keyring));
+    DrivePtr drive(CreateAndMountDrive("", &second_unique_user_id, max_space, used_space2,
+                                       &test_mount_dir, &second_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     signaled_ = false;
     bs2::connection connection(drive->ConnectToShareRenamed(
-        std::bind(&PrivateOpenShareTests::ShareRenamedSlot,
-                  this, args::_1, args::_2)));
+        std::bind(&PrivateOpenShareTests::ShareRenamedSlot, this, args::_1, args::_2)));
     // Create a directory hierarchy...
     fs::path directory01(CreateTestDirectory(test_mount_dir));
     fs::path directory(directory01 / directory10_relative_path.filename());
     fs::path directory_relative(RelativePath(test_mount_dir, directory));
     // Insert share...
-    EXPECT_EQ(kSuccess,
-              drive->InsertShare(directory_relative,
-                                 first_user_id,
-                                 directory_id,
-                                 first_share_id,
-                                 first_share_keyring));
+    EXPECT_EQ(kSuccess, drive->InsertShare(directory_relative, first_user_id, directory_id,
+                                           first_share_id, first_share_keyring));
     // Read file10...
     second_user_copy = file10.filename().string() + ".second_user_copy";
     fs::path second_user_file10(directory / file10.filename());
     EXPECT_TRUE(fs::exists(second_user_file10)) << second_user_file10;
     fs::copy_file(second_user_file10, *main_test_dir_ / second_user_copy);
     // Compare contents...
-    EXPECT_TRUE(SameFileContents(*main_test_dir_ / first_user_copy,
-                                 *main_test_dir_ / second_user_copy));
+    EXPECT_TRUE(
+        SameFileContents(*main_test_dir_ / first_user_copy, *main_test_dir_ / second_user_copy));
     // Rename the share directory
     std::string new_share_name(directory10_relative_path.filename().string() +
                                RandomAlphaNumericString(5));
@@ -1746,17 +1409,13 @@ TEST_P(PrivateOpenShareTests, BEH_UserRenameShare) {
     // Get details...
     share_users_map.clear();
     if (private_share_)
-      EXPECT_EQ(kNoMsHidden, drive->GetShareDetails(first_share_id,
-                                                    &root_share_path,
-                                                    &recovered_share_keyring,
-                                                    &directory_id,
-                                                    &share_users_map));
+      EXPECT_EQ(kNoMsHidden,
+                drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
     else
-      EXPECT_EQ(kSuccess, drive->GetShareDetails(first_share_id,
-                                                 &root_share_path,
-                                                 &recovered_share_keyring,
-                                                 &directory_id,
-                                                 &share_users_map));
+      EXPECT_EQ(kSuccess,
+                drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                       &directory_id, &share_users_map));
     EXPECT_EQ(new_path_relative, root_share_path);
     EXPECT_EQ(first_share_keyring.identity, recovered_share_keyring.identity);
     if (private_share_) {
@@ -1778,34 +1437,28 @@ TEST_P(PrivateOpenShareTests, BEH_UserRenameShare) {
     UnmountDrive(drive, max_space, used_space2);
   }
   {  // user 1
-    DrivePtr drive(CreateAndMountDrive(first_root_parent_id,
-                                       &first_unique_user_id,
-                                       max_space,
-                                       used_space1,
-                                       &test_mount_dir,
-                                       &first_user_keyring));
+    DrivePtr drive(CreateAndMountDrive(first_root_parent_id, &first_unique_user_id, max_space,
+                                       used_space1, &test_mount_dir, &first_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     // First user...
     // Read file10...
     EXPECT_TRUE(fs::exists(*main_test_dir_ / first_user_copy, error_code));
     EXPECT_EQ(error_code.value(), 0);
     // Compare contents...
-    EXPECT_FALSE(SameFileContents(*main_test_dir_ / first_user_copy,
-                                  *main_test_dir_ / second_user_copy));
+    EXPECT_FALSE(
+        SameFileContents(*main_test_dir_ / first_user_copy, *main_test_dir_ / second_user_copy));
     // Copy the file again...
-    fs::copy_file(file10, *main_test_dir_ / first_user_copy,
-                  fs::copy_option::overwrite_if_exists, error_code);
+    fs::copy_file(file10, *main_test_dir_ / first_user_copy, fs::copy_option::overwrite_if_exists,
+                  error_code);
     EXPECT_EQ(error_code.value(), 0);
     // Compare contents...
-    EXPECT_TRUE(SameFileContents(*main_test_dir_ / first_user_copy,
-                                 *main_test_dir_ / second_user_copy));
+    EXPECT_TRUE(
+        SameFileContents(*main_test_dir_ / first_user_copy, *main_test_dir_ / second_user_copy));
     // Get details...
     share_users_map.clear();
-    EXPECT_EQ(kSuccess, drive->GetShareDetails(first_share_id,
-                                               &root_share_path,
-                                               &recovered_share_keyring,
-                                               &directory_id,
-                                               &share_users_map));
+    EXPECT_EQ(kSuccess,
+              drive->GetShareDetails(first_share_id, &root_share_path, &recovered_share_keyring,
+                                     &directory_id, &share_users_map));
     EXPECT_EQ(directory10_relative_path, root_share_path);
     // Unmount...
     UnmountDrive(drive, max_space, used_space1);
@@ -1813,35 +1466,27 @@ TEST_P(PrivateOpenShareTests, BEH_UserRenameShare) {
 }
 
 TEST_P(PrivateOpenShareTests, BEH_OwnerRenameShare) {
-  std::string first_unique_user_id, second_unique_user_id,
-              first_root_parent_id,
-              first_user_id(RandomAlphaNumericString(8)),
-              second_user_id(RandomAlphaNumericString(8)),
-              third_user_id(RandomAlphaNumericString(8)),
-              first_share_id(RandomAlphaNumericString(64)),
-              directory_id, first_user_copy, second_user_copy;
+  std::string first_unique_user_id, second_unique_user_id, first_root_parent_id,
+      first_user_id(RandomAlphaNumericString(8)), second_user_id(RandomAlphaNumericString(8)),
+      third_user_id(RandomAlphaNumericString(8)), first_share_id(RandomAlphaNumericString(64)),
+      directory_id, first_user_copy, second_user_copy;
 
-  asymm::Keys first_user_keyring, second_user_keyring, first_share_keyring,
-              recovered_share_keyring;
+  asymm::Keys first_user_keyring, second_user_keyring, first_share_keyring, recovered_share_keyring;
   maidsafe::asymm::GenerateKeyPair(&first_share_keyring);
   first_share_keyring.identity = RandomAlphaNumericString(64);
 
   std::map<std::string, int> share_users_map;
   std::vector<ShareId> share_users_vector;
 
-  fs::path directory00, directory10, directory20, directory10_relative_path,
-           file10, root_share_path;
+  fs::path directory00, directory10, directory20, directory10_relative_path, file10,
+      root_share_path;
   fs::path test_mount_dir;
   int64_t max_space(1073741824), used_space(0);
   boost::system::error_code error_code;
 
   {  // user 1
-    DrivePtr drive(CreateAndMountDrive("",
-                                       &first_unique_user_id,
-                                       max_space,
-                                       used_space,
-                                       &test_mount_dir,
-                                       &first_user_keyring));
+    DrivePtr drive(CreateAndMountDrive("", &first_unique_user_id, max_space, used_space,
+                                       &test_mount_dir, &first_user_keyring));
     ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
     // Save first user root parent id...
     first_root_parent_id = drive->root_parent_id();
@@ -1865,21 +1510,16 @@ TEST_P(PrivateOpenShareTests, BEH_OwnerRenameShare) {
     EXPECT_TRUE(fs::exists(*main_test_dir_ / first_user_copy, error_code));
     EXPECT_EQ(error_code.value(), 0);
     // Set directory10 to shared...
-    EXPECT_EQ(kSuccess, drive->SetShareDetails(directory10_relative_path,
-                                               first_share_id,
-                                               first_share_keyring,
-                                               first_user_id,
-                                               private_share_,
-                                               &directory_id));
+    EXPECT_EQ(kSuccess,
+              drive->SetShareDetails(directory10_relative_path, first_share_id, first_share_keyring,
+                                     first_user_id, private_share_, &directory_id));
     share_users_map.insert(std::make_pair(second_user_id, kShareReadWrite));
-    EXPECT_EQ(kSuccess, drive->AddShareUsers(directory10_relative_path,
-                                             share_users_map,
-                                             private_share_));
+    EXPECT_EQ(kSuccess,
+              drive->AddShareUsers(directory10_relative_path, share_users_map, private_share_));
 
     signaled_ = false;
     bs2::connection connection(drive->ConnectToShareRenamed(
-        std::bind(&PrivateOpenShareTests::ShareRenamedSlot,
-                  this, args::_1, args::_2)));
+        std::bind(&PrivateOpenShareTests::ShareRenamedSlot, this, args::_1, args::_2)));
     // Rename the share directory
     std::string new_share_name(directory10_relative_path.filename().string() +
                                RandomAlphaNumericString(5));
@@ -1894,19 +1534,14 @@ TEST_P(PrivateOpenShareTests, BEH_OwnerRenameShare) {
 
     share_users_map.clear();
     share_users_map.insert(std::make_pair(third_user_id, kShareReadWrite));
-//     EXPECT_EQ(kFailedToGetChild,
-//               drive->AddShareUsers(directory10_relative_path,
-//                                    share_users_map,
-//                                    private_share_));
-    EXPECT_EQ(kSuccess, drive->AddShareUsers(new_path_relative,
-                                             share_users_map,
-                                             private_share_));
+    //     EXPECT_EQ(kFailedToGetChild,
+    //               drive->AddShareUsers(directory10_relative_path,
+    //                                    share_users_map,
+    //                                    private_share_));
+    EXPECT_EQ(kSuccess, drive->AddShareUsers(new_path_relative, share_users_map, private_share_));
     share_users_map.clear();
-    EXPECT_EQ(kSuccess, drive->GetShareDetails(first_share_id,
-                                               nullptr,
-                                               nullptr,
-                                               nullptr,
-                                               &share_users_map));
+    EXPECT_EQ(kSuccess,
+              drive->GetShareDetails(first_share_id, nullptr, nullptr, nullptr, &share_users_map));
     EXPECT_EQ(3, share_users_map.size());
     EXPECT_EQ(CalculateUsedSpace(test_mount_dir), drive->GetUsedSpace());
     // Unmount...
@@ -1923,15 +1558,8 @@ TEST_F(SharesTest, BEH_ShareKeys) {
   asymm::Keys keys;
   int64_t max_space(1073741824), used_space(0);
   ASSERT_EQ(kSuccess, priv::utilities::CreateMaidsafeIdentity(keys));
-  DrivePtr drive(MakeAndMountDrive(unique_user_id,
-                                   root_parent_id,
-                                   keys,
-                                   false,
-                                   test_path,
-                                   max_space,
-                                   used_space,
-                                   asio_service,
-                                   chunk_store,
+  DrivePtr drive(MakeAndMountDrive(unique_user_id, root_parent_id, keys, false, test_path,
+                                   max_space, used_space, asio_service, chunk_store,
                                    test_mount_dir));
   ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
 
@@ -1942,7 +1570,7 @@ TEST_F(SharesTest, BEH_ShareKeys) {
   fs::path directory4(CreateTestDirectory(directory2));
 
   ShareId first_share_id(RandomAlphaNumericString(64)),
-          second_share_id(RandomAlphaNumericString(64));
+      second_share_id(RandomAlphaNumericString(64));
   std::string share_owner_id(RandomAlphaNumericString(64));
   asymm::Keys first_share_keyring, second_share_keyring;
   priv::utilities::CreateMaidsafeIdentity(first_share_keyring);
@@ -1950,17 +1578,11 @@ TEST_F(SharesTest, BEH_ShareKeys) {
 
   std::vector<ShareData> share_data_vector;
   ShareKeys share_keys1, share_keys2, share_keys3;
-  ShareData share_data1(first_share_id,
-                        share_owner_id,
-                        directory3,
-                        first_share_keyring,
+  ShareData share_data1(first_share_id, share_owner_id, directory3, first_share_keyring,
                         kShareReadWrite),
-            share_data2(second_share_id,
-                        share_owner_id,
-                        directory4,
-                        second_share_keyring,
-                        kShareReadWrite),
-            share_data;
+      share_data2(second_share_id, share_owner_id, directory4, second_share_keyring,
+                  kShareReadWrite),
+      share_data;
 
   // Set share_keys1 data...
   std::string serialised_shares;
@@ -2049,15 +1671,8 @@ TEST_F(SharesTest, FUNC_WriteHiddenFile) {
   for (int i = 0; i < 10; ++i)
     content += content + RandomAlphaNumericString(10);
 
-  DrivePtr drive(MakeAndMountDrive(unique_user_id,
-                                   root_parent_id,
-                                   keys,
-                                   false,
-                                   test_path,
-                                   max_space,
-                                   used_space,
-                                   asio_service,
-                                   chunk_store,
+  DrivePtr drive(MakeAndMountDrive(unique_user_id, root_parent_id, keys, false, test_path,
+                                   max_space, used_space, asio_service, chunk_store,
                                    test_mount_dir));
   ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
 
@@ -2068,31 +1683,24 @@ TEST_F(SharesTest, FUNC_WriteHiddenFile) {
   fs::path hidden_file(directory10 / hidden_file_name);
   fs::path hidden_file_relative(RelativePath(test_mount_dir, hidden_file));
 
-  EXPECT_EQ(kSuccess,
-            drive->WriteHiddenFile(hidden_file_relative, content, true));
+  EXPECT_EQ(kSuccess, drive->WriteHiddenFile(hidden_file_relative, content, true));
   boost::system::error_code error_code;
   EXPECT_FALSE(fs::exists(hidden_file, error_code));
   EXPECT_EQ(error_code.value(), 2);
 
   std::string read_content;
-  EXPECT_EQ(kSuccess,
-            drive->ReadHiddenFile(hidden_file_relative, &read_content));
+  EXPECT_EQ(kSuccess, drive->ReadHiddenFile(hidden_file_relative, &read_content));
   EXPECT_EQ(content, read_content);
 
   // trying to write with invalid parameters
-  EXPECT_EQ(kInvalidPath,
-            drive->WriteHiddenFile("", content, true));
-  EXPECT_EQ(kInvalidPath,
-            drive->WriteHiddenFile("test.txt", content, true));
-  EXPECT_EQ(kMsHiddenAlreadyExists,
-            drive->WriteHiddenFile(hidden_file_relative, content, false));
+  EXPECT_EQ(kInvalidPath, drive->WriteHiddenFile("", content, true));
+  EXPECT_EQ(kInvalidPath, drive->WriteHiddenFile("test.txt", content, true));
+  EXPECT_EQ(kMsHiddenAlreadyExists, drive->WriteHiddenFile(hidden_file_relative, content, false));
 
   // replace the hidden file with new content
   content += RandomAlphaNumericString(10);
-  EXPECT_EQ(kSuccess,
-            drive->WriteHiddenFile(hidden_file_relative, content, true));
-  EXPECT_EQ(kSuccess,
-            drive->ReadHiddenFile(hidden_file_relative, &read_content));
+  EXPECT_EQ(kSuccess, drive->WriteHiddenFile(hidden_file_relative, content, true));
+  EXPECT_EQ(kSuccess, drive->ReadHiddenFile(hidden_file_relative, &read_content));
   EXPECT_EQ(content, read_content);
 
   // Unmount...
@@ -2113,15 +1721,8 @@ TEST_F(SharesTest, FUNC_ReadHiddenFile) {
   for (int i = 0; i < 10; ++i)
     content += content + RandomAlphaNumericString(10);
 
-  DrivePtr drive(MakeAndMountDrive(unique_user_id,
-                                   root_parent_id,
-                                   keys,
-                                   false,
-                                   test_path,
-                                   max_space,
-                                   used_space,
-                                   asio_service,
-                                   chunk_store,
+  DrivePtr drive(MakeAndMountDrive(unique_user_id, root_parent_id, keys, false, test_path,
+                                   max_space, used_space, asio_service, chunk_store,
                                    test_mount_dir));
   ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
 
@@ -2132,20 +1733,16 @@ TEST_F(SharesTest, FUNC_ReadHiddenFile) {
   fs::path hidden_file(directory10 / hidden_file_name);
   fs::path hidden_file_relative(RelativePath(test_mount_dir, hidden_file));
 
-  EXPECT_EQ(kSuccess,
-            drive->WriteHiddenFile(hidden_file_relative, content, true));
+  EXPECT_EQ(kSuccess, drive->WriteHiddenFile(hidden_file_relative, content, true));
   std::string read_content;
-  EXPECT_EQ(kSuccess,
-            drive->ReadHiddenFile(hidden_file_relative, &read_content));
+  EXPECT_EQ(kSuccess, drive->ReadHiddenFile(hidden_file_relative, &read_content));
   EXPECT_EQ(content, read_content);
 
   // trying to read with invalid parameters
   EXPECT_EQ(kInvalidPath, drive->ReadHiddenFile("", &read_content));
   EXPECT_EQ(kInvalidPath, drive->ReadHiddenFile("test.txt", &read_content));
-  EXPECT_EQ(kNullParameter,
-            drive->ReadHiddenFile(hidden_file_relative, nullptr));
-  EXPECT_EQ(kNoMsHidden,
-            drive->ReadHiddenFile("test.ms_hidden", &read_content));
+  EXPECT_EQ(kNullParameter, drive->ReadHiddenFile(hidden_file_relative, nullptr));
+  EXPECT_EQ(kNoMsHidden, drive->ReadHiddenFile("test.ms_hidden", &read_content));
 
   // Unmount...
   UnmountDrive(drive, max_space, used_space);
@@ -2165,15 +1762,8 @@ TEST_F(SharesTest, FUNC_DeleteHiddenFile) {
   for (int i = 0; i < 10; ++i)
     content += content + RandomAlphaNumericString(10);
 
-  DrivePtr drive(MakeAndMountDrive(unique_user_id,
-                                   root_parent_id,
-                                   keys,
-                                   false,
-                                   test_path,
-                                   max_space,
-                                   used_space,
-                                   asio_service,
-                                   chunk_store,
+  DrivePtr drive(MakeAndMountDrive(unique_user_id, root_parent_id, keys, false, test_path,
+                                   max_space, used_space, asio_service, chunk_store,
                                    test_mount_dir));
   ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
 
@@ -2184,11 +1774,9 @@ TEST_F(SharesTest, FUNC_DeleteHiddenFile) {
   fs::path hidden_file(directory10 / hidden_file_name);
   fs::path hidden_file_relative(RelativePath(test_mount_dir, hidden_file));
 
-  EXPECT_EQ(kSuccess,
-            drive->WriteHiddenFile(hidden_file_relative, content, true));
+  EXPECT_EQ(kSuccess, drive->WriteHiddenFile(hidden_file_relative, content, true));
   std::string read_content;
-  EXPECT_EQ(kSuccess,
-            drive->ReadHiddenFile(hidden_file_relative, &read_content));
+  EXPECT_EQ(kSuccess, drive->ReadHiddenFile(hidden_file_relative, &read_content));
   EXPECT_EQ(content, read_content);
 
   // trying to delete with invalid parameters
@@ -2196,21 +1784,15 @@ TEST_F(SharesTest, FUNC_DeleteHiddenFile) {
   EXPECT_EQ(kInvalidPath, drive->DeleteHiddenFile("test.txt"));
 
   // deleting the hidden file
-  EXPECT_EQ(kSuccess,
-            drive->DeleteHiddenFile(hidden_file_relative));
-  EXPECT_EQ(kNoMsHidden,
-            drive->ReadHiddenFile(hidden_file_relative, &read_content));
+  EXPECT_EQ(kSuccess, drive->DeleteHiddenFile(hidden_file_relative));
+  EXPECT_EQ(kNoMsHidden, drive->ReadHiddenFile(hidden_file_relative, &read_content));
 
-  EXPECT_EQ(kFailedToGetChild,
-            drive->DeleteHiddenFile("test.ms_hidden"));
-  EXPECT_EQ(kFailedToGetChild,
-            drive->DeleteHiddenFile(hidden_file_relative));
+  EXPECT_EQ(kFailedToGetChild, drive->DeleteHiddenFile("test.ms_hidden"));
+  EXPECT_EQ(kFailedToGetChild, drive->DeleteHiddenFile(hidden_file_relative));
 
   // re-create the hidden file
-  EXPECT_EQ(kSuccess,
-            drive->WriteHiddenFile(hidden_file_relative, content, false));
-  EXPECT_EQ(kSuccess,
-            drive->ReadHiddenFile(hidden_file_relative, &read_content));
+  EXPECT_EQ(kSuccess, drive->WriteHiddenFile(hidden_file_relative, content, false));
+  EXPECT_EQ(kSuccess, drive->ReadHiddenFile(hidden_file_relative, &read_content));
   EXPECT_EQ(content, read_content);
 
   // Unmount...
@@ -2227,69 +1809,53 @@ TEST_F(SharesTest, BEH_SearchFiles) {
   int64_t max_space(1073741824), used_space(0), file_size(0), total_size(0);
   ASSERT_EQ(kSuccess, priv::utilities::CreateMaidsafeIdentity(keys));
 
-  DrivePtr drive(MakeAndMountDrive(unique_user_id,
-                                   root_parent_id,
-                                   keys,
-                                   false,
-                                   test_path,
-                                   max_space,
-                                   used_space,
-                                   asio_service,
-                                   chunk_store,
+  DrivePtr drive(MakeAndMountDrive(unique_user_id, root_parent_id, keys, false, test_path,
+                                   max_space, used_space, asio_service, chunk_store,
                                    test_mount_dir));
   ASSERT_NE(nullptr, drive.get()) << "Failed to mount drive.";
 
   fs::path directory(CreateTestDirectory(test_mount_dir)),
-           relative_path(RelativePath(test_mount_dir, directory));
+      relative_path(RelativePath(test_mount_dir, directory));
   std::vector<std::string> files;
   std::string filename("file0");
   std::string content("Hidden");
   for (uint32_t i = 0; i != 10; ++i) {
-    if (i%2 == 0) {
-      fs::path file(CreateNamedFile(directory,
-                                    filename + boost::lexical_cast<std::string>(i),
-                                    file_size));
+    if (i % 2 == 0) {
+      fs::path file(
+          CreateNamedFile(directory, filename + boost::lexical_cast<std::string>(i), file_size));
       total_size += file_size;
     } else {
-      drive->WriteHiddenFile(relative_path / (filename +
-                                              boost::lexical_cast<std::string>(i) +
-                                              kMsHidden.string()),
-                             content,
-                             false);
+      drive->WriteHiddenFile(
+          relative_path / (filename + boost::lexical_cast<std::string>(i) + kMsHidden.string()),
+          content, false);
       total_size += content.size();
     }
   }
 
   filename = "file1";
   for (uint32_t i = 0; i != 5; ++i) {
-    if (i%2 == 0) {
-      drive->WriteHiddenFile(relative_path / (filename +
-                                              boost::lexical_cast<std::string>(i) +
-                                              kMsHidden.string()),
-                             content,
-                             false);
+    if (i % 2 == 0) {
+      drive->WriteHiddenFile(
+          relative_path / (filename + boost::lexical_cast<std::string>(i) + kMsHidden.string()),
+          content, false);
       total_size += content.size();
     } else {
-      fs::path file(CreateNamedFile(directory,
-                                    filename + boost::lexical_cast<std::string>(i),
-                                    file_size));
+      fs::path file(
+          CreateNamedFile(directory, filename + boost::lexical_cast<std::string>(i), file_size));
       total_size += file_size;
     }
   }
 
   filename = "file2";
   for (uint32_t i = 0; i != 7; ++i) {
-    if (i%2 == 0) {
-      fs::path file(CreateNamedFile(directory,
-                                    filename + boost::lexical_cast<std::string>(i),
-                                    file_size));
+    if (i % 2 == 0) {
+      fs::path file(
+          CreateNamedFile(directory, filename + boost::lexical_cast<std::string>(i), file_size));
       total_size += file_size;
     } else {
-      drive->WriteHiddenFile(relative_path / (filename +
-                                              boost::lexical_cast<std::string>(i) +
-                                              kMsHidden.string()),
-                             content,
-                             false);
+      drive->WriteHiddenFile(
+          relative_path / (filename + boost::lexical_cast<std::string>(i) + kMsHidden.string()),
+          content, false);
       total_size += content.size();
     }
   }
@@ -2312,15 +1878,8 @@ TEST(StandAloneDriveTest, FUNC_ReadOnlyDrive) {
   int64_t used_space(0), max_space(1024 * 1024 * 1024);
   ASSERT_EQ(kSuccess, priv::utilities::CreateMaidsafeIdentity(keys));
   {
-    DrivePtr drive(MakeAndMountDrive(unique_user_id,
-                                     root_parent_id,
-                                     keys,
-                                     false,
-                                     test_path,
-                                     max_space,
-                                     used_space,
-                                     asio_service,
-                                     chunk_store,
+    DrivePtr drive(MakeAndMountDrive(unique_user_id, root_parent_id, keys, false, test_path,
+                                     max_space, used_space, asio_service, chunk_store,
                                      mount_directory));
     ASSERT_NE(nullptr, drive.get());
     test_directory = CreateTestDirectoriesAndFiles(mount_directory);
@@ -2328,15 +1887,8 @@ TEST(StandAloneDriveTest, FUNC_ReadOnlyDrive) {
     UnmountDrive(drive, asio_service);
   }
   {
-    DrivePtr drive(MakeAndMountDrive(unique_user_id,
-                                     root_parent_id,
-                                     keys,
-                                     true,
-                                     test_path,
-                                     max_space,
-                                     used_space,
-                                     asio_service,
-                                     chunk_store,
+    DrivePtr drive(MakeAndMountDrive(unique_user_id, root_parent_id, keys, true, test_path,
+                                     max_space, used_space, asio_service, chunk_store,
                                      mount_directory));
     int64_t zeroth_used_space(drive->GetUsedSpace());
 
@@ -2348,21 +1900,21 @@ TEST(StandAloneDriveTest, FUNC_ReadOnlyDrive) {
     EXPECT_FALSE(WriteFile(mount_directory / RandomAlphaNumericString(5), RandomString(1)));
     EXPECT_FALSE(WriteFile(mount_directory / RandomAlphaNumericString(5), RandomString(64)));
     EXPECT_FALSE(WriteFile(mount_directory / RandomAlphaNumericString(5), RandomString(1024)));
-    EXPECT_FALSE(WriteFile(mount_directory / RandomAlphaNumericString(5),
-                           RandomString(1024 * 1024)));
+    EXPECT_FALSE(
+        WriteFile(mount_directory / RandomAlphaNumericString(5), RandomString(1024 * 1024)));
 
     fs::path leaf(test_directory.filename());
     EXPECT_FALSE(WriteFile(mount_directory / leaf / RandomAlphaNumericString(5), RandomString(1)));
     EXPECT_FALSE(WriteFile(mount_directory / leaf / RandomAlphaNumericString(5), RandomString(64)));
-    EXPECT_FALSE(WriteFile(mount_directory / leaf / RandomAlphaNumericString(5),
-                           RandomString(1024)));
-    EXPECT_FALSE(WriteFile(mount_directory / leaf / RandomAlphaNumericString(5),
-                           RandomString(1024 * 1024)));
+    EXPECT_FALSE(
+        WriteFile(mount_directory / leaf / RandomAlphaNumericString(5), RandomString(1024)));
+    EXPECT_FALSE(
+        WriteFile(mount_directory / leaf / RandomAlphaNumericString(5), RandomString(1024 * 1024)));
 
     // Iterate created directory
     fs::recursive_directory_iterator begin(mount_directory / leaf), end;
     std::string pre_file_content, post_file_content, new_file_content(RandomString(64)),
-                new_filename(RandomAlphaNumericString(8));
+        new_filename(RandomAlphaNumericString(8));
     fs::path current_path, rename_path;
     try {
       for (; begin != end; ++begin) {
@@ -2387,7 +1939,7 @@ TEST(StandAloneDriveTest, FUNC_ReadOnlyDrive) {
         }
       }
     }
-    catch(...) {
+    catch (...) {
       EXPECT_TRUE(false) << "Failure during traversal.";
     }
 
@@ -2395,15 +1947,8 @@ TEST(StandAloneDriveTest, FUNC_ReadOnlyDrive) {
     UnmountDrive(drive, asio_service);
   }
   {
-    DrivePtr drive(MakeAndMountDrive(unique_user_id,
-                                     root_parent_id,
-                                     keys,
-                                     false,
-                                     test_path,
-                                     max_space,
-                                     used_space,
-                                     asio_service,
-                                     chunk_store,
+    DrivePtr drive(MakeAndMountDrive(unique_user_id, root_parent_id, keys, false, test_path,
+                                     max_space, used_space, asio_service, chunk_store,
                                      mount_directory));
     ASSERT_NE(nullptr, drive.get());
     test_directory = CreateTestDirectoriesAndFiles(mount_directory);

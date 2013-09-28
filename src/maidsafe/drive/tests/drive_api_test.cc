@@ -17,9 +17,9 @@
     use of the MaidSafe Software.                                                                 */
 
 #ifdef MAIDSAFE_WIN32
-#  include <windows.h>
+#include <windows.h>
 #else
-#  include <time.h>
+#include <time.h>
 #endif
 
 #include <fstream>  // NOLINT
@@ -46,7 +46,6 @@
 #include "maidsafe/drive/utils.h"
 #include "maidsafe/drive/tests/test_utils.h"
 
-
 namespace fs = boost::filesystem;
 
 namespace maidsafe {
@@ -56,20 +55,22 @@ namespace drive {
 namespace test {
 
 #ifdef MAIDSAFE_WIN32
-testing::AssertionResult TimesMatch(const FILETIME &time1, const FILETIME &time2) {
+testing::AssertionResult TimesMatch(const FILETIME& time1, const FILETIME& time2) {
   if (time1.dwHighDateTime != time2.dwHighDateTime) {
     return testing::AssertionFailure() << "time1.dwHighDateTime (" << time1.dwHighDateTime
-           << ") != time2.dwHighDateTime (" << time2.dwHighDateTime << ")";
+                                       << ") != time2.dwHighDateTime (" << time2.dwHighDateTime
+                                       << ")";
   }
-  if (time1.dwLowDateTime!= time2.dwLowDateTime) {
+  if (time1.dwLowDateTime != time2.dwLowDateTime) {
     return testing::AssertionFailure() << "time1.dwLowDateTime (" << time1.dwLowDateTime
-           << ") != time2.dwLowDateTime (" << time2.dwLowDateTime << ")";
+                                       << ") != time2.dwLowDateTime (" << time2.dwLowDateTime
+                                       << ")";
   }
   return testing::AssertionSuccess();
 }
 #endif
 
-void SetLastAccessTime(MetaData *meta_data) {
+void SetLastAccessTime(MetaData* meta_data) {
 #ifdef MAIDSAFE_WIN32
   GetSystemTimeAsFileTime(&meta_data->last_access_time);
 #else
@@ -77,8 +78,8 @@ void SetLastAccessTime(MetaData *meta_data) {
 #endif
 }
 
-testing::AssertionResult LastAccessTimesMatch(const MetaData &meta_data1,
-                                              const MetaData &meta_data2) {
+testing::AssertionResult LastAccessTimesMatch(const MetaData& meta_data1,
+                                              const MetaData& meta_data2) {
 #ifdef MAIDSAFE_WIN32
   return TimesMatch(meta_data1.last_access_time, meta_data2.last_access_time);
 #else
@@ -86,20 +87,19 @@ testing::AssertionResult LastAccessTimesMatch(const MetaData &meta_data1,
     return testing::AssertionSuccess();
   else
     return testing::AssertionFailure() << "meta_data1.attributes.st_atime ("
-        << meta_data1.attributes.st_atime << ") != meta_data2.attributes."
-        << "st_atime (" << meta_data2.attributes.st_atime << ")";
+                                       << meta_data1.attributes.st_atime
+                                       << ") != meta_data2.attributes."
+                                       << "st_atime (" << meta_data2.attributes.st_atime << ")";
 #endif
 }
 
-
 TEST(Drive, BEH_SureStore) {
   OnServiceAdded on_added([] { LOG(kInfo) << "Trying to add a service."; });
-  OnServiceRemoved on_removed([](const fs::path& alias) {
-                                  LOG(kInfo) << "Trying to remove " << alias;
-                              });
-  OnServiceRenamed on_renamed([](const fs::path& old_alias, const fs::path& new_alias) {
-                                LOG(kInfo) << "Renamed " << old_alias << " to " << new_alias;
-                              });
+  OnServiceRemoved on_removed([](const fs::path &
+                                 alias) { LOG(kInfo) << "Trying to remove " << alias; });
+  OnServiceRenamed on_renamed([](const fs::path & old_alias, const fs::path & new_alias) {
+    LOG(kInfo) << "Renamed " << old_alias << " to " << new_alias;
+  });
   maidsafe::test::TestPath main_test_dir(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
   Identity root_id;
   Identity service_root_id(RandomString(64));
@@ -135,8 +135,8 @@ TEST(Drive, BEH_SureStore) {
     mount_dir /= "\\";
 #else
     fs::path mount_dir(*main_test_dir / "mount");
-    VirtualDrive<data_store::SureFileStore>::value_type drive(
-        root_id, mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
+    VirtualDrive<data_store::SureFileStore>::value_type drive(root_id, mount_dir, "SureFileDrive",
+                                                              on_added, on_removed, on_renamed);
 #endif
     drive.AddService(service_name, *main_test_dir / service_name, service_root_id);
     service_root = mount_dir / service_name;

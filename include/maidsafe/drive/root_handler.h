@@ -45,22 +45,18 @@ namespace drive {
 
 namespace detail {
 
-template<typename Storage>
+template <typename Storage>
 class RootHandler {
  public:
   RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
-              const Identity& unique_user_id,
-              const Identity& drive_root_id,
+              const Identity& unique_user_id, const Identity& drive_root_id,
               OnServiceAdded on_service_added);
 
-  RootHandler(const Identity& drive_root_id,
-              OnServiceAdded on_service_added,
-              OnServiceRemoved on_service_removed,
-              OnServiceRenamed on_service_renamed);
+  RootHandler(const Identity& drive_root_id, OnServiceAdded on_service_added,
+              OnServiceRemoved on_service_removed, OnServiceRenamed on_service_renamed);
 
   void AddService(const boost::filesystem::path& service_alias,
-                  const boost::filesystem::path& store_path,
-                  const Identity& service_root_id);
+                  const boost::filesystem::path& store_path, const Identity& service_root_id);
   void RemoveService(const boost::filesystem::path& service_alias);
 
   // Returns nullptr if there isn't a subdir containig the given path (most likely path == kRoot)
@@ -73,17 +69,14 @@ class RootHandler {
 
   FileContext<Storage> GetFileContext(const boost::filesystem::path& path) const;
 
-  void AddElement(const boost::filesystem::path& path,
-                  const MetaData& meta_data,
-                  DirectoryId& grandparent_id,
-                  DirectoryId& parent_id);
+  void AddElement(const boost::filesystem::path& path, const MetaData& meta_data,
+                  DirectoryId& grandparent_id, DirectoryId& parent_id);
 
   bool CanDelete(const boost::filesystem::path& path) const;
   void DeleteElement(const boost::filesystem::path& path, MetaData& meta_data);
 
   void RenameElement(const boost::filesystem::path& old_path,
-                     const boost::filesystem::path& new_path,
-                     MetaData& meta_data);
+                     const boost::filesystem::path& new_path, MetaData& meta_data);
 
   void UpdateParentDirectoryListing(const boost::filesystem::path& parent_path, MetaData meta_data);
   Directory GetFromPath(const boost::filesystem::path& path) const;
@@ -102,20 +95,16 @@ class RootHandler {
   void InitRoot(const Identity& unique_user_id, const Identity& drive_root_id);
 
   boost::optional<boost::filesystem::path> GetAlias(const boost::filesystem::path& path) const;
-  void GetParentAndGrandparent(const boost::filesystem::path& path,
-                               Directory& grandparent,
-                               Directory& parent,
-                               MetaData& parent_meta_data) const;
+  void GetParentAndGrandparent(const boost::filesystem::path& path, Directory& grandparent,
+                               Directory& parent, MetaData& parent_meta_data) const;
 
   bool CanAdd(const boost::filesystem::path& path) const;
   bool CanRename(const boost::filesystem::path& from_path,
                  const boost::filesystem::path& to_path) const;
   void RenameSameParent(const boost::filesystem::path& old_path,
-                        const boost::filesystem::path& new_path,
-                        MetaData& meta_data);
+                        const boost::filesystem::path& new_path, MetaData& meta_data);
   void RenameDifferentParent(const boost::filesystem::path& old_path,
-                             const boost::filesystem::path& new_path,
-                             MetaData& meta_data);
+                             const boost::filesystem::path& new_path, MetaData& meta_data);
   void ReStoreDirectories(const boost::filesystem::path& old_path,
                           const boost::filesystem::path& new_path);
 
@@ -123,9 +112,9 @@ class RootHandler {
   void Delete(const boost::filesystem::path& path, const Directory& directory);
 
   std::shared_ptr<Storage> default_storage_;  // MaidNodeNfs or nullptr
-  mutable std::mutex root_mutex_;  // protects root_ & root_meta_data_
-  mutable std::mutex handlers_mutex_;  // protects directory_handlers_
-  mutable std::mutex directories_mutex_;  // protects recent_directories_
+  mutable std::mutex root_mutex_;             // protects root_ & root_meta_data_
+  mutable std::mutex handlers_mutex_;         // protects directory_handlers_
+  mutable std::mutex directories_mutex_;      // protects recent_directories_
   Directory root_;
   MetaData root_meta_data_;
   std::map<boost::filesystem::path, DirectoryHandler<Storage>> directory_handlers_;
@@ -135,24 +124,20 @@ class RootHandler {
   OnServiceRenamed on_service_renamed_;
 };
 
-
-
 // ==================== Implementation =============================================================
-template<typename Storage>
+template <typename Storage>
 struct Default {
   typedef std::pair<boost::filesystem::path, DataTagValue> PathAndType;
   static const std::vector<PathAndType> kValues;
   static bool IsDefault(const boost::filesystem::path& path) {
-    return std::any_of(std::begin(kValues),
-                       std::end(kValues),
-                       [&path](const PathAndType& value) { return path == value.first; });
+    return std::any_of(std::begin(kValues), std::end(kValues),
+                       [&path](const PathAndType & value) { return path == value.first; });
   }
 };
 
-template<typename Storage>
+template <typename Storage>
 RootHandler<Storage>::RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
-                                  const Identity& unique_user_id,
-                                  const Identity& drive_root_id,
+                                  const Identity& unique_user_id, const Identity& drive_root_id,
                                   OnServiceAdded on_service_added)
     : default_storage_(maid_node_nfs),
       root_mutex_(),
@@ -167,13 +152,12 @@ RootHandler<Storage>::RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_
       on_service_renamed_(nullptr) {
   if (!unique_user_id.IsInitialised())
     ThrowError(CommonErrors::uninitialised);
-  drive_root_id.IsInitialised() ? InitRoot(unique_user_id, drive_root_id) :
-                                  CreateRoot(unique_user_id);
+  drive_root_id.IsInitialised() ? InitRoot(unique_user_id, drive_root_id)
+                                : CreateRoot(unique_user_id);
 }
 
-template<typename Storage>
-RootHandler<Storage>::RootHandler(const Identity& drive_root_id,
-                                  OnServiceAdded on_service_added,
+template <typename Storage>
+RootHandler<Storage>::RootHandler(const Identity& drive_root_id, OnServiceAdded on_service_added,
                                   OnServiceRemoved on_service_removed,
                                   OnServiceRenamed on_service_renamed)
     : default_storage_(),
@@ -190,17 +174,16 @@ RootHandler<Storage>::RootHandler(const Identity& drive_root_id,
   drive_root_id.IsInitialised() ? InitRoot(Identity(), drive_root_id) : CreateRoot(Identity());
 }
 
-template<>
+template <>
 void RootHandler<data_store::SureFileStore>::AddService(
-    const boost::filesystem::path& service_alias,
-    const boost::filesystem::path& store_path,
+    const boost::filesystem::path& service_alias, const boost::filesystem::path& store_path,
     const Identity& service_root_id);
 
-template<>
+template <>
 void RootHandler<data_store::SureFileStore>::RemoveService(
     const boost::filesystem::path& service_alias);
 
-template<typename Storage>
+template <typename Storage>
 std::unique_ptr<DirectoryHandler<Storage>> RootHandler<Storage>::GetHandler(
     const boost::filesystem::path& path) const {
   if (path.empty())
@@ -208,11 +191,12 @@ std::unique_ptr<DirectoryHandler<Storage>> RootHandler<Storage>::GetHandler(
   auto alias(*(++std::begin(path)));
   std::lock_guard<std::mutex> handlers_lock(handlers_mutex_);
   auto itr(directory_handlers_.find(alias));
-  return itr == std::end(directory_handlers_) ? nullptr :
-      std::unique_ptr<DirectoryHandler<Storage>>(new DirectoryHandler<Storage>(itr->second));
+  return itr == std::end(directory_handlers_) ? nullptr
+                                              : std::unique_ptr<DirectoryHandler<Storage>>(
+                                                    new DirectoryHandler<Storage>(itr->second));
 }
 
-template<typename Storage>
+template <typename Storage>
 std::unique_ptr<DirectoryHandler<Storage>> RootHandler<Storage>::GetHandler(
     const boost::filesystem::path& path) {
   if (path.empty())
@@ -220,27 +204,28 @@ std::unique_ptr<DirectoryHandler<Storage>> RootHandler<Storage>::GetHandler(
   auto alias(*(++std::begin(path)));
   std::lock_guard<std::mutex> handlers_lock(handlers_mutex_);
   auto itr(directory_handlers_.find(alias));
-  return itr == std::end(directory_handlers_) ? nullptr :
-      std::unique_ptr<DirectoryHandler<Storage>>(new DirectoryHandler<Storage>(itr->second));
+  return itr == std::end(directory_handlers_) ? nullptr
+                                              : std::unique_ptr<DirectoryHandler<Storage>>(
+                                                    new DirectoryHandler<Storage>(itr->second));
 }
 
-template<>
+template <>
 nfs_client::MaidNodeNfs* RootHandler<nfs_client::MaidNodeNfs>::GetStorage(
     const boost::filesystem::path& path) const;
 
-template<>
+template <>
 data_store::SureFileStore* RootHandler<data_store::SureFileStore>::GetStorage(
     const boost::filesystem::path& path) const;
 
-template<>
+template <>
 DataTagValue RootHandler<nfs_client::MaidNodeNfs>::GetDirectoryType(
     const boost::filesystem::path& path) const;
 
-template<>
+template <>
 DataTagValue RootHandler<data_store::SureFileStore>::GetDirectoryType(
     const boost::filesystem::path& path) const;
 
-template<typename Storage>
+template <typename Storage>
 FileContext<Storage> RootHandler<Storage>::GetFileContext(
     const boost::filesystem::path& path) const {
   FileContext<Storage> file_context;
@@ -274,7 +259,7 @@ FileContext<Storage> RootHandler<Storage>::GetFileContext(
   return file_context;
 }
 
-template<typename Storage>
+template <typename Storage>
 Directory RootHandler<Storage>::GetFromPath(const boost::filesystem::path& path) const {
   {
     std::lock_guard<std::mutex> dir_lock(directories_mutex_);
@@ -291,32 +276,31 @@ Directory RootHandler<Storage>::GetFromPath(const boost::filesystem::path& path)
   return directory_handler ? directory_handler->GetFromPath(root_copy, path) : root_copy;
 }
 
-template<typename Storage>
+template <typename Storage>
 boost::optional<boost::filesystem::path> RootHandler<Storage>::GetAlias(
     const boost::filesystem::path& path) const {
   auto alias(*(++std::begin(path)));
-  return alias == path.filename() ? boost::optional<boost::filesystem::path>(alias) :
-                                    boost::optional<boost::filesystem::path>();
+  return alias == path.filename() ? boost::optional<boost::filesystem::path>(alias)
+                                  : boost::optional<boost::filesystem::path>();
 }
 
-template<>
+template <>
 void RootHandler<nfs_client::MaidNodeNfs>::CreateRoot(const Identity& unique_user_id);
 
-template<>
+template <>
 void RootHandler<data_store::SureFileStore>::CreateRoot(const Identity& unique_user_id);
 
-template<>
+template <>
 void RootHandler<nfs_client::MaidNodeNfs>::InitRoot(const Identity& unique_user_id,
                                                     const Identity& drive_root_id);
 
-template<>
+template <>
 void RootHandler<data_store::SureFileStore>::InitRoot(const Identity& unique_user_id,
                                                       const Identity& drive_root_id);
 
-template<typename Storage>
+template <typename Storage>
 void RootHandler<Storage>::GetParentAndGrandparent(const boost::filesystem::path& path,
-                                                   Directory& grandparent,
-                                                   Directory& parent,
+                                                   Directory& grandparent, Directory& parent,
                                                    MetaData& parent_meta_data) const {
   auto directory_handler(GetHandler(path));
   if (directory_handler) {
@@ -340,16 +324,15 @@ void RootHandler<Storage>::GetParentAndGrandparent(const boost::filesystem::path
   }
 }
 
-template<>
+template <>
 bool RootHandler<nfs_client::MaidNodeNfs>::CanAdd(const boost::filesystem::path& path) const;
 
-template<>
+template <>
 bool RootHandler<data_store::SureFileStore>::CanAdd(const boost::filesystem::path& path) const;
 
-template<typename Storage>
+template <typename Storage>
 void RootHandler<Storage>::AddElement(const boost::filesystem::path& path,
-                                      const MetaData& meta_data,
-                                      DirectoryId& grandparent_id,
+                                      const MetaData& meta_data, DirectoryId& grandparent_id,
                                       DirectoryId& parent_id) {
   SCOPED_PROFILE
   if (!CanAdd(path))
@@ -374,7 +357,7 @@ void RootHandler<Storage>::AddElement(const boost::filesystem::path& path,
     try {
       Put(path, directory);
     }
-    catch(const std::exception& exception) {
+    catch (const std::exception& exception) {
       parent.listing->RemoveChild(meta_data);
       boost::throw_exception(exception);
     }
@@ -393,7 +376,7 @@ void RootHandler<Storage>::AddElement(const boost::filesystem::path& path,
   try {
     Put(path.parent_path(), parent);
   }
-  catch(const std::exception& exception) {
+  catch (const std::exception& exception) {
     parent.listing->RemoveChild(meta_data);
     boost::throw_exception(exception);
   }
@@ -405,13 +388,13 @@ void RootHandler<Storage>::AddElement(const boost::filesystem::path& path,
   parent_id = parent.listing->directory_id();
 }
 
-template<>
+template <>
 bool RootHandler<nfs_client::MaidNodeNfs>::CanDelete(const boost::filesystem::path& path) const;
 
-template<>
+template <>
 bool RootHandler<data_store::SureFileStore>::CanDelete(const boost::filesystem::path& path) const;
 
-template<typename Storage>
+template <typename Storage>
 void RootHandler<Storage>::DeleteElement(const boost::filesystem::path& path, MetaData& meta_data) {
   SCOPED_PROFILE
   auto alias(GetAlias(path));
@@ -438,11 +421,10 @@ void RootHandler<Storage>::DeleteElement(const boost::filesystem::path& path, Me
   } else {
     auto directory_handler(GetHandler(path));
     if (directory_handler) {
-      encrypt::SelfEncryptor<Storage>(meta_data.data_map,
-                                      *directory_handler->storage()).DeleteAllChunks();
+      encrypt::SelfEncryptor<Storage>(meta_data.data_map, *directory_handler->storage())
+          .DeleteAllChunks();
     } else {
-      encrypt::SelfEncryptor<Storage>(meta_data.data_map,
-                                      *default_storage_).DeleteAllChunks();
+      encrypt::SelfEncryptor<Storage>(meta_data.data_map, *default_storage_).DeleteAllChunks();
     }
   }
 
@@ -459,7 +441,8 @@ void RootHandler<Storage>::DeleteElement(const boost::filesystem::path& path, Me
     if (grandparent.listing)
       grandparent.listing->UpdateChild(parent_meta_data);
   }
-  catch(...) { /*Non-critical*/ }
+  catch (...) {/*Non-critical*/
+  }
 
 #ifndef MAIDSAFE_WIN32
   Put(path.parent_path().parent_path(), grandparent);
@@ -467,17 +450,15 @@ void RootHandler<Storage>::DeleteElement(const boost::filesystem::path& path, Me
   Put(path.parent_path(), parent);
 }
 
-template<>
-bool RootHandler<nfs_client::MaidNodeNfs>::CanRename(
-    const boost::filesystem::path& from_path,
-    const boost::filesystem::path& to_path) const;
+template <>
+bool RootHandler<nfs_client::MaidNodeNfs>::CanRename(const boost::filesystem::path& from_path,
+                                                     const boost::filesystem::path& to_path) const;
 
-template<>
+template <>
 bool RootHandler<data_store::SureFileStore>::CanRename(
-    const boost::filesystem::path& from_path,
-    const boost::filesystem::path& to_path) const;
+    const boost::filesystem::path& from_path, const boost::filesystem::path& to_path) const;
 
-template<typename Storage>
+template <typename Storage>
 void RootHandler<Storage>::RenameElement(const boost::filesystem::path& old_path,
                                          const boost::filesystem::path& new_path,
                                          MetaData& meta_data) {
@@ -493,7 +474,7 @@ void RootHandler<Storage>::RenameElement(const boost::filesystem::path& old_path
     RenameDifferentParent(old_path, new_path, meta_data);
 }
 
-template<typename Storage>
+template <typename Storage>
 void RootHandler<Storage>::RenameSameParent(const boost::filesystem::path& old_path,
                                             const boost::filesystem::path& new_path,
                                             MetaData& meta_data) {
@@ -519,7 +500,7 @@ void RootHandler<Storage>::RenameSameParent(const boost::filesystem::path& old_p
     try {
       parent.listing->GetChild(new_path.filename(), old_meta_data);
     }
-    catch(const std::exception& exception) {
+    catch (const std::exception& exception) {
 #ifndef MAIDSAFE_WIN32
       meta_data.attributes.st_ctime = old.st_ctime;
       meta_data.attributes.st_mtime = old.st_mtime;
@@ -535,8 +516,7 @@ void RootHandler<Storage>::RenameSameParent(const boost::filesystem::path& old_p
 #ifdef MAIDSAFE_WIN32
   GetSystemTimeAsFileTime(&parent_meta_data.last_write_time);
 #else
-  parent_meta_data.attributes.st_ctime =
-      parent_meta_data.attributes.st_mtime =
+  parent_meta_data.attributes.st_ctime = parent_meta_data.attributes.st_mtime =
       meta_data.attributes.st_mtime;
 //   if (!same_parent && IsDirectory(meta_data)) {
 //     --parent_meta_data.attributes.st_nlink;
@@ -553,7 +533,8 @@ void RootHandler<Storage>::RenameSameParent(const boost::filesystem::path& old_p
     if (grandparent.listing)
       grandparent.listing->UpdateChild(parent_meta_data);
   }
-  catch(...) { /*Non-critical*/ }
+  catch (...) {/*Non-critical*/
+  }
   Put(new_path.parent_path().parent_path(), grandparent);
 #endif
 
@@ -569,7 +550,7 @@ void RootHandler<Storage>::RenameSameParent(const boost::filesystem::path& old_p
   }
 }
 
-template<typename Storage>
+template <typename Storage>
 void RootHandler<Storage>::RenameDifferentParent(const boost::filesystem::path& old_path,
                                                  const boost::filesystem::path& new_path,
                                                  MetaData& meta_data) {
@@ -613,7 +594,7 @@ void RootHandler<Storage>::RenameDifferentParent(const boost::filesystem::path& 
     try {
       new_parent.listing->GetChild(new_path.filename(), old_meta_data);
     }
-    catch(const std::exception& exception) {
+    catch (const std::exception& exception) {
 #ifndef MAIDSAFE_WIN32
       meta_data.attributes.st_ctime = old.st_ctime;
       meta_data.attributes.st_mtime = old.st_mtime;
@@ -628,14 +609,12 @@ void RootHandler<Storage>::RenameDifferentParent(const boost::filesystem::path& 
 #ifdef MAIDSAFE_WIN32
   GetSystemTimeAsFileTime(&old_parent_meta_data.last_write_time);
 #else
-  old_parent_meta_data.attributes.st_ctime =
-      old_parent_meta_data.attributes.st_mtime =
+  old_parent_meta_data.attributes.st_ctime = old_parent_meta_data.attributes.st_mtime =
       meta_data.attributes.st_mtime;
   if (IsDirectory(meta_data)) {
     --old_parent_meta_data.attributes.st_nlink;
     ++new_parent_meta_data.attributes.st_nlink;
-    new_parent_meta_data.attributes.st_ctime =
-        new_parent_meta_data.attributes.st_mtime =
+    new_parent_meta_data.attributes.st_ctime = new_parent_meta_data.attributes.st_mtime =
         old_parent_meta_data.attributes.st_mtime;
   }
 #endif
@@ -648,13 +627,14 @@ void RootHandler<Storage>::RenameDifferentParent(const boost::filesystem::path& 
       if (old_grandparent.listing)
         old_grandparent.listing->UpdateChild(old_parent_meta_data);
     }
-    catch(...) { /*Non-critical*/ }
+    catch (...) {/*Non-critical*/
+    }
     Put(old_path.parent_path().parent_path(), old_grandparent);
   }
 #endif
 }
 
-template<typename Storage>
+template <typename Storage>
 void RootHandler<Storage>::ReStoreDirectories(const boost::filesystem::path& old_path,
                                               const boost::filesystem::path& new_path) {
   Directory directory(GetFromPath(old_path));
@@ -671,7 +651,7 @@ void RootHandler<Storage>::ReStoreDirectories(const boost::filesystem::path& old
   Put(new_path, directory);
 }
 
-template<typename Storage>
+template <typename Storage>
 void RootHandler<Storage>::UpdateParentDirectoryListing(const boost::filesystem::path& parent_path,
                                                         MetaData meta_data) {
   SCOPED_PROFILE
@@ -680,19 +660,19 @@ void RootHandler<Storage>::UpdateParentDirectoryListing(const boost::filesystem:
   Put(parent_path, parent);
 }
 
-template<>
+template <>
 void RootHandler<nfs_client::MaidNodeNfs>::Put(const boost::filesystem::path& path,
                                                Directory& directory);
 
-template<>
+template <>
 void RootHandler<data_store::SureFileStore>::Put(const boost::filesystem::path& path,
                                                  Directory& directory);
 
-template<>
+template <>
 void RootHandler<nfs_client::MaidNodeNfs>::Delete(const boost::filesystem::path& path,
                                                   const Directory& directory);
 
-template<>
+template <>
 void RootHandler<data_store::SureFileStore>::Delete(const boost::filesystem::path& path,
                                                     const Directory& directory);
 

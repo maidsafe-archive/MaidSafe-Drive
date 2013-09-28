@@ -41,26 +41,24 @@
 #include "maidsafe/drive/directory_handler.h"
 #include "maidsafe/drive/utils.h"
 
-
 namespace maidsafe {
 
 namespace drive {
 
-template<typename Storage>
+template <typename Storage>
 class CbfsDriveInUserSpace;
 
 namespace detail {
 
 struct DirectoryEnumerationContext {
   explicit DirectoryEnumerationContext(const Directory& directory_in)
-      : exact_match(false),
-        directory(directory_in) {}
+      : exact_match(false), directory(directory_in) {}
   DirectoryEnumerationContext() : exact_match(false), directory() {}
   bool exact_match;
   Directory directory;
 };
 
-template<typename Storage>
+template <typename Storage>
 boost::filesystem::path GetRelativePath(CbfsDriveInUserSpace<Storage>* cbfs_drive,
                                         CbFsFileInfo* file_info) {
   assert(file_info);
@@ -76,25 +74,17 @@ boost::filesystem::path RelativePath(const boost::filesystem::path& mount_dir,
 
 }  // namespace detail
 
-
-
-template<typename Storage>
+template <typename Storage>
 class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
  public:
   CbfsDriveInUserSpace(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
-                       const Identity& unique_user_id,
-                       const Identity& drive_root_id,
-                       const boost::filesystem::path& mount_dir,
-                       const std::string& product_id,
-                       const boost::filesystem::path& drive_name,
-                       OnServiceAdded on_service_added);
+                       const Identity& unique_user_id, const Identity& drive_root_id,
+                       const boost::filesystem::path& mount_dir, const std::string& product_id,
+                       const boost::filesystem::path& drive_name, OnServiceAdded on_service_added);
 
-  CbfsDriveInUserSpace(const Identity& drive_root_id,
-                       const boost::filesystem::path& mount_dir,
-                       const std::string& product_id,
-                       const boost::filesystem::path& drive_name,
-                       OnServiceAdded on_service_added,
-                       OnServiceRemoved on_service_removed,
+  CbfsDriveInUserSpace(const Identity& drive_root_id, const boost::filesystem::path& mount_dir,
+                       const std::string& product_id, const boost::filesystem::path& drive_name,
+                       OnServiceAdded on_service_added, OnServiceRemoved on_service_removed,
                        OnServiceRenamed on_service_renamed);
 
   virtual ~CbfsDriveInUserSpace() {}
@@ -124,126 +114,70 @@ class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
   void OnCallbackFsUnmount();
   void OnCallbackFsAddPoint(const boost::filesystem::path&);
   void OnCallbackFsDeletePoint();
-  virtual void SetNewAttributes(detail::FileContext<Storage>* file_context,
-                                bool is_directory,
+  virtual void SetNewAttributes(detail::FileContext<Storage>* file_context, bool is_directory,
                                 bool read_only);
 
   static void CbFsMount(CallbackFileSystem* sender);
   static void CbFsUnmount(CallbackFileSystem* sender);
-  static void CbFsGetVolumeSize(CallbackFileSystem* sender,
-                         __int64* total_number_of_sectors,
-                         __int64* number_of_free_sectors);
-  static void CbFsGetVolumeLabel(CallbackFileSystem* sender,
-                                 LPTSTR volume_label);
-  static void CbFsSetVolumeLabel(CallbackFileSystem* sender,
-                                 LPCTSTR volume_label);
+  static void CbFsGetVolumeSize(CallbackFileSystem* sender, __int64* total_number_of_sectors,
+                                __int64* number_of_free_sectors);
+  static void CbFsGetVolumeLabel(CallbackFileSystem* sender, LPTSTR volume_label);
+  static void CbFsSetVolumeLabel(CallbackFileSystem* sender, LPCTSTR volume_label);
   static void CbFsGetVolumeId(CallbackFileSystem* sender, PDWORD volume_id);
-  static void CbFsCreateFile(CallbackFileSystem* sender,
-                             LPCTSTR file_name,
-                             ACCESS_MASK desired_access,
-                             DWORD file_attributes,
-                             DWORD share_mode,
-                             CbFsFileInfo* file_info,
-                             CbFsHandleInfo* handle_info);
-  static void CbFsOpenFile(CallbackFileSystem* sender,
-                           LPCWSTR file_name,
-                           ACCESS_MASK desired_access,
-                           DWORD file_attributes,
-                           DWORD share_mode,
-                           CbFsFileInfo* file_info,
-                           CbFsHandleInfo* handle_info);
-  static void CbFsCloseFile(CallbackFileSystem* sender,
-                            CbFsFileInfo* file_info,
+  static void CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file_name,
+                             ACCESS_MASK desired_access, DWORD file_attributes, DWORD share_mode,
+                             CbFsFileInfo* file_info, CbFsHandleInfo* handle_info);
+  static void CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_name,
+                           ACCESS_MASK desired_access, DWORD file_attributes, DWORD share_mode,
+                           CbFsFileInfo* file_info, CbFsHandleInfo* handle_info);
+  static void CbFsCloseFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                             CbFsHandleInfo* handle_info);
-  static void CbFsGetFileInfo(CallbackFileSystem* sender,
-                              LPCTSTR file_name,
-                              LPBOOL file_exists,
-                              PFILETIME creation_time,
-                              PFILETIME last_access_time,
-                              PFILETIME last_write_time,
-                              __int64* end_of_file,
-                              __int64* allocation_size,
-                              __int64* file_id,
-                              PDWORD file_attributes,
+  static void CbFsGetFileInfo(CallbackFileSystem* sender, LPCTSTR file_name, LPBOOL file_exists,
+                              PFILETIME creation_time, PFILETIME last_access_time,
+                              PFILETIME last_write_time, __int64* end_of_file,
+                              __int64* allocation_size, __int64* file_id, PDWORD file_attributes,
                               LPWSTR short_file_name OPTIONAL,
-                              PWORD short_file_name_length OPTIONAL,
-                              LPWSTR real_file_name OPTIONAL,
+                              PWORD short_file_name_length OPTIONAL, LPWSTR real_file_name OPTIONAL,
                               LPWORD real_file_name_length OPTIONAL);
-  static void CbFsEnumerateDirectory(CallbackFileSystem* sender,
-                                     CbFsFileInfo* directory_info,
-                                     CbFsHandleInfo* handle_info,
-                                     CbFsDirectoryEnumerationInfo* directory_enumeration_info,
-                                     LPCWSTR mask,
-                                     INT index,
-                                     BOOL restart,
-                                     LPBOOL file_found,
-                                     LPWSTR file_name,
-                                     PDWORD file_name_length,
-                                     LPWSTR short_file_name OPTIONAL,
-                                     PUCHAR short_file_name_length OPTIONAL,
-                                     PFILETIME creation_time,
-                                     PFILETIME last_access_time,
-                                     PFILETIME last_write_time,
-                                     __int64* end_of_file,
-                                     __int64* allocation_size,
-                                     __int64* file_id,
-                                     PDWORD file_attributes);
+  static void CbFsEnumerateDirectory(
+      CallbackFileSystem* sender, CbFsFileInfo* directory_info, CbFsHandleInfo* handle_info,
+      CbFsDirectoryEnumerationInfo* directory_enumeration_info, LPCWSTR mask, INT index,
+      BOOL restart, LPBOOL file_found, LPWSTR file_name, PDWORD file_name_length,
+      LPWSTR short_file_name OPTIONAL, PUCHAR short_file_name_length OPTIONAL,
+      PFILETIME creation_time, PFILETIME last_access_time, PFILETIME last_write_time,
+      __int64* end_of_file, __int64* allocation_size, __int64* file_id, PDWORD file_attributes);
   static void CbFsCloseDirectoryEnumeration(CallbackFileSystem* sender,
                                             CbFsFileInfo* directory_info,
                                             CbFsDirectoryEnumerationInfo* enumeration_info);
-  static void CbFsSetAllocationSize(CallbackFileSystem* sender,
-                                    CbFsFileInfo* file_info,
+  static void CbFsSetAllocationSize(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                     __int64 allocation_size);
-  static void CbFsSetEndOfFile(CallbackFileSystem* sender,
-                               CbFsFileInfo* file_info,
+  static void CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                __int64 end_of_file);
-  static void CbFsSetFileAttributes(CallbackFileSystem* sender,
-                                    CbFsFileInfo* file_info,
-                                    CbFsHandleInfo* handle_info,
-                                    PFILETIME creation_time,
-                                    PFILETIME last_access_time,
-                                    PFILETIME last_write_time,
+  static void CbFsSetFileAttributes(CallbackFileSystem* sender, CbFsFileInfo* file_info,
+                                    CbFsHandleInfo* handle_info, PFILETIME creation_time,
+                                    PFILETIME last_access_time, PFILETIME last_write_time,
                                     DWORD file_attributes);
-  static void CbFsCanFileBeDeleted(CallbackFileSystem* sender,
-                                   CbFsFileInfo* file_info,
-                                   CbFsHandleInfo* handle_info,
-                                   LPBOOL can_be_deleted);
-  static void CbFsDeleteFile(CallbackFileSystem* sender,
-                             CbFsFileInfo* file_info);
-  static void CbFsRenameOrMoveFile(CallbackFileSystem* sender,
-                                   CbFsFileInfo* file_info,
+  static void CbFsCanFileBeDeleted(CallbackFileSystem* sender, CbFsFileInfo* file_info,
+                                   CbFsHandleInfo* handle_info, LPBOOL can_be_deleted);
+  static void CbFsDeleteFile(CallbackFileSystem* sender, CbFsFileInfo* file_info);
+  static void CbFsRenameOrMoveFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                    LPCTSTR new_file_name);
-  static void CbFsReadFile(CallbackFileSystem* sender,
-                           CbFsFileInfo* file_info,
-                           __int64 position,
-                           PVOID buffer,
-                           DWORD bytes_to_read,
-                           PDWORD bytes_read);
-  static void CbFsWriteFile(CallbackFileSystem* sender,
-                            CbFsFileInfo* file_info,
-                            __int64 position,
-                            PVOID buffer,
-                            DWORD bytes_to_write,
-                            PDWORD bytes_written);
-  static void CbFsIsDirectoryEmpty(CallbackFileSystem* sender,
-                                   CbFsFileInfo* directory_info,
-                                   LPWSTR file_name,
-                                   LPBOOL is_empty);
-  static void CbFsSetFileSecurity(CallbackFileSystem* sender,
-                                  CbFsFileInfo* file_info,
+  static void CbFsReadFile(CallbackFileSystem* sender, CbFsFileInfo* file_info, __int64 position,
+                           PVOID buffer, DWORD bytes_to_read, PDWORD bytes_read);
+  static void CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo* file_info, __int64 position,
+                            PVOID buffer, DWORD bytes_to_write, PDWORD bytes_written);
+  static void CbFsIsDirectoryEmpty(CallbackFileSystem* sender, CbFsFileInfo* directory_info,
+                                   LPWSTR file_name, LPBOOL is_empty);
+  static void CbFsSetFileSecurity(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                   PVOID file_handle_context,
                                   SECURITY_INFORMATION security_information,
-                                  PSECURITY_DESCRIPTOR security_descriptor,
-                                  DWORD length);
-  static void CbFsGetFileSecurity(CallbackFileSystem* sender,
-                                  CbFsFileInfo* file_info,
+                                  PSECURITY_DESCRIPTOR security_descriptor, DWORD length);
+  static void CbFsGetFileSecurity(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                   PVOID file_handle_context,
                                   SECURITY_INFORMATION security_information,
-                                  PSECURITY_DESCRIPTOR security_descriptor,
-                                  DWORD length,
+                                  PSECURITY_DESCRIPTOR security_descriptor, DWORD length,
                                   PDWORD length_needed);
-  static void CbFsFlushFile(CallbackFileSystem* sender,
-                            CbFsFileInfo* file_info);
+  static void CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo* file_info);
   static void CbFsOnEjectStorage(CallbackFileSystem* sender);
 
   mutable CallbackFileSystem callback_filesystem_;
@@ -253,26 +187,23 @@ class CbfsDriveInUserSpace : public DriveInUserSpace<Storage> {
   LPCSTR registration_key_;
 };
 
-template<typename Storage>
+template <typename Storage>
 CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(
-    std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
-    const Identity& unique_user_id,
-    const Identity& drive_root_id,
-    const boost::filesystem::path& mount_dir,
-    const std::string& product_id,
-    const boost::filesystem::path& drive_name,
+    std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs, const Identity& unique_user_id,
+    const Identity& drive_root_id, const boost::filesystem::path& mount_dir,
+    const std::string& product_id, const boost::filesystem::path& drive_name,
     OnServiceAdded on_service_added)
-        : DriveInUserSpace<Storage>(maid_node_nfs, unique_user_id, drive_root_id, mount_dir,
-                                    on_service_added),
-          callback_filesystem_(),
-          guid_(product_id.empty() ? "713CC6CE-B3E2-4fd9-838D-E28F558F6866" : product_id),
-          icon_id_(L"MaidSafeDriveIcon"),
-          drive_name_(drive_name.wstring()),
-          registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)) {
+    : DriveInUserSpace<Storage>(maid_node_nfs, unique_user_id, drive_root_id, mount_dir,
+                                on_service_added),
+      callback_filesystem_(),
+      guid_(product_id.empty() ? "713CC6CE-B3E2-4fd9-838D-E28F558F6866" : product_id),
+      icon_id_(L"MaidSafeDriveIcon"),
+      drive_name_(drive_name.wstring()),
+      registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)) {
   Init();
 }
 
-template<typename Storage>
+template <typename Storage>
 CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(const Identity& drive_root_id,
                                                     const boost::filesystem::path& mount_dir,
                                                     const std::string& product_id,
@@ -290,7 +221,7 @@ CbfsDriveInUserSpace<Storage>::CbfsDriveInUserSpace(const Identity& drive_root_i
   Init();
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::Init() {
   if (drive_stage_ != kCleaned) {
     OnCallbackFsInit();
@@ -302,11 +233,11 @@ void CbfsDriveInUserSpace<Storage>::Init() {
     callback_filesystem_.CreateStorage();
     LOG(kInfo) << "Created Storage.";
   }
-  catch(const ECBFSError& error) {
+  catch (const ECBFSError& error) {
     detail::ErrorMessage("Init CreateStorage ", error);
     ThrowError(CommonErrors::uninitialised);
   }
-  catch(const std::exception& e) {
+  catch (const std::exception& e) {
     LOG(kError) << "Cbfs::Init: " << e.what();
     ThrowError(CommonErrors::uninitialised);
   }
@@ -314,7 +245,7 @@ void CbfsDriveInUserSpace<Storage>::Init() {
   try {
     callback_filesystem_.SetIcon(icon_id_);
   }
-  catch(const ECBFSError& error) {
+  catch (const ECBFSError& error) {
     detail::ErrorMessage("Init", error);
   }
 
@@ -323,7 +254,7 @@ void CbfsDriveInUserSpace<Storage>::Init() {
   Mount();
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::Mount() {
   try {
 #ifndef NDEBUG
@@ -338,7 +269,7 @@ void CbfsDriveInUserSpace<Storage>::Mount() {
     UpdateMountingPoints();
     LOG(kInfo) << "Added mount point.";
   }
-  catch(ECBFSError& error) {
+  catch (ECBFSError& error) {
     std::wstring errorMsg(error.Message());
     detail::ErrorMessage("Mount", error);
     ThrowError(DriveErrors::failed_to_mount);
@@ -347,7 +278,7 @@ void CbfsDriveInUserSpace<Storage>::Mount() {
   SetMountState(true);
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::UnmountDrive(
     const std::chrono::steady_clock::duration& timeout_before_force) {
   std::chrono::steady_clock::time_point timeout(std::chrono::steady_clock::now() +
@@ -358,13 +289,13 @@ void CbfsDriveInUserSpace<Storage>::UnmountDrive(
         callback_filesystem_.DeleteMountingPoint(index);
       callback_filesystem_.UnmountMedia(std::chrono::steady_clock::now() < timeout);
     }
-    catch(const ECBFSError&) {
+    catch (const ECBFSError&) {
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
   }
 }
 
-template<typename Storage>
+template <typename Storage>
 bool CbfsDriveInUserSpace<Storage>::Unmount() {
   if (drive_stage_ != kCleaned) {
     UnmountDrive(std::chrono::seconds(3));
@@ -372,7 +303,7 @@ bool CbfsDriveInUserSpace<Storage>::Unmount() {
       try {
         callback_filesystem_.DeleteStorage();
       }
-      catch(const ECBFSError& error) {
+      catch (const ECBFSError& error) {
         detail::ErrorMessage("Unmount", error);
         return false;
       }
@@ -384,27 +315,24 @@ bool CbfsDriveInUserSpace<Storage>::Unmount() {
   return true;
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::NotifyDirectoryChange(const fs::path& relative_path,
                                                           detail::OpType op) const {
   BOOL success(FALSE);
   switch (op) {
-  case detail::OpType::kRemoved: {
+    case detail::OpType::kRemoved: {
       success = callback_filesystem_.NotifyDirectoryChange(relative_path.wstring().c_str(),
-                                                           callback_filesystem_.fanRemoved,
-                                                           TRUE);
+                                                           callback_filesystem_.fanRemoved, TRUE);
       break;
     }
     case detail::OpType::kAdded: {
       success = callback_filesystem_.NotifyDirectoryChange(relative_path.wstring().c_str(),
-                                                           callback_filesystem_.fanAdded,
-                                                           TRUE);
+                                                           callback_filesystem_.fanAdded, TRUE);
       break;
     }
     case detail::OpType::kModified: {
       success = callback_filesystem_.NotifyDirectoryChange(relative_path.wstring().c_str(),
-                                                           callback_filesystem_.fanModified,
-                                                           TRUE);
+                                                           callback_filesystem_.fanModified, TRUE);
       break;
     }
   }
@@ -412,27 +340,23 @@ void CbfsDriveInUserSpace<Storage>::NotifyDirectoryChange(const fs::path& relati
     LOG(kError) << "Failed to notify directory change";
 }
 
-template<typename Storage>
+template <typename Storage>
 uint32_t CbfsDriveInUserSpace<Storage>::max_file_path_length() {
   return static_cast<uint32_t>(callback_filesystem_.GetMaxFilePathLength());
 }
 
-template<typename Storage>
+template <typename Storage>
 std::wstring CbfsDriveInUserSpace<Storage>::drive_name() const {
   return drive_name_;
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::UpdateDriverStatus() {
   BOOL installed = false;
   INT version_high = 0, version_low = 0;
   SERVICE_STATUS status;
-  CallbackFileSystem::GetModuleStatus(guid_.data(),
-                                      CBFS_MODULE_DRIVER,
-                                      &installed,
-                                      &version_high,
-                                      &version_low,
-                                      &status);
+  CallbackFileSystem::GetModuleStatus(guid_.data(), CBFS_MODULE_DRIVER, &installed, &version_high,
+                                      &version_low, &status);
   if (installed) {
     LPTSTR string_status = L"in undefined state";
     switch (status.dwCurrentState) {
@@ -458,16 +382,15 @@ void CbfsDriveInUserSpace<Storage>::UpdateDriverStatus() {
         string_status = L"is stopped";
         break;
       default:
-        string_status =L"in undefined state";
+        string_status = L"in undefined state";
     }
-    LOG(kInfo) << "Driver (version " << (version_high >> 16) << "."
-               << (version_high & 0xFFFF) << "." << (version_low >> 16) << "."
-               << (version_low & 0xFFFF) << ") installed, service "
-               << string_status;
+    LOG(kInfo) << "Driver (version " << (version_high >> 16) << "." << (version_high & 0xFFFF)
+               << "." << (version_low >> 16) << "." << (version_low & 0xFFFF)
+               << ") installed, service " << string_status;
   }
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::UpdateMountingPoints() {
   DWORD flags;
   LUID authentication_id;
@@ -481,7 +404,7 @@ void CbfsDriveInUserSpace<Storage>::UpdateMountingPoints() {
   }
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::OnCallbackFsInit() {
   try {
     callback_filesystem_.SetRegistrationKey(registration_key_);
@@ -513,17 +436,17 @@ void CbfsDriveInUserSpace<Storage>::OnCallbackFsInit() {
     callback_filesystem_.SetMetaDataCacheEnabled(false);
     callback_filesystem_.SetStorageType(CallbackFileSystem::stDisk);
   }
-  catch(const ECBFSError& error) {
+  catch (const ECBFSError& error) {
     detail::ErrorMessage("OnCallbackFsInit", error);
   }
 }
 
-template<typename Storage>
+template <typename Storage>
 int CbfsDriveInUserSpace<Storage>::Install() {
   return OnCallbackFsInstall();
 }
 
-template<typename Storage>
+template <typename Storage>
 int CbfsDriveInUserSpace<Storage>::OnCallbackFsInstall() {
   TCHAR file_name[MAX_PATH];
   DWORD reboot = 0;
@@ -539,33 +462,29 @@ int CbfsDriveInUserSpace<Storage>::OnCallbackFsInstall() {
     LOG(kInfo) << "CbfsDriveInUserSpace::OnCallbackFsInstall cabinet file: " << cab_path.string();
 
     callback_filesystem_.Install(
-        cab_path.wstring().c_str(),
-        guid_.data(),
-        fs::path().wstring().c_str(),
-        false,
+        cab_path.wstring().c_str(), guid_.data(), fs::path().wstring().c_str(), false,
         CBFS_MODULE_DRIVER | CBFS_MODULE_NET_REDIRECTOR_DLL | CBFS_MODULE_MOUNT_NOTIFIER_DLL,
         &reboot);
     return reboot;
   }
-  catch(const ECBFSError& error) {
+  catch (const ECBFSError& error) {
     detail::ErrorMessage("OnCallbackFsInstall", error);
     return -1111;
   }
 }
 
-
 // =============================== CALLBACKS =======================================================
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsMount(CallbackFileSystem* /*sender*/) {
   LOG(kInfo) << "CbFsMount";
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsUnmount(CallbackFileSystem* /*sender*/) {
   LOG(kInfo) << "CbFsUnmount";
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsGetVolumeSize(CallbackFileSystem* sender,
                                                       int64_t* total_number_of_sectors,
                                                       int64_t* number_of_free_sectors) {
@@ -576,7 +495,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsGetVolumeSize(CallbackFileSystem* sender
   *number_of_free_sectors = (std::numeric_limits<int64_t>::max() - 10000) / sector_size;
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsGetVolumeLabel(CallbackFileSystem* sender,
                                                        LPTSTR volume_label) {
   LOG(kInfo) << "CbFsGetVolumeLabel";
@@ -585,25 +504,23 @@ void CbfsDriveInUserSpace<Storage>::CbFsGetVolumeLabel(CallbackFileSystem* sende
             cbfs_drive->drive_name().size() + 1);
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsSetVolumeLabel(CallbackFileSystem* /*sender*/,
                                                        LPCTSTR /*volume_label*/) {
   LOG(kInfo) << "CbFsSetVolumeLabel";
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsGetVolumeId(CallbackFileSystem* /*sender*/,
                                                     PDWORD volume_id) {
   LOG(kInfo) << "CbFsGetVolumeId";
   *volume_id = 0x68451321;
 }
 
-template<typename Storage>
-void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* sender,
-                                                   LPCTSTR file_name,
+template <typename Storage>
+void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file_name,
                                                    ACCESS_MASK /*desired_access*/,
-                                                   DWORD file_attributes,
-                                                   DWORD /*share_mode*/,
+                                                   DWORD file_attributes, DWORD /*share_mode*/,
                                                    CbFsFileInfo* file_info,
                                                    CbFsHandleInfo* /*handle_info*/) {
   SCOPED_PROFILE
@@ -620,7 +537,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* sender,
     cbfs_drive->AddFile(relative_path, *file_context->meta_data,
                         file_context->grandparent_directory_id, file_context->parent_directory_id);
   }
-  catch(const std::system_error& system_error) {
+  catch (const std::system_error& system_error) {
     if (system_error.code() == make_error_code(DriveErrors::permission_denied)) {
       LOG(kError) << "User has tried to add a service to root without using the GUI.";
       throw ECBFSError(ERROR_DISK_OPERATION_FAILED);
@@ -629,11 +546,11 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* sender,
       throw ECBFSError(ERROR_ACCESS_DENIED);
     }
   }
-  catch(const std::exception& e) {
+  catch (const std::exception& e) {
     LOG(kError) << e.what();
     throw ECBFSError(ERROR_ACCESS_DENIED);
   }
-  catch(...) {
+  catch (...) {
     assert(false);  // We should be catching specific error types
     throw ECBFSError(ERROR_ACCESS_DENIED);
   }
@@ -653,12 +570,10 @@ void CbfsDriveInUserSpace<Storage>::CbFsCreateFile(CallbackFileSystem* sender,
   file_context.release();
 }
 
-template<typename Storage>
-void CbfsDriveInUserSpace<Storage>::CbFsOpenFile(CallbackFileSystem* sender,
-                                                 LPCWSTR file_name,
+template <typename Storage>
+void CbfsDriveInUserSpace<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_name,
                                                  ACCESS_MASK /*desired_access*/,
-                                                 DWORD /*file_attributes*/,
-                                                 DWORD /*share_mode*/,
+                                                 DWORD /*file_attributes*/, DWORD /*share_mode*/,
                                                  CbFsFileInfo* file_info,
                                                  CbFsHandleInfo* /*handle_info*/) {
   SCOPED_PROFILE
@@ -672,7 +587,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsOpenFile(CallbackFileSystem* sender,
   try {
     file_context.reset(new detail::FileContext<Storage>(cbfs_drive->GetFileContext(relative_path)));
   }
-  catch(...) {
+  catch (...) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
 
@@ -684,7 +599,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsOpenFile(CallbackFileSystem* sender,
       auto storage(cbfs_drive->GetStorage(relative_path));
       assert(storage);
       file_context->self_encryptor.reset(
-         new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map, *storage));
+          new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map, *storage));
     }
   }
   // Transfer ownership of the pointer to CBFS' file_info.
@@ -692,7 +607,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsOpenFile(CallbackFileSystem* sender,
   file_context.release();
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsCloseFile(CallbackFileSystem* sender,
                                                   CbFsFileInfo* file_info,
                                                   CbFsHandleInfo* /*handle_info*/) {
@@ -704,7 +619,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsCloseFile(CallbackFileSystem* sender,
     return;
 
   // Transfer ownership of the pointer from CBFS' file_info.
-  auto deleter([&](detail::FileContext<Storage>* ptr) {
+  auto deleter([&](detail::FileContext<Storage> * ptr) {
     delete ptr;
     file_info->set_UserContext(nullptr);
   });
@@ -727,7 +642,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsCloseFile(CallbackFileSystem* sender,
       try {
         cbfs_drive->UpdateParent(file_context.get(), relative_path.parent_path());
       }
-      catch(...) {
+      catch (...) {
         throw ECBFSError(ERROR_ERRORS_ENCOUNTERED);
       }
     }
@@ -736,21 +651,13 @@ void CbfsDriveInUserSpace<Storage>::CbFsCloseFile(CallbackFileSystem* sender,
   }
 }
 
-template<typename Storage>
-void CbfsDriveInUserSpace<Storage>::CbFsGetFileInfo(CallbackFileSystem* sender,
-                                                    LPCTSTR file_name,
-                                                    LPBOOL file_exists,
-                                                    PFILETIME creation_time,
-                                                    PFILETIME last_access_time,
-                                                    PFILETIME last_write_time,
-                                                    int64_t* end_of_file,
-                                                    int64_t* allocation_size,
-                                                    int64_t* file_id,
-                                                    PDWORD file_attributes,
-                                                    LPWSTR /*short_file_name*/ OPTIONAL,
-                                                    PWORD /*short_file_name_length*/ OPTIONAL,
-                                                    LPWSTR /*real_file_name*/ OPTIONAL,
-                                                    LPWORD /*real_file_name_length*/ OPTIONAL) {
+template <typename Storage>
+void CbfsDriveInUserSpace<Storage>::CbFsGetFileInfo(
+    CallbackFileSystem* sender, LPCTSTR file_name, LPBOOL file_exists, PFILETIME creation_time,
+    PFILETIME last_access_time, PFILETIME last_write_time, int64_t* end_of_file,
+    int64_t* allocation_size, int64_t* file_id, PDWORD file_attributes,
+    LPWSTR /*short_file_name*/ OPTIONAL, PWORD /*short_file_name_length*/ OPTIONAL,
+    LPWSTR /*real_file_name*/ OPTIONAL, LPWORD /*real_file_name_length*/ OPTIONAL) {
   SCOPED_PROFILE
   fs::path relative_path(file_name);
   LOG(kInfo) << "CbFsGetFileInfo - " << relative_path;
@@ -764,7 +671,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsGetFileInfo(CallbackFileSystem* sender,
     auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
     file_context.reset(new detail::FileContext<Storage>(cbfs_drive->GetFileContext(relative_path)));
   }
-  catch(...) {
+  catch (...) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
   *file_exists = true;
@@ -782,35 +689,22 @@ void CbfsDriveInUserSpace<Storage>::CbFsGetFileInfo(CallbackFileSystem* sender,
   *file_attributes = file_context->meta_data->attributes;
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsEnumerateDirectory(
-    CallbackFileSystem* sender,
-    CbFsFileInfo* directory_info,
-    CbFsHandleInfo* /*handle_info*/,
-    CbFsDirectoryEnumerationInfo* directory_enumeration_info,
-    LPCWSTR mask,
-    INT index,
-    BOOL restart,
-    LPBOOL file_found,
-    LPWSTR file_name,
-    PDWORD file_name_length,
-    LPWSTR /*short_file_name*/ OPTIONAL,
-    PUCHAR /*short_file_name_length*/ OPTIONAL,
-    PFILETIME creation_time,
-    PFILETIME last_access_time,
-    PFILETIME last_write_time,
-    __int64* end_of_file,
-    __int64* allocation_size,
-    __int64* file_id,
-    PDWORD file_attributes) {
+    CallbackFileSystem* sender, CbFsFileInfo* directory_info, CbFsHandleInfo* /*handle_info*/,
+    CbFsDirectoryEnumerationInfo* directory_enumeration_info, LPCWSTR mask, INT index, BOOL restart,
+    LPBOOL file_found, LPWSTR file_name, PDWORD file_name_length,
+    LPWSTR /*short_file_name*/ OPTIONAL, PUCHAR /*short_file_name_length*/ OPTIONAL,
+    PFILETIME creation_time, PFILETIME last_access_time, PFILETIME last_write_time,
+    __int64* end_of_file, __int64* allocation_size, __int64* file_id, PDWORD file_attributes) {
   SCOPED_PROFILE
   auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
   fs::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, directory_info));
   detail::DirectoryEnumerationContext* enum_context = nullptr;
   std::wstring mask_str(mask);
   LOG(kInfo) << "CbFsEnumerateDirectory - " << relative_path << " index: " << index
-      << std::boolalpha << " nullptr context: " << (directory_enumeration_info == nullptr)
-      << " mask: " << detail::WstringToString(mask_str) << " restart: " << restart;
+             << std::boolalpha << " nullptr context: " << (directory_enumeration_info == nullptr)
+             << " mask: " << detail::WstringToString(mask_str) << " restart: " << restart;
   bool exact_match(mask_str != L"*");
   *file_found = false;
 
@@ -827,7 +721,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsEnumerateDirectory(
     try {
       directory = cbfs_drive->GetDirectory(relative_path);
     }
-    catch(...) {
+    catch (...) {
       throw ECBFSError(ERROR_PATH_NOT_FOUND);
     }
     enum_context = new detail::DirectoryEnumerationContext(directory);
@@ -835,7 +729,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsEnumerateDirectory(
     directory_enumeration_info->set_UserContext(enum_context);
   } else {
     enum_context = static_cast<detail::DirectoryEnumerationContext*>(
-                       directory_enumeration_info->get_UserContext());
+        directory_enumeration_info->get_UserContext());
     if (restart)
       enum_context->directory.listing->ResetChildrenIterator();
   }
@@ -868,10 +762,9 @@ void CbfsDriveInUserSpace<Storage>::CbFsEnumerateDirectory(
   enum_context->exact_match = exact_match;
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsCloseDirectoryEnumeration(
-    CallbackFileSystem* sender,
-    CbFsFileInfo* directory_info,
+    CallbackFileSystem* sender, CbFsFileInfo* directory_info,
     CbFsDirectoryEnumerationInfo* directory_enumeration_info) {
   SCOPED_PROFILE
   auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
@@ -879,14 +772,14 @@ void CbfsDriveInUserSpace<Storage>::CbFsCloseDirectoryEnumeration(
   LOG(kInfo) << "CbFsCloseEnumeration - " << relative_path;
   if (directory_enumeration_info) {
     auto enum_context = static_cast<detail::DirectoryEnumerationContext*>(
-                            directory_enumeration_info->get_UserContext());
+        directory_enumeration_info->get_UserContext());
     delete enum_context;
     enum_context = nullptr;
     directory_enumeration_info->set_UserContext(nullptr);
   }
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsSetAllocationSize(CallbackFileSystem* sender,
                                                           CbFsFileInfo* file_info,
                                                           int64_t allocation_size) {
@@ -912,10 +805,9 @@ void CbfsDriveInUserSpace<Storage>::CbFsSetAllocationSize(CallbackFileSystem* se
   file_context->content_changed = true;
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender,
-                                                     CbFsFileInfo* file_info,
-                                                     int64_t end_of_file) {
+                                                     CbFsFileInfo* file_info, int64_t end_of_file) {
   SCOPED_PROFILE
   auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
   fs::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
@@ -941,14 +833,11 @@ void CbfsDriveInUserSpace<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender,
   file_context->content_changed = true;
 }
 
-template<typename Storage>
-void CbfsDriveInUserSpace<Storage>::CbFsSetFileAttributes(CallbackFileSystem* sender,
-                                                          CbFsFileInfo* file_info,
-                                                          CbFsHandleInfo* /*handle_info*/,
-                                                          PFILETIME creation_time,
-                                                          PFILETIME last_access_time,
-                                                          PFILETIME last_write_time,
-                                                          DWORD file_attributes) {
+template <typename Storage>
+void CbfsDriveInUserSpace<Storage>::CbFsSetFileAttributes(
+    CallbackFileSystem* sender, CbFsFileInfo* file_info, CbFsHandleInfo* /*handle_info*/,
+    PFILETIME creation_time, PFILETIME last_access_time, PFILETIME last_write_time,
+    DWORD file_attributes) {
   SCOPED_PROFILE
   auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
   fs::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
@@ -970,7 +859,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsSetFileAttributes(CallbackFileSystem* se
   file_context->content_changed = true;
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsCanFileBeDeleted(CallbackFileSystem* sender,
                                                          CbFsFileInfo* file_info,
                                                          CbFsHandleInfo* /*handle_info*/,
@@ -982,7 +871,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsCanFileBeDeleted(CallbackFileSystem* sen
   *can_be_deleted = cbfs_drive->CanRemove(relative_path);
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsDeleteFile(CallbackFileSystem* sender,
                                                    CbFsFileInfo* file_info) {
   SCOPED_PROFILE
@@ -993,12 +882,12 @@ void CbfsDriveInUserSpace<Storage>::CbFsDeleteFile(CallbackFileSystem* sender,
   try {
     cbfs_drive->RemoveFile(relative_path);
   }
-  catch(...) {
+  catch (...) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsRenameOrMoveFile(CallbackFileSystem* sender,
                                                          CbFsFileInfo* file_info,
                                                          LPCTSTR new_file_name) {
@@ -1011,23 +900,21 @@ void CbfsDriveInUserSpace<Storage>::CbFsRenameOrMoveFile(CallbackFileSystem* sen
   try {
     file_context = detail::FileContext<Storage>(cbfs_drive->GetFileContext(relative_path));
   }
-  catch(...) {
+  catch (...) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
   try {
     cbfs_drive->RenameFile(relative_path, new_file_name, *file_context.meta_data);
   }
-  catch(...) {
+  catch (...) {
     throw ECBFSError(ERROR_ACCESS_DENIED);
   }
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsReadFile(CallbackFileSystem* sender,
-                                                 CbFsFileInfo* file_info,
-                                                 int64_t position,
-                                                 PVOID buffer,
-                                                 DWORD bytes_to_read,
+                                                 CbFsFileInfo* file_info, int64_t position,
+                                                 PVOID buffer, DWORD bytes_to_read,
                                                  PDWORD bytes_read) {
   SCOPED_PROFILE
   auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
@@ -1038,7 +925,7 @@ void CbfsDriveInUserSpace<Storage>::CbFsReadFile(CallbackFileSystem* sender,
   detail::FileContext<Storage>* file_context(
       static_cast<detail::FileContext<Storage>*>(file_info->get_UserContext()));
   LOG(kInfo) << "CbFsReadFile- " << relative_path << " reading " << bytes_to_read << " of "
-              << file_context->meta_data->end_of_file << " at position " << position;
+             << file_context->meta_data->end_of_file << " at position " << position;
   assert(file_context->self_encryptor);
   *bytes_read = 0;
 
@@ -1055,12 +942,10 @@ void CbfsDriveInUserSpace<Storage>::CbFsReadFile(CallbackFileSystem* sender,
   file_context->content_changed = true;
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsWriteFile(CallbackFileSystem* sender,
-                                                  CbFsFileInfo* file_info,
-                                                  int64_t position,
-                                                  PVOID buffer,
-                                                  DWORD bytes_to_write,
+                                                  CbFsFileInfo* file_info, int64_t position,
+                                                  PVOID buffer, DWORD bytes_to_write,
                                                   PDWORD bytes_written) {
   SCOPED_PROFILE
   auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
@@ -1082,23 +967,22 @@ void CbfsDriveInUserSpace<Storage>::CbFsWriteFile(CallbackFileSystem* sender,
   file_context->content_changed = true;
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsIsDirectoryEmpty(CallbackFileSystem* sender,
                                                          CbFsFileInfo* /*directory_info*/,
-                                                         LPWSTR file_name,
-                                                         LPBOOL is_empty) {
+                                                         LPWSTR file_name, LPBOOL is_empty) {
   SCOPED_PROFILE
   LOG(kInfo) << "CbFsIsDirectoryEmpty - " << fs::path(file_name);
   try {
     auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
     *is_empty = cbfs_drive->GetDirectory(fs::path(file_name)).listing->empty();
   }
-  catch(...) {
+  catch (...) {
     throw ECBFSError(ERROR_PATH_NOT_FOUND);
   }
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsFlushFile(CallbackFileSystem* sender,
                                                   CbFsFileInfo* file_info) {
   SCOPED_PROFILE
@@ -1125,23 +1009,22 @@ void CbfsDriveInUserSpace<Storage>::CbFsFlushFile(CallbackFileSystem* sender,
     try {
       cbfs_drive->UpdateParent(file_context, relative_path);
     }
-    catch(...) {
+    catch (...) {
       throw ECBFSError(ERROR_ERRORS_ENCOUNTERED);
     }
   }
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::CbFsOnEjectStorage(CallbackFileSystem* sender) {
   LOG(kInfo) << "CbFsOnEjectStorage";
   auto cbfs_drive(static_cast<CbfsDriveInUserSpace<Storage>*>(sender->GetTag()));
   cbfs_drive->SetMountState(false);
 }
 
-template<typename Storage>
+template <typename Storage>
 void CbfsDriveInUserSpace<Storage>::SetNewAttributes(detail::FileContext<Storage>* file_context,
-                                                     bool is_directory,
-                                                     bool read_only) {
+                                                     bool is_directory, bool read_only) {
   SCOPED_PROFILE
   FILETIME file_time;
   GetSystemTimeAsFileTime(&file_time);
@@ -1155,7 +1038,6 @@ void CbfsDriveInUserSpace<Storage>::SetNewAttributes(detail::FileContext<Storage
       file_context->meta_data->attributes = FILE_ATTRIBUTE_READONLY;
     else
       file_context->meta_data->attributes = FILE_ATTRIBUTE_NORMAL;
-
 
     // TODO(Fraser#5#): 2013-09-05 - BEFORE_RELEASE - Must be relative_path passed here, not name.
     // auto storage(cbfs_drive->GetStorage(file_context->meta_data->name));

@@ -22,7 +22,6 @@
 
 #include "maidsafe/drive/utils.h"
 
-
 namespace fs = boost::filesystem;
 
 namespace maidsafe {
@@ -33,18 +32,15 @@ namespace detail {
 
 namespace test {
 
-void FilesMatchMask(const std::vector<fs::path> &all_files,
-                    const std::set<fs::path> &matching_files,
-                    const std::wstring &mask) {
-  std::for_each(all_files.begin(),
-                all_files.end(),
-                [&](const fs::path &file_name) {
+void FilesMatchMask(const std::vector<fs::path>& all_files,
+                    const std::set<fs::path>& matching_files, const std::wstring& mask) {
+  std::for_each(all_files.begin(), all_files.end(), [&](const fs::path & file_name) {
     if (matching_files.find(file_name) != matching_files.end())
       ASSERT_TRUE(MatchesMask(mask, file_name)) << "File " << file_name
-          << " should match for mask \"" << mask << "\"";
+                                                << " should match for mask \"" << mask << "\"";
     else
       ASSERT_FALSE(MatchesMask(mask, file_name)) << "File " << file_name
-          << " should NOT match for mask \"" << mask << "\"";
+                                                 << " should NOT match for mask \"" << mask << "\"";
   });
 }
 
@@ -65,8 +61,7 @@ TEST(UtilsTest, BEH_MatchesMask) {
   matching_files.insert(L"bt.x");
   matching_files.insert(L"btx.");
   matching_files.insert(L"btx");
-  const std::vector<fs::path> kAllFiles(matching_files.begin(),
-                                        matching_files.end());
+  const std::vector<fs::path> kAllFiles(matching_files.begin(), matching_files.end());
 
   std::wstring mask(L"*");
   FilesMatchMask(kAllFiles, matching_files, mask);

@@ -28,7 +28,6 @@
 #include "maidsafe/drive/directory_listing.h"
 #include "maidsafe/drive/meta_data.h"
 
-
 namespace maidsafe {
 
 namespace drive {
@@ -84,11 +83,11 @@ bool MatchesMask(std::wstring mask, const fs::path& file_name) {
 #ifdef MAIDSAFE_WIN32
   static const std::wstring kNeedEscaped(L".[]{}()+|^$");
 #else
-  #ifdef MAIDSAFE_APPLE
+#ifdef MAIDSAFE_APPLE
   static const std::wstring kNeedEscaped(L".]{}()+|^$");
-  #else
+#else
   static const std::wstring kNeedEscaped(L".{}()+|^$");
-  #endif
+#endif
 #endif
   static const std::wstring kEscape(L"\\");
   try {
@@ -105,9 +104,9 @@ bool MatchesMask(std::wstring mask, const fs::path& file_name) {
     std::wregex reg_ex(mask, std::regex_constants::icase);
     return std::regex_match(file_name.wstring(), reg_ex);
   }
-  catch(const std::exception& e) {
-    LOG(kError) << e.what() << " - file_name: " << file_name << ", mask: "
-                << std::string(mask.begin(), mask.end());
+  catch (const std::exception& e) {
+    LOG(kError) << e.what() << " - file_name: " << file_name
+                << ", mask: " << std::string(mask.begin(), mask.end());
     return false;
   }
 }
@@ -129,9 +128,9 @@ bool SearchesMask(std::wstring mask, const fs::path& file_name) {
     std::wregex reg_ex(mask, std::regex_constants::icase);
     return std::regex_search(file_name.wstring(), reg_ex);
   }
-  catch(const std::exception& e) {
-    LOG(kError) << e.what() << " - file_name: " << file_name << ", mask: "
-                << std::string(mask.begin(), mask.end());
+  catch (const std::exception& e) {
+    LOG(kError) << e.what() << " - file_name: " << file_name
+                << ", mask: " << std::string(mask.begin(), mask.end());
     return false;
   }
 }

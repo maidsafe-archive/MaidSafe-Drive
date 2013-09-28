@@ -31,9 +31,8 @@
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/meta_data.h"
 
-
 namespace fs = boost::filesystem;
-namespace bptime= boost::posix_time;
+namespace bptime = boost::posix_time;
 
 namespace maidsafe {
 
@@ -47,8 +46,6 @@ testing::AssertionResult DirectoriesMatch(const DirectoryListing& lhs, const Dir
 class DirectoryListingTest_BEH_IteratorResetAndFailures_Test;
 
 }  // namespace test
-
-
 
 class DirectoryListing {
  public:

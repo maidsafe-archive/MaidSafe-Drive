@@ -25,7 +25,6 @@
 #include "maidsafe/common/test.h"
 #include "maidsafe/common/log.h"
 
-
 namespace maidsafe {
 
 namespace drive {
@@ -34,38 +33,34 @@ namespace detail {
 
 namespace test {
 
-void PrintResult(const bptime::ptime &start_time,
-                 const bptime::ptime &stop_time,
-                 size_t size, TestOperationCode operation_code) {
+void PrintResult(const bptime::ptime& start_time, const bptime::ptime& stop_time, size_t size,
+                 TestOperationCode operation_code) {
   uint64_t duration = (stop_time - start_time).total_microseconds();
   if (duration == 0)
     duration = 1;
   uint64_t rate((static_cast<uint64_t>(size) * 1000000) / duration);
   switch (operation_code) {
     case(kCopy) : {
-      std::cout << "Copy " << BytesToBinarySiUnits(size)
-                << " of data to drive in " << (duration / 1000000.0)
-                << " seconds at a speed of " << BytesToBinarySiUnits(rate)
+      std::cout << "Copy " << BytesToBinarySiUnits(size) << " of data to drive in "
+                << (duration / 1000000.0) << " seconds at a speed of " << BytesToBinarySiUnits(rate)
                 << "/s" << std::endl;
       break;
     }
     case(kRead) : {
-      std::cout << "Read " << BytesToBinarySiUnits(size)
-                << " Bytes of data from drive in " << (duration / 1000000.0)
-                << " seconds at a speed of " << BytesToBinarySiUnits(rate)
+      std::cout << "Read " << BytesToBinarySiUnits(size) << " Bytes of data from drive in "
+                << (duration / 1000000.0) << " seconds at a speed of " << BytesToBinarySiUnits(rate)
                 << "/s" << std::endl;
       break;
     }
     case(kCompare) : {
-      std::cout << "Compare " << BytesToBinarySiUnits(size)
-                << " Bytes of data from drive in " << (duration / 1000000.0)
-                << " seconds at a speed of " << BytesToBinarySiUnits(rate)
+      std::cout << "Compare " << BytesToBinarySiUnits(size) << " Bytes of data from drive in "
+                << (duration / 1000000.0) << " seconds at a speed of " << BytesToBinarySiUnits(rate)
                 << "/s" << std::endl;
     }
   }
 }
 
-fs::path CreateTestFile(fs::path const& parent, int64_t &file_size) {
+fs::path CreateTestFile(fs::path const& parent, int64_t& file_size) {
   size_t size = RandomUint32() % 4096;
   file_size = size;
   return CreateTestFileWithSize(parent, size);
@@ -76,7 +71,7 @@ fs::path CreateTestFileWithSize(fs::path const& parent, size_t size) {
   return CreateTestFileWithContent(parent, file_content);
 }
 
-fs::path CreateTestFileWithContent(fs::path const& parent, const std::string &content) {
+fs::path CreateTestFileWithContent(fs::path const& parent, const std::string& content) {
   fs::path file(parent / (RandomAlphaNumericString(5) + ".txt"));
   std::ofstream ofs;
   ofs.open(file.native().c_str(), std::ios_base::out | std::ios_base::binary);
@@ -95,12 +90,10 @@ fs::path CreateTestFileWithContent(fs::path const& parent, const std::string &co
 fs::path CreateTestDirectory(fs::path const& parent) {
   fs::path directory(parent / RandomAlphaNumericString(5));
   boost::system::error_code error_code;
-  EXPECT_TRUE(fs::create_directories(directory, error_code)) << directory
-              << ": " << error_code.message();
-  EXPECT_EQ(0, error_code.value()) << directory << ": "
-                                   << error_code.message();
-  EXPECT_TRUE(fs::exists(directory, error_code)) << directory << ": "
-                                                 << error_code.message();
+  EXPECT_TRUE(fs::create_directories(directory, error_code)) << directory << ": "
+                                                             << error_code.message();
+  EXPECT_EQ(0, error_code.value()) << directory << ": " << error_code.message();
+  EXPECT_TRUE(fs::exists(directory, error_code)) << directory << ": " << error_code.message();
   return directory;
 }
 
@@ -121,38 +114,31 @@ fs::path CreateTestDirectoriesAndFiles(fs::path const& parent) {
       break;
     if (r2 < r3) {
       check = CreateTestDirectoriesAndFiles(directory);
-      EXPECT_TRUE(fs::exists(check, error_code)) << check << ": "
-                                                 << error_code.message();
-      EXPECT_EQ(0, error_code.value()) << check << ": "
-                                       << error_code.message();
+      EXPECT_TRUE(fs::exists(check, error_code)) << check << ": " << error_code.message();
+      EXPECT_EQ(0, error_code.value()) << check << ": " << error_code.message();
     } else if (r2 > r3) {
       r4 = distribution(generator);
       for (size_t j = 0; j != r4; ++j) {
         check = CreateTestFile(directory, file_size);
-        EXPECT_TRUE(fs::exists(check, error_code)) << check << ": "
-                                                   << error_code.message();
-        EXPECT_EQ(0, error_code.value()) << check << ": "
-                                         << error_code.message();
+        EXPECT_TRUE(fs::exists(check, error_code)) << check << ": " << error_code.message();
+        EXPECT_EQ(0, error_code.value()) << check << ": " << error_code.message();
       }
     } else {
       r4 = distribution(generator);
       for (size_t j = 0; j != r4; ++j) {
         check = CreateTestDirectory(directory);
-        EXPECT_TRUE(fs::exists(check, error_code)) << check << ": "
-                                                   << error_code.message();
-        EXPECT_EQ(0, error_code.value()) << check << ": "
-                                         << error_code.message();
+        EXPECT_TRUE(fs::exists(check, error_code)) << check << ": " << error_code.message();
+        EXPECT_EQ(0, error_code.value()) << check << ": " << error_code.message();
       }
     }
   }
   return directory;
 }
 
-fs::path CreateNamedFile(fs::path const& path, const std::string &name, int64_t &file_size) {
+fs::path CreateNamedFile(fs::path const& path, const std::string& name, int64_t& file_size) {
   boost::system::error_code error_code;
   if (!fs::is_directory(path, error_code)) {
-    LOG(kError) << "Expected a directory " << path << " "
-                << error_code.value();
+    LOG(kError) << "Expected a directory " << path << " " << error_code.value();
     return fs::path();
   }
   size_t size = RandomUint32() % 4096;
@@ -174,7 +160,7 @@ fs::path CreateNamedFile(fs::path const& path, const std::string &name, int64_t 
       }
       ofs.close();
     }
-    catch(...) {
+    catch (...) {
       LOG(kError) << "Write exception thrown.";
       return fs::path();
     }
@@ -182,23 +168,22 @@ fs::path CreateNamedFile(fs::path const& path, const std::string &name, int64_t 
   return fs::exists(file) ? file : fs::path();
 }
 
-fs::path CreateNamedDirectory(fs::path const& path, const std::string &name) {
+fs::path CreateNamedDirectory(fs::path const& path, const std::string& name) {
   boost::system::error_code error_code;
   if (!fs::is_directory(path, error_code)) {
-    LOG(kError) << "Expected a directory " << path << " "
-                << error_code.value();
+    LOG(kError) << "Expected a directory " << path << " " << error_code.value();
     return fs::path();
   }
   fs::path directory(path / name);
   if (!fs::create_directory(directory, error_code)) {
-    LOG(kError) << "Failed to create directory " << fs::path(path / name)
-                << " " << error_code.value();
+    LOG(kError) << "Failed to create directory " << fs::path(path / name) << " "
+                << error_code.value();
     return fs::path();
   }
   return fs::exists(directory) ? directory : fs::path();
 }
 
-bool ModifyFile(fs::path const& path, int64_t &file_size) {
+bool ModifyFile(fs::path const& path, int64_t& file_size) {
   size_t size = maidsafe::RandomInt32() % 1048576;  // 2^20
   file_size = size;
   LOG(kInfo) << "ModifyFile: filename = " << path << " new size " << size;
@@ -217,7 +202,7 @@ bool ModifyFile(fs::path const& path, int64_t &file_size) {
       }
       ofs.close();
     }
-    catch(...) {
+    catch (...) {
       LOG(kError) << "Write exception thrown.";
       return false;
     }
@@ -243,12 +228,11 @@ bool SameFileContents(fs::path const& path1, fs::path const& path2) {
 uint64_t TotalSize(encrypt::DataMapPtr data_map) {
   uint64_t size(data_map->chunks.empty() ? data_map->content.size() : 0);
   std::for_each(data_map->chunks.begin(), data_map->chunks.end(),
-                [&size] (encrypt::ChunkDetails chunk) { size += chunk.size; });
+                [&size](encrypt::ChunkDetails chunk) { size += chunk.size; });
   return size;
 }
 
-void GenerateDirectoryListingEntryForFile(DirectoryListing& directory_listing,
-                                          const fs::path& path,
+void GenerateDirectoryListingEntryForFile(DirectoryListing& directory_listing, const fs::path& path,
                                           const uintmax_t& file_size) {
   MetaData meta_data(path.filename(), false);
 #ifdef MAIDSAFE_WIN32

@@ -39,10 +39,10 @@ namespace detail {
 
 static const uint32_t kDirectorySize = 4096;
 
-template<typename Storage>
+template <typename Storage>
 class DirectoryHandler;
 
-template<typename Storage>
+template <typename Storage>
 struct FileContext {
   FileContext();
   FileContext(const boost::filesystem::path& name, bool is_directory);
@@ -56,10 +56,10 @@ struct FileContext {
   DirectoryId grandparent_directory_id, parent_directory_id;
 };
 
-template<typename Storage>
+template <typename Storage>
 void swap(FileContext<Storage>& lhs, FileContext<Storage>& rhs);
 
-template<typename Storage>
+template <typename Storage>
 FileContext<Storage>::FileContext()
     : meta_data(new MetaData),
       self_encryptor(),
@@ -67,7 +67,7 @@ FileContext<Storage>::FileContext()
       grandparent_directory_id(),
       parent_directory_id() {}
 
-template<typename Storage>
+template <typename Storage>
 FileContext<Storage>::FileContext(const boost::filesystem::path& name, bool is_directory)
     : meta_data(new MetaData(name, is_directory)),
       self_encryptor(),
@@ -75,7 +75,7 @@ FileContext<Storage>::FileContext(const boost::filesystem::path& name, bool is_d
       grandparent_directory_id(),
       parent_directory_id() {}
 
-template<typename Storage>
+template <typename Storage>
 FileContext<Storage>::FileContext(const FileContext& other)
     : meta_data(other.meta_data),
       self_encryptor(other.self_encryptor),
@@ -83,7 +83,7 @@ FileContext<Storage>::FileContext(const FileContext& other)
       grandparent_directory_id(other.grandparent_directory_id),
       parent_directory_id(other.parent_directory_id) {}
 
-template<typename Storage>
+template <typename Storage>
 FileContext<Storage>::FileContext(FileContext&& other)
     : meta_data(std::move(other.meta_data)),
       self_encryptor(std::move(other.self_encryptor)),
@@ -91,13 +91,13 @@ FileContext<Storage>::FileContext(FileContext&& other)
       grandparent_directory_id(std::move(other.grandparent_directory_id)),
       parent_directory_id(std::move(other.parent_directory_id)) {}
 
-template<typename Storage>
+template <typename Storage>
 FileContext<Storage>& FileContext<Storage>::operator=(FileContext other) {
   swap(*this, other);
   return *this;
 }
 
-template<typename Storage>
+template <typename Storage>
 void swap(FileContext<Storage>& lhs, FileContext<Storage>& rhs) {
   using std::swap;
   swap(lhs.meta_data, rhs.meta_data);

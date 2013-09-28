@@ -38,7 +38,6 @@
 #include "maidsafe/common/on_scope_exit.h"
 #include "maidsafe/common/utils.h"
 
-
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 
@@ -145,7 +144,7 @@ bool CopyDirectory(const fs::path& from, const fs::path& to) {
       }
     }
   }
-  catch(const boost::system::system_error& error) {
+  catch (const boost::system::system_error& error) {
     LOG(kError) << "CopyDirectory failed: " << error.what();
     return false;
   }
@@ -161,15 +160,14 @@ void RequireDirectoriesEqual(const fs::path& lhs, const fs::path& rhs, bool chec
     for (fs::recursive_directory_iterator rhs_itr(rhs); rhs_itr != end; ++rhs_itr)
       rhs_files.insert((*rhs_itr).path().string().substr(rhs.string().size()));
   }
-  catch(const boost::system::system_error& error) {
+  catch (const boost::system::system_error& error) {
     LOG(kError) << "RequireDirectoriesEqual failed: " << error.what();
     REQUIRE(false);
   }
 
   std::vector<std::string> difference;
-  std::set_symmetric_difference(std::begin(lhs_files), std::end(lhs_files),
-                                std::begin(rhs_files), std::end(rhs_files),
-                                std::back_inserter(difference));
+  std::set_symmetric_difference(std::begin(lhs_files), std::end(lhs_files), std::begin(rhs_files),
+                                std::end(rhs_files), std::back_inserter(difference));
   REQUIRE(difference.empty());
 
   if (check_file_contents) {
@@ -196,8 +194,6 @@ fs::path CreateDirectoryContainingFiles(const fs::path& parent) {
 }
 
 }  // unnamed namespace
-
-
 
 TEST_CASE("Create empty file", "[Filesystem]") {
   on_scope_exit cleanup(clean_root);
@@ -611,9 +607,9 @@ TEST_CASE("Check failures", "[Filesystem]") {
   // Rename copied directory to empty directory
   fs::rename(copied_directory1, directory2, error_code);
 
-  // From http://www.boost.org/doc/libs/release/libs/filesystem/doc/reference.html#rename:
-  // if new_p resolves to an existing directory, it is removed if empty on POSIX but is an error on
-  // Windows.
+// From http://www.boost.org/doc/libs/release/libs/filesystem/doc/reference.html#rename:
+// if new_p resolves to an existing directory, it is removed if empty on POSIX but is an error on
+// Windows.
 #ifdef MAIDSAFE_WIN32
   REQUIRE(error_code.value() != 0);
   RequireExists(directory2);
@@ -644,8 +640,6 @@ TEST_CASE("Check failures", "[Filesystem]") {
 
 }  // namespace maidsafe
 
-
-
 int main(int argc, char** argv) {
   auto unused_options(maidsafe::log::Logging::Instance().Initialise(argc, argv));
 
@@ -653,8 +647,8 @@ int main(int argc, char** argv) {
   po::options_description path_option("Path option");
   std::string description("Path to root directory for test, e.g. " +
                           fs::temp_directory_path().string());
-  path_option.add_options()("help,h", "Show help message.")
-                           ("root", po::value<std::string>(), description.c_str());
+  path_option.add_options()("help,h", "Show help message.")("root", po::value<std::string>(),
+                                                            description.c_str());
   po::parsed_options parsed(
       po::command_line_parser(unused_options).options(path_option).allow_unregistered().run());
 
@@ -680,8 +674,8 @@ int main(int argc, char** argv) {
       return -1;
 
     // Set up 'temp_' directory
-    maidsafe::test::temp_ = fs::unique_path(fs::temp_directory_path() /
-                                            "MaidSafe_Test_Filesystem_%%%%-%%%%-%%%%");
+    maidsafe::test::temp_ =
+        fs::unique_path(fs::temp_directory_path() / "MaidSafe_Test_Filesystem_%%%%-%%%%-%%%%");
     if (!fs::create_directories(maidsafe::test::temp_)) {
       LOG(kWarning) << "Failed to create test directory " << maidsafe::test::temp_;
       return -2;

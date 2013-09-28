@@ -27,14 +27,16 @@
 
 #include "maidsafe/common/types.h"
 
-
-namespace testing { class AssertionResult; }
+namespace testing {
+class AssertionResult;
+}
 
 namespace maidsafe {
 
 namespace encrypt {
 struct DataMap;
-template<typename Storage> class SelfEncryptor;
+template <typename Storage>
+class SelfEncryptor;
 }  // namespace encrypt
 
 namespace drive {
@@ -50,7 +52,14 @@ namespace detail {
 
 class DirectoryListing;
 
-enum OpType : int32_t { kCreated, kRenamed, kAdded, kRemoved, kMoved, kModified };
+enum OpType : int32_t {
+  kCreated,
+  kRenamed,
+  kAdded,
+  kRemoved,
+  kMoved,
+  kModified
+};
 
 typedef std::shared_ptr<encrypt::DataMap> DataMapPtr;
 

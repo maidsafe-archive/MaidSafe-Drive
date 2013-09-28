@@ -28,7 +28,6 @@
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/directory_listing.h"
 
-
 namespace maidsafe {
 
 namespace drive {
@@ -36,10 +35,8 @@ namespace drive {
 namespace detail {
 
 struct Directory {
-  Directory(DirectoryId parent_id_in,
-            std::shared_ptr<DirectoryListing> listing_in,
-            std::shared_ptr<encrypt::DataMap> data_map_in,
-            DataTagValue type_in)
+  Directory(DirectoryId parent_id_in, std::shared_ptr<DirectoryListing> listing_in,
+            std::shared_ptr<encrypt::DataMap> data_map_in, DataTagValue type_in)
       : parent_id(std::move(parent_id_in)),
         listing(std::move(listing_in)),
         data_map(std::move(data_map_in)),
@@ -50,11 +47,12 @@ struct Directory {
            type == DataTagValue::kWorldDirectoryValue);
   }
 
-  Directory() : parent_id(),
-                listing(),
-                data_map(),
-                type(DataTagValue::kOwnerDirectoryValue),
-                content_changed(false) {}
+  Directory()
+      : parent_id(),
+        listing(),
+        data_map(),
+        type(DataTagValue::kOwnerDirectoryValue),
+        content_changed(false) {}
 
   DirectoryId parent_id;
   std::shared_ptr<DirectoryListing> listing;

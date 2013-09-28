@@ -17,7 +17,7 @@
     use of the MaidSafe Software.                                                                 */
 
 #ifdef MAIDSAFE_WIN32
-#  include <windows.h>
+#include <windows.h>
 #endif
 
 #include <fstream>
@@ -79,8 +79,8 @@ class DirectoryListingTest : public testing::Test {
     time(&meta_data.attributes.st_atime);
     time(&meta_data.attributes.st_mtime);
 #endif
-    *meta_data.directory_id = Identity(
-        crypto::Hash<crypto::SHA512>((*main_test_dir_ / path).string()));
+    *meta_data.directory_id =
+        Identity(crypto::Hash<crypto::SHA512>((*main_test_dir_ / path).string()));
     EXPECT_NO_THROW(directory_listing.AddChild(meta_data));
   }
 
@@ -95,11 +95,10 @@ class DirectoryListingTest : public testing::Test {
       for (; itr != end; ++itr) {
         if (fs::is_directory(*itr)) {
           GenerateDirectoryListingEntryForDirectory(directory_listing, (*itr).path().filename());
-          EXPECT_TRUE(GenerateDirectoryListings((*itr).path(),
-                                                relative_path / (*itr).path().filename()));
+          EXPECT_TRUE(
+              GenerateDirectoryListings((*itr).path(), relative_path / (*itr).path().filename()));
         } else if (fs::is_regular_file(*itr)) {
-          GenerateDirectoryListingEntryForFile(directory_listing,
-                                               (*itr).path().filename(),
+          GenerateDirectoryListingEntryForFile(directory_listing, (*itr).path().filename(),
                                                fs::file_size((*itr).path()));
         } else {
           if (fs::exists(*itr))
@@ -111,15 +110,14 @@ class DirectoryListingTest : public testing::Test {
       }
       EXPECT_TRUE(WriteFile(path / "msdir.listing", directory_listing.Serialise()));
     }
-    catch(...) {
+    catch (...) {
       LOG(kError) << "Test GenerateDirectoryListings: Failed";
       return false;
     }
     return true;
   }
 
-  bool RemoveDirectoryListingsEntries(fs::path const& path,
-                                      fs::path const& relative_path) {
+  bool RemoveDirectoryListingsEntries(fs::path const& path, fs::path const& relative_path) {
     std::string serialised_directory_listing;
     EXPECT_TRUE(ReadFile(path / "msdir.listing", &serialised_directory_listing));
     DirectoryListing directory_listing(serialised_directory_listing);
@@ -154,7 +152,7 @@ class DirectoryListingTest : public testing::Test {
         }
       }
     }
-    catch(...) {
+    catch (...) {
       LOG(kError) << "Test RemoveDLE: Failed";
       return false;
     }
@@ -204,7 +202,7 @@ class DirectoryListingTest : public testing::Test {
         }
       }
     }
-    catch(...) {
+    catch (...) {
       LOG(kError) << "Test RenameDLE: Failed";
       return false;
     }
@@ -237,7 +235,7 @@ class DirectoryListingTest : public testing::Test {
         }
       }
     }
-    catch(...) {
+    catch (...) {
       LOG(kError) << "Test DLDHC: Failed";
       return false;
     }
@@ -273,7 +271,7 @@ class DirectoryListingTest : public testing::Test {
         }
       }
     }
-    catch(...) {
+    catch (...) {
       LOG(kError) << "Test MatchEntries: Failed";
       return false;
     }
@@ -314,7 +312,7 @@ class DirectoryListingTest : public testing::Test {
         }
       }
     }
-    catch(...) {
+    catch (...) {
       LOG(kError) << "Test MEUFF: Failed";
       return false;
     }
@@ -372,113 +370,91 @@ testing::AssertionResult DirectoriesMatch(const DirectoryListing& lhs,
   auto itr1(lhs.children_.begin()), itr2(rhs.children_.begin());
   for (; itr1 != lhs.children_.end(); ++itr1, ++itr2) {
     if ((*itr1).name != (*itr2).name)
-      return testing::AssertionFailure() << "Names: " << (*itr1).name
-          << " != " << (*itr2).name;
-    if (((*itr1).data_map && !(*itr2).data_map) ||
-        (!(*itr1).data_map && (*itr2).data_map))
+      return testing::AssertionFailure() << "Names: " << (*itr1).name << " != " << (*itr2).name;
+    if (((*itr1).data_map && !(*itr2).data_map) || (!(*itr1).data_map && (*itr2).data_map))
       return testing::AssertionFailure() << "Data map pointer mismatch";
     if ((*itr1).data_map) {
-      if (TotalSize((*itr1).data_map) !=
-          TotalSize((*itr2).data_map))
-        return testing::AssertionFailure() << "DataMap sizes: "
-            << TotalSize((*itr1).data_map) << " != "
-            << TotalSize((*itr2).data_map);
-      if ((*itr1).data_map->chunks.size() !=
-          (*itr2).data_map->chunks.size())
+      if (TotalSize((*itr1).data_map) != TotalSize((*itr2).data_map))
+        return testing::AssertionFailure() << "DataMap sizes: " << TotalSize((*itr1).data_map)
+                                           << " != " << TotalSize((*itr2).data_map);
+      if ((*itr1).data_map->chunks.size() != (*itr2).data_map->chunks.size())
         return testing::AssertionFailure() << "DataMap chunks' sizes: "
-            << (*itr1).data_map->chunks.size() << " != "
-            << (*itr2).data_map->chunks.size();
+                                           << (*itr1).data_map->chunks.size()
+                                           << " != " << (*itr2).data_map->chunks.size();
       auto chunk_itr1((*itr1).data_map->chunks.begin());
       auto chunk_itr2((*itr2).data_map->chunks.begin());
       size_t chunk_no(0);
-      for (; chunk_itr1 != (*itr1).data_map->chunks.end();
-           ++chunk_itr1, ++chunk_itr2, ++chunk_no) {
+      for (; chunk_itr1 != (*itr1).data_map->chunks.end(); ++chunk_itr1, ++chunk_itr2, ++chunk_no) {
         if ((*chunk_itr1).hash != (*chunk_itr2).hash)
-          return testing::AssertionFailure() << "DataMap chunk " << chunk_no
-              << " hash mismatch.";
+          return testing::AssertionFailure() << "DataMap chunk " << chunk_no << " hash mismatch.";
         if ((*chunk_itr1).pre_hash != (*chunk_itr2).pre_hash)
           return testing::AssertionFailure() << "DataMap chunk " << chunk_no
-              << " pre_hash mismatch.";
+                                             << " pre_hash mismatch.";
         if ((*chunk_itr1).size != (*chunk_itr2).size)
           return testing::AssertionFailure() << "DataMap chunk " << chunk_no
-              << " pre_size mismatch.";
+                                             << " pre_size mismatch.";
       }
-      if ((*itr1).data_map->content !=
-          (*itr2).data_map->content)
+      if ((*itr1).data_map->content != (*itr2).data_map->content)
         return testing::AssertionFailure() << "DataMap content mismatch.";
-//       if ((*itr1).data_map->self_encryption_type !=
-//           (*itr2).data_map->self_encryption_type)
-//         return testing::AssertionFailure() << "DataMap SE type mismatch.";
+      //       if ((*itr1).data_map->self_encryption_type !=
+      //           (*itr2).data_map->self_encryption_type)
+      //         return testing::AssertionFailure() << "DataMap SE type mismatch.";
     }
-//     if ((*itr1).end_of_file != (*itr2).end_of_file)
+    //     if ((*itr1).end_of_file != (*itr2).end_of_file)
     if (GetSize(*itr1) != GetSize(*itr2))
-      return testing::AssertionFailure() << "EOFs: " << GetSize(*itr1)
-          << " != " << GetSize(*itr2);
+      return testing::AssertionFailure() << "EOFs: " << GetSize(*itr1) << " != " << GetSize(*itr2);
 #ifdef MAIDSAFE_WIN32
     if ((*itr1).allocation_size != (*itr2).allocation_size)
-      return testing::AssertionFailure() << "Allocation sizes: "
-          << (*itr1).allocation_size << " != "
-          << (*itr2).allocation_size;
+      return testing::AssertionFailure() << "Allocation sizes: " << (*itr1).allocation_size
+                                         << " != " << (*itr2).allocation_size;
     if ((*itr1).attributes != (*itr2).attributes)
-      return testing::AssertionFailure() << "Attributes: "
-          << (*itr1).attributes << " != " << (*itr2).attributes;
-    if ((*itr1).creation_time.dwHighDateTime !=
-        (*itr2).creation_time.dwHighDateTime)
+      return testing::AssertionFailure() << "Attributes: " << (*itr1).attributes
+                                         << " != " << (*itr2).attributes;
+    if ((*itr1).creation_time.dwHighDateTime != (*itr2).creation_time.dwHighDateTime)
       return testing::AssertionFailure() << "Creation times high: "
-          << (*itr1).creation_time.dwHighDateTime << " != "
-          << (*itr2).creation_time.dwHighDateTime;
-    if ((*itr1).creation_time.dwLowDateTime !=
-        (*itr2).creation_time.dwLowDateTime) {
+                                         << (*itr1).creation_time.dwHighDateTime
+                                         << " != " << (*itr2).creation_time.dwHighDateTime;
+    if ((*itr1).creation_time.dwLowDateTime != (*itr2).creation_time.dwLowDateTime) {
       uint32_t error = 0xA;
-      if ((*itr1).creation_time.dwLowDateTime >
-            (*itr2).creation_time.dwLowDateTime + error
-          || (*itr1).creation_time.dwLowDateTime <
-            (*itr2).creation_time.dwLowDateTime - error)
+      if ((*itr1).creation_time.dwLowDateTime > (*itr2).creation_time.dwLowDateTime + error ||
+          (*itr1).creation_time.dwLowDateTime < (*itr2).creation_time.dwLowDateTime - error)
         return testing::AssertionFailure() << "Creation times low: "
-            << (*itr1).creation_time.dwLowDateTime << " != "
-            << (*itr2).creation_time.dwLowDateTime;
+                                           << (*itr1).creation_time.dwLowDateTime
+                                           << " != " << (*itr2).creation_time.dwLowDateTime;
     }
-    if ((*itr1).last_access_time.dwHighDateTime !=
-        (*itr2).last_access_time.dwHighDateTime)
+    if ((*itr1).last_access_time.dwHighDateTime != (*itr2).last_access_time.dwHighDateTime)
       return testing::AssertionFailure() << "Last access times high: "
-          << (*itr1).last_access_time.dwHighDateTime << " != "
-          << (*itr2).last_access_time.dwHighDateTime;
-    if ((*itr1).last_access_time.dwLowDateTime !=
-        (*itr2).last_access_time.dwLowDateTime) {
+                                         << (*itr1).last_access_time.dwHighDateTime
+                                         << " != " << (*itr2).last_access_time.dwHighDateTime;
+    if ((*itr1).last_access_time.dwLowDateTime != (*itr2).last_access_time.dwLowDateTime) {
       uint32_t error = 0xA;
-      if ((*itr1).last_access_time.dwLowDateTime >
-            (*itr2).last_access_time.dwLowDateTime + error
-          || (*itr1).last_access_time.dwLowDateTime <
-            (*itr2).last_access_time.dwLowDateTime - error)
+      if ((*itr1).last_access_time.dwLowDateTime > (*itr2).last_access_time.dwLowDateTime + error ||
+          (*itr1).last_access_time.dwLowDateTime < (*itr2).last_access_time.dwLowDateTime - error)
         return testing::AssertionFailure() << "Last access times low: "
-            << (*itr1).last_access_time.dwLowDateTime << " != "
-            << (*itr2).last_access_time.dwLowDateTime;
+                                           << (*itr1).last_access_time.dwLowDateTime
+                                           << " != " << (*itr2).last_access_time.dwLowDateTime;
     }
-    if ((*itr1).last_write_time.dwHighDateTime !=
-        (*itr2).last_write_time.dwHighDateTime)
+    if ((*itr1).last_write_time.dwHighDateTime != (*itr2).last_write_time.dwHighDateTime)
       return testing::AssertionFailure() << "Last write times high: "
-          << (*itr1).last_write_time.dwHighDateTime << " != "
-          << (*itr2).last_write_time.dwHighDateTime;
-    if ((*itr1).last_write_time.dwLowDateTime !=
-        (*itr2).last_write_time.dwLowDateTime) {
+                                         << (*itr1).last_write_time.dwHighDateTime
+                                         << " != " << (*itr2).last_write_time.dwHighDateTime;
+    if ((*itr1).last_write_time.dwLowDateTime != (*itr2).last_write_time.dwLowDateTime) {
       uint32_t error = 0xA;
-      if ((*itr1).last_write_time.dwLowDateTime >
-            (*itr2).last_write_time.dwLowDateTime + error
-          || (*itr1).last_write_time.dwLowDateTime <
-            (*itr2).last_write_time.dwLowDateTime - error)
+      if ((*itr1).last_write_time.dwLowDateTime > (*itr2).last_write_time.dwLowDateTime + error ||
+          (*itr1).last_write_time.dwLowDateTime < (*itr2).last_write_time.dwLowDateTime - error)
         return testing::AssertionFailure() << "Last write times low: "
-            << (*itr1).last_write_time.dwLowDateTime << " != "
-            << (*itr2).last_write_time.dwLowDateTime;
+                                           << (*itr1).last_write_time.dwLowDateTime
+                                           << " != " << (*itr2).last_write_time.dwLowDateTime;
     }
 #else
     if ((*itr1).attributes.st_atime != (*itr2).attributes.st_atime)
       return testing::AssertionFailure() << "Last access time mismatch: "
-          << (*itr1).attributes.st_atime << " != "
-          << (*itr2).attributes.st_atime;
+                                         << (*itr1).attributes.st_atime
+                                         << " != " << (*itr2).attributes.st_atime;
     if ((*itr1).attributes.st_mtime != (*itr2).attributes.st_mtime)
       return testing::AssertionFailure() << "Last modification time mismatch: "
-          << (*itr1).attributes.st_mtime << " != "
-          << (*itr2).attributes.st_mtime;
+                                         << (*itr1).attributes.st_mtime
+                                         << " != " << (*itr2).attributes.st_mtime;
 #endif
   }
 
@@ -489,12 +465,12 @@ TEST_F(DirectoryListingTest, BEH_SerialiseDeserialise) {
   maidsafe::test::TestPath testpath(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
   boost::system::error_code error_code;
   int64_t file_size(0);
-  ASSERT_TRUE(fs::create_directories(*testpath
-              / directory_listing_.directory_id().string(), error_code))
-                  << error_code.message();
+  ASSERT_TRUE(
+      fs::create_directories(*testpath / directory_listing_.directory_id().string(), error_code))
+      << error_code.message();
   ASSERT_EQ(error_code.value(), 0) << error_code.message();
   ASSERT_TRUE(fs::exists(*testpath / directory_listing_.directory_id().string(), error_code))
-                  << error_code.message();
+      << error_code.message();
   ASSERT_EQ(error_code.value(), 0) << error_code.message();
   fs::path file(CreateTestFile(*testpath / directory_listing_.directory_id().string(), file_size));
 
@@ -522,7 +498,7 @@ TEST_F(DirectoryListingTest, BEH_SerialiseDeserialise) {
       // stemmed from cbfs asserting when end_of_file.QuadPart was less than
       // allocation_size.QuadPart, although they were not always set in an
       // order that avoided this, so, to allow the test to pass...
-          // meta_data.allocation_size = RandomUint32();
+      // meta_data.allocation_size = RandomUint32();
       meta_data.allocation_size = meta_data.end_of_file;
       meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
       GetSystemTimeAsFileTime(&meta_data.creation_time);
@@ -602,7 +578,7 @@ TEST_F(DirectoryListingTest, BEH_IteratorResetAndFailures) {
   // Update an element and check iterator is reset
   meta_data.name = "A";
   EXPECT_NO_THROW(directory_listing_.GetChild("A", meta_data));
-  // ASSERT_EQ(kDirectorySize, GetSize(meta_data));
+// ASSERT_EQ(kDirectorySize, GetSize(meta_data));
 #ifdef MAIDSAFE_WIN32
   meta_data.end_of_file = 1U;
 #else
@@ -626,7 +602,7 @@ TEST_F(DirectoryListingTest, BEH_IteratorResetAndFailures) {
 
   // Check operator<
   DirectoryListing directory_listing1(Identity(crypto::Hash<crypto::SHA512>(std::string("A")))),
-                   directory_listing2(Identity(crypto::Hash<crypto::SHA512>(std::string("B"))));
+      directory_listing2(Identity(crypto::Hash<crypto::SHA512>(std::string("B"))));
   EXPECT_TRUE(directory_listing1 < directory_listing2);
   EXPECT_FALSE(directory_listing2 < directory_listing1);
 }

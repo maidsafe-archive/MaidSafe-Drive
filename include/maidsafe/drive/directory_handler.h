@@ -51,21 +51,21 @@
 #include "maidsafe/drive/utils.h"
 #include "maidsafe/drive/meta_data.h"
 
-
 namespace maidsafe {
 
 namespace drive {
 
 namespace detail {
 
-namespace test { class DirectoryHandlerTest; }
+namespace test {
+class DirectoryHandlerTest;
+}
 
 // ==================== Public functions and classes ===============================================
-template<typename Storage>
+template <typename Storage>
 class DirectoryHandler {
  public:
-  DirectoryHandler(std::shared_ptr<Storage> storage,
-                   DataTagValue directory_type,
+  DirectoryHandler(std::shared_ptr<Storage> storage, DataTagValue directory_type,
                    bool immutable_root = false);
   DirectoryHandler(const DirectoryHandler& other);
   DirectoryHandler(DirectoryHandler&& other);
@@ -96,100 +96,92 @@ class DirectoryHandler {
   bool world_is_writeable_, immutable_root_;
 };
 
-template<typename Storage>
+template <typename Storage>
 void PutToStorage(Storage& storage, Directory& directory);
 
-template<typename Storage>
-Directory GetFromStorage(Storage& storage,
-                         const DirectoryId& parent_id,
-                         const DirectoryId& directory_id,
-                         DataTagValue directory_type);
+template <typename Storage>
+Directory GetFromStorage(Storage& storage, const DirectoryId& parent_id,
+                         const DirectoryId& directory_id, DataTagValue directory_type);
 
-template<typename Storage>
+template <typename Storage>
 void DeleteFromStorage(Storage& storage, const Directory& directory);
 
 inline bool IsDirectory(const MetaData& meta_data) {
   return static_cast<bool>(meta_data.directory_id);
 }
 
-
-
 // ==================== Implementation details =====================================================
-template<typename DirectoryType>
+template <typename DirectoryType>
 struct is_encrypted_dir;
 
-template<>
+template <>
 struct is_encrypted_dir<OwnerDirectory> : public std::true_type {};
 
-template<>
+template <>
 struct is_encrypted_dir<GroupDirectory> : public std::true_type {};
 
-template<>
+template <>
 struct is_encrypted_dir<WorldDirectory> : public std::false_type {};
 
-template<typename Storage, typename DirectoryType>
-typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type
-    PutToStorage(Storage& storage, Directory& directory);
+template <typename Storage, typename DirectoryType>
+typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type PutToStorage(
+    Storage& storage, Directory& directory);
 
-template<typename Storage, typename DirectoryType>
-typename std::enable_if<!is_encrypted_dir<DirectoryType>::value>::type
-    PutToStorage(Storage& storage, const Directory& directory);
+template <typename Storage, typename DirectoryType>
+typename std::enable_if<!is_encrypted_dir<DirectoryType>::value>::type PutToStorage(
+    Storage& storage, const Directory& directory);
 
-template<typename Storage, typename DirectoryType>
+template <typename Storage, typename DirectoryType>
 typename std::enable_if<is_encrypted_dir<DirectoryType>::value, Directory>::type
-    GetDirectoryFromStorage(Storage& storage,
-                            const DirectoryId& parent_id,
+    GetDirectoryFromStorage(Storage& storage, const DirectoryId& parent_id,
                             const DirectoryId& directory_id);
 
-template<typename Storage, typename DirectoryType>
+template <typename Storage, typename DirectoryType>
 typename std::enable_if<!is_encrypted_dir<DirectoryType>::value, Directory>::type
-    GetDirectoryFromStorage(Storage& storage,
-                            const DirectoryId& parent_id,
+    GetDirectoryFromStorage(Storage& storage, const DirectoryId& parent_id,
                             const DirectoryId& directory_id);
 
-template<typename Storage, typename DirectoryType>
-DataMapPtr GetDataMapFromStorage(Storage& storage,
-                                 const DirectoryId& parent_id,
+template <typename Storage, typename DirectoryType>
+DataMapPtr GetDataMapFromStorage(Storage& storage, const DirectoryId& parent_id,
                                  const DirectoryId& directory_id);
 
-template<typename Storage, typename DirectoryType>
-typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type
-    DeleteFromStorage(Storage& storage, const Directory& directory);
+template <typename Storage, typename DirectoryType>
+typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type DeleteFromStorage(
+    Storage& storage, const Directory& directory);
 
-template<typename Storage, typename DirectoryType>
-typename std::enable_if<!is_encrypted_dir<DirectoryType>::value>::type
-    DeleteFromStorage(Storage& storage, const Directory& directory);
+template <typename Storage, typename DirectoryType>
+typename std::enable_if<!is_encrypted_dir<DirectoryType>::value>::type DeleteFromStorage(
+    Storage& storage, const Directory& directory);
 
-template<typename Storage>
+template <typename Storage>
 DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
-                                            DataTagValue directory_type,
-                                            bool immutable_root)
+                                            DataTagValue directory_type, bool immutable_root)
     : storage_(std::move(storage)),
       directory_type_(directory_type),
       world_is_writeable_(true),
       immutable_root_(immutable_root) {}
 
-template<typename Storage>
+template <typename Storage>
 DirectoryHandler<Storage>::DirectoryHandler(const DirectoryHandler& other)
     : storage_(other.storage_),
       directory_type_(other.directory_type_),
       world_is_writeable_(other.world_is_writeable_),
       immutable_root_(other.immutable_root_) {}
 
-template<typename Storage>
+template <typename Storage>
 DirectoryHandler<Storage>::DirectoryHandler(DirectoryHandler&& other)
     : storage_(std::move(other.storage_)),
       directory_type_(std::move(other.directory_type_)),
       world_is_writeable_(std::move(other.world_is_writeable_)),
       immutable_root_(std::move(other.immutable_root_)) {}
 
-template<typename Storage>
+template <typename Storage>
 DirectoryHandler<Storage>& DirectoryHandler<Storage>::operator=(DirectoryHandler other) {
   swap(*this, other);
   return *this;
 }
 
-template<typename Storage>
+template <typename Storage>
 Directory DirectoryHandler<Storage>::GetFromPath(Directory start_directory,
                                                  const boost::filesystem::path& path) const {
   SCOPED_PROFILE
@@ -209,7 +201,7 @@ Directory DirectoryHandler<Storage>::GetFromPath(Directory start_directory,
   return start_directory;
 }
 
-template<typename Storage>
+template <typename Storage>
 void PutToStorage(Storage& storage, Directory& directory) {
   switch (directory.type) {
     case DataTagValue::kOwnerDirectoryValue:
@@ -223,9 +215,9 @@ void PutToStorage(Storage& storage, Directory& directory) {
   }
 }
 
-template<typename Storage, typename DirectoryType>
-typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type
-    PutToStorage(Storage& storage, Directory& directory) {
+template <typename Storage, typename DirectoryType>
+typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type PutToStorage(
+    Storage& storage, Directory& directory) {
   assert(directory.type == DirectoryType::Tag::kValue);
   // TODO(Fraser#5#): 2013-08-28 - Use versions
   try {
@@ -233,7 +225,8 @@ typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type
     //                               for NFS.
     DeleteFromStorage(storage, directory);
   }
-  catch(...) {}
+  catch (...) {
+  }
   auto serialised_directory_listing(directory.listing->Serialise());
   // Self-encrypt serialised directory listing.
   {
@@ -248,34 +241,32 @@ typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type
     }
   }
   // Encrypt directory listing's datamap.
-  auto encrypted_data_map = encrypt::EncryptDataMap(directory.parent_id,
-                                                    directory.listing->directory_id(),
-                                                    directory.data_map);
+  auto encrypted_data_map = encrypt::EncryptDataMap(
+      directory.parent_id, directory.listing->directory_id(), directory.data_map);
   // Store the encrypted datamap.
   DirectoryType dir(typename DirectoryType::Name(directory.listing->directory_id()),
                     encrypted_data_map);
   storage.Put(dir);
 }
 
-template<typename Storage, typename DirectoryType>
-typename std::enable_if<!is_encrypted_dir<DirectoryType>::value>::type
-    PutToStorage(Storage& storage, const Directory& directory) {
+template <typename Storage, typename DirectoryType>
+typename std::enable_if<!is_encrypted_dir<DirectoryType>::value>::type PutToStorage(
+    Storage& storage, const Directory& directory) {
   assert(directory.type == DirectoryType::Tag::kValue);
   auto serialised_directory_listing(directory.listing->Serialise());
   try {
     DeleteFromStorage(storage, directory);
   }
-  catch(...) {}
+  catch (...) {
+  }
   DirectoryType dir(typename DirectoryType::Name(directory.listing->directory_id()),
                     NonEmptyString(serialised_directory_listing));
   storage.Put(dir);
 }
 
-template<typename Storage>
-Directory GetFromStorage(Storage& storage,
-                         const DirectoryId& parent_id,
-                         const DirectoryId& directory_id,
-                         DataTagValue directory_type) {
+template <typename Storage>
+Directory GetFromStorage(Storage& storage, const DirectoryId& parent_id,
+                         const DirectoryId& directory_id, DataTagValue directory_type) {
   switch (directory_type) {
     case DataTagValue::kOwnerDirectoryValue:
       return GetDirectoryFromStorage<Storage, OwnerDirectory>(storage, parent_id, directory_id);
@@ -289,15 +280,14 @@ Directory GetFromStorage(Storage& storage,
   return Directory();
 }
 
-template<typename Storage, typename DirectoryType>
+template <typename Storage, typename DirectoryType>
 typename std::enable_if<is_encrypted_dir<DirectoryType>::value, Directory>::type
-    GetDirectoryFromStorage(Storage& storage,
-                            const DirectoryId& parent_id,
-                            const DirectoryId& directory_id) {
+GetDirectoryFromStorage(Storage& storage, const DirectoryId& parent_id,
+                        const DirectoryId& directory_id) {
   Directory directory(parent_id, nullptr, nullptr, DirectoryType::Tag::kValue);
   // Retrieve encrypted datamap.
-  directory.data_map = GetDataMapFromStorage<Storage, DirectoryType>(storage, parent_id,
-                                                                     directory_id);
+  directory.data_map =
+      GetDataMapFromStorage<Storage, DirectoryType>(storage, parent_id, directory_id);
   // Decrypt serialised directory listing.
   encrypt::SelfEncryptor<Storage> self_encryptor(directory.data_map, storage);
   uint32_t data_map_chunks_size(static_cast<uint32_t>(directory.data_map->chunks.size()));
@@ -313,37 +303,35 @@ typename std::enable_if<is_encrypted_dir<DirectoryType>::value, Directory>::type
     ThrowError(CommonErrors::invalid_parameter);
 
   // Parse serialised directory listing.
-  directory.listing = std::make_shared<DirectoryListing>(std::string(std::begin(serialised_listing),
-                                                                     std::end(serialised_listing)));
+  directory.listing = std::make_shared<DirectoryListing>(
+      std::string(std::begin(serialised_listing), std::end(serialised_listing)));
   return directory;
 }
 
-template<typename Storage, typename DirectoryType>
+template <typename Storage, typename DirectoryType>
 typename std::enable_if<!is_encrypted_dir<DirectoryType>::value, Directory>::type
-    GetDirectoryFromStorage(Storage& storage,
-                            const DirectoryId& parent_id,
-                            const DirectoryId& directory_id) {
+GetDirectoryFromStorage(Storage& storage, const DirectoryId& parent_id,
+                        const DirectoryId& directory_id) {
   static_assert(DirectoryType::Tag::kValue == DataTagValue::kWorldDirectoryValue,
                 "This should only be called with WorldDirectory type.");
-  DirectoryType dir(storage.template Get<DirectoryType>(
-      typename DirectoryType::Name(directory_id)).get());
+  DirectoryType dir(
+      storage.template Get<DirectoryType>(typename DirectoryType::Name(directory_id)).get());
   return Directory(parent_id, std::make_shared<DirectoryListing>(dir.data().string()), nullptr,
                    DirectoryType::Tag::kValue);
 }
 
-template<typename Storage, typename DirectoryType>
-DataMapPtr GetDataMapFromStorage(Storage& storage,
-                                 const DirectoryId& parent_id,
+template <typename Storage, typename DirectoryType>
+DataMapPtr GetDataMapFromStorage(Storage& storage, const DirectoryId& parent_id,
                                  const DirectoryId& directory_id) {
   static_assert(is_encrypted_dir<DirectoryType>::value, "Must be an encrypted type of directory.");
-  DirectoryType dir(storage.template Get<DirectoryType>(
-      typename DirectoryType::Name(directory_id)).get());
+  DirectoryType dir(
+      storage.template Get<DirectoryType>(typename DirectoryType::Name(directory_id)).get());
   auto data_map(std::make_shared<encrypt::DataMap>());
   encrypt::DecryptDataMap(parent_id, directory_id, dir.data().string(), data_map);
   return data_map;
 }
 
-template<typename Storage>
+template <typename Storage>
 void DeleteFromStorage(Storage& storage, const Directory& directory) {
   switch (directory.type) {
     case DataTagValue::kOwnerDirectoryValue:
@@ -357,9 +345,9 @@ void DeleteFromStorage(Storage& storage, const Directory& directory) {
   }
 }
 
-template<typename Storage, typename DirectoryType>
-typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type
-    DeleteFromStorage(Storage& storage, const Directory& directory) {
+template <typename Storage, typename DirectoryType>
+typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type DeleteFromStorage(
+    Storage& storage, const Directory& directory) {
   assert(directory.type == DirectoryType::Tag::kValue);
   if (directory.data_map) {
     encrypt::SelfEncryptor<Storage> self_encryptor(directory.data_map, storage);
@@ -371,9 +359,9 @@ typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type
       typename DirectoryType::Name(directory.listing->directory_id()));
 }
 
-template<typename Storage, typename DirectoryType>
-typename std::enable_if<!is_encrypted_dir<DirectoryType>::value>::type
-    DeleteFromStorage(Storage& storage, const Directory& directory) {
+template <typename Storage, typename DirectoryType>
+typename std::enable_if<!is_encrypted_dir<DirectoryType>::value>::type DeleteFromStorage(
+    Storage& storage, const Directory& directory) {
   assert(directory.type == DirectoryType::Tag::kValue);
   storage.template Delete<DirectoryType>(
       typename DirectoryType::Name(directory.listing->directory_id()));

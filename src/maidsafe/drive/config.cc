@@ -18,7 +18,6 @@
 
 #include "maidsafe/drive/config.h"
 
-
 namespace maidsafe {
 
 namespace drive {

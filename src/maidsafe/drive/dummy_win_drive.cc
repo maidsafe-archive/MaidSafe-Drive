@@ -26,31 +26,19 @@ namespace maidsafe {
 
 namespace drive {
 
-DummyWinDriveInUserSpace::DummyWinDriveInUserSpace(ClientNfs& client_nfs,
-                                                   DataStore& data_store,
-                                                   const Maid& maid,
-                                                   const Identity& unique_user_id,
-                                                   const std::string& root_parent_id,
-                                                   const fs::path &mount_dir,
-                                                   const fs::path &/*drive_name*/,
-                                                   const int64_t &max_space,
-                                                   const int64_t &used_space)
-    : DriveInUserSpace(client_nfs,
-                       data_store,
-                       maid,
-                       unique_user_id,
-                       root_parent_id,
-                       mount_dir,
-                       max_space,
-                       used_space) {}
-int DummyWinDriveInUserSpace::Unmount(int64_t &/*max_space*/, int64_t &/*used_space*/) {
+DummyWinDriveInUserSpace::DummyWinDriveInUserSpace(
+    ClientNfs& client_nfs, DataStore& data_store, const Maid& maid, const Identity& unique_user_id,
+    const std::string& root_parent_id, const fs::path& mount_dir, const fs::path& /*drive_name*/,
+    const int64_t& max_space, const int64_t& used_space)
+    : DriveInUserSpace(client_nfs, data_store, maid, unique_user_id, root_parent_id, mount_dir,
+                       max_space, used_space) {}
+int DummyWinDriveInUserSpace::Unmount(int64_t& /*max_space*/, int64_t& /*used_space*/) {
   return -1;
 }
 void DummyWinDriveInUserSpace::NotifyRename(const fs::path& /*from_relative_path*/,
                                             const fs::path& /*to_relative_path*/) const {}
 void DummyWinDriveInUserSpace::SetNewAttributes(FileContext* /*file_context*/,
-                                                bool /*is_directory*/,
-                                                bool /*read_only*/) {}
+                                                bool /*is_directory*/, bool /*read_only*/) {}
 
 }  // namespace drive
 
