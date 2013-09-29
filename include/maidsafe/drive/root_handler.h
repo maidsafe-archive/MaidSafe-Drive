@@ -31,7 +31,7 @@
 
 #include "boost/optional.hpp"
 
-#include "maidsafe/data_store/sure_file_store.h"
+#include "maidsafe/data_store/surefile_store.h"
 #include "maidsafe/data_types/data_type_values.h"
 #include "maidsafe/nfs/client/maid_node_nfs.h"
 
@@ -48,6 +48,8 @@ namespace detail {
 template <typename Storage>
 class RootHandler {
  public:
+  typedef std::unique_ptr<DirectoryHandler<Storage>> DirectoryHandlerPtr;
+
   RootHandler(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
               const Identity& unique_user_id, const Identity& drive_root_id,
               OnServiceAdded on_service_added);
@@ -107,6 +109,14 @@ class RootHandler {
                              const boost::filesystem::path& new_path, MetaData& meta_data);
   void ReStoreDirectories(const boost::filesystem::path& old_path,
                           const boost::filesystem::path& new_path);
+
+  void ReStoreDirectory(DirectoryHandlerPtr& old_handler,
+                        const boost::filesystem::path& old_path,
+                        DirectoryHandlerPtr& new_handler,
+                        const boost::filesystem::path& new_path);
+  void ReStoreFile(DirectoryHandlerPtr& old_handler,
+                   DirectoryHandlerPtr& new_handler,
+                   const MetaData& meta_data);
 
   void Put(const boost::filesystem::path& path, Directory& directory);
   void Delete(const boost::filesystem::path& path, const Directory& directory);
@@ -568,7 +578,15 @@ void RootHandler<Storage>::RenameDifferentParent(const boost::filesystem::path& 
   assert(old_parent.listing);
   assert(new_parent.listing);
 
-  if (IsDirectory(meta_data)) {
+  auto old_handler(GetHandler(old_path)), new_handler(GetHandler(new_path));
+  if (old_handler != new_handler) {
+    if (IsDirectory(meta_data))
+      ReStoreDirectory(old_handler, old_path, new_handler, new_path);
+    else
+      ReStoreFile(old_handler, new_handler, meta_data);
+  }
+
+  /*if (IsDirectory(meta_data)) {
     Directory directory(GetFromPath(old_path));
     if (directory.type != new_parent.type) {
       directory.listing->ResetChildrenIterator();
@@ -582,7 +600,7 @@ void RootHandler<Storage>::RenameDifferentParent(const boost::filesystem::path& 
     directory.parent_id = new_parent.listing->directory_id();
     directory.type = new_parent.type;
     Put(new_path, directory);
-  }
+  }*/
 
   old_parent.listing->RemoveChild(meta_data);
 
@@ -651,7 +669,38 @@ void RootHandler<Storage>::ReStoreDirectories(const boost::filesystem::path& old
   Put(new_path, directory);
 }
 
-template <typename Storage>
+template<typename Storage>
+void RootHandler<Storage>::ReStoreDirectory(DirectoryHandlerPtr& old_handler,
+                                            const boost::filesystem::path& old_path,
+                                            DirectoryHandlerPtr& new_handler,
+                                            const boost::filesystem::path& new_path) {
+  Directory directory(GetFromPath(old_path));
+  directory.listing->ResetChildrenIterator();
+  MetaData meta_data;
+  while (directory.listing->GetChildAndIncrementItr(meta_data)) {
+    if (IsDirectory(meta_data))
+      ReStoreDirectory(old_handler, old_path / meta_data.name,
+                       new_handler, new_path / meta_data.name);
+    else
+      ReStoreFile(old_handler, new_handler, meta_data);
+  }
+  Delete(old_path, directory);
+  Put(new_path, directory);
+}
+
+template<typename Storage>
+void RootHandler<Storage>::ReStoreFile(DirectoryHandlerPtr& old_handler,
+                                       DirectoryHandlerPtr& new_handler,
+                                       const MetaData& meta_data) {
+  for (auto& chunk : meta_data.data_map->chunks) {
+    ImmutableData::Name name(ImmutableData::Name(Identity(chunk.hash)));
+    auto chunk_future(old_handler->storage()->Get<ImmutableData>(name));
+    new_handler->storage()->Put(chunk_future.get());
+    old_handler->storage()->Delete<ImmutableData>(name);
+  }
+}
+
+template<typename Storage>
 void RootHandler<Storage>::UpdateParentDirectoryListing(const boost::filesystem::path& parent_path,
                                                         MetaData meta_data) {
   SCOPED_PROFILE
