@@ -694,9 +694,9 @@ void RootHandler<Storage>::ReStoreFile(DirectoryHandlerPtr& old_handler,
                                        const MetaData& meta_data) {
   for (auto& chunk : meta_data.data_map->chunks) {
     ImmutableData::Name name(ImmutableData::Name(Identity(chunk.hash)));
-    auto chunk_future(old_handler->storage()->Get<ImmutableData>(name));
+    auto chunk_future(old_handler->storage()->template Get<ImmutableData>(name));
     new_handler->storage()->Put(chunk_future.get());
-    old_handler->storage()->Delete<ImmutableData>(name);
+    old_handler->storage()->template Delete<ImmutableData>(name);
   }
 }
 
