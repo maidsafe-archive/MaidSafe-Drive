@@ -31,7 +31,7 @@
 
 #include "boost/optional.hpp"
 
-#include "maidsafe/data_store/surefile_store.h"
+#include "maidsafe/data_store/sure_file_store.h"
 #include "maidsafe/data_types/data_type_values.h"
 #include "maidsafe/nfs/client/maid_node_nfs.h"
 
