@@ -35,7 +35,7 @@
 #include "maidsafe/common/utils.h"
 
 #include "maidsafe/data_store/permanent_store.h"
-#include "maidsafe/data_store/surefile_store.h"
+#include "maidsafe/data_store/sure_file_store.h"
 
 #include "maidsafe/encrypt/data_map.h"
 #include "maidsafe/encrypt/self_encryptor.h"
