@@ -53,7 +53,8 @@ void RootHandler<data_store::SureFileStore>::AddService(
     const boost::filesystem::path& service_alias, const boost::filesystem::path& store_path,
     const Identity& service_root_id) {
   // TODO(Fraser#5#): 2013-08-26 - BEFORE_RELEASE - fix size
-  auto storage(std::make_shared<data_store::SureFileStore>(store_path, DiskUsage(1 << 30)));
+  auto storage(std::make_shared<data_store::SureFileStore>(
+          store_path, DiskUsage(std::numeric_limits<uint64_t>().max())));
   Directory service_root;
   try {
     // Logging back in
