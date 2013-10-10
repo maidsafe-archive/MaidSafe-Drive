@@ -142,7 +142,7 @@ class DriveInUserSpace {
                     const boost::filesystem::path& parent_path);
   // Resizes the file.
   bool TruncateFile(const boost::filesystem::path& relative_path,
-                    detail::FileContext<Storage>* file_context, const uint64_t& size);
+                    detail::FileContext<Storage>* file_context, uint64_t size);
   virtual void NotifyDirectoryChange(const boost::filesystem::path& relative_path,
                                      detail::OpType op) const = 0;
   void NotifyRename(const boost::filesystem::path& from_relative_path,
@@ -333,7 +333,7 @@ void DriveInUserSpace<Storage>::RenameFile(const boost::filesystem::path& old_re
 template <typename Storage>
 bool DriveInUserSpace<Storage>::TruncateFile(const boost::filesystem::path& relative_path,
                                              detail::FileContext<Storage>* file_context,
-                                             const uint64_t& size) {
+                                             uint64_t size) {
   if (!file_context->self_encryptor) {
     auto directory_handler(GetHandler(relative_path));
     if (!directory_handler)
