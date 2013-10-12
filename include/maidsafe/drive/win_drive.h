@@ -856,7 +856,8 @@ void CbfsDriveInUserSpace<Storage>::CbFsSetFileAttributes(
   if (last_write_time)
     file_context->meta_data->last_write_time = *last_write_time;
 
-  file_context->content_changed = true;
+  cbfs_drive->UpdateParent(file_context, relative_path.parent_path());
+  file_context->content_changed = false;
 }
 
 template <typename Storage>
