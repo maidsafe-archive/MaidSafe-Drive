@@ -45,8 +45,8 @@
 #include "maidsafe/encrypt/data_map.h"
 #include "maidsafe/drive/config.h"
 
-namespace maidsafe {
 
+namespace maidsafe {
 namespace drive {
 
 // Represents directory and file information
@@ -86,7 +86,6 @@ bool operator<(const MetaData& lhs, const MetaData& rhs);
 void swap(MetaData& lhs, MetaData& rhs);
 
 }  // namespace drive
-
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_META_DATA_H_

@@ -37,9 +37,7 @@
 #include "maidsafe/drive/proto_structs.pb.h"
 
 namespace maidsafe {
-
 namespace drive {
-
 namespace detail {
 
 namespace {
@@ -137,7 +135,7 @@ void DirectoryListing::RemoveChild(const MetaData& child) {
 
 void DirectoryListing::UpdateChild(const MetaData& child) {
   auto itr(std::find_if(std::begin(children_), std::end(children_),
-                        [&child](const MetaData & entry) { return child.name == entry.name; }));
+                        [&child](const MetaData& entry) { return child.name == entry.name; }));
   if (itr == std::end(children_))
     ThrowError(CommonErrors::invalid_parameter);
   *itr = child;
@@ -154,7 +152,7 @@ void DirectoryListing::SortAndResetChildrenIterator() {
 bool DirectoryListing::empty() const {
   if (children_.empty())
     return true;
-  return std::any_of(std::begin(children_), std::end(children_), [](const MetaData & element) {
+  return std::any_of(std::begin(children_), std::end(children_), [](const MetaData& element) {
     return element.name.extension() == kMsHidden;
   });
 }
@@ -171,7 +169,7 @@ std::string DirectoryListing::Serialise() const {
 
 std::vector<std::string> DirectoryListing::GetHiddenChildNames() const {
   std::vector<std::string> names;
-  std::for_each(std::begin(children_), std::end(children_), [&](const MetaData & child) {
+  std::for_each(std::begin(children_), std::end(children_), [&](const MetaData& child) {
     if (child.name.extension() == kMsHidden)
       names.push_back(child.name.string());
   });
@@ -190,7 +188,5 @@ void swap(DirectoryListing& lhs, DirectoryListing& rhs) {
 }
 
 }  // namespace detail
-
 }  // namespace drive
-
 }  // namespace maidsafe

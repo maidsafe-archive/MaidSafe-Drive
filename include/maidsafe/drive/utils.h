@@ -26,15 +26,13 @@
 
 #include "boost/filesystem/path.hpp"
 
-#include "maidsafe/data_store/sure_file_store.h"
+#include "maidsafe/data_types/data_type_values.h"
 #include "maidsafe/encrypt/self_encryptor.h"
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/meta_data.h"
 
 namespace maidsafe {
-
 namespace drive {
-
 namespace detail {
 
 static const uint32_t kDirectorySize = 4096;
@@ -107,34 +105,13 @@ void swap(FileContext<Storage>& lhs, FileContext<Storage>& rhs) {
   swap(lhs.parent_directory_id, rhs.parent_directory_id);
 }
 
-// TODO(David) Delete
-// #ifndef MAIDSAFE_WIN32
-//// Not called by Windows...
-// template<typename Storage>
-// bool ForceFlush(const RootHandler<Storage>& root_handler,
-//                FileContext<Storage>* file_context) {
-//  assert(file_context);
-//  file_context->self_encryptor->Flush();
-
-//  try {
-//    root_handler->UpdateParentDirectoryListing(
-//        file_context->meta_data->name.parent_path(), *file_context->meta_data.get());
-//  } catch(...) {
-//      return false;
-//  }
-//  return true;
-// }
-// #endif
-
 bool ExcludedFilename(const std::string& file_name);
 
 bool MatchesMask(std::wstring mask, const boost::filesystem::path& file_name);
 bool SearchesMask(std::wstring mask, const boost::filesystem::path& file_name);
 
 }  // namespace detail
-
 }  // namespace drive
-
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_UTILS_H_

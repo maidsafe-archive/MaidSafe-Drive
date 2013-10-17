@@ -37,12 +37,12 @@ template <typename Storage>
 struct VirtualDrive {
 #ifdef MAIDSAFE_WIN32
 #ifdef HAVE_CBFS
-  typedef CbfsDriveInUserSpace<Storage> value_type;
+  typedef CbfsDrive<Storage> value_type;
 #else
   typedef DummyWinDriveInUserSpace value_type;
 #endif
 #else
-  typedef FuseDriveInUserSpace<Storage> value_type;
+  typedef FuseDrive<Storage> value_type;
 #endif
 };
 

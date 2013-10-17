@@ -29,42 +29,31 @@
 #include "maidsafe/drive/directory_listing.h"
 
 namespace maidsafe {
-
 namespace drive {
-
 namespace detail {
 
 struct Directory {
   Directory(DirectoryId parent_id_in, std::shared_ptr<DirectoryListing> listing_in,
-            std::shared_ptr<encrypt::DataMap> data_map_in, DataTagValue type_in)
+            std::shared_ptr<encrypt::DataMap> data_map_in)
       : parent_id(std::move(parent_id_in)),
         listing(std::move(listing_in)),
         data_map(std::move(data_map_in)),
-        type(type_in),
-        content_changed(false) {
-    assert(type == DataTagValue::kOwnerDirectoryValue ||
-           type == DataTagValue::kGroupDirectoryValue ||
-           type == DataTagValue::kWorldDirectoryValue);
-  }
+        content_changed(false) {}
 
   Directory()
       : parent_id(),
         listing(),
         data_map(),
-        type(DataTagValue::kOwnerDirectoryValue),
         content_changed(false) {}
 
   DirectoryId parent_id;
   std::shared_ptr<DirectoryListing> listing;
   std::shared_ptr<encrypt::DataMap> data_map;
-  DataTagValue type;
   bool content_changed;
 };
 
 }  // namespace detail
-
 }  // namespace drive
-
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_DIRECTORY_H_

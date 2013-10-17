@@ -33,7 +33,6 @@ namespace bptime = boost::posix_time;
 namespace fs = boost::filesystem;
 
 namespace maidsafe {
-
 namespace drive {
 
 const uint32_t kAttributesDir = 0x4000;
@@ -392,5 +391,4 @@ void swap(MetaData& lhs, MetaData& rhs) {
 }
 
 }  // namespace drive
-
 }  // namespace maidsafe

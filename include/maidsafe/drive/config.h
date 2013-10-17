@@ -67,9 +67,7 @@ extern const boost::filesystem::path kMsHidden;
 extern const boost::filesystem::path kRoot;
 
 }  // namespace detail
-
 }  // namespace drive
-
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_CONFIG_H_

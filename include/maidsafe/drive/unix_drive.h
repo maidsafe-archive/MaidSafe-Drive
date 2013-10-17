@@ -80,29 +80,29 @@ static inline void SetFileContext(struct fuse_file_info* file_info,
 }  // namespace detail
 
 template <typename Storage>
-class FuseDriveInUserSpace;
+class FuseDrive;
 
 template <typename Storage>
 struct Global {
-  static FuseDriveInUserSpace<Storage>* g_fuse_drive;
+  static FuseDrive<Storage>* g_fuse_drive;
 };
 
 template <typename Storage>
-FuseDriveInUserSpace<Storage>* Global<Storage>::g_fuse_drive;
+FuseDrive<Storage>* Global<Storage>::g_fuse_drive;
 
 template <typename Storage>
-class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
+class FuseDrive : public Drive<Storage> {
  public:
-  FuseDriveInUserSpace(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
+  FuseDrive(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
                        const Identity& unique_user_id, const Identity& drive_root_id,
                        const boost::filesystem::path& mount_dir,
                        const boost::filesystem::path& drive_name, OnServiceAdded on_service_added);
 
-  FuseDriveInUserSpace(const Identity& drive_root_id, const boost::filesystem::path& mount_dir,
+  FuseDrive(const Identity& drive_root_id, const boost::filesystem::path& mount_dir,
                        const boost::filesystem::path& drive_name, OnServiceAdded on_service_added,
                        OnServiceRemoved on_service_removed, OnServiceRenamed on_service_renamed);
 
-  virtual ~FuseDriveInUserSpace();
+  virtual ~FuseDrive();
 
   virtual bool Unmount();
   // Notifies filesystem of change in directory.  No-op on Unix.
@@ -111,9 +111,9 @@ class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
   void Mount();
 
  private:
-  FuseDriveInUserSpace(const FuseDriveInUserSpace&);
-  FuseDriveInUserSpace(FuseDriveInUserSpace&&);
-  FuseDriveInUserSpace& operator=(FuseDriveInUserSpace);
+  FuseDrive(const FuseDrive&);
+  FuseDrive(FuseDrive&&);
+  FuseDrive& operator=(FuseDrive);
 
   void Init();
   //  void Mount();
@@ -187,20 +187,20 @@ class FuseDriveInUserSpace : public DriveInUserSpace<Storage> {
 const int kMaxPath(4096);
 
 template <typename Storage>
-using g_fuse_drive = FuseDriveInUserSpace<Storage>*;
+using g_fuse_drive = FuseDrive<Storage>*;
 
 template <typename Storage>
-struct fuse_operations FuseDriveInUserSpace<Storage>::maidsafe_ops_;
+struct fuse_operations FuseDrive<Storage>::maidsafe_ops_;
 
 template <typename Storage>
-const bool FuseDriveInUserSpace<Storage>::kAllowMsHidden_(false);
+const bool FuseDrive<Storage>::kAllowMsHidden_(false);
 
 template <typename Storage>
-FuseDriveInUserSpace<Storage>::FuseDriveInUserSpace(
+FuseDrive<Storage>::FuseDrive(
     std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs, const Identity& unique_user_id,
     const Identity& drive_root_id, const boost::filesystem::path& mount_dir,
     const boost::filesystem::path& drive_name, OnServiceAdded on_service_added)
-    : DriveInUserSpace<Storage>::DriveInUserSpace(maid_node_nfs, unique_user_id, drive_root_id,
+    : Drive<Storage>::Drive(maid_node_nfs, unique_user_id, drive_root_id,
                                                   mount_dir, on_service_added),
       fuse_(nullptr),
       fuse_channel_(nullptr),
@@ -211,13 +211,13 @@ FuseDriveInUserSpace<Storage>::FuseDriveInUserSpace(
 }
 
 template <typename Storage>
-FuseDriveInUserSpace<Storage>::FuseDriveInUserSpace(const Identity& drive_root_id,
+FuseDrive<Storage>::FuseDrive(const Identity& drive_root_id,
                                                     const boost::filesystem::path& mount_dir,
                                                     const boost::filesystem::path& drive_name,
                                                     OnServiceAdded on_service_added,
                                                     OnServiceRemoved on_service_removed,
                                                     OnServiceRenamed on_service_renamed)
-    : DriveInUserSpace<Storage>::DriveInUserSpace(drive_root_id, mount_dir, on_service_added,
+    : Drive<Storage>::Drive(drive_root_id, mount_dir, on_service_added,
                                                   on_service_removed, on_service_renamed),
       fuse_(nullptr),
       fuse_channel_(nullptr),
@@ -228,12 +228,12 @@ FuseDriveInUserSpace<Storage>::FuseDriveInUserSpace(const Identity& drive_root_i
 }
 
 template <typename Storage>
-FuseDriveInUserSpace<Storage>::~FuseDriveInUserSpace() {
+FuseDrive<Storage>::~FuseDrive() {
   Unmount();
 }
 
 template <typename Storage>
-void FuseDriveInUserSpace<Storage>::Init() {
+void FuseDrive<Storage>::Init() {
   Global<Storage>::g_fuse_drive = this;
   maidsafe_ops_.create = OpsCreate;
   maidsafe_ops_.destroy = OpsDestroy;
@@ -273,29 +273,29 @@ void FuseDriveInUserSpace<Storage>::Init() {
 #endif
 
   umask(0022);
-  DriveInUserSpace<Storage>::drive_stage_ = DriveInUserSpace<Storage>::kInitialised;
+  Drive<Storage>::drive_stage_ = Drive<Storage>::kInitialised;
   Mount();
 }
 
 // TODO(Team): Consider using exceptions
 template <typename Storage>
-void FuseDriveInUserSpace<Storage>::Mount() {
+void FuseDrive<Storage>::Mount() {
   boost::system::error_code error_code;
-  if (!fs::exists(DriveInUserSpace<Storage>::kMountDir_, error_code) || error_code) {
-    LOG(kError) << "Mount dir " << DriveInUserSpace<Storage>::kMountDir_ << " doesn't exist."
+  if (!fs::exists(Drive<Storage>::kMountDir_, error_code) || error_code) {
+    LOG(kError) << "Mount dir " << Drive<Storage>::kMountDir_ << " doesn't exist."
                 << (error_code ? ("  " + error_code.message()) : "");
     ThrowError(DriveErrors::failed_to_mount);
   }
 
-  if (!fs::is_empty(DriveInUserSpace<Storage>::kMountDir_, error_code) || error_code) {
-    LOG(kError) << "Mount dir " << DriveInUserSpace<Storage>::kMountDir_ << " isn't empty."
+  if (!fs::is_empty(Drive<Storage>::kMountDir_, error_code) || error_code) {
+    LOG(kError) << "Mount dir " << Drive<Storage>::kMountDir_ << " isn't empty."
                 << (error_code ? ("  " + error_code.message()) : "");
     ThrowError(DriveErrors::failed_to_mount);
   }
 
   boost::shared_array<char*> opts(new char* [2]);
   opts[0] = const_cast<char*>(drive_name_.c_str());
-  opts[1] = const_cast<char*>(DriveInUserSpace<Storage>::kMountDir_.c_str());
+  opts[1] = const_cast<char*>(Drive<Storage>::kMountDir_.c_str());
 
   struct fuse_args args = FUSE_ARGS_INIT(2, opts.get());
   // fuse helper macros for options
@@ -349,7 +349,7 @@ void FuseDriveInUserSpace<Storage>::Mount() {
     ThrowError(DriveErrors::failed_to_mount);
   }
 
-  DriveInUserSpace<Storage>::SetMountState(true);
+  Drive<Storage>::SetMountState(true);
 
   //  int res;
   //  if (multithreaded)
@@ -361,14 +361,14 @@ void FuseDriveInUserSpace<Storage>::Mount() {
 
   //  if (res != 0) {
   //    LOG(kError) << "Fuse Loop result: " << res;
-  //    DriveInUserSpace<Storage>::SetMountState(false);
+  //    Drive<Storage>::SetMountState(false);
   //    return kFuseFailedToMount;
   //  }
 }
 
 template <typename Storage>
-bool FuseDriveInUserSpace<Storage>::Unmount() {
-  if (DriveInUserSpace<Storage>::drive_stage_ != DriveInUserSpace<Storage>::kMounted) {
+bool FuseDrive<Storage>::Unmount() {
+  if (Drive<Storage>::drive_stage_ != Drive<Storage>::kMounted) {
     LOG(kInfo) << "Not mounted at all;";
     return false;
   }
@@ -382,7 +382,7 @@ bool FuseDriveInUserSpace<Storage>::Unmount() {
 #else
   fuse_teardown(fuse_, fuse_mountpoint_);
 #endif
-  DriveInUserSpace<Storage>::SetMountState(false);
+  Drive<Storage>::SetMountState(false);
 #ifdef MAIDSAFE_APPLE
   command = "diskutil unmount " + command;
   system(command.c_str());
@@ -394,7 +394,7 @@ bool FuseDriveInUserSpace<Storage>::Unmount() {
 /********************************* content ************************************/
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsCreate(const char* path, mode_t mode,
+int FuseDrive<Storage>::OpsCreate(const char* path, mode_t mode,
                                              struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsCreate: " << path << ", mode: " << std::oct << mode << ", " << std::boolalpha
              << S_ISDIR(mode);
@@ -452,13 +452,13 @@ int FuseDriveInUserSpace<Storage>::OpsCreate(const char* path, mode_t mode,
 }
 
 template <typename Storage>
-void FuseDriveInUserSpace<Storage>::OpsDestroy(void* /*fuse*/) {
+void FuseDrive<Storage>::OpsDestroy(void* /*fuse*/) {
   LOG(kInfo) << "OpsDestroy";
   //   Global<Storage>::g_fuse_drive->SetMountState(false);
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsFlush(const char* path, struct fuse_file_info* file_info) {
+int FuseDrive<Storage>::OpsFlush(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsFlush: " << path << ", flags: " << file_info->flags;
   detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
   if (!file_context) {
@@ -474,7 +474,7 @@ int FuseDriveInUserSpace<Storage>::OpsFlush(const char* path, struct fuse_file_i
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsFtruncate(const char* path, off_t size,
+int FuseDrive<Storage>::OpsFtruncate(const char* path, off_t size,
                                                 struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsFtruncate: " << path << ", size: " << size;
   detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
@@ -495,7 +495,7 @@ int FuseDriveInUserSpace<Storage>::OpsFtruncate(const char* path, off_t size,
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsMkdir(const char* path, mode_t mode) {
+int FuseDrive<Storage>::OpsMkdir(const char* path, mode_t mode) {
   LOG(kInfo) << "OpsMkdir: " << path << ", mode: " << std::oct << mode << ", " << std::boolalpha
              << S_ISDIR(mode);
 
@@ -522,7 +522,7 @@ int FuseDriveInUserSpace<Storage>::OpsMkdir(const char* path, mode_t mode) {
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsMknod(const char* path, mode_t mode, dev_t rdev) {
+int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t rdev) {
 #ifdef DEBUG
   std::string file_type;
   if (S_ISFIFO(mode))
@@ -563,7 +563,7 @@ int FuseDriveInUserSpace<Storage>::OpsMknod(const char* path, mode_t mode, dev_t
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsOpen(const char* path, struct fuse_file_info* file_info) {
+int FuseDrive<Storage>::OpsOpen(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsOpen: " << path << ", flags: " << file_info->flags
              << ", keep_cache: " << file_info->keep_cache
              << ", direct_io: " << file_info->direct_io;
@@ -612,7 +612,7 @@ int FuseDriveInUserSpace<Storage>::OpsOpen(const char* path, struct fuse_file_in
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsOpendir(const char* path, struct fuse_file_info* file_info) {
+int FuseDrive<Storage>::OpsOpendir(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsOpendir: " << path << ", flags: " << file_info->flags
              << ", keep_cache: " << file_info->keep_cache
              << ", direct_io: " << file_info->direct_io;
@@ -648,7 +648,7 @@ int FuseDriveInUserSpace<Storage>::OpsOpendir(const char* path, struct fuse_file
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsRead(const char* path, char* buf, size_t size, off_t offset,
+int FuseDrive<Storage>::OpsRead(const char* path, char* buf, size_t size, off_t offset,
                                            struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsRead: " << path << ", flags: 0x" << std::hex << file_info->flags << std::dec
              << " Size : " << size << " Offset : " << offset;
@@ -711,20 +711,20 @@ int FuseDriveInUserSpace<Storage>::OpsRead(const char* path, char* buf, size_t s
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsRelease(const char* path, struct fuse_file_info* file_info) {
+int FuseDrive<Storage>::OpsRelease(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsRelease: " << path << ", flags: " << file_info->flags;
   return Release(path, file_info);
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsReleasedir(const char* path,
+int FuseDrive<Storage>::OpsReleasedir(const char* path,
                                                  struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsReleasedir: " << path << ", flags: " << file_info->flags;
   return Release(path, file_info);
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsRmdir(const char* path) {
+int FuseDrive<Storage>::OpsRmdir(const char* path) {
   LOG(kInfo) << "OpsRmdir: " << path;
 
   // try {
@@ -747,7 +747,7 @@ int FuseDriveInUserSpace<Storage>::OpsRmdir(const char* path) {
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsTruncate(const char* path, off_t size) {
+int FuseDrive<Storage>::OpsTruncate(const char* path, off_t size) {
   LOG(kInfo) << "OpsTruncate: " << path << ", size: " << size;
   try {
     fs::path full_path(path);
@@ -771,7 +771,7 @@ int FuseDriveInUserSpace<Storage>::OpsTruncate(const char* path, off_t size) {
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsUnlink(const char* path) {
+int FuseDrive<Storage>::OpsUnlink(const char* path) {
   LOG(kInfo) << "OpsUnlink: " << path;
   // try {
   //  fs::path full_path(path);
@@ -793,7 +793,7 @@ int FuseDriveInUserSpace<Storage>::OpsUnlink(const char* path) {
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsWrite(const char* path, const char* buf, size_t size,
+int FuseDrive<Storage>::OpsWrite(const char* path, const char* buf, size_t size,
                                             off_t offset, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsWrite: " << path << ", flags: 0x" << std::hex << file_info->flags << std::dec
              << " Size : " << size << " Offset : " << offset;
@@ -843,7 +843,7 @@ int FuseDriveInUserSpace<Storage>::OpsWrite(const char* path, const char* buf, s
 /********************************** metadata **********************************/
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsChmod(const char* path, mode_t mode) {
+int FuseDrive<Storage>::OpsChmod(const char* path, mode_t mode) {
   LOG(kInfo) << "OpsChmod: " << path << ", to " << std::oct << mode;
   detail::FileContext<Storage> file_context;
   try {
@@ -869,7 +869,7 @@ int FuseDriveInUserSpace<Storage>::OpsChmod(const char* path, mode_t mode) {
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsChown(const char* path, uid_t uid, gid_t gid) {
+int FuseDrive<Storage>::OpsChown(const char* path, uid_t uid, gid_t gid) {
   LOG(kInfo) << "OpsChown: " << path;
   detail::FileContext<Storage> file_context;
   try {
@@ -904,7 +904,7 @@ int FuseDriveInUserSpace<Storage>::OpsChown(const char* path, uid_t uid, gid_t g
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsFgetattr(const char* path, struct stat* stbuf,
+int FuseDrive<Storage>::OpsFgetattr(const char* path, struct stat* stbuf,
                                                struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsFgetattr: " << path;
   detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
@@ -924,7 +924,7 @@ int FuseDriveInUserSpace<Storage>::OpsFgetattr(const char* path, struct stat* st
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsFsync(const char* path, int /*isdatasync*/,
+int FuseDrive<Storage>::OpsFsync(const char* path, int /*isdatasync*/,
                                             struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsFsync: " << path;
   detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
@@ -946,7 +946,7 @@ int FuseDriveInUserSpace<Storage>::OpsFsync(const char* path, int /*isdatasync*/
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsFsyncDir(const char* path, int /*isdatasync*/,
+int FuseDrive<Storage>::OpsFsyncDir(const char* path, int /*isdatasync*/,
                                                struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsFsyncDir: " << path;
   detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
@@ -966,7 +966,7 @@ int FuseDriveInUserSpace<Storage>::OpsFsyncDir(const char* path, int /*isdatasyn
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsGetattr(const char* path, struct stat* stbuf) {
+int FuseDrive<Storage>::OpsGetattr(const char* path, struct stat* stbuf) {
   LOG(kInfo) << "OpsGetattr: " << path;
 #ifdef MAIDSAFE_APPLE
   if (!Global<Storage>::g_fuse_drive->unmount_mutex_.try_lock()) {
@@ -1011,7 +1011,7 @@ int FuseDriveInUserSpace<Storage>::OpsGetattr(const char* path, struct stat* stb
 }
 
 /*
-int FuseDriveInUserSpace<Storage>::OpsLink(const char *to, const char *from) {
+int FuseDrive<Storage>::OpsLink(const char *to, const char *from) {
   LOG(kInfo) << "OpsLink: " << from << " --> " << to;
 
   fs::path path_to(to), path_from(from);
@@ -1048,7 +1048,7 @@ int FuseDriveInUserSpace<Storage>::OpsLink(const char *to, const char *from) {
 */
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t filler,
+int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t filler,
                                               off_t offset, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsReaddir: " << path << "; offset = " << offset;
 
@@ -1086,7 +1086,7 @@ int FuseDriveInUserSpace<Storage>::OpsReaddir(const char* path, void* buf, fuse_
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsReadlink(const char* path, char* buf, size_t /*size*/) {
+int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t /*size*/) {
   LOG(kInfo) << "OpsReadlink: " << path;
   try {
     auto file_context(Global<Storage>::g_fuse_drive->GetFileContext(path));
@@ -1106,7 +1106,7 @@ int FuseDriveInUserSpace<Storage>::OpsReadlink(const char* path, char* buf, size
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsRename(const char* old_name, const char* new_name) {
+int FuseDrive<Storage>::OpsRename(const char* old_name, const char* new_name) {
   LOG(kInfo) << "OpsRename: " << old_name << " --> " << new_name;
 
   fs::path old_path(old_name), new_path(new_name);
@@ -1145,7 +1145,7 @@ int FuseDriveInUserSpace<Storage>::OpsRename(const char* old_name, const char* n
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsStatfs(const char* path, struct statvfs* stbuf) {
+int FuseDrive<Storage>::OpsStatfs(const char* path, struct statvfs* stbuf) {
   LOG(kInfo) << "OpsStatfs: " << path;
 
   //   int res = statvfs(Global<Storage>::g_fuse_drive->mount_dir().parent_path().string().c_str(),
@@ -1188,7 +1188,7 @@ int FuseDriveInUserSpace<Storage>::OpsStatfs(const char* path, struct statvfs* s
 }
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]) {
+int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]) {
   LOG(kInfo) << "OpsUtimens: " << path;
   detail::FileContext<Storage> file_context;
   try {
@@ -1240,7 +1240,7 @@ int FuseDriveInUserSpace<Storage>::OpsUtimens(const char* path, const struct tim
  * **********************************************************
 
 
-int FuseDriveInUserSpace<Storage>::OpsSymlink(const char *to, const char *from) {
+int FuseDrive<Storage>::OpsSymlink(const char *to, const char *from) {
   LOG(kInfo) << "OpsSymlink: " << from << " --> " << to;
 
   fs::path path_to(to), path_from(from);
@@ -1269,7 +1269,7 @@ int FuseDriveInUserSpace<Storage>::OpsSymlink(const char *to, const char *from) 
 // then we can do it here easy enough.
 #ifdef HAVE_SETXATTR
 // xattr operations are optional and can safely be left unimplemented
-int FuseDriveInUserSpace<Storage>::OpsSetxattr(const char *path,
+int FuseDrive<Storage>::OpsSetxattr(const char *path,
                                       const char *name,
                                       const char *value,
                                       size_t size,
@@ -1285,7 +1285,7 @@ int FuseDriveInUserSpace<Storage>::OpsSetxattr(const char *path,
   return 0;
 }
 
-int FuseDriveInUserSpace<Storage>::OpsGetxattr(const char *path,
+int FuseDrive<Storage>::OpsGetxattr(const char *path,
                                       const char *name,
                                       char *value,
                                       size_t size) {
@@ -1299,7 +1299,7 @@ int FuseDriveInUserSpace<Storage>::OpsGetxattr(const char *path,
   return res;
 }
 
-int FuseDriveInUserSpace<Storage>::OpsListxattr(const char *path,
+int FuseDrive<Storage>::OpsListxattr(const char *path,
                                        char *list,
                                        size_t size) {
   LOG(kInfo) << "OpsListxattr: " << path;
@@ -1314,7 +1314,7 @@ int FuseDriveInUserSpace<Storage>::OpsListxattr(const char *path,
   return res;
 }
 
-int FuseDriveInUserSpace<Storage>::OpsRemovexattr(const char *path, const char *name) {
+int FuseDrive<Storage>::OpsRemovexattr(const char *path, const char *name) {
   LOG(kInfo) << "OpsRemovexattr: " << path;
   fs::path full_path(Global<Storage>::g_fuse_drive->metadata_dir_ / name);
   int res = lremovexattr(TranslatePath(full_path.c_str(), path).c_str(),
@@ -1330,7 +1330,7 @@ int FuseDriveInUserSpace<Storage>::OpsRemovexattr(const char *path, const char *
 // End of not implemented
 
 template <typename Storage>
-int FuseDriveInUserSpace<Storage>::Release(const char* path, struct fuse_file_info* file_info) {
+int FuseDrive<Storage>::Release(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "Release - " << path;
 
   // Transfer ownership of the pointer from Fuse file_info.
@@ -1369,7 +1369,7 @@ int FuseDriveInUserSpace<Storage>::Release(const char* path, struct fuse_file_in
 }
 
 template <typename Storage>
-void FuseDriveInUserSpace<Storage>::SetNewAttributes(detail::FileContext<Storage>* file_context,
+void FuseDrive<Storage>::SetNewAttributes(detail::FileContext<Storage>* file_context,
                                                      bool is_directory, bool read_only) {
   LOG(kError) << "SetNewAttributes - name: " << file_context->meta_data->name
               << ", read_only: " << std::boolalpha << read_only;

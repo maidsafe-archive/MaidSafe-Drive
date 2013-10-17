@@ -35,9 +35,7 @@ namespace fs = boost::filesystem;
 namespace bptime = boost::posix_time;
 
 namespace maidsafe {
-
 namespace drive {
-
 namespace detail {
 
 namespace test {
@@ -88,9 +86,7 @@ class DirectoryListing {
 bool operator<(const DirectoryListing& lhs, const DirectoryListing& rhs);
 
 }  // namespace detail
-
 }  // namespace drive
-
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_DIRECTORY_LISTING_H_
