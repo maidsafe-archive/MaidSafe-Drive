@@ -35,7 +35,7 @@
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
 
-#include "maidsafe/data_store/sure_file_store.h"
+#include "maidsafe/data_store/local_store.h"
 
 #ifdef WIN32
 #  include "maidsafe/drive/win_drive.h"
