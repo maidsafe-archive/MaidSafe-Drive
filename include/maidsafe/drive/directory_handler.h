@@ -314,8 +314,7 @@ GetDirectoryFromStorage(Storage& storage, const DirectoryId& parent_id,
                         const DirectoryId& directory_id) {
   static_assert(DirectoryType::Tag::kValue == DataTagValue::kWorldDirectoryValue,
                 "This should only be called with WorldDirectory type.");
-  DirectoryType dir(
-      storage.template Get<DirectoryType>(typename DirectoryType::Name(directory_id)).get());
+  DirectoryType dir(storage.Get(typename DirectoryType::Name(directory_id)).get());
   return Directory(parent_id, std::make_shared<DirectoryListing>(dir.data().string()), nullptr,
                    DirectoryType::Tag::kValue);
 }
@@ -324,8 +323,7 @@ template <typename Storage, typename DirectoryType>
 DataMapPtr GetDataMapFromStorage(Storage& storage, const DirectoryId& parent_id,
                                  const DirectoryId& directory_id) {
   static_assert(is_encrypted_dir<DirectoryType>::value, "Must be an encrypted type of directory.");
-  DirectoryType dir(
-      storage.template Get<DirectoryType>(typename DirectoryType::Name(directory_id)).get());
+  DirectoryType dir(storage.Get(typename DirectoryType::Name(directory_id)).get());
   auto data_map(std::make_shared<encrypt::DataMap>());
   encrypt::DecryptDataMap(parent_id, directory_id, dir.data().string(), data_map);
   return data_map;
@@ -355,16 +353,14 @@ typename std::enable_if<is_encrypted_dir<DirectoryType>::value>::type DeleteFrom
   }
   // TODO(Fraser#5#): 2013-08-28 - Check if there's a case where the DM could be nullptr and we need
   //                  to retrieve the DM from Storage in order to call DeleteAllChunks().
-  storage.template Delete<DirectoryType>(
-      typename DirectoryType::Name(directory.listing->directory_id()));
+  storage.Delete(typename DirectoryType::Name(directory.listing->directory_id()));
 }
 
 template <typename Storage, typename DirectoryType>
 typename std::enable_if<!is_encrypted_dir<DirectoryType>::value>::type DeleteFromStorage(
     Storage& storage, const Directory& directory) {
   assert(directory.type == DirectoryType::Tag::kValue);
-  storage.template Delete<DirectoryType>(
-      typename DirectoryType::Name(directory.listing->directory_id()));
+  storage.Delete(typename DirectoryType::Name(directory.listing->directory_id()));
 }
 
 }  // namespace detail
