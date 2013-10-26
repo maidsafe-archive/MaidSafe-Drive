@@ -329,36 +329,36 @@ class DirectoryListingTest : public testing::Test {
   DirectoryListingTest& operator=(const DirectoryListingTest&);
 };
 
-TEST_CASE(DirectoryListingTest, BEH_AddChildren) {
-  ASSERT_TRUE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
-  ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
-  ASSERT_TRUE(MatchEntries(*main_test_dir_, relative_root_));
+TEST_CASE("add children", "[behavioural]") {
+  REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
+  REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
+  REQUIRE(MatchEntries(*main_test_dir_, relative_root_));
 }
 
-TEST_CASE(DirectoryListingTest, BEH_AddThenRemoveChildren) {
-  ASSERT_TRUE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
-  ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
-  ASSERT_TRUE(RemoveDirectoryListingsEntries(*main_test_dir_, relative_root_));
+TEST_CASE("add then remove children", "[behavioural]") {
+  REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
+  REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
+  REQUIRE(RemoveDirectoryListingsEntries(*main_test_dir_, relative_root_));
 }
 
-TEST_CASE(DirectoryListingTest, BEH_AddThenRenameChildren) {
-  ASSERT_TRUE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
-  ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
-  ASSERT_TRUE(RenameDirectoryEntries(*main_test_dir_, relative_root_));
-  ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
-  ASSERT_TRUE(MatchEntries(*main_test_dir_, relative_root_));
+TEST_CASE("add then rename children", "[behavioural]") {
+  REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
+  REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
+  REQUIRE(RenameDirectoryEntries(*main_test_dir_, relative_root_));
+  REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
+  REQUIRE(MatchEntries(*main_test_dir_, relative_root_));
 }
 
-TEST_CASE(DirectoryListingTest, BEH_DirectoryHasChild) {
-  ASSERT_TRUE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
-  ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
-  ASSERT_TRUE(DirectoryHasChild(*main_test_dir_, relative_root_));
+TEST_CASE("directory has child", "[behavioural]") {
+  REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
+  REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
+  REQUIRE(DirectoryHasChild(*main_test_dir_, relative_root_));
 }
 
-TEST_CASE(DirectoryListingTest, BEH_MatchEntriesUsingFreeFunctions) {
-  ASSERT_TRUE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
-  ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
-  ASSERT_TRUE(MatchEntriesUsingFreeFunctions(*main_test_dir_, relative_root_));
+TEST_CASE("match entries using free functions", "[behavioural]") {
+  REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
+  REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
+  REQUIRE(MatchEntriesUsingFreeFunctions(*main_test_dir_, relative_root_));
 }
 
 testing::AssertionResult DirectoriesMatch(const DirectoryListing& lhs,
@@ -461,15 +461,15 @@ testing::AssertionResult DirectoriesMatch(const DirectoryListing& lhs,
   return testing::AssertionSuccess();
 }
 
-TEST_CASE(DirectoryListingTest, BEH_SerialiseDeserialise) {
+TEST_CASE("serialise parse", "[behavioural]") {
   maidsafe::test::TestPath testpath(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
   boost::system::error_code error_code;
   int64_t file_size(0);
-  ASSERT_TRUE(
+  REQUIRE(
       fs::create_directories(*testpath / directory_listing_.directory_id().string(), error_code))
       << error_code.message();
   ASSERT_EQ(error_code.value(), 0) << error_code.message();
-  ASSERT_TRUE(fs::exists(*testpath / directory_listing_.directory_id().string(), error_code))
+  REQUIRE(fs::exists(*testpath / directory_listing_.directory_id().string(), error_code))
       << error_code.message();
   ASSERT_EQ(error_code.value(), 0) << error_code.message();
   fs::path file(CreateTestFile(*testpath / directory_listing_.directory_id().string(), file_size));
@@ -520,17 +520,17 @@ TEST_CASE(DirectoryListingTest, BEH_SerialiseDeserialise) {
   CHECK(DirectoriesMatch(directory_listing_, recovered_directory_listing));
 }
 
-TEST_CASE(DirectoryListingTest, BEH_IteratorResetAndFailures) {
+TEST_CASE("iterator reset", "[behavioural]") {
   // Add elements
-  ASSERT_TRUE(directory_listing_.empty());
+  REQUIRE(directory_listing_.empty());
   const size_t kTestCount(10);
-  ASSERT_LE(4U, kTestCount) << "kTestCount must be > 4";
+  CHECK(4U < kTestCount);
   char c('A');
   for (size_t i(0); i != kTestCount; ++i, ++c) {
     MetaData metadata(std::string(1, c), ((i % 2) == 0));
     CHECK_NOTHROW(directory_listing_.AddChild(metadata));
   }
-  EXPECT_FALSE(directory_listing_.empty());
+  CHECK_FALSE(directory_listing_.empty());
 
   // Check internal iterator
   MetaData meta_data;
@@ -538,15 +538,15 @@ TEST_CASE(DirectoryListingTest, BEH_IteratorResetAndFailures) {
   for (size_t i(0); i != kTestCount; ++i, ++c) {
     MetaData metadata(std::string(1, c), ((i % 2) == 0));
     CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-    EXPECT_EQ(std::string(1, c), meta_data.name);
-    EXPECT_EQ(((i % 2) == 0), (meta_data.directory_id.get() != nullptr));
+    CHECK(std::string(1, c) == meta_data.name);
+    CHECK(((i % 2) == 0) == (meta_data.directory_id.get() != nullptr));
   }
-  EXPECT_FALSE(directory_listing_.GetChildAndIncrementItr(meta_data));
+  CHECK_FALSE(directory_listing_.GetChildAndIncrementItr(meta_data));
   directory_listing_.SortAndResetChildrenIterator();
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("A", meta_data.name);
+  CHECK("A" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("B", meta_data.name);
+  CHECK("[behavioural]" == meta_data.name);
 
   // Add another element and check iterator is reset
   ++c;
@@ -555,25 +555,25 @@ TEST_CASE(DirectoryListingTest, BEH_IteratorResetAndFailures) {
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("A", meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("B", meta_data.name);
+  EXPECT_EQ("[behavioural]", meta_data.name);
 
   // Remove an element and check iterator is reset
   meta_data.name = std::string(1, c);
-  ASSERT_TRUE(directory_listing_.HasChild(meta_data.name));
+  REQUIRE(directory_listing_.HasChild(meta_data.name));
   CHECK_NOTHROW(directory_listing_.RemoveChild(meta_data));
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("A", meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("B", meta_data.name);
+  EXPECT_EQ("[behavioural]", meta_data.name);
 
   // Try to remove a non-existent element and check iterator is not reset
   meta_data.name = std::string(1, c);
-  ASSERT_FALSE(directory_listing_.HasChild(meta_data.name));
-  EXPECT_THROW(directory_listing_.RemoveChild(meta_data), std::exception);
+  REQUIRE_FALSE(directory_listing_.HasChild(meta_data.name));
+  CHECK_THROW_AS(directory_listing_.RemoveChild(meta_data), std::exception);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("C", meta_data.name);
+  CHECK("C" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("D", meta_data.name);
+  CHECK("D" == meta_data.name);
 
   // Update an element and check iterator is reset
   meta_data.name = "A";
@@ -586,25 +586,25 @@ TEST_CASE(DirectoryListingTest, BEH_IteratorResetAndFailures) {
 #endif
   CHECK_NOTHROW(directory_listing_.UpdateChild(meta_data));
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("A", meta_data.name);
-  EXPECT_EQ(1U, GetSize(meta_data));
+  CHECK("A" == meta_data.name);
+  CHECK(1U == GetSize(meta_data));
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("B", meta_data.name);
+  CHECK("[behavioural]" == meta_data.name);
 
   // Try to update a non-existent element and check iterator is not reset
   meta_data.name = std::string(1, c);
-  ASSERT_FALSE(directory_listing_.HasChild(meta_data.name));
-  EXPECT_THROW(directory_listing_.UpdateChild(meta_data), std::exception);
+  REQUIRE_FALSE(directory_listing_.HasChild(meta_data.name));
+  CHECK_THROW_AS(directory_listing_.UpdateChild(meta_data), std::exception);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("C", meta_data.name);
+  CHECK("C" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("D", meta_data.name);
+  CHECK("D" == meta_data.name);
 
   // Check operator<
   DirectoryListing directory_listing1(Identity(crypto::Hash<crypto::SHA512>(std::string("A")))),
-      directory_listing2(Identity(crypto::Hash<crypto::SHA512>(std::string("B"))));
+      directory_listing2(Identity(crypto::Hash<crypto::SHA512>(std::string("[behavioural]"))));
   CHECK(directory_listing1 < directory_listing2);
-  EXPECT_FALSE(directory_listing2 < directory_listing1);
+  CHECK(directory_listing2 => directory_listing1);
 }
 
 }  // namespace test

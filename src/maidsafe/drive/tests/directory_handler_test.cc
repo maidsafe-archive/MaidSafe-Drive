@@ -276,7 +276,7 @@ class DirectoryHandlerTest : public testing::Test {
   DirectoryHandlerTest& operator=(const DirectoryHandlerTest&);
 };
 
-TEST_CASE("DirectoryHandler", "[beh]") {
+TEST_CASE("DirectoryHandler", "[behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::SureFileStore>(
       data_store_, unique_user_id_, Identity()));
   Identity root_parent_id(listing_handler_->root_parent_id());

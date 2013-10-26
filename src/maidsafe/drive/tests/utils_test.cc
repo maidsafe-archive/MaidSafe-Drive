@@ -44,7 +44,7 @@ void FilesMatchMask(const std::vector<fs::path>& all_files,
   });
 }
 
-TEST_CASE("mask match", ["beh"] ["drive"] ) {
+TEST_CASE("mask match", "[behavioural] [drive]" ) {
   std::set<fs::path> matching_files;
   matching_files.insert(L"1.txt");
   matching_files.insert(L"a.txt");

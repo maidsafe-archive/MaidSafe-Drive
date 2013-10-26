@@ -93,7 +93,7 @@ testing::AssertionResult LastAccessTimesMatch(const MetaData& meta_data1,
 #endif
 }
 
-TEST_CASE("local store", ["beh"]) {
+TEST_CASE("local store", "[behavioural]"]) {
   maidsafe::test::TestPath main_test_dir(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
   Identity unique_user_id(RandomString(64));
   Identity root_parent_id(RandomString(64));
