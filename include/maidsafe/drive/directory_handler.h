@@ -355,14 +355,14 @@ void DirectoryHandler<Storage>::RenameSameParent(const boost::filesystem::path& 
 #endif
   Put(parent, old_relative_path.parent_path());
 
-#ifndef MAIDSAFE_WIN32
-  try {
-    assert(grandparent.listing);
-    grandparent.listing->UpdateChild(parent_meta_data, true);
-  }
-  catch(...) { /*Non-critical*/ }
-  Put(grandparent, old_relative_path.parent_path().parent_path());
-#endif
+// #ifndef MAIDSAFE_WIN32
+//   try {
+//     assert(grandparent.listing);
+//     grandparent.listing->UpdateChild(parent_meta_data, true);
+//   }
+//   catch(...) { /*Non-critical*/ }
+//   Put(grandparent, old_relative_path.parent_path().parent_path());
+// #endif
 }
 
 template <typename Storage>

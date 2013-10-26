@@ -43,6 +43,10 @@
 #  include "maidsafe/drive/unix_drive.h"
 #endif
 
+#undef APPLICATION_NAME
+#undef COMPANY_NAME
+#define APPLICATION_NAME LocalDrive
+#define COMPANY_NAME MaidSafe
 
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
@@ -60,8 +64,8 @@ void CtrlCHandler(int /*value*/) {
 
 }  // unnamed namespace
 
-#ifdef WIN32
 template<typename Storage>
+#ifdef WIN32
 struct GetDrive {
   typedef CbfsDrive<Storage> type;
 };
@@ -74,8 +78,8 @@ struct GetDrive {
 int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   fs::path storage_path(chunk_dir / "store");
   DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
-  std::shared_ptr<maidsafe::data_store::SureFileStore> 
-    storage(new maidsafe::data_store::SureFileStore(storage_path, disk_usage));
+  std::shared_ptr<maidsafe::data_store::LocalStore> 
+    storage(new maidsafe::data_store::LocalStore(storage_path, disk_usage));
 
   boost::system::error_code error_code;
   if (!fs::exists(chunk_dir, error_code))
@@ -91,13 +95,17 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   Identity unique_user_id(std::string(64, 'a'));
   Identity root_parent_id = (root_parent_id_str.empty() ? Identity() : Identity(root_parent_id_str));
   std::string product_id;
-  typedef GetDrive<maidsafe::data_store::SureFileStore>::type Drive;
+  typedef GetDrive<maidsafe::data_store::LocalStore>::type Drive;
+
   Drive drive(storage,
               unique_user_id,
               root_parent_id,
               mount_dir,
+#ifdef WIN32              
               product_id,
+#endif
               "MaidSafeDrive");
+
   if (first_run)
     BOOST_VERIFY(WriteFile(id_path, drive.root_parent_id().string()));
 
@@ -152,24 +160,25 @@ fs::path GetPathFromProgramOption(const std::string &option_name,
 int main(int argc, char *argv[]) {
   maidsafe::log::Logging::Instance().Initialise(argc, argv);
   boost::system::error_code error_code;
-#ifdef WIN32
-  fs::path logging_dir("C:\\ProgramData\\MaidSafeDrive\\logs");
-#else
-  fs::path logging_dir(fs::temp_directory_path(error_code) / "maidsafe_drive/logs");
-  if (error_code) {
-    LOG(kError) << error_code.message();
-    return 1;
-  }
-#endif
-  if (!fs::exists(logging_dir, error_code))
-    fs::create_directories(logging_dir, error_code);
-  if (error_code)
-    LOG(kError) << error_code.message();
-  if (!fs::exists(logging_dir, error_code))
-    LOG(kError) << "Couldn't create logging directory at " << logging_dir;
-  fs::path log_path(logging_dir / "maidsafe_drive");
-  // All command line parameters are only for this run. To allow persistance, update the config
-  // file. Command line overrides any config file settings.
+  // No logging when drive running
+// #ifdef WIN32
+//   fs::path logging_dir("C:\\ProgramData\\MaidSafeDrive\\logs");
+// #else
+//   fs::path logging_dir(fs::temp_directory_path(error_code) / "maidsafe_drive/logs");
+//   if (error_code) {
+//     LOG(kError) << error_code.message();
+//     return 1;
+//   }
+// #endif
+//   if (!fs::exists(logging_dir, error_code))
+//     fs::create_directories(logging_dir, error_code);
+//   if (error_code)
+//     LOG(kError) << error_code.message();
+//   if (!fs::exists(logging_dir, error_code))
+//     LOG(kError) << "Couldn't create logging directory at " << logging_dir;
+//   fs::path log_path(logging_dir / "maidsafe_drive");
+//   // All command line parameters are only for this run. To allow persistance, update the config
+//   // file. Command line overrides any config file settings.
   try {
     po::options_description options_description("Allowed options");
     options_description.add_options()
@@ -189,11 +198,7 @@ int main(int argc, char *argv[]) {
 
     // try open some config options
     std::ifstream local_config_file("maidsafe_drive.conf");
-#ifdef WIN32
-    fs::path main_config_path("C:/ProgramData/MaidSafeDrive/maidsafe_drive.conf");
-#else
-    fs::path main_config_path("/etc/maidsafe_drive.conf");
-#endif
+    fs::path main_config_path(fs::path(maidsafe::GetUserAppDir() / "maidsafe_drive.conf"));
     std::ifstream main_config_file(main_config_path.string().c_str());
 
     // try local first for testing
@@ -211,7 +216,7 @@ int main(int argc, char *argv[]) {
 
     if (variables_map.count("help")) {
       std::cout << options_description << '\n';
-      return 1;
+      return 0;
     }
 
     fs::path chunkstore_path(GetPathFromProgramOption("chunkdir", &variables_map, true));
@@ -220,11 +225,11 @@ int main(int argc, char *argv[]) {
 #else
     fs::path mount_path(GetPathFromProgramOption("mountdir", &variables_map, true));
 #endif
-
-    if (variables_map.count("stop")) {
-      LOG(kInfo) << "Trying to stop.";
-      return 0;
-    }
+//FIXME (dirvine) we cannot run the drive after its running !
+    // if (variables_map.count("stop")) {
+    //   LOG(kInfo) << "Trying to stop.";
+    //   return 0;
+    // }
 
     if (chunkstore_path == fs::path() || mount_path == fs::path()) {
       LOG(kWarning) << options_description;

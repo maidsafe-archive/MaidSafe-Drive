@@ -49,20 +49,20 @@ namespace drive {
 
 namespace detail {
 
-template <typename Storage>
-bool ForceFlush(RootHandler<Storage>& root_handler, FileContext<Storage>* file_context) {
-  assert(file_context);
-  file_context->self_encryptor->Flush();
-
-  try {
-    root_handler.UpdateParentDirectoryListing(file_context->meta_data->name.parent_path(),
-                                              *file_context->meta_data.get());
-  }
-  catch (...) {
-    return false;
-  }
-  return true;
-}
+// template <typename Storage>
+// bool ForceFlush(RootHandler<Storage>& root_handler, FileContext<Storage>* file_context) {
+//   assert(file_context);
+//   file_context->self_encryptor->Flush();
+// 
+//   try {
+//     root_handler.UpdateParentDirectoryListing(file_context->meta_data->name.parent_path(),
+//                                               *file_context->meta_data.get());
+//   }
+//   catch (...) {
+//     return false;
+//   }
+//   return true;
+// }
 
 template <typename Storage>
 static inline struct FileContext<Storage>* RecoverFileContext(struct fuse_file_info* file_info) {
@@ -93,14 +93,13 @@ FuseDrive<Storage>* Global<Storage>::g_fuse_drive;
 template <typename Storage>
 class FuseDrive : public Drive<Storage> {
  public:
-  FuseDrive(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
+  FuseDrive(std::shared_ptr<Storage> maid_node_nfs,
                        const Identity& unique_user_id, const Identity& drive_root_id,
                        const boost::filesystem::path& mount_dir,
-                       const boost::filesystem::path& drive_name, OnServiceAdded on_service_added);
+                       const boost::filesystem::path& drive_name);
 
   FuseDrive(const Identity& drive_root_id, const boost::filesystem::path& mount_dir,
-                       const boost::filesystem::path& drive_name, OnServiceAdded on_service_added,
-                       OnServiceRemoved on_service_removed, OnServiceRenamed on_service_renamed);
+                       const boost::filesystem::path& drive_name);
 
   virtual ~FuseDrive();
 
@@ -113,7 +112,7 @@ class FuseDrive : public Drive<Storage> {
  private:
   FuseDrive(const FuseDrive&);
   FuseDrive(FuseDrive&&);
-  FuseDrive& operator=(FuseDrive);
+  // FuseDrive& operator=(FuseDrive);
 
   void Init();
   //  void Mount();
@@ -197,11 +196,11 @@ const bool FuseDrive<Storage>::kAllowMsHidden_(false);
 
 template <typename Storage>
 FuseDrive<Storage>::FuseDrive(
-    std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs, const Identity& unique_user_id,
+    std::shared_ptr<Storage> maid_node_nfs, const Identity& unique_user_id,
     const Identity& drive_root_id, const boost::filesystem::path& mount_dir,
-    const boost::filesystem::path& drive_name, OnServiceAdded on_service_added)
+    const boost::filesystem::path& drive_name)
     : Drive<Storage>::Drive(maid_node_nfs, unique_user_id, drive_root_id,
-                                                  mount_dir, on_service_added),
+                                                  mount_dir),
       fuse_(nullptr),
       fuse_channel_(nullptr),
       fuse_mountpoint_(nullptr),
@@ -213,12 +212,8 @@ FuseDrive<Storage>::FuseDrive(
 template <typename Storage>
 FuseDrive<Storage>::FuseDrive(const Identity& drive_root_id,
                                                     const boost::filesystem::path& mount_dir,
-                                                    const boost::filesystem::path& drive_name,
-                                                    OnServiceAdded on_service_added,
-                                                    OnServiceRemoved on_service_removed,
-                                                    OnServiceRenamed on_service_renamed)
-    : Drive<Storage>::Drive(drive_root_id, mount_dir, on_service_added,
-                                                  on_service_removed, on_service_renamed),
+                                                    const boost::filesystem::path& drive_name)
+    : Drive<Storage>::Drive(drive_root_id, mount_dir),
       fuse_(nullptr),
       fuse_channel_(nullptr),
       fuse_mountpoint_(nullptr),
@@ -465,11 +460,11 @@ int FuseDrive<Storage>::OpsFlush(const char* path, struct fuse_file_info* file_i
     LOG(kError) << "OpsFlush: " << path << ", failed find filecontext for " << path;
     return -EINVAL;
   }
-
-  if (!detail::ForceFlush(Global<Storage>::g_fuse_drive->root_handler_, file_context)) {
-    LOG(kError) << "OpsFlush: " << path << ", failed to update";
-    return -EBADF;
-  }
+//TODO (dirvine)
+  // if (!detail::ForceFlush(Global<Storage>::g_fuse_drive->root_handler_, file_context)) {
+  //   LOG(kError) << "OpsFlush: " << path << ", failed to update";
+  //   return -EBADF;
+  // }
   return 0;
 }
 
@@ -509,15 +504,6 @@ int FuseDrive<Storage>::OpsMkdir(const char* path, mode_t mode) {
   meta_data.attributes.st_uid = fuse_get_context()->uid;
   meta_data.attributes.st_gid = fuse_get_context()->gid;
 
-  try {
-    DirectoryId grandparent_directory_id, parent_directory_id;
-    Global<Storage>::g_fuse_drive->AddFile(full_path, meta_data, grandparent_directory_id,
-                                           parent_directory_id);
-  }
-  catch (...) {
-    LOG(kError) << "OpsMkdir: " << path << ", failed to AddNewMetaData.  ";
-    return -EIO;
-  }
   return 0;
 }
 
@@ -558,7 +544,7 @@ int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t rdev) {
     return -EIO;
   }
 
-  meta_data.attributes.st_size = detail::kDirectorySize;
+  meta_data.attributes.st_size = 4096; //TODO (dirvine) detail::kDirectorySize;
   return 0;
 }
 
@@ -931,17 +917,17 @@ int FuseDrive<Storage>::OpsFsync(const char* path, int /*isdatasync*/,
   if (!file_context)
     return -EINVAL;
 
-  if (!detail::ForceFlush(Global<Storage>::g_fuse_drive->directory_handler_, file_context)) {
-    //    int result(Update(Global<Storage>::g_fuse_drive->directory_handler_,
-    //                      file_context,
-    //                      false,
-    //                      (isdatasync == 0)));
-    //    if (result != kSuccess) {
-    //      LOG(kError) << "OpsFsync: " << path << ", failed to update "
-    //                  << "metadata.  Result: " << result;
-    //      return -EIO;
-    //    }
-  }
+  // if (!detail::ForceFlush(Global<Storage>::g_fuse_drive->directory_handler_, file_context)) {
+  //   //    int result(Update(Global<Storage>::g_fuse_drive->directory_handler_,
+  //   //                      file_context,
+  //   //                      false,
+  //   //                      (isdatasync == 0)));
+  //   //    if (result != kSuccess) {
+  //   //      LOG(kError) << "OpsFsync: " << path << ", failed to update "
+  //   //                  << "metadata.  Result: " << result;
+  //   //      return -EIO;
+  //   //    }
+  // }
   return 0;
 }
 
