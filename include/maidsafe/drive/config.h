@@ -19,7 +19,6 @@
 #ifndef MAIDSAFE_DRIVE_CONFIG_H_
 #define MAIDSAFE_DRIVE_CONFIG_H_
 
-#include <functional>
 #include <memory>
 #include <string>
 
@@ -32,25 +31,11 @@ class AssertionResult;
 }
 
 namespace maidsafe {
-
-namespace encrypt {
-struct DataMap;
-template <typename Storage>
-class SelfEncryptor;
-}  // namespace encrypt
-
 namespace drive {
 
-struct MetaData;
 typedef Identity DirectoryId;
-typedef std::function<void()> OnServiceAdded;
-typedef std::function<void(const boost::filesystem::path& /*service_alias*/)> OnServiceRemoved;
-typedef std::function<void(const boost::filesystem::path& /*old_service_alias*/,
-                           const boost::filesystem::path& /*new_service_alias*/)> OnServiceRenamed;
 
 namespace detail {
-
-class DirectoryListing;
 
 enum OpType : int32_t {
   kCreated,
@@ -61,10 +46,9 @@ enum OpType : int32_t {
   kModified
 };
 
-typedef std::shared_ptr<encrypt::DataMap> DataMapPtr;
-
 extern const boost::filesystem::path kMsHidden;
 extern const boost::filesystem::path kRoot;
+
 
 }  // namespace detail
 }  // namespace drive

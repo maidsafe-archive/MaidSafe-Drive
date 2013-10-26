@@ -30,7 +30,6 @@
 #endif
 
 namespace maidsafe {
-
 namespace drive {
 
 template <typename Storage>
@@ -39,7 +38,7 @@ struct VirtualDrive {
 #ifdef HAVE_CBFS
   typedef CbfsDrive<Storage> value_type;
 #else
-  typedef DummyWinDriveInUserSpace value_type;
+  typedef DummyWinDrive<Storage> value_type;
 #endif
 #else
   typedef FuseDrive<Storage> value_type;
@@ -47,7 +46,6 @@ struct VirtualDrive {
 };
 
 }  // namespace drive
-
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_DRIVE_API_H_

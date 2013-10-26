@@ -18,10 +18,9 @@
 
 #include "maidsafe/drive/config.h"
 
+
 namespace maidsafe {
-
 namespace drive {
-
 namespace detail {
 
 #ifdef __MSVC__
@@ -33,7 +32,5 @@ const boost::filesystem::path kMsHidden(".ms_hidden");
 const boost::filesystem::path kRoot(boost::filesystem::path("/").make_preferred());
 
 }  // namespace detail
-
 }  // namespace drive
-
 }  // namespace maidsafe
