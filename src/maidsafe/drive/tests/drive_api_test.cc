@@ -35,7 +35,7 @@
 #include "maidsafe/common/utils.h"
 
 #include "maidsafe/data_store/permanent_store.h"
-#include "maidsafe/data_store/sure_file_store.h"
+#include "maidsafe/data_store/local_store.h"
 
 #include "maidsafe/encrypt/data_map.h"
 #include "maidsafe/encrypt/self_encryptor.h"
@@ -93,7 +93,7 @@ testing::AssertionResult LastAccessTimesMatch(const MetaData& meta_data1,
 #endif
 }
 
-TEST(Drive, BEH_SureStore) {
+TEST_CASE("local store", ["beh"]) {
   OnServiceAdded on_added([] { LOG(kInfo) << "Trying to add a service."; });
   OnServiceRemoved on_removed([](const fs::path &
                                  alias) { LOG(kInfo) << "Trying to remove " << alias; });
@@ -123,8 +123,8 @@ TEST(Drive, BEH_SureStore) {
     drive.AddService(service_name, *main_test_dir / service_name, service_root_id);
 
     service_root = mount_dir / service_name;
-    EXPECT_TRUE(WriteFile(service_root / file_name, content));
-    EXPECT_EQ(NonEmptyString(content), ReadFile(service_root / file_name));
+    CHECK(WriteFile(service_root / file_name, content));
+    CHECK(NonEmptyString(content) == ReadFile(service_root / file_name));
   }
 
   {
@@ -140,7 +140,7 @@ TEST(Drive, BEH_SureStore) {
 #endif
     drive.AddService(service_name, *main_test_dir / service_name, service_root_id);
     service_root = mount_dir / service_name;
-    EXPECT_EQ(NonEmptyString(content), ReadFile(service_root / file_name));
+    CHECK(NonEmptyString(content) == ReadFile(service_root / file_name));
   }
 }
 

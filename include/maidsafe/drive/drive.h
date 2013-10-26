@@ -209,7 +209,7 @@ template <typename Storage>
 void Drive<Storage>::GetMetaData(const boost::filesystem::path& relative_path, MetaData& meta_data,
                                  DirectoryId& grandparent_directory_id,
                                  DirectoryId& parent_directory_id) {
-  auto parent(directory_listing_handler_->Get(relative_path.parent_path()));
+  auto parent(directory_handler_->Get(relative_path.parent_path()));
   parent.listing->GetChild(relative_path.filename(), meta_data);
   grandparent_directory_id = parent.parent_id;
   parent_directory_id = parent.listing->directory_id();

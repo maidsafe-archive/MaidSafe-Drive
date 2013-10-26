@@ -82,18 +82,17 @@ fs::path CreateTestFileWithContent(fs::path const& parent, const std::string& co
     ofs.close();
   }
   boost::system::error_code ec;
-  EXPECT_TRUE(fs::exists(file, ec)) << file;
-  EXPECT_EQ(0, ec.value());
+  CHECK(fs::exists(file, ec));
+  CHECK(0 == ec.value());
   return file;
 }
 
 fs::path CreateTestDirectory(fs::path const& parent) {
   fs::path directory(parent / RandomAlphaNumericString(5));
   boost::system::error_code error_code;
-  EXPECT_TRUE(fs::create_directories(directory, error_code)) << directory << ": "
-                                                             << error_code.message();
-  EXPECT_EQ(0, error_code.value()) << directory << ": " << error_code.message();
-  EXPECT_TRUE(fs::exists(directory, error_code)) << directory << ": " << error_code.message();
+  CHECK(fs::create_directories(directory, error_code));
+  CHECK(0 == error_code.value());
+  CHECK(fs::exists(directory, error_code));
   return directory;
 }
 
@@ -114,21 +113,21 @@ fs::path CreateTestDirectoriesAndFiles(fs::path const& parent) {
       break;
     if (r2 < r3) {
       check = CreateTestDirectoriesAndFiles(directory);
-      EXPECT_TRUE(fs::exists(check, error_code)) << check << ": " << error_code.message();
-      EXPECT_EQ(0, error_code.value()) << check << ": " << error_code.message();
+      CHECK(fs::exists(check, error_code));
+      CHECK(0 == error_code.value());
     } else if (r2 > r3) {
       r4 = distribution(generator);
       for (size_t j = 0; j != r4; ++j) {
         check = CreateTestFile(directory, file_size);
-        EXPECT_TRUE(fs::exists(check, error_code)) << check << ": " << error_code.message();
-        EXPECT_EQ(0, error_code.value()) << check << ": " << error_code.message();
+        CHECK(fs::exists(check, error_code));
+        CHECK(0 == error_code.value());
       }
     } else {
       r4 = distribution(generator);
       for (size_t j = 0; j != r4; ++j) {
         check = CreateTestDirectory(directory);
-        EXPECT_TRUE(fs::exists(check, error_code)) << check << ": " << error_code.message();
-        EXPECT_EQ(0, error_code.value()) << check << ": " << error_code.message();
+        CHECK(fs::exists(check, error_code));
+        CHECK(0 == error_code.value());
       }
     }
   }
@@ -248,7 +247,7 @@ void GenerateDirectoryListingEntryForFile(DirectoryListing& directory_listing, c
   meta_data.attributes.st_size = file_size;
 #endif
   meta_data.data_map->content = RandomString(100);
-  EXPECT_NO_THROW(directory_listing.AddChild(meta_data));
+  CHECK_NOTHROW(directory_listing.AddChild(meta_data));
 }
 
 }  // namespace test

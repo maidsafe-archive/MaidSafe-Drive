@@ -81,7 +81,7 @@ class DirectoryListingTest : public testing::Test {
 #endif
     *meta_data.directory_id =
         Identity(crypto::Hash<crypto::SHA512>((*main_test_dir_ / path).string()));
-    EXPECT_NO_THROW(directory_listing.AddChild(meta_data));
+    CHECK_NOTHROW(directory_listing.AddChild(meta_data));
   }
 
   bool GenerateDirectoryListings(fs::path const& path, fs::path relative_path) {
@@ -95,7 +95,7 @@ class DirectoryListingTest : public testing::Test {
       for (; itr != end; ++itr) {
         if (fs::is_directory(*itr)) {
           GenerateDirectoryListingEntryForDirectory(directory_listing, (*itr).path().filename());
-          EXPECT_TRUE(
+          CHECK(
               GenerateDirectoryListings((*itr).path(), relative_path / (*itr).path().filename()));
         } else if (fs::is_regular_file(*itr)) {
           GenerateDirectoryListingEntryForFile(directory_listing, (*itr).path().filename(),
@@ -108,7 +108,7 @@ class DirectoryListingTest : public testing::Test {
           return false;
         }
       }
-      EXPECT_TRUE(WriteFile(path / "msdir.listing", directory_listing.Serialise()));
+      CHECK(WriteFile(path / "msdir.listing", directory_listing.Serialise()));
     }
     catch (...) {
       LOG(kError) << "Test GenerateDirectoryListings: Failed";
@@ -119,29 +119,29 @@ class DirectoryListingTest : public testing::Test {
 
   bool RemoveDirectoryListingsEntries(fs::path const& path, fs::path const& relative_path) {
     std::string serialised_directory_listing;
-    EXPECT_TRUE(ReadFile(path / "msdir.listing", &serialised_directory_listing));
+    CHECK(ReadFile(path / "msdir.listing", &serialised_directory_listing));
     DirectoryListing directory_listing(serialised_directory_listing);
 
     // Remove the directory listing file...
     boost::system::error_code error_code;
-    EXPECT_TRUE(fs::remove(path / "msdir.listing", error_code)) << error_code.message();
+    CHECK(fs::remove(path / "msdir.listing", error_code)) << error_code.message();
     fs::directory_iterator itr(path), end;
     try {
       MetaData metadata;
       for (; itr != end; ++itr) {
         if (fs::is_directory(*itr)) {
-          EXPECT_TRUE(RemoveDirectoryListingsEntries((*itr).path(),
+          CHECK(RemoveDirectoryListingsEntries((*itr).path(),
                                                      relative_path / (*itr).path().filename()));
-          EXPECT_NO_THROW(directory_listing.GetChild((*itr).path().filename(), metadata));
-          EXPECT_NO_THROW(directory_listing.RemoveChild(metadata));
+          CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
+          CHECK_NOTHROW(directory_listing.RemoveChild(metadata));
           // Remove the disk directory also...
-          EXPECT_TRUE(fs::remove((*itr).path(), error_code)) << error_code.message();
+          CHECK(fs::remove((*itr).path(), error_code)) << error_code.message();
           EXPECT_EQ(error_code.value(), 0) << error_code.message();
         } else if (fs::is_regular_file(*itr)) {
-          EXPECT_NO_THROW(directory_listing.GetChild((*itr).path().filename(), metadata));
-          EXPECT_NO_THROW(directory_listing.RemoveChild(metadata));
+          CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
+          CHECK_NOTHROW(directory_listing.RemoveChild(metadata));
           // Remove the disk file also...
-          EXPECT_TRUE(fs::remove((*itr).path(), error_code)) << error_code.message();
+          CHECK(fs::remove((*itr).path(), error_code)) << error_code.message();
           EXPECT_EQ(error_code.value(), 0) << error_code.message();
         } else {
           if (fs::exists(*itr))
@@ -156,13 +156,13 @@ class DirectoryListingTest : public testing::Test {
       LOG(kError) << "Test RemoveDLE: Failed";
       return false;
     }
-    EXPECT_TRUE(directory_listing.empty());
+    CHECK(directory_listing.empty());
     return true;
   }
 
   bool RenameDirectoryEntries(fs::path const& path, fs::path const& relative_path) {
     std::string serialised_directory_listing;
-    EXPECT_TRUE(ReadFile(path / "msdir.listing", &serialised_directory_listing));
+    CHECK(ReadFile(path / "msdir.listing", &serialised_directory_listing));
     DirectoryListing directory_listing(serialised_directory_listing);
 
     boost::system::error_code error_code;
@@ -173,22 +173,22 @@ class DirectoryListingTest : public testing::Test {
       for (; itr != end; ++itr) {
         if (fs::is_directory(*itr)) {
           fs::path new_path(relative_path / (*itr).path().filename());
-          EXPECT_TRUE(RenameDirectoryEntries((*itr).path(), new_path));
-          EXPECT_NO_THROW(directory_listing.GetChild((*itr).path().filename(), metadata));
-          EXPECT_NO_THROW(directory_listing.RemoveChild(metadata));
+          CHECK(RenameDirectoryEntries((*itr).path(), new_path));
+          CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
+          CHECK_NOTHROW(directory_listing.RemoveChild(metadata));
           std::string new_name(RandomAlphaNumericString(5));
           metadata.name = fs::path(new_name);
-          EXPECT_NO_THROW(directory_listing.AddChild(metadata));
+          CHECK_NOTHROW(directory_listing.AddChild(metadata));
           // Rename corresponding directory...
           fs::rename((*itr).path(), ((*itr).path().parent_path() / new_name), error_code);
           EXPECT_EQ(error_code.value(), 0) << error_code.message();
         } else if (fs::is_regular_file(*itr)) {
           if ((*itr).path().filename().string() != listing) {
-            EXPECT_NO_THROW(directory_listing.GetChild((*itr).path().filename(), metadata));
-            EXPECT_NO_THROW(directory_listing.RemoveChild(metadata));
+            CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
+            CHECK_NOTHROW(directory_listing.RemoveChild(metadata));
             std::string new_name(RandomAlphaNumericString(5) + ".txt");
             metadata.name = fs::path(new_name);
-            EXPECT_NO_THROW(directory_listing.AddChild(metadata));
+            CHECK_NOTHROW(directory_listing.AddChild(metadata));
             // Rename corresponding file...
             fs::rename((*itr).path(), ((*itr).path().parent_path() / new_name), error_code);
             EXPECT_EQ(error_code.value(), 0) << error_code.message();
@@ -211,7 +211,7 @@ class DirectoryListingTest : public testing::Test {
 
   bool DirectoryHasChild(fs::path const& path, fs::path const& relative_path) {
     std::string serialised_directory_listing;
-    EXPECT_TRUE(ReadFile(path / "msdir.listing", &serialised_directory_listing));
+    CHECK(ReadFile(path / "msdir.listing", &serialised_directory_listing));
     DirectoryListing directory_listing(serialised_directory_listing);
 
     std::string listing("msdir.listing");
@@ -221,10 +221,10 @@ class DirectoryListingTest : public testing::Test {
         if ((*itr).path().filename().string() != listing) {
           if (fs::is_directory(*itr)) {
             fs::path name((*itr).path().filename());
-            EXPECT_TRUE(DirectoryHasChild((*itr).path(), relative_path / name));
-            EXPECT_TRUE(directory_listing.HasChild(name));
+            CHECK(DirectoryHasChild((*itr).path(), relative_path / name));
+            CHECK(directory_listing.HasChild(name));
           } else if (fs::is_regular_file(*itr)) {
-            EXPECT_TRUE(directory_listing.HasChild((*itr).path().filename()));
+            CHECK(directory_listing.HasChild((*itr).path().filename()));
           } else {
             if (fs::exists(*itr))
               LOG(kInfo) << "Unknown type found.";
@@ -244,7 +244,7 @@ class DirectoryListingTest : public testing::Test {
 
   bool MatchEntries(fs::path const& path, fs::path relative_path) {
     std::string serialised_directory_listing;
-    EXPECT_TRUE(ReadFile(path / "msdir.listing", &serialised_directory_listing));
+    CHECK(ReadFile(path / "msdir.listing", &serialised_directory_listing));
     DirectoryListing directory_listing(serialised_directory_listing);
 
     MetaData metadata;
@@ -253,13 +253,13 @@ class DirectoryListingTest : public testing::Test {
     try {
       for (; itr != end; ++itr) {
         if (fs::is_directory(*itr)) {
-          EXPECT_TRUE(MatchEntries((*itr).path(), relative_path / (*itr).path().filename()));
-          EXPECT_NO_THROW(directory_listing.GetChild((*itr).path().filename(), metadata));
-          EXPECT_TRUE(metadata.name == (*itr).path().filename());
+          CHECK(MatchEntries((*itr).path(), relative_path / (*itr).path().filename()));
+          CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
+          CHECK(metadata.name == (*itr).path().filename());
         } else if (fs::is_regular_file(*itr)) {
           if ((*itr).path().filename().string() != listing) {
-            EXPECT_NO_THROW(directory_listing.GetChild((*itr).path().filename(), metadata));
-            EXPECT_TRUE(metadata.name == (*itr).path().filename());
+            CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
+            CHECK(metadata.name == (*itr).path().filename());
             EXPECT_EQ(GetSize(metadata), fs::file_size((*itr).path()));
           }
         } else {
@@ -284,7 +284,7 @@ class DirectoryListingTest : public testing::Test {
 
   bool MatchEntriesUsingFreeFunctions(fs::path const& path, fs::path const& relative_path) {
     std::string serialised_directory_listing;
-    EXPECT_TRUE(ReadFile(path / "msdir.listing", &serialised_directory_listing));
+    CHECK(ReadFile(path / "msdir.listing", &serialised_directory_listing));
     DirectoryListing directory_listing(serialised_directory_listing);
 
     std::string listing("msdir.listing");
@@ -293,14 +293,14 @@ class DirectoryListingTest : public testing::Test {
     try {
       for (; itr != end; ++itr) {
         if (fs::is_directory(*itr)) {
-          EXPECT_TRUE(MatchEntriesUsingFreeFunctions((*itr).path(), relative_path));
-          EXPECT_NO_THROW(directory_listing.GetChild((*itr).path().filename(), metadata));
+          CHECK(MatchEntriesUsingFreeFunctions((*itr).path(), relative_path));
+          CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
           EXPECT_EQ(metadata.name, (*itr).path().filename());
           EXPECT_EQ(directory_listing.directory_id().string(),
                     crypto::Hash<crypto::SHA512>((*itr).path().parent_path().string()).string());
         } else if (fs::is_regular_file(*itr)) {
           if ((*itr).path().filename().string() != listing) {
-            EXPECT_NO_THROW(directory_listing.GetChild((*itr).path().filename(), metadata));
+            CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
             EXPECT_EQ(metadata.name, (*itr).path().filename());
           }
         } else {
@@ -329,19 +329,19 @@ class DirectoryListingTest : public testing::Test {
   DirectoryListingTest& operator=(const DirectoryListingTest&);
 };
 
-TEST_F(DirectoryListingTest, BEH_AddChildren) {
+TEST_CASE(DirectoryListingTest, BEH_AddChildren) {
   ASSERT_TRUE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
   ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
   ASSERT_TRUE(MatchEntries(*main_test_dir_, relative_root_));
 }
 
-TEST_F(DirectoryListingTest, BEH_AddThenRemoveChildren) {
+TEST_CASE(DirectoryListingTest, BEH_AddThenRemoveChildren) {
   ASSERT_TRUE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
   ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
   ASSERT_TRUE(RemoveDirectoryListingsEntries(*main_test_dir_, relative_root_));
 }
 
-TEST_F(DirectoryListingTest, BEH_AddThenRenameChildren) {
+TEST_CASE(DirectoryListingTest, BEH_AddThenRenameChildren) {
   ASSERT_TRUE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
   ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
   ASSERT_TRUE(RenameDirectoryEntries(*main_test_dir_, relative_root_));
@@ -349,13 +349,13 @@ TEST_F(DirectoryListingTest, BEH_AddThenRenameChildren) {
   ASSERT_TRUE(MatchEntries(*main_test_dir_, relative_root_));
 }
 
-TEST_F(DirectoryListingTest, BEH_DirectoryHasChild) {
+TEST_CASE(DirectoryListingTest, BEH_DirectoryHasChild) {
   ASSERT_TRUE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
   ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
   ASSERT_TRUE(DirectoryHasChild(*main_test_dir_, relative_root_));
 }
 
-TEST_F(DirectoryListingTest, BEH_MatchEntriesUsingFreeFunctions) {
+TEST_CASE(DirectoryListingTest, BEH_MatchEntriesUsingFreeFunctions) {
   ASSERT_TRUE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
   ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
   ASSERT_TRUE(MatchEntriesUsingFreeFunctions(*main_test_dir_, relative_root_));
@@ -461,7 +461,7 @@ testing::AssertionResult DirectoriesMatch(const DirectoryListing& lhs,
   return testing::AssertionSuccess();
 }
 
-TEST_F(DirectoryListingTest, BEH_SerialiseDeserialise) {
+TEST_CASE(DirectoryListingTest, BEH_SerialiseDeserialise) {
   maidsafe::test::TestPath testpath(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
   boost::system::error_code error_code;
   int64_t file_size(0);
@@ -512,15 +512,15 @@ TEST_F(DirectoryListingTest, BEH_SerialiseDeserialise) {
       meta_data.data_map->content = RandomString(10);
     }
     meta_datas_before.push_back(meta_data);
-    EXPECT_NO_THROW(directory_listing_.AddChild(meta_data));
+    CHECK_NOTHROW(directory_listing_.AddChild(meta_data));
   }
 
   std::string serialised_directory_listing(directory_listing_.Serialise());
   DirectoryListing recovered_directory_listing(serialised_directory_listing);
-  EXPECT_TRUE(DirectoriesMatch(directory_listing_, recovered_directory_listing));
+  CHECK(DirectoriesMatch(directory_listing_, recovered_directory_listing));
 }
 
-TEST_F(DirectoryListingTest, BEH_IteratorResetAndFailures) {
+TEST_CASE(DirectoryListingTest, BEH_IteratorResetAndFailures) {
   // Add elements
   ASSERT_TRUE(directory_listing_.empty());
   const size_t kTestCount(10);
@@ -528,7 +528,7 @@ TEST_F(DirectoryListingTest, BEH_IteratorResetAndFailures) {
   char c('A');
   for (size_t i(0); i != kTestCount; ++i, ++c) {
     MetaData metadata(std::string(1, c), ((i % 2) == 0));
-    EXPECT_NO_THROW(directory_listing_.AddChild(metadata));
+    CHECK_NOTHROW(directory_listing_.AddChild(metadata));
   }
   EXPECT_FALSE(directory_listing_.empty());
 
@@ -537,73 +537,73 @@ TEST_F(DirectoryListingTest, BEH_IteratorResetAndFailures) {
   c = 'A';
   for (size_t i(0); i != kTestCount; ++i, ++c) {
     MetaData metadata(std::string(1, c), ((i % 2) == 0));
-    EXPECT_TRUE(directory_listing_.GetChildAndIncrementItr(meta_data));
+    CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
     EXPECT_EQ(std::string(1, c), meta_data.name);
     EXPECT_EQ(((i % 2) == 0), (meta_data.directory_id.get() != nullptr));
   }
   EXPECT_FALSE(directory_listing_.GetChildAndIncrementItr(meta_data));
   directory_listing_.SortAndResetChildrenIterator();
-  EXPECT_TRUE(directory_listing_.GetChildAndIncrementItr(meta_data));
+  CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("A", meta_data.name);
-  EXPECT_TRUE(directory_listing_.GetChildAndIncrementItr(meta_data));
+  CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("B", meta_data.name);
 
   // Add another element and check iterator is reset
   ++c;
   meta_data.name = std::string(1, c);
-  EXPECT_NO_THROW(directory_listing_.AddChild(meta_data));
-  EXPECT_TRUE(directory_listing_.GetChildAndIncrementItr(meta_data));
+  CHECK_NOTHROW(directory_listing_.AddChild(meta_data));
+  CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("A", meta_data.name);
-  EXPECT_TRUE(directory_listing_.GetChildAndIncrementItr(meta_data));
+  CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("B", meta_data.name);
 
   // Remove an element and check iterator is reset
   meta_data.name = std::string(1, c);
   ASSERT_TRUE(directory_listing_.HasChild(meta_data.name));
-  EXPECT_NO_THROW(directory_listing_.RemoveChild(meta_data));
-  EXPECT_TRUE(directory_listing_.GetChildAndIncrementItr(meta_data));
+  CHECK_NOTHROW(directory_listing_.RemoveChild(meta_data));
+  CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("A", meta_data.name);
-  EXPECT_TRUE(directory_listing_.GetChildAndIncrementItr(meta_data));
+  CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("B", meta_data.name);
 
   // Try to remove a non-existent element and check iterator is not reset
   meta_data.name = std::string(1, c);
   ASSERT_FALSE(directory_listing_.HasChild(meta_data.name));
   EXPECT_THROW(directory_listing_.RemoveChild(meta_data), std::exception);
-  EXPECT_TRUE(directory_listing_.GetChildAndIncrementItr(meta_data));
+  CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("C", meta_data.name);
-  EXPECT_TRUE(directory_listing_.GetChildAndIncrementItr(meta_data));
+  CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("D", meta_data.name);
 
   // Update an element and check iterator is reset
   meta_data.name = "A";
-  EXPECT_NO_THROW(directory_listing_.GetChild("A", meta_data));
+  CHECK_NOTHROW(directory_listing_.GetChild("A", meta_data));
 // ASSERT_EQ(kDirectorySize, GetSize(meta_data));
 #ifdef MAIDSAFE_WIN32
   meta_data.end_of_file = 1U;
 #else
   meta_data.attributes.st_size = 1U;
 #endif
-  EXPECT_NO_THROW(directory_listing_.UpdateChild(meta_data));
-  EXPECT_TRUE(directory_listing_.GetChildAndIncrementItr(meta_data));
+  CHECK_NOTHROW(directory_listing_.UpdateChild(meta_data));
+  CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("A", meta_data.name);
   EXPECT_EQ(1U, GetSize(meta_data));
-  EXPECT_TRUE(directory_listing_.GetChildAndIncrementItr(meta_data));
+  CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("B", meta_data.name);
 
   // Try to update a non-existent element and check iterator is not reset
   meta_data.name = std::string(1, c);
   ASSERT_FALSE(directory_listing_.HasChild(meta_data.name));
   EXPECT_THROW(directory_listing_.UpdateChild(meta_data), std::exception);
-  EXPECT_TRUE(directory_listing_.GetChildAndIncrementItr(meta_data));
+  CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("C", meta_data.name);
-  EXPECT_TRUE(directory_listing_.GetChildAndIncrementItr(meta_data));
+  CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   EXPECT_EQ("D", meta_data.name);
 
   // Check operator<
   DirectoryListing directory_listing1(Identity(crypto::Hash<crypto::SHA512>(std::string("A")))),
       directory_listing2(Identity(crypto::Hash<crypto::SHA512>(std::string("B"))));
-  EXPECT_TRUE(directory_listing1 < directory_listing2);
+  CHECK(directory_listing1 < directory_listing2);
   EXPECT_FALSE(directory_listing2 < directory_listing1);
 }
 
