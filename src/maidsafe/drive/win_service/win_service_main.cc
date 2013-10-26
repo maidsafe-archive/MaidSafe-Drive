@@ -26,13 +26,13 @@
 #include "sigmoid/core/log.h"
 
 #ifdef __MSVC__
-#pragma warning(push, 1)
+#  pragma warning(push, 1)
 #endif
 
 #include "boost/program_options.hpp"
 
 #ifdef __MSVC__
-#pragma warning(pop)
+#  pragma warning(pop)
 #endif
 
 namespace fs = boost::filesystem;
