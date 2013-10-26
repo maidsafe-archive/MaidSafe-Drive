@@ -21,20 +21,16 @@
 #include <regex>
 #include <algorithm>
 
-#include "maidsafe/common/log.h"
-#include "maidsafe/encrypt/self_encryptor.h"
+#include "boost/filesystem/path.hpp"
 
-#include "maidsafe/drive/directory_handler.h"
-#include "maidsafe/drive/directory_listing.h"
-#include "maidsafe/drive/meta_data.h"
+#include "maidsafe/common/log.h"
 
 namespace maidsafe {
-
 namespace drive {
-
 namespace detail {
 
-bool ExcludedFilename(const std::string& file_name) {
+bool ExcludedFilename(const boost::filesystem::path& path) {
+  std::string file_name(path.filename().stem().string());
   if (file_name.size() == 4 && isdigit(file_name[3])) {
     if (file_name[3] != '0') {
       std::string name(file_name.substr(0, 3));
@@ -79,15 +75,15 @@ bool ExcludedFilename(const std::string& file_name) {
   return false;
 }
 
-bool MatchesMask(std::wstring mask, const fs::path& file_name) {
+bool MatchesMask(std::wstring mask, const boost::filesystem::path& file_name) {
 #ifdef MAIDSAFE_WIN32
   static const std::wstring kNeedEscaped(L".[]{}()+|^$");
 #else
-#ifdef MAIDSAFE_APPLE
+  #ifdef MAIDSAFE_APPLE
   static const std::wstring kNeedEscaped(L".]{}()+|^$");
-#else
+  #else
   static const std::wstring kNeedEscaped(L".{}()+|^$");
-#endif
+  #endif
 #endif
   static const std::wstring kEscape(L"\\");
   try {
@@ -104,14 +100,14 @@ bool MatchesMask(std::wstring mask, const fs::path& file_name) {
     std::wregex reg_ex(mask, std::regex_constants::icase);
     return std::regex_match(file_name.wstring(), reg_ex);
   }
-  catch (const std::exception& e) {
-    LOG(kError) << e.what() << " - file_name: " << file_name
-                << ", mask: " << std::string(mask.begin(), mask.end());
+  catch(const std::exception& e) {
+    LOG(kError) << e.what() << " - file_name: " << file_name << ", mask: "
+                << std::string(mask.begin(), mask.end());
     return false;
   }
 }
 
-bool SearchesMask(std::wstring mask, const fs::path& file_name) {
+bool SearchesMask(std::wstring mask, const boost::filesystem::path& file_name) {
   static const std::wstring kNeedEscaped(L".[]{}()+|^$");
   static const std::wstring kEscape(L"\\");
   try {
@@ -128,15 +124,13 @@ bool SearchesMask(std::wstring mask, const fs::path& file_name) {
     std::wregex reg_ex(mask, std::regex_constants::icase);
     return std::regex_search(file_name.wstring(), reg_ex);
   }
-  catch (const std::exception& e) {
-    LOG(kError) << e.what() << " - file_name: " << file_name
-                << ", mask: " << std::string(mask.begin(), mask.end());
+  catch(const std::exception& e) {
+    LOG(kError) << e.what() << " - file_name: " << file_name << ", mask: "
+                << std::string(mask.begin(), mask.end());
     return false;
   }
 }
 
 }  // namespace detail
-
 }  // namespace drive
-
 }  // namespace maidsafe

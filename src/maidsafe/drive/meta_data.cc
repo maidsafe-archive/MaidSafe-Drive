@@ -18,8 +18,6 @@
 
 #include "maidsafe/drive/meta_data.h"
 
-#include <utility>
-
 #include "boost/algorithm/string/predicate.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
 
@@ -28,6 +26,7 @@
 
 #include "maidsafe/drive/proto_structs.pb.h"
 #include "maidsafe/drive/utils.h"
+
 
 namespace bptime = boost::posix_time;
 namespace fs = boost::filesystem;
@@ -93,6 +92,8 @@ bptime::ptime FileTimeToBptime(FILETIME const& ftime) {
 }  // unnamed namespace
 #endif
 
+
+
 MetaData::MetaData()
     : name(),
 #ifdef MAIDSAFE_WIN32
@@ -103,10 +104,13 @@ MetaData::MetaData()
       last_access_time(),
       last_write_time(),
       data_map(),
-      directory_id() {
-}
+      directory_id() {}
 #else
-attributes(), link_to(), data_map(), directory_id(), notes() {
+      attributes(),
+      link_to(),
+      data_map(),
+      directory_id(),
+      notes() {
   attributes.st_gid = getgid();
   attributes.st_uid = getuid();
   attributes.st_mode = 0644;
@@ -119,23 +123,25 @@ MetaData::MetaData(const fs::path& name, bool is_directory)
 #ifdef MAIDSAFE_WIN32
       end_of_file(0),
       allocation_size(0),
-      attributes(is_directory ? FILE_ATTRIBUTE_DIRECTORY : 0xFFFFFFFF),
+      attributes(is_directory?FILE_ATTRIBUTE_DIRECTORY:0xFFFFFFFF),
       creation_time(),
       last_access_time(),
       last_write_time(),
       data_map(is_directory ? nullptr : std::make_shared<encrypt::DataMap>()),
       directory_id(is_directory ? std::make_shared<DirectoryId>(RandomString(64)) : nullptr),
       notes() {
-  FILETIME file_time;
-  GetSystemTimeAsFileTime(&file_time);
-  creation_time = file_time;
-  last_access_time = file_time;
-  last_write_time = file_time;
+    FILETIME file_time;
+    GetSystemTimeAsFileTime(&file_time);
+    creation_time = file_time;
+    last_access_time = file_time;
+    last_write_time = file_time;
 }
 #else
-attributes(), link_to(), data_map(is_directory ? nullptr : std::make_shared<encrypt::DataMap>()),
-    directory_id(is_directory ? std::make_shared<DirectoryId>(RandomString(64)) : nullptr),
-    notes() {
+      attributes(),
+      link_to(),
+      data_map(is_directory ? nullptr : std::make_shared<encrypt::DataMap>()),
+      directory_id(is_directory ? std::make_shared<DirectoryId>(RandomString(64)) : nullptr),
+      notes() {
   attributes.st_gid = getgid();
   attributes.st_uid = getuid();
   attributes.st_mode = 0644;
@@ -149,59 +155,24 @@ attributes(), link_to(), data_map(is_directory ? nullptr : std::make_shared<encr
 }
 #endif
 
-MetaData::MetaData(const MetaData& meta_data)
-    : name(meta_data.name),
+MetaData::MetaData(const std::string& serialised_meta_data)
+    : name(),
 #ifdef MAIDSAFE_WIN32
-      end_of_file(meta_data.end_of_file),
-      allocation_size(meta_data.allocation_size),
-      attributes(meta_data.attributes),
-      creation_time(meta_data.creation_time),
-      last_access_time(meta_data.last_access_time),
-      last_write_time(meta_data.last_write_time),
+      end_of_file(0),
+      allocation_size(0),
+      attributes(0xFFFFFFFF),
+      creation_time(),
+      last_access_time(),
+      last_write_time(),
+      data_map(),
+      directory_id() {
 #else
-      attributes(meta_data.attributes),
-      link_to(meta_data.link_to),
+      attributes(),
+      link_to(),
+      data_map(),
+      directory_id(),
+      notes() {
 #endif
-      data_map(nullptr),
-      directory_id(nullptr),
-      notes(meta_data.notes) {
-  if (meta_data.data_map)
-    data_map.reset(new encrypt::DataMap(*meta_data.data_map));
-  if (meta_data.directory_id)
-    directory_id.reset(new DirectoryId(*meta_data.directory_id));
-}
-
-MetaData::MetaData(MetaData&& meta_data)
-    : name(std::move(meta_data.name)),
-#ifdef MAIDSAFE_WIN32
-      end_of_file(std::move(meta_data.end_of_file)),
-      allocation_size(std::move(meta_data.allocation_size)),
-      attributes(std::move(meta_data.attributes)),
-      creation_time(std::move(meta_data.creation_time)),
-      last_access_time(std::move(meta_data.last_access_time)),
-      last_write_time(std::move(meta_data.last_write_time)),
-#else
-      attributes(std::move(meta_data.attributes)),
-      link_to(std::move(meta_data.link_to)),
-#endif
-      data_map(nullptr),
-      directory_id(nullptr),
-      notes(std::move(meta_data.notes)) {
-  if (meta_data.data_map)
-    data_map.reset(new encrypt::DataMap(*meta_data.data_map));
-  if (meta_data.directory_id)
-    directory_id.reset(new DirectoryId(*meta_data.directory_id));
-}
-
-MetaData& MetaData::operator=(MetaData other) {
-  swap(*this, other);
-  return *this;
-}
-
-MetaData::MetaData(const std::string& serialised_meta_data) {
-  if (!name.empty())
-    ThrowError(CommonErrors::invalid_parameter);
-
   protobuf::MetaData pb_meta_data;
   if (!pb_meta_data.ParseFromString(serialised_meta_data))
     ThrowError(CommonErrors::parsing_error);
@@ -233,8 +204,8 @@ MetaData::MetaData(const std::string& serialised_meta_data) {
   attributes.st_size = attributes_archive.st_size();
 
   static bptime::ptime epoch(boost::gregorian::date(1970, 1, 1));
-  bptime::time_duration diff(bptime::from_iso_string(attributes_archive.last_access_time()) -
-                             epoch);
+  bptime::time_duration diff(
+      bptime::from_iso_string(attributes_archive.last_access_time()) - epoch);
   attributes.st_atime = diff.ticks() / diff.ticks_per_second();
   diff = bptime::from_iso_string(attributes_archive.last_write_time()) - epoch;
   attributes.st_mtime = diff.ticks() / diff.ticks_per_second();
@@ -267,7 +238,7 @@ MetaData::MetaData(const std::string& serialised_meta_data) {
   if (pb_meta_data.has_serialised_data_map()) {
     if (pb_meta_data.has_directory_id())
       ThrowError(CommonErrors::parsing_error);
-    data_map.reset(new encrypt::DataMap);
+    data_map.reset(new DataMap);
     encrypt::ParseDataMap(pb_meta_data.serialised_data_map(), *data_map);
   } else if (pb_meta_data.has_directory_id()) {
     directory_id.reset(new DirectoryId(pb_meta_data.directory_id()));
@@ -279,8 +250,32 @@ MetaData::MetaData(const std::string& serialised_meta_data) {
     notes.push_back(pb_meta_data.notes(i));
 }
 
+MetaData::MetaData(const MetaData& meta_data)
+  : name(meta_data.name),
+#ifdef MAIDSAFE_WIN32
+    end_of_file(meta_data.end_of_file),
+    allocation_size(meta_data.allocation_size),
+    attributes(meta_data.attributes),
+    creation_time(meta_data.creation_time),
+    last_access_time(meta_data.last_access_time),
+    last_write_time(meta_data.last_write_time),
+#else
+    attributes(meta_data.attributes),
+    link_to(meta_data.link_to),
+#endif
+    data_map(nullptr),
+    directory_id(nullptr),
+    notes(meta_data.notes) {
+  if (meta_data.data_map)
+    data_map.reset(new encrypt::DataMap(*meta_data.data_map));
+  if (meta_data.directory_id)
+    directory_id.reset(new DirectoryId(*meta_data.directory_id));
+}
+
 std::string MetaData::Serialise() const {
+  std::string serialised_meta_data;
   protobuf::MetaData pb_meta_data;
+
   pb_meta_data.set_name(name.string());
   protobuf::AttributesArchive* attributes_archive = pb_meta_data.mutable_attributes_archive();
 
@@ -332,7 +327,9 @@ std::string MetaData::Serialise() const {
   for (auto note : notes)
     pb_meta_data.add_notes(note);
 
-  return pb_meta_data.SerializeAsString();
+  if (!pb_meta_data.SerializeToString(&serialised_meta_data))
+    ThrowError(CommonErrors::serialisation_error);
+  return serialised_meta_data;
 }
 
 bptime::ptime MetaData::creation_posix_time() const {
@@ -351,6 +348,10 @@ bptime::ptime MetaData::last_write_posix_time() const {
 #endif
 }
 
+bool MetaData::operator<(const MetaData& other) const {
+  return boost::ilexicographical_compare(name.wstring(), other.name.wstring());
+}
+
 void MetaData::UpdateLastModifiedTime() {
 #ifdef MAIDSAFE_WIN32
   GetSystemTimeAsFileTime(&last_write_time);
@@ -365,29 +366,6 @@ uint64_t MetaData::GetAllocatedSize() const {
 #else
   return attributes.st_size;
 #endif
-}
-
-bool operator<(const MetaData& lhs, const MetaData& rhs) {
-  return boost::ilexicographical_compare(lhs.name.wstring(), rhs.name.wstring());
-}
-
-void swap(MetaData& lhs, MetaData& rhs) {
-  using std::swap;
-  swap(lhs.name, rhs.name);
-#ifdef MAIDSAFE_WIN32
-  swap(lhs.end_of_file, rhs.end_of_file);
-  swap(lhs.allocation_size, rhs.allocation_size);
-  swap(lhs.attributes, rhs.attributes);
-  swap(lhs.creation_time, rhs.creation_time);
-  swap(lhs.last_access_time, rhs.last_access_time);
-  swap(lhs.last_write_time, rhs.last_write_time);
-#else
-  swap(lhs.attributes, rhs.attributes);
-  swap(lhs.link_to, rhs.link_to);
-#endif
-  swap(lhs.data_map, rhs.data_map);
-  swap(lhs.directory_id, rhs.directory_id);
-  swap(lhs.notes, rhs.notes);
 }
 
 }  // namespace drive

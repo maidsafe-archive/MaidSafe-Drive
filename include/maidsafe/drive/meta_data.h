@@ -28,7 +28,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <algorithm>
 
 #include "boost/filesystem/path.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
@@ -51,17 +50,20 @@ namespace drive {
 
 // Represents directory and file information
 struct MetaData {
+  typedef encrypt::DataMap DataMap;
+  typedef encrypt::DataMapPtr DataMapPtr;
+  typedef std::shared_ptr<DirectoryId> DirectoryIdPtr;
+
   MetaData();
   MetaData(const boost::filesystem::path& name, bool is_directory);
-  MetaData(const MetaData& meta_data);
-  MetaData(MetaData&& meta_data);
-  MetaData& operator=(MetaData other);
-
   explicit MetaData(const std::string& serialised_meta_data);
+  MetaData(const MetaData& meta_data);
+
   std::string Serialise() const;
 
   boost::posix_time::ptime creation_posix_time() const;
   boost::posix_time::ptime last_write_posix_time() const;
+  bool operator<(const MetaData& other) const;
   void UpdateLastModifiedTime();
   uint64_t GetAllocatedSize() const;
 
@@ -77,13 +79,10 @@ struct MetaData {
   struct stat attributes;
   boost::filesystem::path link_to;
 #endif
-  detail::DataMapPtr data_map;
-  std::shared_ptr<DirectoryId> directory_id;
+  DataMapPtr data_map;
+  DirectoryIdPtr directory_id;
   std::vector<std::string> notes;
 };
-
-bool operator<(const MetaData& lhs, const MetaData& rhs);
-void swap(MetaData& lhs, MetaData& rhs);
 
 }  // namespace drive
 }  // namespace maidsafe

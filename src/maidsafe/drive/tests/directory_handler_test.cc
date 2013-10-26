@@ -106,24 +106,23 @@ namespace test {
 //  bool use_real_;
 // };
 
-// struct TestTreeEntry {
-//   TestTreeEntry() : path(), leaf(true) {}
-//   TestTreeEntry(const fs::path fs_path, bool leafness) : path(fs_path), leaf(leafness) {}
-//   fs::path path;
-//   bool leaf;
-// };
-// 
-// class DirectoryHandlerTest : public testing::Test {
-//  public:
-//   DirectoryHandlerTest()
-//       : main_test_dir_(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive")),
-//         data_store_(new data_store::SureFileStore(*main_test_dir_, DiskUsage(1 << 30))),
-//         owner_(kRoot / "Owner"),
-//         owner_meta_data_(owner_, true),
-//         unique_user_id_(RandomString(64)),
-//         listing_handler_(),
-//         created_paths_(),
-//         created_paths_mutex_() {}
+struct TestTreeEntry {
+  TestTreeEntry() : path(), leaf(true) {}
+  TestTreeEntry(const fs::path fs_path, bool leafness) : path(fs_path), leaf(leafness) {}
+  fs::path path;
+  bool leaf;
+};
+
+class DirectoryHandlerTest : public testing::Test {
+ public:
+  DirectoryHandlerTest()
+      : main_test_dir_(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive")),
+        data_store_(new data_store::SureFileStore(*main_test_dir_, DiskUsage(1 << 30))),
+        unique_user_id_(RandomString(64)),
+        root_parent_id_(RandomString(64)),
+        listing_handler_(),
+        created_paths_(),
+        created_paths_mutex_() {}
   //
   //  typedef nfs::ClientMaidNfs ClientNfs;
   //  typedef data_store::PermanentStore DataStore;
@@ -265,51 +264,35 @@ namespace test {
   //    }
   //  }
   //
-//   maidsafe::test::TestPath main_test_dir_;
-//   std::shared_ptr<data_store::SureFileStore> data_store_;
-//   fs::path owner_;
-//   MetaData owner_meta_data_;
-//   Identity unique_user_id_;
-//   std::shared_ptr<detail::DirectoryHandler<data_store::SureFileStore>> listing_handler_;
-//   std::vector<TestTreeEntry> created_paths_;
-//   std::mutex created_paths_mutex_;
-// 
-//  private:
-//   DirectoryHandlerTest(const DirectoryHandlerTest&);
-//   DirectoryHandlerTest& operator=(const DirectoryHandlerTest&);
-// };
-// 
-// TEST_F(DirectoryHandlerTest, BEH_Construct) {
-//   // Directory root(Identity(RandomString(64)),
-//   //               std::make_shared<DirectoryListing>(Identity(RandomString(64))),
-//   //               nullptr, DataTagValue::kOwnerDirectoryValue);
-//   listing_handler_.reset(new detail::DirectoryHandler<data_store::SureFileStore>(
-//       data_store_, DataTagValue::kOwnerDirectoryValue));
-// 
-//   Directory owner(Identity(RandomString(64)),
-//                   std::make_shared<DirectoryListing>(Identity(RandomString(64))), nullptr,
-//                   DataTagValue::kOwnerDirectoryValue);
-//   Directory group(Identity(RandomString(64)),
-//                   std::make_shared<DirectoryListing>(Identity(RandomString(64))), nullptr,
-//                   DataTagValue::kGroupDirectoryValue);
-//   Directory world(Identity(RandomString(64)),
-//                   std::make_shared<DirectoryListing>(Identity(RandomString(64))), nullptr,
-//                   DataTagValue::kWorldDirectoryValue);
-// 
-//   PutToStorage(*data_store_, owner);
-//   PutToStorage(*data_store_, group);
-//   PutToStorage(*data_store_, world);
-//   auto owner_recovered(
-//       GetFromStorage(*data_store_, owner.parent_id, owner.listing->directory_id(), owner.type));
-//   auto group_recovered(
-//       GetFromStorage(*data_store_, group.parent_id, group.listing->directory_id(), group.type));
-//   auto world_recovered(
-//       GetFromStorage(*data_store_, world.parent_id, world.listing->directory_id(), world.type));
-//   DeleteFromStorage(*data_store_, owner);
-//   DeleteFromStorage(*data_store_, group);
-//   DeleteFromStorage(*data_store_, world);
-// }
-// 
+  maidsafe::test::TestPath main_test_dir_;
+  std::shared_ptr<data_store::SureFileStore> data_store_;
+  Identity unique_user_id_, root_parent_id_;
+  std::shared_ptr<detail::DirectoryHandler<data_store::SureFileStore>> listing_handler_;
+  std::vector<TestTreeEntry> created_paths_;
+  std::mutex created_paths_mutex_;
+
+ private:
+  DirectoryHandlerTest(const DirectoryHandlerTest&);
+  DirectoryHandlerTest& operator=(const DirectoryHandlerTest&);
+};
+
+TEST_CASE("DirectoryHandler", "[beh]") {
+  listing_handler_.reset(new detail::DirectoryHandler<data_store::SureFileStore>(
+      data_store_, unique_user_id_, Identity()));
+  Identity root_parent_id(listing_handler_->root_parent_id());
+  MetaData meta_data("Directory", true), recovered_meta_data;
+  Directory recovered_directory;
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / "Directory", meta_data, unique_user_id_,
+                                        root_parent_id));
+  CHECK_NOTHROW(recovered_directory = listing_handler_->Get(kRoot / "Directory"));
+  CHECK(recovered_directory.listing->directory_id() == *meta_data.directory_id);
+  EXPECT_NOTHROW(recovered_directory = listing_handler_->Get(kRoot));
+  EXPECT_NOTHROW(recovered_directory.listing->GetChild("Directory", recovered_meta_data));
+  CHECK(meta_data.name == recovered_meta_data.name);
+  CHECK_NOTHROW(listing_handler_->Delete(kRoot / "Directory"));
+  CHECK_THROW_AS(recovered_directory = listing_handler_->Get(kRoot / "Directory"), std::exception);
+}
+
 // TODO(Team): 2013-09-25 - Uncomment and fix or delete
 // TEST_F(DirectoryHandlerTest, BEH_Construct) {
 //  EXPECT_NO_THROW(DirectoryHandler local_listing_handler(*client_nfs_,

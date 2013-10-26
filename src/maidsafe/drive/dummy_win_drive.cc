@@ -18,28 +18,24 @@
 
 #include "maidsafe/drive/dummy_win_drive.h"
 
-namespace fs = boost::filesystem;
-namespace bptime = boost::posix_time;
-namespace args = std::placeholders;
 
 namespace maidsafe {
-
 namespace drive {
 
-DummyWinDriveInUserSpace::DummyWinDriveInUserSpace(
-    ClientNfs& client_nfs, DataStore& data_store, const Maid& maid, const Identity& unique_user_id,
-    const std::string& root_parent_id, const fs::path& mount_dir, const fs::path& /*drive_name*/,
-    const int64_t& max_space, const int64_t& used_space)
-    : DriveInUserSpace(client_nfs, data_store, maid, unique_user_id, root_parent_id, mount_dir,
-                       max_space, used_space) {}
-int DummyWinDriveInUserSpace::Unmount(int64_t& /*max_space*/, int64_t& /*used_space*/) {
+DummyWinDrive::DummyWinDrive(
+  StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
+  const boost::filesystem::path& mount_dir, const std::string& product_id,
+  const boost::filesystem::path& drive_name)
+    : Drive(storage, unique_user_id, root_parent_id, mount_dir) {}
+
+int DummyWinDrive::Unmount() {
   return -1;
 }
-void DummyWinDriveInUserSpace::NotifyRename(const fs::path& /*from_relative_path*/,
-                                            const fs::path& /*to_relative_path*/) const {}
-void DummyWinDriveInUserSpace::SetNewAttributes(FileContext* /*file_context*/,
-                                                bool /*is_directory*/, bool /*read_only*/) {}
+
+void DummyWinDrive::NotifyRename(const boost::filesystem::path& /*from_relative_path*/,
+                                 const boost::filesystem::path& /*to_relative_path*/) const {}
+void DummyWinDrive::SetNewAttributes(FileContext* /*file_context*/, bool /*is_directory*/,
+                                     bool /*read_only*/) {}
 
 }  // namespace drive
-
 }  // namespace maidsafe

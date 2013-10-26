@@ -73,8 +73,7 @@ struct GetDrive {
 
 int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   fs::path storage_path(chunk_dir / "store");
-  DiskUsage disk_usage(1048576000);
-  MemoryUsage memory_usage(0);
+  DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
   std::shared_ptr<maidsafe::data_store::SureFileStore> 
     storage(new maidsafe::data_store::SureFileStore(storage_path, disk_usage));
 

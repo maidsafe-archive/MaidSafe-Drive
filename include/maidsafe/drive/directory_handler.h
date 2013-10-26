@@ -45,9 +45,9 @@
 
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/directory.h"
-#include "maidsafe/drive/directory_listing.h"
 #include "maidsafe/drive/utils.h"
 #include "maidsafe/drive/meta_data.h"
+
 
 namespace maidsafe {
 namespace drive {
@@ -64,6 +64,7 @@ class DirectoryHandler {
   typedef std::shared_ptr<DirectoryListing> DirectoryListingPtr;
   typedef encrypt::SelfEncryptor<Storage> SelfEncryptor;
   typedef encrypt::DataMap DataMap;
+  typedef encrypt::DataMapPtr DataMapPtr;
 
   DirectoryHandler(StoragePtr storage, const Identity& unique_user_id,
                    const Identity& root_parent_id);
@@ -71,15 +72,13 @@ class DirectoryHandler {
 
   void Add(const boost::filesystem::path& relative_path, const MetaData& meta_data,
            DirectoryId& grandparent_id, DirectoryId& parent_id);
-  Directory Get(const boost::filesystem::path& relative_path) const;
+  Directory Get(const boost::filesystem::path& relative_path);
   void Delete(const boost::filesystem::path& relative_path);
   void Rename(const boost::filesystem::path& old_relative_path,
               const boost::filesystem::path& new_relative_path, MetaData& meta_data);
-  void UpdateParent(const boost::filesystem::path& parent_path, MetaData meta_data);
+  void UpdateParent(const boost::filesystem::path& parent_path, const MetaData& meta_data);
 
-  StoragePtr storage() const { return storage_; }
-  Identity root_parent_id() const { return root_parent_id_; };
-  Identity unique_user_id() const { return unique_user_id_; };
+  Identity root_parent_id() const { return root_parent_id_; }
 
   friend class test::DirectoryHandlerTest;
 
@@ -87,22 +86,21 @@ class DirectoryHandler {
   DirectoryHandler(const DirectoryHandler&);
   DirectoryHandler& operator=(const DirectoryHandler&);
 
-  bool IsDirectory(const MetaData& meta_data);
-
+  bool IsDirectory(const MetaData& meta_data) const;
   void GetParentAndGrandparent(const boost::filesystem::path& relative_path,
                                Directory& grandparent, Directory& parent,
-                               MetaData& parent_meta_data) const;
+                               MetaData& parent_meta_data);
   void RenameSameParent(const boost::filesystem::path& old_relative_path,
                         const boost::filesystem::path& new_relative_path, MetaData& meta_data);
   void RenameDifferentParent(const boost::filesystem::path& old_relative_path,
                              const boost::filesystem::path& new_relative_path,
                              MetaData& meta_data);
-
-  void Put(Directory& directory);
+  void Put(const Directory& directory, const boost::filesystem::path& relative_path);
   Directory Get(const DirectoryId& parent_id, const DirectoryId& directory_id) const;
   void Delete(const Directory& directory);
   DataMapPtr GetDataMap(const DirectoryId& parent_id, const DirectoryId& directory_id) const;
 
+ private:
   StoragePtr storage_;
   Identity unique_user_id_, root_parent_id_;
   mutable std::mutex cache_mutex_;
@@ -133,12 +131,8 @@ DirectoryHandler<Storage>::DirectoryHandler(StoragePtr storage, const Identity& 
     root_parent.listing->AddChild(root_meta_data);
     root.parent_id = root_parent_id_;
     root.listing = root_listing;
-
-    Put(root_parent);
-    Put(root);
-  }  else {
-    unique_user_id_ = unique_user_id;
-    root_parent_id_ =  root_parent_id;
+    Put(root_parent, kRoot.parent_path());
+    Put(root, kRoot);
   }
 }
 
@@ -156,12 +150,11 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
 
   if (IsDirectory(meta_data)) {
     Directory directory(parent.listing->directory_id(),
-                        std::make_shared<DirectoryListing>(*meta_data.directory_id),
-                        std::make_shared<encrypt::DataMap>());
+                        std::make_shared<DirectoryListing>(*meta_data.directory_id));
     try {
-      Put(directory);
+      Put(directory, relative_path);
     }
-    catch (const std::exception& exception) {
+    catch(const std::exception& exception) {
       parent.listing->RemoveChild(meta_data);
       boost::throw_exception(exception);
     }
@@ -178,14 +171,14 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
     grandparent.listing->UpdateChild(parent_meta_data);
 
   try {
-    Put(parent);
+    Put(parent, relative_path.parent_path());
   }
   catch (const std::exception& exception) {
     parent.listing->RemoveChild(meta_data);
     boost::throw_exception(exception);
   }
 
-  Put(grandparent);
+  Put(grandparent, relative_path.parent_path().parent_path());
 
   if (grandparent.listing)
     grandparent_id = grandparent.listing->directory_id();
@@ -193,17 +186,15 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
 }
 
 template <typename Storage>
-Directory DirectoryHandler<Storage>::Get(const boost::filesystem::path& relative_path) const {
+Directory DirectoryHandler<Storage>::Get(const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
-  /*{
+  {
     std::lock_guard<std::mutex> lock(cache_mutex_);
     auto itr(cache_.find(relative_path));
     if (itr != std::end(cache_))
       return itr->second;
-  }*/
-
+  }
   Directory directory(Get(unique_user_id_, root_parent_id_));
-  // Get successive directory listings until found.
   MetaData meta_data;
   bool found_root = false;
   auto end(std::end(relative_path));
@@ -218,9 +209,12 @@ Directory DirectoryHandler<Storage>::Get(const boost::filesystem::path& relative
     if (!meta_data.directory_id)
       ThrowError(CommonErrors::invalid_parameter);
     directory = Get(directory.listing->directory_id(), *meta_data.directory_id);
-
     if (found_root)
       found_root = false;
+  }
+  {  // NOLINT
+    std::lock_guard<std::mutex> lock(cache_mutex_);
+    cache_[relative_path] = directory;
   }
   return directory;
 }
@@ -238,6 +232,10 @@ void DirectoryHandler<Storage>::Delete(const boost::filesystem::path& relative_p
   if (IsDirectory(meta_data)) {
     Directory directory(Get(relative_path));
     Delete(directory);
+    {  // NOLINT
+      std::lock_guard<std::mutex> lock(cache_mutex_);
+      cache_.erase(relative_path);
+    }
   } else {
     SelfEncryptor(meta_data.data_map, *storage_).DeleteAllChunks();
   }
@@ -259,11 +257,10 @@ void DirectoryHandler<Storage>::Delete(const boost::filesystem::path& relative_p
   }
 
 #ifndef MAIDSAFE_WIN32
-  Put(grandparent);
+  Put(grandparent, relative_path.parent_path().parent_path());
 #endif
-  Put(parent);
+  Put(parent, relative_path.parent_path());
 }
-
 
 template <typename Storage>
 void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relative_path,
@@ -281,23 +278,22 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
 
 template <typename Storage>
 void DirectoryHandler<Storage>::UpdateParent(const boost::filesystem::path& parent_path,
-                                             MetaData meta_data) {
+                                             const MetaData& meta_data) {
   SCOPED_PROFILE
   Directory parent = Get(parent_path);
   parent.listing->UpdateChild(meta_data);
-  Put(parent);
+  Put(parent, parent_path);
 }
 
 template <typename Storage>
-bool DirectoryHandler<Storage>::IsDirectory(const MetaData& meta_data) {
+bool DirectoryHandler<Storage>::IsDirectory(const MetaData& meta_data) const {
   return static_cast<bool>(meta_data.directory_id);
 }
-
 
 template <typename Storage>
 void DirectoryHandler<Storage>::GetParentAndGrandparent(
     const boost::filesystem::path& relative_path, Directory& grandparent, Directory& parent,
-    MetaData& parent_meta_data) const {
+    MetaData& parent_meta_data) {
   grandparent = Get(relative_path.parent_path().parent_path());
   grandparent.listing->GetChild(relative_path.parent_path().filename(), parent_meta_data);
   if (!(parent_meta_data.directory_id))
@@ -357,16 +353,15 @@ void DirectoryHandler<Storage>::RenameSameParent(const boost::filesystem::path& 
 //         parent_meta_data.attributes.st_mtime;
 //   }
 #endif
+  Put(parent, old_relative_path.parent_path());
 
-  Put(parent);
 #ifndef MAIDSAFE_WIN32
   try {
-    if (grandparent.listing)
-      grandparent.listing->UpdateChild(parent_meta_data);
+    assert(grandparent.listing);
+    grandparent.listing->UpdateChild(parent_meta_data, true);
   }
-  catch (...) {/*Non-critical*/
-  }
-  Put(grandparent);
+  catch(...) { /*Non-critical*/ }
+  Put(grandparent, old_relative_path.parent_path().parent_path());
 #endif
 }
 
@@ -377,9 +372,9 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
     MetaData& meta_data) {
   Directory old_grandparent, old_parent, new_grandparent, new_parent;
   MetaData old_parent_meta_data, new_parent_meta_data;
+
   GetParentAndGrandparent(old_relative_path, old_grandparent, old_parent, old_parent_meta_data);
   GetParentAndGrandparent(new_relative_path, new_grandparent, new_parent, new_parent_meta_data);
-
 #ifndef MAIDSAFE_WIN32
   struct stat old;
   old.st_ctime = meta_data.attributes.st_ctime;
@@ -394,7 +389,7 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
     Directory directory(Get(old_relative_path));
     Delete(directory);
     directory.parent_id = new_parent.listing->directory_id();
-    Put(directory);
+    Put(directory, new_relative_path);
   }
 
   old_parent.listing->RemoveChild(meta_data);
@@ -407,7 +402,7 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
     try {
       new_parent.listing->GetChild(new_relative_path.filename(), old_meta_data);
     }
-    catch (const std::exception& exception) {
+    catch(const std::exception& exception) {
 #ifndef MAIDSAFE_WIN32
       meta_data.attributes.st_ctime = old.st_ctime;
       meta_data.attributes.st_mtime = old.st_mtime;
@@ -431,8 +426,8 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
         old_parent_meta_data.attributes.st_mtime;
   }
 #endif
-  Put(old_parent);
-  Put(new_parent);
+  Put(old_parent, old_relative_path.parent_path());
+  Put(new_parent, new_relative_path.parent_path());
 
 #ifndef MAIDSAFE_WIN32
   if (new_relative_path.parent_path() != old_relative_path.parent_path().parent_path()) {
@@ -442,87 +437,73 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
     }
     catch (...) {/*Non-critical*/
     }
-    Put(old_grandparent);
+    Put(old_grandparent, old_relative_path.parent_path().parent_path());
   }
 #endif
 }
 
 template <typename Storage>
-void DirectoryHandler<Storage>::Put(Directory& directory) {
-  // TODO(Fraser#5#): 2013-08-28 - Use versions
+void DirectoryHandler<Storage>::Put(const Directory& directory,
+                                    const boost::filesystem::path& relative_path) {
+  std::string serialised_directory_listing(directory.listing->Serialise());
+
   try {
-    // TODO(Fraser#5#): 2013-08-31 - BEFORE_RELEASE - This won't work (and shouldn't even be tried)
-    //                               for NFS.
     Delete(directory);
   }
-  catch (...) {
-  }
-  auto serialised_directory_listing(directory.listing->Serialise());
+  catch(...) {}
 
-  // Encrypt serialised directory listing.
+  DataMapPtr data_map(new encrypt::DataMap);
   {
-    if (!directory.data_map)
-      directory.data_map.reset(new DataMap);
-    SelfEncryptor self_encryptor(directory.data_map, *storage_);
+    SelfEncryptor self_encryptor(data_map, *storage_);
     assert(serialised_directory_listing.size() <= std::numeric_limits<uint32_t>::max());
-    auto write_size(static_cast<uint32_t>(serialised_directory_listing.size()));
-    if (!self_encryptor.Write(serialised_directory_listing.c_str(), write_size, 0))
+    if (!self_encryptor.Write(serialised_directory_listing.c_str(),
+                              static_cast<uint32_t>(serialised_directory_listing.size()),
+                              0)) {
       ThrowError(CommonErrors::invalid_parameter);
+    }
   }
 
-  // Encrypt generated data map.
   auto encrypted_data_map = encrypt::EncryptDataMap(
-      directory.parent_id, directory.listing->directory_id(), directory.data_map);
-  
-  // Store encrypted datamap.
+      directory.parent_id, directory.listing->directory_id(), data_map);
+
   MutableData::Name name = MutableData::Name(directory.listing->directory_id());
   MutableData mutable_data(name, encrypted_data_map);
-  storage_->Put(mutable_data);
+  storage_->template Put<MutableData>(mutable_data);
+
+  {  // NOLINT
+    std::lock_guard<std::mutex> lock(cache_mutex_);
+    cache_[relative_path] = directory;
+  }
 }
 
 template <typename Storage>
-Directory DirectoryHandler<Storage>::Get(const DirectoryId& parent_id,
-                                         const DirectoryId& directory_id) const {
-  Directory directory(parent_id, nullptr, nullptr);
+Directory DirectoryHandler<Storage>::Get(
+    const DirectoryId& parent_id, const DirectoryId& directory_id) const {
+  DataMapPtr data_map(GetDataMap(parent_id, directory_id));
+  SelfEncryptor self_encryptor(data_map, *storage_);
+  uint32_t data_map_size(static_cast<uint32_t>(data_map->size()));
+  std::string serialised_listing(data_map_size, 0);
 
-  // Retrieve encrypted datamap.
-  directory.data_map = GetDataMap(parent_id, directory_id);
-
-  // Decrypt serialised directory listing.
-  SelfEncryptor self_encryptor(directory.data_map, *storage_);
-  uint32_t data_map_chunks_size(static_cast<uint32_t>(directory.data_map->chunks.size()));
-  uint32_t data_map_size;
-  if (data_map_chunks_size != 0) {
-    data_map_size = (data_map_chunks_size - 1) * directory.data_map->chunks[0].size +
-                    directory.data_map->chunks.rbegin()->size;
-  } else {
-    data_map_size = static_cast<uint32_t>(directory.data_map->content.size());
-  }
-  std::vector<char> serialised_listing(data_map_size);
-  if (!self_encryptor.Read(&serialised_listing[0], data_map_size, 0))
+  if (!self_encryptor.Read(const_cast<char*>(serialised_listing.c_str()), data_map_size, 0))
     ThrowError(CommonErrors::invalid_parameter);
 
-  // Parse serialised directory listing.
-  directory.listing = std::make_shared<DirectoryListing>(
-      std::string(std::begin(serialised_listing), std::end(serialised_listing)));
+  Directory directory(parent_id, std::make_shared<DirectoryListing>(serialised_listing));
+  assert(directory.listing->directory_id() == directory_id);
   return directory;
 }
 
 template <typename Storage>
 void DirectoryHandler<Storage>::Delete(const Directory& directory) {
-  if (directory.data_map) {
-    encrypt::SelfEncryptor<Storage> self_encryptor(directory.data_map, *storage_);
-    self_encryptor.DeleteAllChunks();
-  }
-  // TODO(Fraser#5#): 2013-08-28 - Check if there's a case where the DM could be nullptr and we
-  //                       need to retrieve the DM from Storage in order to call DeleteAllChunks().
-  MutableData::Name name = MutableData::Name(directory.listing->directory_id());
+  DataMapPtr data_map(GetDataMap(directory.parent_id, directory.listing->directory_id()));
+  SelfEncryptor self_encryptor(data_map, *storage_);
+  self_encryptor.DeleteAllChunks();
+  MutableData::Name name(directory.listing->directory_id());
   storage_->template Delete<MutableData>(name);
 }
 
 template <typename Storage>
-DataMapPtr DirectoryHandler<Storage>::GetDataMap(const DirectoryId& parent_id,
-                                                 const DirectoryId& directory_id) const {
+typename DirectoryHandler<Storage>::DataMapPtr DirectoryHandler<Storage>::GetDataMap(
+    const DirectoryId& parent_id, const DirectoryId& directory_id) const {
   MutableData::Name name = MutableData::Name(directory_id);
   MutableData directory(storage_->template Get<MutableData>(name).get());
   auto data_map(std::make_shared<DataMap>());
