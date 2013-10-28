@@ -183,7 +183,6 @@ class CbfsDrive : public Drive<Storage> {
   static void CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo* file_info);
   static void CbFsOnEjectStorage(CallbackFileSystem* sender);
 
-  std::map<boost::filesystem::path, std::shared_ptr<FileContext>> open_files;
   mutable CallbackFileSystem callback_filesystem_;
   std::string guid_;
   LPCWSTR icon_id_;
@@ -198,7 +197,6 @@ CbfsDrive<Storage>::CbfsDrive(StoragePtr storage, const Identity& unique_user_id
                               const std::string& product_id,
                               const boost::filesystem::path& drive_name)
     : Drive<Storage>(storage, unique_user_id, root_parent_id, mount_dir),
-      open_files(),
       callback_filesystem_(),
       guid_(product_id.empty() ? "713CC6CE-B3E2-4fd9-838D-E28F558F6866" : product_id),
       icon_id_(L"MaidSafeDriveIcon"),
@@ -522,7 +520,7 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
   LOG(kInfo) << "CbFsCreateFile - " << relative_path << " 0x" << std::hex << file_attributes;
   file_info->set_UserContext(nullptr);
   bool is_directory((file_attributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY);
-  std::shared_ptr<FileContext> file_context(new FileContext(relative_path.filename(), is_directory));
+  FileContextPtr file_context(new FileContext(relative_path.filename(), is_directory));
   file_context->meta_data->attributes = file_attributes;
   auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
 
@@ -540,8 +538,8 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
     file_context->self_encryptor.reset(
         new SelfEncryptor(file_context->meta_data->data_map, *cbfs_drive->storage_));
   }
-  cbfs_drive->open_files.insert(std::make_pair(relative_path, file_context));
-  file_info->set_UserContext(file_context.get());
+
+  file_info->set_UserContext(file_context);
   assert(file_info->get_UserContext());
 }
 
@@ -557,7 +555,7 @@ void CbfsDrive<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_n
     return;
 
   boost::filesystem::path relative_path(file_name);
-  std::shared_ptr<FileContext> file_context;
+  std::unique_ptr<FileContext> file_context;
   auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
   try {
     file_context.reset(new FileContext(cbfs_drive->GetFileContext(relative_path)));
@@ -575,10 +573,9 @@ void CbfsDrive<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_n
          new SelfEncryptor(file_context->meta_data->data_map, *cbfs_drive->storage_));
     }
   }
-  cbfs_drive->open_files.insert(std::make_pair(relative_path, file_context));
   // Transfer ownership of the pointer to CBFS' file_info.
   file_info->set_UserContext(file_context.get());
-  // file_context.release();
+  file_context.release();
 }
 
 template <typename Storage>
@@ -592,17 +589,15 @@ void CbfsDrive<Storage>::CbFsCloseFile(CallbackFileSystem* sender, CbFsFileInfo*
     return;
 
   // Transfer ownership of the pointer from CBFS' file_info.
-  /*auto deleter([&](FileContextPtr ptr) {
+  auto deleter([&](FileContextPtr ptr) {
     delete ptr;
     file_info->set_UserContext(nullptr);
-  });*/
- /* std::unique_ptr<FileContext, decltype(deleter)> file_context(
-      static_cast<FileContextPtr>(file_info->get_UserContext()), deleter);*/
-  FileContextPtr file_context(static_cast<FileContextPtr>(file_info->get_UserContext()));
-  if ((file_context->meta_data->attributes & FILE_ATTRIBUTE_DIRECTORY)) {
-    cbfs_drive->open_files.erase(relative_path);
+  });
+  std::unique_ptr<FileContext, decltype(deleter)> file_context(
+      static_cast<FileContextPtr>(file_info->get_UserContext()), deleter);
+  if ((file_context->meta_data->attributes & FILE_ATTRIBUTE_DIRECTORY))
     return;
-  }
+
   if (file_context->meta_data->end_of_file < file_context->meta_data->allocation_size) {
     file_context->meta_data->end_of_file = file_context->meta_data->allocation_size;
   } else if (file_context->meta_data->allocation_size < file_context->meta_data->end_of_file) {
@@ -615,7 +610,7 @@ void CbfsDrive<Storage>::CbFsCloseFile(CallbackFileSystem* sender, CbFsFileInfo*
   if (file_context->self_encryptor->Flush()) {
     if (file_context->content_changed) {
       try {
-        cbfs_drive->UpdateParent(file_context, relative_path.parent_path());
+        cbfs_drive->UpdateParent(file_context.get(), relative_path.parent_path());
       }
       catch (...) {
         throw ECBFSError(ERROR_ERRORS_ENCOUNTERED);
@@ -624,7 +619,6 @@ void CbfsDrive<Storage>::CbFsCloseFile(CallbackFileSystem* sender, CbFsFileInfo*
   } else {
     LOG(kError) << "CbFsCloseFile: failed to flush " << relative_path;
   }
-  cbfs_drive->open_files.erase(relative_path);
 }
 
 template <typename Storage>
@@ -642,14 +636,10 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
 
   if (relative_path.extension() == detail::kMsHidden)
     throw ECBFSError(ERROR_INVALID_NAME);
-  std::shared_ptr<FileContext> file_context;
+  std::unique_ptr<FileContext> file_context;
   auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
   try {
-    auto it(cbfs_drive->open_files.find(relative_path));
-    if (it != cbfs_drive->open_files.end())
-      file_context = it->second;
-    else
-      file_context.reset(new FileContext(cbfs_drive->GetFileContext(relative_path)));
+    file_context.reset(new FileContext(cbfs_drive->GetFileContext(relative_path)));
   }
   catch (...) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -727,9 +717,6 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
   }
 
   if (*file_found) {
-    auto it(cbfs_drive->open_files.find(relative_path / meta_data.name));
-    if (it != cbfs_drive->open_files.end())
-      meta_data = *(it->second->meta_data);
     // Need to use wcscpy rather than the secure wcsncpy_s as file_name has a size of 0 in some
     // cases.  CBFS docs specify that callers must assign MAX_PATH chars to file_name, so we assume
     // this is done.
