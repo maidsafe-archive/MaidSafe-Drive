@@ -126,8 +126,8 @@ class Drive {
   void UpdateParent(FileContextPtr file_context, const boost::filesystem::path& parent_path);
   // Resizes the file.
   bool TruncateFile(FileContextPtr file_context, const uint64_t& size);
-  virtual void NotifyRename(const boost::filesystem::path& from_relative_path,
-                            const boost::filesystem::path& to_relative_path) const = 0;
+  // virtual void NotifyRename(const boost::filesystem::path& from_relative_path,
+  //                           const boost::filesystem::path& to_relative_path) const = 0;
 
   DirectoryHandler directory_handler_;
   StoragePtr storage_;
@@ -258,80 +258,80 @@ void Drive<Storage>::InsertDataMap(const boost::filesystem::path& relative_path,
 
 // **************************** Hidden Files ******************************************************
 
-template <typename Storage>
-std::string Drive<Storage>::ReadHiddenFile(const boost::filesystem::path& relative_path) {
-  if (relative_path.empty() || (relative_path.extension() != detail::kMsHidden))
-    ThrowError(CommonErrors::invalid_parameter);
-
-  FileContext file_context(GetFileContext(relative_path));
-  BOOST_ASSERT(!file_context.meta_data->directory_id);
-
-  file_context.self_encryptor.reset(new SelfEncryptor(
-      file_context.meta_data->data_map, *storage_));
-  if (file_context.self_encryptor->size() > std::numeric_limits<uint32_t>::max())
-    ThrowError(CommonErrors::invalid_parameter);
-
-  std::string content;
-  uint32_t bytes_to_read(static_cast<uint32_t>(file_context.self_encryptor->size()));
-  content->resize(bytes_to_read);
-  if (!file_context.self_encryptor->Read(const_cast<char*>(content.data()), bytes_to_read, 0))
-    ThrowError(CommonErrors::invalid_parameter);
-  return content;
-}
-
-template <typename Storage>
-void Drive<Storage>::WriteHiddenFile(const boost::filesystem::path& relative_path,
-                                     const std::string& content,
-                                     bool overwrite) {
-  if (relative_path.empty() || (relative_path.extension() != detail::kMsHidden))
-    ThrowError(CommonErrors::invalid_parameter);
-
-  boost::filesystem::path hidden_file_path(relative_path);
-  // Try getting FileContext to existing
-  FileContext file_context;
-  try {
-    file_context = GetFileContext(relative_path);
-    if (!overwrite)
-      ThrowError(CommonErrors::invalid_parameter);
-  }
-  catch(...) {
-    // Try adding a new entry if the hidden file doesn't already exist
-    file_context = FileContext(hidden_file_path.filename(), false);
-    Add(hidden_file_path, file_context);
-  }
-
-  if (content.size() > std::numeric_limits<uint32_t>::max())
-    ThrowError(CommonErrors::invalid_parameter);
-
-  // Write the data
-  file_context.self_encryptor.reset(new SelfEncryptor(
-      file_context.meta_data->data_map, *storage_));
-
-  if (file_context.self_encryptor->size() > content.size())
-    file_context.self_encryptor->Truncate(content.size());
-  if (!file_context.self_encryptor->Write(static_cast<char*>(content.data()),
-                                          static_cast<uint32_t>(content.size()),
-                                          0))
-    ThrowError(CommonErrors::invalid_parameter);
-
-  file_context.self_encryptor.reset();
-  SetNewAttributes(&file_context, false, false);
-}
-
-template <typename Storage>
-void Drive<Storage>::DeleteHiddenFile(const boost::filesystem::path &relative_path) {
-  if (relative_path.empty() || (relative_path.extension() != detail::kMsHidden))
-    ThrowError(CommonErrors::invalid_parameter);
-  RemoveFile(relative_path);
-}
-
-template <typename Storage>
-std::vector<std::string> Drive<Storage>::GetHiddenFiles(
-    const boost::filesystem::path &relative_path) {
-  auto directory(directory_handler_.Get(relative_path));
-  return directory.listing.GetHiddenChildNames();
-}
-
+// template <typename Storage>
+// std::string Drive<Storage>::ReadHiddenFile(const boost::filesystem::path& relative_path) {
+//   if (relative_path.empty() || (relative_path.extension() != detail::kMsHidden))
+//     ThrowError(CommonErrors::invalid_parameter);
+// 
+//   FileContext file_context(GetFileContext(relative_path));
+//   BOOST_ASSERT(!file_context.meta_data->directory_id);
+// 
+//   file_context.self_encryptor.reset(new SelfEncryptor(
+//       file_context.meta_data->data_map, *storage_));
+//   if (file_context.self_encryptor->size() > std::numeric_limits<uint32_t>::max())
+//     ThrowError(CommonErrors::invalid_parameter);
+// 
+//   std::string content;
+//   uint32_t bytes_to_read(static_cast<uint32_t>(file_context.self_encryptor->size()));
+//   content->resize(bytes_to_read);
+//   if (!file_context.self_encryptor->Read(const_cast<char*>(content.data()), bytes_to_read, 0))
+//     ThrowError(CommonErrors::invalid_parameter);
+//   return content;
+// }
+// 
+// template <typename Storage>
+// void Drive<Storage>::WriteHiddenFile(const boost::filesystem::path& relative_path,
+//                                      const std::string& content,
+//                                      bool overwrite) {
+//   if (relative_path.empty() || (relative_path.extension() != detail::kMsHidden))
+//     ThrowError(CommonErrors::invalid_parameter);
+// 
+//   boost::filesystem::path hidden_file_path(relative_path);
+//   // Try getting FileContext to existing
+//   FileContext file_context;
+//   try {
+//     file_context = GetFileContext(relative_path);
+//     if (!overwrite)
+//       ThrowError(CommonErrors::invalid_parameter);
+//   }
+//   catch(...) {
+//     // Try adding a new entry if the hidden file doesn't already exist
+//     file_context = FileContext(hidden_file_path.filename(), false);
+//     Add(hidden_file_path, file_context);
+//   }
+// 
+//   if (content.size() > std::numeric_limits<uint32_t>::max())
+//     ThrowError(CommonErrors::invalid_parameter);
+// 
+//   // Write the data
+//   file_context.self_encryptor.reset(new SelfEncryptor(
+//       file_context.meta_data->data_map, *storage_));
+// 
+//   if (file_context.self_encryptor->size() > content.size())
+//     file_context.self_encryptor->Truncate(content.size());
+//   if (!file_context.self_encryptor->Write(static_cast<char*>(content.data()),
+//                                           static_cast<uint32_t>(content.size()),
+//                                           0))
+//     ThrowError(CommonErrors::invalid_parameter);
+// 
+//   file_context.self_encryptor.reset();
+//   SetNewAttributes(&file_context, false, false);
+// }
+// 
+// template <typename Storage>
+// void Drive<Storage>::DeleteHiddenFile(const boost::filesystem::path &relative_path) {
+//   if (relative_path.empty() || (relative_path.extension() != detail::kMsHidden))
+//     ThrowError(CommonErrors::invalid_parameter);
+//   RemoveFile(relative_path);
+// }
+// 
+// template <typename Storage>
+// std::vector<std::string> Drive<Storage>::GetHiddenFiles(
+//     const boost::filesystem::path &relative_path) {
+//   auto directory(directory_handler_.Get(relative_path));
+//   return directory.listing.GetHiddenChildNames();
+// }
+// 
 // ***************************** File Notes *******************************************************
 
 template <typename Storage>

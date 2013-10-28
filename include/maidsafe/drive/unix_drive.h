@@ -49,20 +49,20 @@ namespace drive {
 
 namespace detail {
 
-template <typename Storage>
-bool ForceFlush(RootHandler<Storage>& root_handler, FileContext<Storage>* file_context) {
-  assert(file_context);
-  file_context->self_encryptor->Flush();
-
-  try {
-    root_handler.UpdateParentDirectoryListing(file_context->meta_data->name.parent_path(),
-                                              *file_context->meta_data.get());
-  }
-  catch (...) {
-    return false;
-  }
-  return true;
-}
+// template <typename Storage>
+// bool ForceFlush(RootHandler<Storage>& root_handler, FileContext<Storage>* file_context) {
+//   assert(file_context);
+//   file_context->self_encryptor->Flush();
+// 
+//   try {
+//     root_handler.UpdateParentDirectoryListing(file_context->meta_data->name.parent_path(),
+//                                               *file_context->meta_data.get());
+//   }
+//   catch (...) {
+//     return false;
+//   }
+//   return true;
+// }
 
 template <typename Storage>
 static inline struct FileContext<Storage>* RecoverFileContext(struct fuse_file_info* file_info) {
@@ -98,7 +98,6 @@ class FuseDrive : public Drive<Storage> {
   FuseDrive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
             const boost::filesystem::path& mount_dir, const std::string& product_id,
             const boost::filesystem::path& drive_name);
-
   virtual ~FuseDrive();
 
   virtual bool Unmount();
@@ -110,7 +109,7 @@ class FuseDrive : public Drive<Storage> {
  private:
   FuseDrive(const FuseDrive&);
   FuseDrive(FuseDrive&&);
-  FuseDrive& operator=(FuseDrive);
+  // FuseDrive& operator=(FuseDrive);
 
   void Init();
   //  void Mount();
@@ -445,11 +444,11 @@ int FuseDrive<Storage>::OpsFlush(const char* path, struct fuse_file_info* file_i
     LOG(kError) << "OpsFlush: " << path << ", failed find filecontext for " << path;
     return -EINVAL;
   }
-
-  if (!detail::ForceFlush(Global<Storage>::g_fuse_drive->root_handler_, file_context)) {
-    LOG(kError) << "OpsFlush: " << path << ", failed to update";
-    return -EBADF;
-  }
+//TODO (dirvine)
+  // if (!detail::ForceFlush(Global<Storage>::g_fuse_drive->root_handler_, file_context)) {
+  //   LOG(kError) << "OpsFlush: " << path << ", failed to update";
+  //   return -EBADF;
+  // }
   return 0;
 }
 
@@ -489,15 +488,6 @@ int FuseDrive<Storage>::OpsMkdir(const char* path, mode_t mode) {
   meta_data.attributes.st_uid = fuse_get_context()->uid;
   meta_data.attributes.st_gid = fuse_get_context()->gid;
 
-  try {
-    DirectoryId grandparent_directory_id, parent_directory_id;
-    Global<Storage>::g_fuse_drive->AddFile(full_path, meta_data, grandparent_directory_id,
-                                           parent_directory_id);
-  }
-  catch (...) {
-    LOG(kError) << "OpsMkdir: " << path << ", failed to AddNewMetaData.  ";
-    return -EIO;
-  }
   return 0;
 }
 
@@ -538,7 +528,7 @@ int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t rdev) {
     return -EIO;
   }
 
-  meta_data.attributes.st_size = detail::kDirectorySize;
+  meta_data.attributes.st_size = 4096; //TODO (dirvine) detail::kDirectorySize;
   return 0;
 }
 
@@ -911,17 +901,17 @@ int FuseDrive<Storage>::OpsFsync(const char* path, int /*isdatasync*/,
   if (!file_context)
     return -EINVAL;
 
-  if (!detail::ForceFlush(Global<Storage>::g_fuse_drive->directory_handler_, file_context)) {
-    //    int result(Update(Global<Storage>::g_fuse_drive->directory_handler_,
-    //                      file_context,
-    //                      false,
-    //                      (isdatasync == 0)));
-    //    if (result != kSuccess) {
-    //      LOG(kError) << "OpsFsync: " << path << ", failed to update "
-    //                  << "metadata.  Result: " << result;
-    //      return -EIO;
-    //    }
-  }
+  // if (!detail::ForceFlush(Global<Storage>::g_fuse_drive->directory_handler_, file_context)) {
+  //   //    int result(Update(Global<Storage>::g_fuse_drive->directory_handler_,
+  //   //                      file_context,
+  //   //                      false,
+  //   //                      (isdatasync == 0)));
+  //   //    if (result != kSuccess) {
+  //   //      LOG(kError) << "OpsFsync: " << path << ", failed to update "
+  //   //                  << "metadata.  Result: " << result;
+  //   //      return -EIO;
+  //   //    }
+  // }
   return 0;
 }
 
