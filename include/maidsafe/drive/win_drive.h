@@ -90,6 +90,8 @@ class CbfsDrive : public Drive<Storage> {
             const boost::filesystem::path& drive_name);
 
   virtual ~CbfsDrive() {}
+
+  void Mount();
   virtual bool Unmount();
   int Install();
   void NotifyDirectoryChange(const boost::filesystem::path& relative_path, OpType op) const;
@@ -101,9 +103,6 @@ class CbfsDrive : public Drive<Storage> {
   CbfsDrive(const CbfsDrive&);
   CbfsDrive(CbfsDrive&&);
   CbfsDrive& operator=(CbfsDrive);
-
-  void Init();
-  void Mount();
 
   void UnmountDrive(const std::chrono::steady_clock::duration& timeout_before_force);
   std::wstring drive_name() const;
@@ -204,12 +203,10 @@ CbfsDrive<Storage>::CbfsDrive(StoragePtr storage, const Identity& unique_user_id
       guid_(product_id.empty() ? "713CC6CE-B3E2-4fd9-838D-E28F558F6866" : product_id),
       icon_id_(L"MaidSafeDriveIcon"),
       drive_name_(drive_name.wstring()),
-      registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)) {
-  Init();
-}
+      registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)) {}
 
 template <typename Storage>
-void CbfsDrive<Storage>::Init() {
+void CbfsDrive<Storage>::Mount() {
   if (drive_stage_ != kCleaned) {
     OnCallbackFsInit();
     UpdateDriverStatus();
@@ -238,11 +235,7 @@ void CbfsDrive<Storage>::Init() {
 
   callback_filesystem_.SetTag(static_cast<void*>(this));
   drive_stage_ = kInitialised;
-  Mount();
-}
 
-template <typename Storage>
-void CbfsDrive<Storage>::Mount() {
   try {
 #ifndef NDEBUG
     int timeout_milliseconds(0);
@@ -263,6 +256,8 @@ void CbfsDrive<Storage>::Mount() {
   }
   drive_stage_ = kMounted;
   SetMountState(true);
+
+  WaitUntilUnMounted();
 }
 
 template <typename Storage>

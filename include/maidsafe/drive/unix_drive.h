@@ -93,14 +93,11 @@ FuseDrive<Storage>* Global<Storage>::g_fuse_drive;
 template <typename Storage>
 class FuseDrive : public Drive<Storage> {
  public:
-  FuseDrive(std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs,
-                       const Identity& unique_user_id, const Identity& drive_root_id,
-                       const boost::filesystem::path& mount_dir,
-                       const boost::filesystem::path& drive_name, OnServiceAdded on_service_added);
+  typedef std::shared_ptr<Storage> StoragePtr;
 
-  FuseDrive(const Identity& drive_root_id, const boost::filesystem::path& mount_dir,
-                       const boost::filesystem::path& drive_name, OnServiceAdded on_service_added,
-                       OnServiceRemoved on_service_removed, OnServiceRenamed on_service_renamed);
+  FuseDrive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
+            const boost::filesystem::path& mount_dir, const std::string& product_id,
+            const boost::filesystem::path& drive_name);
 
   virtual ~FuseDrive();
 
@@ -196,29 +193,12 @@ template <typename Storage>
 const bool FuseDrive<Storage>::kAllowMsHidden_(false);
 
 template <typename Storage>
-FuseDrive<Storage>::FuseDrive(
-    std::shared_ptr<nfs_client::MaidNodeNfs> maid_node_nfs, const Identity& unique_user_id,
-    const Identity& drive_root_id, const boost::filesystem::path& mount_dir,
-    const boost::filesystem::path& drive_name, OnServiceAdded on_service_added)
-    : Drive<Storage>::Drive(maid_node_nfs, unique_user_id, drive_root_id,
-                                                  mount_dir, on_service_added),
-      fuse_(nullptr),
-      fuse_channel_(nullptr),
-      fuse_mountpoint_(nullptr),
-      drive_name_(drive_name.string()),
-      fuse_event_loop_thread_() {
-  Init();
-}
-
-template <typename Storage>
-FuseDrive<Storage>::FuseDrive(const Identity& drive_root_id,
-                                                    const boost::filesystem::path& mount_dir,
-                                                    const boost::filesystem::path& drive_name,
-                                                    OnServiceAdded on_service_added,
-                                                    OnServiceRemoved on_service_removed,
-                                                    OnServiceRenamed on_service_renamed)
-    : Drive<Storage>::Drive(drive_root_id, mount_dir, on_service_added,
-                                                  on_service_removed, on_service_renamed),
+FuseDrive<Storage>::FuseDrive(StoragePtr storage, const Identity& unique_user_id,
+                              const Identity& root_parent_id,
+                              const boost::filesystem::path& mount_dir,
+                              const std::string& /*product_id*/,
+                              const boost::filesystem::path& drive_name)
+    : Drive<Storage>::Drive(storage, unique_user_id, root_parent_id, mount_dir),
       fuse_(nullptr),
       fuse_channel_(nullptr),
       fuse_mountpoint_(nullptr),

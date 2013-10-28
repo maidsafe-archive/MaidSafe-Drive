@@ -50,16 +50,6 @@ namespace po = boost::program_options;
 namespace maidsafe {
 namespace drive {
 
-namespace {
-
-std::function<void()> g_unmount_functor;
-
-void CtrlCHandler(int /*value*/) {
-  g_unmount_functor();
-}
-
-}  // unnamed namespace
-
 #ifdef WIN32
 template<typename Storage>
 struct GetDrive {
@@ -74,8 +64,8 @@ struct GetDrive {
 int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   fs::path storage_path(chunk_dir / "store");
   DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
-  std::shared_ptr<maidsafe::data_store::SureFileStore> 
-    storage(new maidsafe::data_store::SureFileStore(storage_path, disk_usage));
+  std::shared_ptr<maidsafe::data_store::LocalStore>
+    storage(new maidsafe::data_store::LocalStore(storage_path, disk_usage));
 
   boost::system::error_code error_code;
   if (!fs::exists(chunk_dir, error_code))
@@ -91,7 +81,7 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   Identity unique_user_id(std::string(64, 'a'));
   Identity root_parent_id = (root_parent_id_str.empty() ? Identity() : Identity(root_parent_id_str));
   std::string product_id;
-  typedef GetDrive<maidsafe::data_store::SureFileStore>::type Drive;
+  typedef GetDrive<maidsafe::data_store::LocalStore>::type Drive;
   Drive drive(storage,
               unique_user_id,
               root_parent_id,
@@ -101,9 +91,7 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   if (first_run)
     BOOST_VERIFY(WriteFile(id_path, drive.root_parent_id().string()));
 
-  g_unmount_functor = [&] { drive.Unmount(); };
-  signal(SIGINT, CtrlCHandler);
-  drive.WaitUntilUnMounted();
+  drive.Mount();
 
   return 0;
 }
