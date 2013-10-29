@@ -34,7 +34,7 @@
 #include "maidsafe/common/test.h"
 #include "maidsafe/common/utils.h"
 
-#include "maidsafe/data_store/sure_file_store.h"
+#include "maidsafe/data_store/local_store.h"
 
 #include "maidsafe/encrypt/data_map.h"
 
@@ -113,11 +113,11 @@ struct TestTreeEntry {
   bool leaf;
 };
 
-class DirectoryHandlerTest : public testing::Test {
+class DirectoryHandlerTest {
  public:
   DirectoryHandlerTest()
       : main_test_dir_(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive")),
-        data_store_(new data_store::SureFileStore(*main_test_dir_, DiskUsage(1 << 30))),
+        data_store_(new data_store::LocalStore(*main_test_dir_, DiskUsage(1 << 30))),
         unique_user_id_(RandomString(64)),
         root_parent_id_(RandomString(64)),
         listing_handler_(),
@@ -265,9 +265,9 @@ class DirectoryHandlerTest : public testing::Test {
   //  }
   //
   maidsafe::test::TestPath main_test_dir_;
-  std::shared_ptr<data_store::SureFileStore> data_store_;
+  std::shared_ptr<data_store::LocalStore> data_store_;
   Identity unique_user_id_, root_parent_id_;
-  std::shared_ptr<detail::DirectoryHandler<data_store::SureFileStore>> listing_handler_;
+  std::shared_ptr<detail::DirectoryHandler<data_store::LocalStore>> listing_handler_;
   std::vector<TestTreeEntry> created_paths_;
   std::mutex created_paths_mutex_;
 
@@ -276,8 +276,8 @@ class DirectoryHandlerTest : public testing::Test {
   DirectoryHandlerTest& operator=(const DirectoryHandlerTest&);
 };
 
-TEST_CASE("DirectoryHandler", "[behavioural]") {
-  listing_handler_.reset(new detail::DirectoryHandler<data_store::SureFileStore>(
+TEST_CASE_METHOD(DirectoryHandlerTest, "Basic tests", "[DirectoryHandler][behavioural]") {
+  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, Identity()));
   Identity root_parent_id(listing_handler_->root_parent_id());
   MetaData meta_data("Directory", true), recovered_meta_data;
@@ -286,11 +286,11 @@ TEST_CASE("DirectoryHandler", "[behavioural]") {
                                         root_parent_id));
   CHECK_NOTHROW(recovered_directory = listing_handler_->Get(kRoot / "Directory"));
   CHECK(recovered_directory.listing->directory_id() == *meta_data.directory_id);
-  EXPECT_NOTHROW(recovered_directory = listing_handler_->Get(kRoot));
-  EXPECT_NOTHROW(recovered_directory.listing->GetChild("Directory", recovered_meta_data));
+  CHECK_NOTHROW(recovered_directory = listing_handler_->Get(kRoot));
+  CHECK_NOTHROW(recovered_directory.listing->GetChild("Directory", recovered_meta_data));
   CHECK(meta_data.name == recovered_meta_data.name);
   CHECK_NOTHROW(listing_handler_->Delete(kRoot / "Directory"));
-  CHECK_THROW_AS(recovered_directory = listing_handler_->Get(kRoot / "Directory"), std::exception);
+  CHECK_THROWS_AS(recovered_directory = listing_handler_->Get(kRoot / "Directory"), std::exception);
 }
 
 // TODO(Team): 2013-09-25 - Uncomment and fix or delete

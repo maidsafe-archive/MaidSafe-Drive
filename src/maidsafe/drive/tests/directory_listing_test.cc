@@ -58,7 +58,7 @@ inline uint64_t GetSize(MetaData meta_data) {
 #endif
 }
 
-class DirectoryListingTest : public testing::Test {
+class DirectoryListingTest {
  public:
   DirectoryListingTest()
       : name_(RandomAlphaNumericString(64)),
@@ -70,7 +70,7 @@ class DirectoryListingTest : public testing::Test {
   void GenerateDirectoryListingEntryForDirectory(DirectoryListing& directory_listing,
                                                  fs::path const& path) {
     MetaData meta_data(path.filename(), true);
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
     meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
     GetSystemTimeAsFileTime(&meta_data.creation_time);
     GetSystemTimeAsFileTime(&meta_data.last_access_time);
@@ -95,8 +95,7 @@ class DirectoryListingTest : public testing::Test {
       for (; itr != end; ++itr) {
         if (fs::is_directory(*itr)) {
           GenerateDirectoryListingEntryForDirectory(directory_listing, (*itr).path().filename());
-          CHECK(
-              GenerateDirectoryListings((*itr).path(), relative_path / (*itr).path().filename()));
+          CHECK(GenerateDirectoryListings((*itr).path(), relative_path / (*itr).path().filename()));
         } else if (fs::is_regular_file(*itr)) {
           GenerateDirectoryListingEntryForFile(directory_listing, (*itr).path().filename(),
                                                fs::file_size((*itr).path()));
@@ -124,7 +123,7 @@ class DirectoryListingTest : public testing::Test {
 
     // Remove the directory listing file...
     boost::system::error_code error_code;
-    CHECK(fs::remove(path / "msdir.listing", error_code)) << error_code.message();
+    CHECK(fs::remove(path / "msdir.listing", error_code));
     fs::directory_iterator itr(path), end;
     try {
       MetaData metadata;
@@ -135,14 +134,12 @@ class DirectoryListingTest : public testing::Test {
           CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
           CHECK_NOTHROW(directory_listing.RemoveChild(metadata));
           // Remove the disk directory also...
-          CHECK(fs::remove((*itr).path(), error_code)) << error_code.message();
-          EXPECT_EQ(error_code.value(), 0) << error_code.message();
+          CheckedRemove((*itr).path());
         } else if (fs::is_regular_file(*itr)) {
           CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
           CHECK_NOTHROW(directory_listing.RemoveChild(metadata));
           // Remove the disk file also...
-          CHECK(fs::remove((*itr).path(), error_code)) << error_code.message();
-          EXPECT_EQ(error_code.value(), 0) << error_code.message();
+          CheckedRemove((*itr).path());
         } else {
           if (fs::exists(*itr))
             LOG(kInfo) << "Unknown type found.";
@@ -180,8 +177,7 @@ class DirectoryListingTest : public testing::Test {
           metadata.name = fs::path(new_name);
           CHECK_NOTHROW(directory_listing.AddChild(metadata));
           // Rename corresponding directory...
-          fs::rename((*itr).path(), ((*itr).path().parent_path() / new_name), error_code);
-          EXPECT_EQ(error_code.value(), 0) << error_code.message();
+          CheckedRename((*itr).path(), ((*itr).path().parent_path() / new_name));
         } else if (fs::is_regular_file(*itr)) {
           if ((*itr).path().filename().string() != listing) {
             CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
@@ -190,8 +186,7 @@ class DirectoryListingTest : public testing::Test {
             metadata.name = fs::path(new_name);
             CHECK_NOTHROW(directory_listing.AddChild(metadata));
             // Rename corresponding file...
-            fs::rename((*itr).path(), ((*itr).path().parent_path() / new_name), error_code);
-            EXPECT_EQ(error_code.value(), 0) << error_code.message();
+            CheckedRename((*itr).path(), ((*itr).path().parent_path() / new_name));
           }
         } else {
           if (fs::exists(*itr))
@@ -260,7 +255,7 @@ class DirectoryListingTest : public testing::Test {
           if ((*itr).path().filename().string() != listing) {
             CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
             CHECK(metadata.name == (*itr).path().filename());
-            EXPECT_EQ(GetSize(metadata), fs::file_size((*itr).path()));
+            CHECK(GetSize(metadata) == fs::file_size((*itr).path()));
           }
         } else {
           if (fs::exists(*itr))
@@ -277,8 +272,8 @@ class DirectoryListingTest : public testing::Test {
     }
     if (relative_path == fs::path("\\") || relative_path == fs::path("/"))
       relative_path.clear();
-    EXPECT_EQ(directory_listing.directory_id().string(),
-              crypto::Hash<crypto::SHA512>((*main_test_dir_ / relative_path).string()).string());
+    CHECK(directory_listing.directory_id().string() ==
+          crypto::Hash<crypto::SHA512>((*main_test_dir_ / relative_path).string()).string());
     return true;
   }
 
@@ -295,13 +290,13 @@ class DirectoryListingTest : public testing::Test {
         if (fs::is_directory(*itr)) {
           CHECK(MatchEntriesUsingFreeFunctions((*itr).path(), relative_path));
           CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
-          EXPECT_EQ(metadata.name, (*itr).path().filename());
-          EXPECT_EQ(directory_listing.directory_id().string(),
+          CHECK(metadata.name == (*itr).path().filename());
+          CHECK(directory_listing.directory_id().string() ==
                     crypto::Hash<crypto::SHA512>((*itr).path().parent_path().string()).string());
         } else if (fs::is_regular_file(*itr)) {
           if ((*itr).path().filename().string() != listing) {
             CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
-            EXPECT_EQ(metadata.name, (*itr).path().filename());
+            CHECK(metadata.name == (*itr).path().filename());
           }
         } else {
           if (fs::exists(*itr))
@@ -313,10 +308,14 @@ class DirectoryListingTest : public testing::Test {
       }
     }
     catch (...) {
-      LOG(kError) << "Test MEUFF: Failed";
+      LOG(kError) << "Test failed";
       return false;
     }
     return true;
+  }
+
+  void SortAndResetChildrenIterator() {
+    directory_listing_.SortAndResetChildrenIterator();
   }
 
   Identity name_;
@@ -329,19 +328,21 @@ class DirectoryListingTest : public testing::Test {
   DirectoryListingTest& operator=(const DirectoryListingTest&);
 };
 
-TEST_CASE("add children", "[behavioural]") {
+TEST_CASE_METHOD(DirectoryListingTest, "Add children", "[DirectoryListing][behavioural]") {
   REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
   REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
   REQUIRE(MatchEntries(*main_test_dir_, relative_root_));
 }
 
-TEST_CASE("add then remove children", "[behavioural]") {
+TEST_CASE_METHOD(DirectoryListingTest, "Add then remove children",
+                 "[DirectoryListing][behavioural]") {
   REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
   REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
   REQUIRE(RemoveDirectoryListingsEntries(*main_test_dir_, relative_root_));
 }
 
-TEST_CASE("add then rename children", "[behavioural]") {
+TEST_CASE_METHOD(DirectoryListingTest, "Add then rename children",
+                 "[DirectoryListing][behavioural]") {
   REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
   REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
   REQUIRE(RenameDirectoryEntries(*main_test_dir_, relative_root_));
@@ -349,129 +350,90 @@ TEST_CASE("add then rename children", "[behavioural]") {
   REQUIRE(MatchEntries(*main_test_dir_, relative_root_));
 }
 
-TEST_CASE("directory has child", "[behavioural]") {
+TEST_CASE_METHOD(DirectoryListingTest, "Directory has child", "[DirectoryListing][behavioural]") {
   REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
   REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
   REQUIRE(DirectoryHasChild(*main_test_dir_, relative_root_));
 }
 
-TEST_CASE("match entries using free functions", "[behavioural]") {
+TEST_CASE_METHOD(DirectoryListingTest, "Match entries using free functions",
+                 "[DirectoryListing][behavioural]") {
   REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
   REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
   REQUIRE(MatchEntriesUsingFreeFunctions(*main_test_dir_, relative_root_));
 }
 
-testing::AssertionResult DirectoriesMatch(const DirectoryListing& lhs,
-                                          const DirectoryListing& rhs) {
+void DirectoriesMatch(const DirectoryListing& lhs, const DirectoryListing& rhs) {
   if (lhs.directory_id() != rhs.directory_id())
-    return testing::AssertionFailure() << "Directory ID mismatch.";
-  if (lhs.children_.size() != rhs.children_.size())
-    return testing::AssertionFailure() << "Children size mismatch.";
+    FAIL("Directory ID mismatch.");
+  REQUIRE(lhs.children_.size() == rhs.children_.size());
   auto itr1(lhs.children_.begin()), itr2(rhs.children_.begin());
   for (; itr1 != lhs.children_.end(); ++itr1, ++itr2) {
-    if ((*itr1).name != (*itr2).name)
-      return testing::AssertionFailure() << "Names: " << (*itr1).name << " != " << (*itr2).name;
+    REQUIRE((*itr1).name == (*itr2).name);
     if (((*itr1).data_map && !(*itr2).data_map) || (!(*itr1).data_map && (*itr2).data_map))
-      return testing::AssertionFailure() << "Data map pointer mismatch";
+      FAIL("Data map pointer mismatch");
     if ((*itr1).data_map) {
-      if (TotalSize((*itr1).data_map) != TotalSize((*itr2).data_map))
-        return testing::AssertionFailure() << "DataMap sizes: " << TotalSize((*itr1).data_map)
-                                           << " != " << TotalSize((*itr2).data_map);
-      if ((*itr1).data_map->chunks.size() != (*itr2).data_map->chunks.size())
-        return testing::AssertionFailure() << "DataMap chunks' sizes: "
-                                           << (*itr1).data_map->chunks.size()
-                                           << " != " << (*itr2).data_map->chunks.size();
+      REQUIRE(TotalSize((*itr1).data_map) == TotalSize((*itr2).data_map));
+      REQUIRE((*itr1).data_map->chunks.size() != (*itr2).data_map->chunks.size());
       auto chunk_itr1((*itr1).data_map->chunks.begin());
       auto chunk_itr2((*itr2).data_map->chunks.begin());
       size_t chunk_no(0);
       for (; chunk_itr1 != (*itr1).data_map->chunks.end(); ++chunk_itr1, ++chunk_itr2, ++chunk_no) {
         if ((*chunk_itr1).hash != (*chunk_itr2).hash)
-          return testing::AssertionFailure() << "DataMap chunk " << chunk_no << " hash mismatch.";
+          FAIL("DataMap chunk " << chunk_no << " hash mismatch.");
         if ((*chunk_itr1).pre_hash != (*chunk_itr2).pre_hash)
-          return testing::AssertionFailure() << "DataMap chunk " << chunk_no
-                                             << " pre_hash mismatch.";
-        if ((*chunk_itr1).size != (*chunk_itr2).size)
-          return testing::AssertionFailure() << "DataMap chunk " << chunk_no
-                                             << " pre_size mismatch.";
+          FAIL("DataMap chunk " << chunk_no << " pre_hash mismatch.");
+        REQUIRE((*chunk_itr1).size == (*chunk_itr2).size);
       }
       if ((*itr1).data_map->content != (*itr2).data_map->content)
-        return testing::AssertionFailure() << "DataMap content mismatch.";
+        FAIL("DataMap content mismatch.");
       //       if ((*itr1).data_map->self_encryption_type !=
       //           (*itr2).data_map->self_encryption_type)
-      //         return testing::AssertionFailure() << "DataMap SE type mismatch.";
+      //         FAIL("DataMap SE type mismatch.");
     }
     //     if ((*itr1).end_of_file != (*itr2).end_of_file)
-    if (GetSize(*itr1) != GetSize(*itr2))
-      return testing::AssertionFailure() << "EOFs: " << GetSize(*itr1) << " != " << GetSize(*itr2);
+    REQUIRE(GetSize(*itr1) == GetSize(*itr2));
 #ifdef MAIDSAFE_WIN32
-    if ((*itr1).allocation_size != (*itr2).allocation_size)
-      return testing::AssertionFailure() << "Allocation sizes: " << (*itr1).allocation_size
-                                         << " != " << (*itr2).allocation_size;
-    if ((*itr1).attributes != (*itr2).attributes)
-      return testing::AssertionFailure() << "Attributes: " << (*itr1).attributes
-                                         << " != " << (*itr2).attributes;
-    if ((*itr1).creation_time.dwHighDateTime != (*itr2).creation_time.dwHighDateTime)
-      return testing::AssertionFailure() << "Creation times high: "
-                                         << (*itr1).creation_time.dwHighDateTime
-                                         << " != " << (*itr2).creation_time.dwHighDateTime;
+    REQUIRE((*itr1).allocation_size == (*itr2).allocation_size);
+    REQUIRE((*itr1).attributes == (*itr2).attributes);
+    REQUIRE((*itr1).creation_time.dwHighDateTime == (*itr2).creation_time.dwHighDateTime);
     if ((*itr1).creation_time.dwLowDateTime != (*itr2).creation_time.dwLowDateTime) {
       uint32_t error = 0xA;
       if ((*itr1).creation_time.dwLowDateTime > (*itr2).creation_time.dwLowDateTime + error ||
           (*itr1).creation_time.dwLowDateTime < (*itr2).creation_time.dwLowDateTime - error)
-        return testing::AssertionFailure() << "Creation times low: "
-                                           << (*itr1).creation_time.dwLowDateTime
-                                           << " != " << (*itr2).creation_time.dwLowDateTime;
+        FAIL("Creation times low: " << (*itr1).creation_time.dwLowDateTime << " != "
+             << (*itr2).creation_time.dwLowDateTime);
     }
-    if ((*itr1).last_access_time.dwHighDateTime != (*itr2).last_access_time.dwHighDateTime)
-      return testing::AssertionFailure() << "Last access times high: "
-                                         << (*itr1).last_access_time.dwHighDateTime
-                                         << " != " << (*itr2).last_access_time.dwHighDateTime;
+    REQUIRE((*itr1).last_access_time.dwHighDateTime == (*itr2).last_access_time.dwHighDateTime);
     if ((*itr1).last_access_time.dwLowDateTime != (*itr2).last_access_time.dwLowDateTime) {
       uint32_t error = 0xA;
       if ((*itr1).last_access_time.dwLowDateTime > (*itr2).last_access_time.dwLowDateTime + error ||
           (*itr1).last_access_time.dwLowDateTime < (*itr2).last_access_time.dwLowDateTime - error)
-        return testing::AssertionFailure() << "Last access times low: "
-                                           << (*itr1).last_access_time.dwLowDateTime
-                                           << " != " << (*itr2).last_access_time.dwLowDateTime;
+        FAIL("Last access times low: " << (*itr1).last_access_time.dwLowDateTime << " != "
+             << (*itr2).last_access_time.dwLowDateTime);
     }
-    if ((*itr1).last_write_time.dwHighDateTime != (*itr2).last_write_time.dwHighDateTime)
-      return testing::AssertionFailure() << "Last write times high: "
-                                         << (*itr1).last_write_time.dwHighDateTime
-                                         << " != " << (*itr2).last_write_time.dwHighDateTime;
+    REQUIRE((*itr1).last_write_time.dwHighDateTime == (*itr2).last_write_time.dwHighDateTime);
     if ((*itr1).last_write_time.dwLowDateTime != (*itr2).last_write_time.dwLowDateTime) {
       uint32_t error = 0xA;
       if ((*itr1).last_write_time.dwLowDateTime > (*itr2).last_write_time.dwLowDateTime + error ||
           (*itr1).last_write_time.dwLowDateTime < (*itr2).last_write_time.dwLowDateTime - error)
-        return testing::AssertionFailure() << "Last write times low: "
-                                           << (*itr1).last_write_time.dwLowDateTime
-                                           << " != " << (*itr2).last_write_time.dwLowDateTime;
+        FAIL("Last write times low: " << (*itr1).last_write_time.dwLowDateTime << " != "
+             << (*itr2).last_write_time.dwLowDateTime);
     }
 #else
-    if ((*itr1).attributes.st_atime != (*itr2).attributes.st_atime)
-      return testing::AssertionFailure() << "Last access time mismatch: "
-                                         << (*itr1).attributes.st_atime
-                                         << " != " << (*itr2).attributes.st_atime;
-    if ((*itr1).attributes.st_mtime != (*itr2).attributes.st_mtime)
-      return testing::AssertionFailure() << "Last modification time mismatch: "
-                                         << (*itr1).attributes.st_mtime
-                                         << " != " << (*itr2).attributes.st_mtime;
+    REQUIRE((*itr1).attributes.st_atime != (*itr2).attributes.st_atime);
+    REQUIRE((*itr1).attributes.st_mtime != (*itr2).attributes.st_mtime);
 #endif
   }
-
-  return testing::AssertionSuccess();
 }
 
-TEST_CASE("serialise parse", "[behavioural]") {
+TEST_CASE_METHOD(DirectoryListingTest, "Serialise and parse", "[DirectoryListing][behavioural]") {
   maidsafe::test::TestPath testpath(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
   boost::system::error_code error_code;
   int64_t file_size(0);
-  REQUIRE(
-      fs::create_directories(*testpath / directory_listing_.directory_id().string(), error_code))
-      << error_code.message();
-  ASSERT_EQ(error_code.value(), 0) << error_code.message();
-  REQUIRE(fs::exists(*testpath / directory_listing_.directory_id().string(), error_code))
-      << error_code.message();
-  ASSERT_EQ(error_code.value(), 0) << error_code.message();
+  CheckedCreateDirectories(*testpath / directory_listing_.directory_id().string());
+
+  RequiredExists(*testpath / directory_listing_.directory_id().string());
   fs::path file(CreateTestFile(*testpath / directory_listing_.directory_id().string(), file_size));
 
   std::vector<MetaData> meta_datas_before;
@@ -517,10 +479,10 @@ TEST_CASE("serialise parse", "[behavioural]") {
 
   std::string serialised_directory_listing(directory_listing_.Serialise());
   DirectoryListing recovered_directory_listing(serialised_directory_listing);
-  CHECK(DirectoriesMatch(directory_listing_, recovered_directory_listing));
+  DirectoriesMatch(directory_listing_, recovered_directory_listing);
 }
 
-TEST_CASE("iterator reset", "[behavioural]") {
+TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][behavioural]") {
   // Add elements
   REQUIRE(directory_listing_.empty());
   const size_t kTestCount(10);
@@ -542,7 +504,7 @@ TEST_CASE("iterator reset", "[behavioural]") {
     CHECK(((i % 2) == 0) == (meta_data.directory_id.get() != nullptr));
   }
   CHECK_FALSE(directory_listing_.GetChildAndIncrementItr(meta_data));
-  directory_listing_.SortAndResetChildrenIterator();
+  SortAndResetChildrenIterator();
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   CHECK("A" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
@@ -553,23 +515,23 @@ TEST_CASE("iterator reset", "[behavioural]") {
   meta_data.name = std::string(1, c);
   CHECK_NOTHROW(directory_listing_.AddChild(meta_data));
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("A", meta_data.name);
+  CHECK("A" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("[behavioural]", meta_data.name);
+  CHECK("[behavioural]" == meta_data.name);
 
   // Remove an element and check iterator is reset
   meta_data.name = std::string(1, c);
   REQUIRE(directory_listing_.HasChild(meta_data.name));
   CHECK_NOTHROW(directory_listing_.RemoveChild(meta_data));
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("A", meta_data.name);
+  CHECK("A" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("[behavioural]", meta_data.name);
+  CHECK("[behavioural]" == meta_data.name);
 
   // Try to remove a non-existent element and check iterator is not reset
   meta_data.name = std::string(1, c);
   REQUIRE_FALSE(directory_listing_.HasChild(meta_data.name));
-  CHECK_THROW_AS(directory_listing_.RemoveChild(meta_data), std::exception);
+  CHECK_THROWS_AS(directory_listing_.RemoveChild(meta_data), std::exception);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   CHECK("C" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
@@ -578,7 +540,7 @@ TEST_CASE("iterator reset", "[behavioural]") {
   // Update an element and check iterator is reset
   meta_data.name = "A";
   CHECK_NOTHROW(directory_listing_.GetChild("A", meta_data));
-// ASSERT_EQ(kDirectorySize, GetSize(meta_data));
+// REQUIRE(kDirectorySize == GetSize(meta_data));
 #ifdef MAIDSAFE_WIN32
   meta_data.end_of_file = 1U;
 #else
@@ -594,7 +556,7 @@ TEST_CASE("iterator reset", "[behavioural]") {
   // Try to update a non-existent element and check iterator is not reset
   meta_data.name = std::string(1, c);
   REQUIRE_FALSE(directory_listing_.HasChild(meta_data.name));
-  CHECK_THROW_AS(directory_listing_.UpdateChild(meta_data), std::exception);
+  CHECK_THROWS_AS(directory_listing_.UpdateChild(meta_data), std::exception);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   CHECK("C" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
@@ -604,7 +566,6 @@ TEST_CASE("iterator reset", "[behavioural]") {
   DirectoryListing directory_listing1(Identity(crypto::Hash<crypto::SHA512>(std::string("A")))),
       directory_listing2(Identity(crypto::Hash<crypto::SHA512>(std::string("[behavioural]"))));
   CHECK(directory_listing1 < directory_listing2);
-  CHECK(directory_listing2 => directory_listing1);
 }
 
 }  // namespace test

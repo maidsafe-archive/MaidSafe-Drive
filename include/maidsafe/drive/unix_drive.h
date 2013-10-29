@@ -53,7 +53,7 @@ namespace detail {
 // bool ForceFlush(RootHandler<Storage>& root_handler, FileContext<Storage>* file_context) {
 //   assert(file_context);
 //   file_context->self_encryptor->Flush();
-// 
+//
 //   try {
 //     root_handler.UpdateParentDirectoryListing(file_context->meta_data->name.parent_path(),
 //                                               *file_context->meta_data.get());
@@ -71,7 +71,9 @@ static inline struct FileContext<Storage>* RecoverFileContext(struct fuse_file_i
     return nullptr;
   }
   return reinterpret_cast<FileContext<Storage>*>(file_info->fh);
-} template <typename Storage>
+}
+
+template <typename Storage>
 static inline void SetFileContext(struct fuse_file_info* file_info,
                                   struct FileContext<Storage>* file_context) {
   file_info->fh = reinterpret_cast<uint64_t>(file_context);
@@ -96,8 +98,7 @@ class FuseDrive : public Drive<Storage> {
   typedef std::shared_ptr<Storage> StoragePtr;
 
   FuseDrive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
-            const boost::filesystem::path& mount_dir, const std::string& product_id,
-            const boost::filesystem::path& drive_name);
+            const boost::filesystem::path& mount_dir, const boost::filesystem::path& drive_name);
 
   // Notifies filesystem of change in directory.  No-op on Unix.
   virtual void NotifyDirectoryChange(const boost::filesystem::path& /*relative_path*/,
@@ -193,7 +194,6 @@ template <typename Storage>
 FuseDrive<Storage>::FuseDrive(StoragePtr storage, const Identity& unique_user_id,
                               const Identity& root_parent_id,
                               const boost::filesystem::path& mount_dir,
-                              const std::string& /*product_id*/,
                               const boost::filesystem::path& drive_name)
     : Drive<Storage>::Drive(storage, unique_user_id, root_parent_id, mount_dir),
       fuse_(nullptr),

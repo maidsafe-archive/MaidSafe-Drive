@@ -33,6 +33,83 @@ namespace detail {
 
 namespace test {
 
+namespace {
+
+void Exists(const fs::path& path, bool required = false, bool should_succeed = true) {
+  boost::system::error_code error_code;
+  auto result(fs::exists(path, error_code));
+  INFO("fs::exists(" << path << ", error_code) returned \"" << std::boolalpha << result
+       << "\" with error_code \"" << error_code << " (" << error_code.message() << ")\"");
+  if (required) {
+    if (should_succeed)
+      REQUIRE(result);
+    else
+      REQUIRE(!result);
+  } else {
+    if (should_succeed)
+      CHECK(result);
+    else
+      CHECK(!result);
+  }
+}
+
+void Remove(const fs::path& path, bool required = false, bool should_succeed = true) {
+  boost::system::error_code error_code;
+  auto result(fs::remove(path, error_code));
+  INFO("fs::remove(" << path << ", error_code) returned \"" << std::boolalpha << result
+       << "\" with error_code \"" << error_code << " (" << error_code.message() << ")\"");
+  if (required) {
+    if (should_succeed)
+      REQUIRE(result);
+    else
+      REQUIRE(!result);
+  } else {
+    if (should_succeed)
+      CHECK(result);
+    else
+      CHECK(!result);
+  }
+}
+
+void Rename(const fs::path& old_path, const fs::path& new_path, bool required = false,
+            bool should_succeed = true) {
+  boost::system::error_code error_code;
+  fs::rename(old_path, new_path, error_code);
+  INFO("fs::rename(" << old_path << ", " << new_path << ", error_code) returned with error_code \""
+       << error_code << " (" << error_code.message() << ")\"");
+  if (required) {
+    if (should_succeed)
+      REQUIRE(!error_code);
+    else
+      REQUIRE(error_code);
+  } else {
+    if (should_succeed)
+      CHECK(!error_code);
+    else
+      CHECK(error_code);
+  }
+}
+
+void CreateDirectories(const fs::path& path, bool required = false, bool should_succeed = true) {
+  boost::system::error_code error_code;
+  auto result(fs::create_directories(path, error_code));
+  INFO("fs::create_directories(" << path << ", error_code) returned \"" << std::boolalpha << result
+       << "\" with error_code \"" << error_code << " (" << error_code.message() << ")\"");
+  if (required) {
+    if (should_succeed)
+      REQUIRE(result);
+    else
+      REQUIRE(!result);
+  } else {
+    if (should_succeed)
+      CHECK(result);
+    else
+      CHECK(!result);
+  }
+}
+
+}  // unnamed namespace
+
 void PrintResult(const bptime::ptime& start_time, const bptime::ptime& stop_time, size_t size,
                  TestOperationCode operation_code) {
   uint64_t duration = (stop_time - start_time).total_microseconds();
@@ -248,6 +325,70 @@ void GenerateDirectoryListingEntryForFile(DirectoryListing& directory_listing, c
 #endif
   meta_data.data_map->content = RandomString(100);
   CHECK_NOTHROW(directory_listing.AddChild(meta_data));
+}
+
+void CheckedExists(const fs::path& path) {
+  Exists(path, false, true);
+}
+
+void CheckedNotExists(const fs::path& path) {
+  Exists(path, false, false);
+}
+
+void RequiredExists(const fs::path& path) {
+  Exists(path, true, true);
+}
+
+void RequiredNotExists(const fs::path& path) {
+  Exists(path, true, false);
+}
+
+void CheckedRemove(const fs::path& path) {
+  Remove(path, false, true);
+}
+
+void CheckedNotRemove(const fs::path& path) {
+  Remove(path, false, false);
+}
+
+void RequiredRemove(const fs::path& path) {
+  Remove(path, true, true);
+}
+
+void RequiredNotRemove(const fs::path& path) {
+  Remove(path, true, false);
+}
+
+void CheckedRename(const fs::path& old_path, const fs::path& new_path) {
+  Rename(old_path, new_path, false, true);
+}
+
+void CheckedNotRename(const fs::path& old_path, const fs::path& new_path) {
+  Rename(old_path, new_path, false, false);
+}
+
+void RequiredRename(const fs::path& old_path, const fs::path& new_path) {
+  Rename(old_path, new_path, true, true);
+}
+
+void RequiredNotRename(const fs::path& old_path, const fs::path& new_path) {
+  Rename(old_path, new_path, true, false);
+}
+
+void CheckedCreateDirectories(const fs::path& path) {
+  CreateDirectories(path, false, true);
+}
+
+void CheckedNotCreateDirectories(const fs::path& path) {
+  CreateDirectories(path, false, false);
+}
+
+void RequiredCreateDirectories(const fs::path& path) {
+  CreateDirectories(path, true, true);
+}
+
+void RequiredNotCreateDirectories(const fs::path& path) {
+  CreateDirectories(path, true, false);
 }
 
 }  // namespace test

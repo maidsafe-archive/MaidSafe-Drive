@@ -77,12 +77,7 @@ endif()
 
 glob_dir(DriveTests ${DriveSourcesDir}/tests Tests)
 list(REMOVE_ITEM DriveTestsAllFiles ${DriveSourcesDir}/tests/filesystem_benchmark.cc
-                                    ${DriveSourcesDir}/tests/filesystem_test.cc
-                                    ${DriveSourcesDir}/tests/shares_test.cc)
-set(TestSharesFiles ${DriveSourcesDir}/tests/shares_test.cc
-                    ${DriveSourcesDir}/tests/test_main.cc
-                    ${DriveSourcesDir}/tests/test_utils.cc
-                    ${DriveSourcesDir}/tests/test_utils.h)
+                                    ${DriveSourcesDir}/tests/filesystem_test.cc)
 source_group("Source Files" FILES ${DriveSourcesDir}/tests/filesystem_benchmark.cc
                                   ${DriveSourcesDir}/tests/filesystem_test.cc)
 if(WIN32)
@@ -118,13 +113,11 @@ if(MaidsafeTesting AND (Cbfs_FOUND OR NOT WIN32))
   ms_add_executable(filesystem_benchmark "Tools/Drive" ${DriveSourcesDir}/tests/filesystem_benchmark.cc)
   ms_add_executable(filesystem_test "Tests/Drive" ${DriveSourcesDir}/tests/filesystem_test.cc)
   ms_add_executable(test_drive "Tests/Drive" ${DriveTestsAllFiles})
-  ms_add_executable(TESTNetworkDrive "Tests/Drive" ${DriveTestsAllFiles})
 
   target_link_libraries(filesystem_benchmark maidsafe_common)
   target_link_libraries(filesystem_test maidsafe_common)
   add_dependencies(filesystem_test catch)
   target_link_libraries(test_drive maidsafe_drive)
-  target_link_libraries(TESTNetworkDrive maidsafe_drive)
 endif()
 
 rename_outdated_built_exes()

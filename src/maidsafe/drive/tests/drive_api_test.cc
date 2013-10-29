@@ -78,41 +78,34 @@ void SetLastAccessTime(MetaData* meta_data) {
 #endif
 }
 
-testing::AssertionResult LastAccessTimesMatch(const MetaData& meta_data1,
-                                              const MetaData& meta_data2) {
+void AssertLastAccessTimesMatch(const MetaData& meta_data1, const MetaData& meta_data2) {
 #ifdef MAIDSAFE_WIN32
   return TimesMatch(meta_data1.last_access_time, meta_data2.last_access_time);
 #else
-  if (meta_data1.attributes.st_atime == meta_data2.attributes.st_atime)
-    return testing::AssertionSuccess();
-  else
-    return testing::AssertionFailure() << "meta_data1.attributes.st_atime ("
-                                       << meta_data1.attributes.st_atime
-                                       << ") != meta_data2.attributes."
-                                       << "st_atime (" << meta_data2.attributes.st_atime << ")";
+  REQUIRE(meta_data1.attributes.st_atime == meta_data2.attributes.st_atime);
 #endif
 }
 
-TEST_CASE("local store", "[behavioural]"]) {
+TEST_CASE("Local store", "[behavioural]") {
   maidsafe::test::TestPath main_test_dir(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
   Identity unique_user_id(RandomString(64));
   Identity root_parent_id(RandomString(64));
   fs::path file_name("test.txt");
   fs::path storage_path(*main_test_dir / "SureFile");
   DiskUsage disk_usage(1048576000);
-  std::shared_ptr<maidsafe::data_store::SureFileStore>
-    storage(new maidsafe::data_store::SureFileStore(storage_path, disk_usage));
+  std::shared_ptr<maidsafe::data_store::LocalStore>
+      storage(new maidsafe::data_store::LocalStore(storage_path, disk_usage));
   std::string content("Content\n");
   {
 #ifdef MAIDSAFE_WIN32
     auto mount_dir(GetNextAvailableDrivePath());
-    VirtualDrive<data_store::SureFileStore>::value_type drive(
+    VirtualDrive<data_store::LocalStore>::value_type drive(
         storage, unique_user_id, root_parent_id, mount_dir, std::string(), "SureFileDrive");
     mount_dir /= "\\";
 #else
     fs::path mount_dir(*main_test_dir / "mount");
-    VirtualDrive<data_store::SureFileStore>::value_type drive(
-        Identity(), mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
+    VirtualDrive<data_store::LocalStore>::value_type drive(
+        storage, unique_user_id, root_parent_id, mount_dir, "SureFileDrive");
 #endif
     CHECK(WriteFile(mount_dir / file_name, content));
     CHECK(NonEmptyString(content) == ReadFile(mount_dir / file_name));
@@ -121,15 +114,15 @@ TEST_CASE("local store", "[behavioural]"]) {
   {
 #ifdef MAIDSAFE_WIN32
     auto mount_dir(GetNextAvailableDrivePath());
-    VirtualDrive<data_store::SureFileStore>::value_type drive(
+    VirtualDrive<data_store::LocalStore>::value_type drive(
         storage, unique_user_id, root_parent_id, mount_dir, std::string(), "SureFileDrive");
     mount_dir /= "\\";
 #else
     fs::path mount_dir(*main_test_dir / "mount");
-    VirtualDrive<data_store::SureFileStore>::value_type drive(root_id, mount_dir, "SureFileDrive",
-                                                              on_added, on_removed, on_renamed);
+    VirtualDrive<data_store::LocalStore>::value_type drive(
+        storage, unique_user_id, root_parent_id, mount_dir, "SureFileDrive");
 #endif
-    CHECK(NonEmptyString(content), ReadFile(mount_dir / file_name));
+    CHECK(NonEmptyString(content) == ReadFile(mount_dir / file_name));
   }
 }
 
