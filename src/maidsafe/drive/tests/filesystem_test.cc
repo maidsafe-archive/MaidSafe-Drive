@@ -30,6 +30,13 @@
 #include "boost/filesystem/path.hpp"
 #include "boost/filesystem/operations.hpp"
 #include "boost/program_options.hpp"
+#include "boost/process/child.hpp"
+#include "boost/process/execute.hpp"
+#include "boost/process/initializers.hpp"
+#include "boost/process/wait_for_exit.hpp"
+#include "boost/process/terminate.hpp"
+#include "boost/system/error_code.hpp"
+
 
 #define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
@@ -37,9 +44,11 @@
 #include "maidsafe/common/log.h"
 #include "maidsafe/common/on_scope_exit.h"
 #include "maidsafe/common/utils.h"
+#include "maidsafe/common/ipc.h"
 
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
+namespace bp = boost::process;
 
 namespace maidsafe {
 
@@ -47,8 +56,14 @@ namespace test {
 
 namespace {
 
-fs::path root_, temp_;
-
+fs::path root_, temp_, chunk_store_;
+std::string root_parent_, user_id_, shm_name_;
+std::function<void()> child_;
+#ifdef WIN32
+HANDLE child_handle_;
+#else
+pid_t child_pid_(0);
+#endif
 int RunCatch(int argc, char** argv) {
   Catch::Session session;
   auto command_line_result(
@@ -165,6 +180,99 @@ fs::path CreateDirectoryContainingFiles(const fs::path& parent) {
     CreateFile(directory, RandomUint32() % 1024);
   return directory;
 }
+
+bool SetUpTempDirectory() {
+    maidsafe::test::temp_ =
+        fs::unique_path(fs::temp_directory_path() / "MaidSafe_Test_Filesystem_%%%%-%%%%-%%%%");
+    if (!fs::create_directories(maidsafe::test::temp_)) {
+      LOG(kWarning) << "Failed to create test directory " << maidsafe::test::temp_;
+      return false;
+    }
+    LOG(kInfo) << "Created test directory " << maidsafe::test::temp_;
+    return true;
+}
+
+void RemoveTempDirectory() {
+  boost::system::error_code error_code;
+  if (fs::remove_all(maidsafe::test::temp_, error_code) == 0) {
+    LOG(kWarning) << "Failed to remove " << maidsafe::test::temp_;
+  }
+  if (error_code.value() != 0) {
+    LOG(kWarning) << "Error removing " << maidsafe::test::temp_ << "  " << error_code.message();
+  }else {
+    LOG(kInfo) << "Removed " << maidsafe::test::temp_ << "  " << error_code.message();
+  }
+}
+
+bool SetUpChunkStore() {
+    maidsafe::test::chunk_store_ =
+        fs::unique_path(fs::temp_directory_path() / "MaidSafe_Test_ChunkStore%%%%-%%%%-%%%%");
+    if (!fs::create_directories(maidsafe::test::chunk_store_)) {
+      LOG(kWarning) << "Failed to create chunk_store_ directory " << maidsafe::test::chunk_store_;
+      return false;
+    }
+    LOG(kInfo) << "Created chunk_store directory " << maidsafe::test::chunk_store_;
+    return true;
+}
+
+void RemoveChunkStore() {
+  boost::system::error_code error_code;
+  if (fs::remove_all(maidsafe::test::chunk_store_, error_code) == 0) {
+    LOG(kWarning) << "Failed to remove chunk_store" << maidsafe::test::chunk_store_;
+  }
+  if (error_code.value() != 0) {
+    LOG(kWarning) << "Error removing " << maidsafe::test::chunk_store_ << "  " 
+                                       << error_code.message();
+  }else {
+    LOG(kInfo) << "Removed " << maidsafe::test::chunk_store_ << "  " << error_code.message();
+  }
+}
+
+bool SetUpRootDirectory(fs::path base_dir) {
+    maidsafe::test::root_ =
+        fs::unique_path(base_dir / "MaidSafe_Root_Filesystem_%%%%-%%%%-%%%%");
+    if (!fs::create_directories(maidsafe::test::root_)) {
+      LOG(kWarning) << "Failed to create root directory " << maidsafe::test::root_;
+      return false;
+    }
+    LOG(kInfo) << "Created test directory " << maidsafe::test::root_;
+    return true;
+}
+
+void RemoveRootDirectory() {
+  boost::system::error_code error_code;
+  if (fs::remove_all(maidsafe::test::root_, error_code) == 0) {
+    LOG(kWarning) << "Failed to remove root directory " << maidsafe::test::root_;
+  }
+  if (error_code.value() != 0) {
+    LOG(kWarning) << "Error removing " << maidsafe::test::root_ << "  " << error_code.message();
+  } else {
+    LOG(kInfo) << "Removed " << maidsafe::test::root_ << "  " << error_code.message();
+  }
+}
+
+#ifdef MAIDSAFE_WIN32
+std::wstring StringToWstring(const std::string& input) {
+  std::unique_ptr<wchar_t[]> buffer(new wchar_t[input.size()]);
+  size_t num_chars = mbstowcs(buffer.get(), input.c_str(), input.size());
+  return std::wstring(buffer.get(), num_chars);
+}
+
+std::wstring ConstructCommandLine(std::vector<std::string> process_args) {
+  std::string args;
+  for (auto arg : process_args)
+    args += (arg + " ");
+  return StringToWstring(args);
+}
+#else
+std::string ConstructCommandLine(std::vector<std::string> process_args) {
+  std::string args;
+  for (auto arg : process_args)
+    args += (arg + " ");
+  return args;
+}
+#endif
+
 
 }  // unnamed namespace
 
@@ -615,13 +723,13 @@ TEST_CASE("Check failures", "[Filesystem]") {
 
 int main(int argc, char** argv) {
   auto unused_options(maidsafe::log::Logging::Instance().Initialise(argc, argv));
-
+  auto tests_result(0);
   // Handle passing path to test root via command line
   
   po::options_description filesystem_options("Filesystem Test Options /n Only a single option will be performed per test run");
   
   filesystem_options.add_options()("help,h", "Show help message.")
-                           ("native,n", "Perform all tests on native hard disk")
+                           ("disk,d", "Perform all tests on native hard disk")
                            ("local,l", "Perform all tests on local vfs ")
                            ("network,n", "Perform all tests on network vfs ");
   po::parsed_options parsed(
@@ -642,32 +750,65 @@ int main(int argc, char** argv) {
     std::cout << filesystem_options << '\n';
     ++argc;
     std::strcpy(argv[position], "--help");  // NOLINT
-  } else {
-    // Set up root_ directory
-    //
-    maidsafe::test::root_ = maidsafe::GetPathFromProgramOptions("root", variables_map, true, false);
+    return 0;
+  } else if (variables_map.count("disk")) {
+    maidsafe::test::SetUpRootDirectory(fs::unique_path(fs::temp_directory_path()));
+    maidsafe::test::SetUpTempDirectory();
+    tests_result = maidsafe::test::RunCatch(argc, argv);
+  } else if (variables_map.count("local")) {
+    maidsafe::test::shm_name_ = maidsafe::RandomAlphaNumericString(32);
+    maidsafe::test::root_parent_ = maidsafe::RandomAlphaNumericString(64);
+    std::vector<std::string> shm_args;
+    maidsafe::test::SetUpRootDirectory(fs::unique_path(fs::path(maidsafe::GetHomeDir())));
+    maidsafe::test::SetUpTempDirectory();
+    maidsafe::test::SetUpChunkStore();
+    shm_args.push_back(maidsafe::test::root_.string());
+    shm_args.push_back(maidsafe::test::chunk_store_.string());
+    shm_args.push_back(maidsafe::test::root_parent_);
+    maidsafe::ipc::CreateSharedMemory(maidsafe::test::shm_name_, shm_args);
+     // Set up boost::process args 
+    std::vector<std::string> process_args;
+#ifdef WIN32
+    const auto kExePath("local_drive.exe");
+#else
+     const auto kExePath("./local_drive");
+#endif
+    process_args.push_back(kExePath);
+    process_args.push_back(maidsafe::test::shm_name_);
+    const auto kCommandLine(maidsafe::test::ConstructCommandLine(process_args));
+    boost::system::error_code error_code;
 
-    // Set up 'temp_' directory
-    maidsafe::test::temp_ =
-        fs::unique_path(fs::temp_directory_path() / "MaidSafe_Test_Filesystem_%%%%-%%%%-%%%%");
-    if (!fs::create_directories(maidsafe::test::temp_)) {
-      LOG(kWarning) << "Failed to create test directory " << maidsafe::test::temp_;
-      return -2;
-    }
-    LOG(kInfo) << "Created test directory " << maidsafe::test::temp_;
+    bp::child child = bp::child(bp::execute(bp::initializers::run_exe(kExePath),
+                                            bp::initializers::set_cmd_line(kCommandLine),
+                                            bp::initializers::set_on_error(error_code)));
+    REQUIRE_FALSE(error_code);
+#ifdef WIN32
+    maidsafe::test::child_handle_ = child.process_handle();
+#else
+    maidsafe::test::child_pid_ = child.pid;
+#endif
+  tests_result = maidsafe::test::RunCatch(argc, argv);
+  } else if (variables_map.count("network")) {
   }
-
-  // Run Catch
-  auto tests_result(maidsafe::test::RunCatch(argc, argv));
-
-  // Clean up 'temp_' directory
-  boost::system::error_code error_code;
-  if (fs::remove_all(maidsafe::test::temp_, error_code) == 0) {
-    LOG(kWarning) << "Failed to remove " << maidsafe::test::temp_;
+  // } else  {
+  //   std::cout << filesystem_options << '\n';
+  //   ++argc;
+  //   std::strcpy(argv[position], "--help");  // NOLINT
+  //   return 0;
+  // }
+  
+  maidsafe::test::RemoveRootDirectory();
+  maidsafe::test::RemoveTempDirectory();
+  if (fs::exists(maidsafe::test::chunk_store_))
+    maidsafe::test::RemoveChunkStore();
+#ifdef WIN32
+// todo (team) what to do with a windows handle
+#else
+  if (maidsafe::test::child_pid_ != 0) {
+#include "signal.h"
+    kill(maidsafe::test::child_pid_, SIGKILL);
   }
-  if (error_code.value() != 0) {
-    LOG(kWarning) << "Error removing " << maidsafe::test::temp_ << "  " << error_code.message();
-  }
-
+#endif
+  
   return tests_result;
 }
