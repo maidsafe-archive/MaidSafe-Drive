@@ -177,7 +177,7 @@ fs::path CreateDirectoryContainingFiles(const fs::path& parent) {
   auto directory(CreateDirectory(parent));
   auto file_count((RandomUint32() % 4) + 2);
   for (uint32_t i(0); i != file_count; ++i)
-    CreateFile(directory, RandomUint32() % 1024);
+    CreateFile(directory, (RandomUint32() % 1024) + 1);
   return directory;
 }
 
