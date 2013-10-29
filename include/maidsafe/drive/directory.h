@@ -16,86 +16,44 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
-#ifndef MAIDSAFE_DRIVE_DIRECTORY_LISTING_H_
-#define MAIDSAFE_DRIVE_DIRECTORY_LISTING_H_
+#ifndef MAIDSAFE_DRIVE_DIRECTORY_H_
+#define MAIDSAFE_DRIVE_DIRECTORY_H_
 
 #include <memory>
-#include <string>
-#include <set>
-#include <utility>
-#include <vector>
-#include "boost/filesystem/path.hpp"
-#include "maidsafe/drive/config.h"
-#include "maidsafe/drive/meta_data.h"
 
+#include "maidsafe/data_types/data_type_values.h"
+
+#include "maidsafe/encrypt/data_map.h"
+
+#include "maidsafe/drive/config.h"
+#include "maidsafe/drive/directory_listing.h"
 
 namespace maidsafe {
+
 namespace drive {
+
 namespace detail {
 
-class DirectoryListing;
-
-namespace test {
-
-testing::AssertionResult DirectoriesMatch(const DirectoryListing& lhs,
-                                          const DirectoryListing& rhs);
-class DirectoryListingTest_BEH_IteratorResetAndFailures_Test;
-
-}  // namespace test
-
-class DirectoryListing {
- public:
-  explicit DirectoryListing(const DirectoryId& directory_id);
-  explicit DirectoryListing(const std::string& serialised_directory_listing);
-  DirectoryListing(const DirectoryListing&);
-  DirectoryListing& operator=(const DirectoryListing&);
-
-  ~DirectoryListing() {}
-
-  bool HasChild(const boost::filesystem::path& name) const;
-  void GetChild(const boost::filesystem::path& name, MetaData& meta_data) const;
-  bool GetChildAndIncrementItr(MetaData& meta_data);
-  void AddChild(const MetaData& child);
-  void RemoveChild(const MetaData& child);
-  void UpdateChild(const MetaData& child);
-  void ResetChildrenIterator();
-  bool empty() const;
-  DirectoryId directory_id() const;
-
-  // This function is internal to drive, do not use for native filesystem operations.
-  std::vector<std::string> GetHiddenChildNames() const;
-
-  std::string Serialise() const;
-
-  bool operator<(const DirectoryListing& other) const;
-  friend testing::AssertionResult test::DirectoriesMatch(const DirectoryListing& lhs,
-                                                         const DirectoryListing& rhs);
-
- private:
-  DirectoryId directory_id_;
-  std::set<MetaData> children_;
-  std::set<MetaData>::const_iterator children_itr_;
-};
-
 struct Directory {
-  typedef std::shared_ptr<DirectoryListing> DirectoryListingPtr;
-
-  Directory(const DirectoryId& parent_id, DirectoryListingPtr directory_listing)
-      : parent_id(parent_id),
-        listing(directory_listing),
+  Directory(DirectoryId parent_id_in, std::shared_ptr<DirectoryListing> listing_in)
+      : parent_id(std::move(parent_id_in)),
+        listing(std::move(listing_in)),
         content_changed(false) {}
+
   Directory()
       : parent_id(),
         listing(),
         content_changed(false) {}
 
   DirectoryId parent_id;
-  DirectoryListingPtr listing;
+  std::shared_ptr<DirectoryListing> listing;
   bool content_changed;
 };
 
 }  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe
 
-#endif  // MAIDSAFE_DRIVE_DIRECTORY_LISTING_H_
+#endif  // MAIDSAFE_DRIVE_DIRECTORY_H_

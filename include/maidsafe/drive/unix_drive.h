@@ -53,7 +53,7 @@ namespace detail {
 // bool ForceFlush(RootHandler<Storage>& root_handler, FileContext<Storage>* file_context) {
 //   assert(file_context);
 //   file_context->self_encryptor->Flush();
-// 
+//
 //   try {
 //     root_handler.UpdateParentDirectoryListing(file_context->meta_data->name.parent_path(),
 //                                               *file_context->meta_data.get());
@@ -71,7 +71,9 @@ static inline struct FileContext<Storage>* RecoverFileContext(struct fuse_file_i
     return nullptr;
   }
   return reinterpret_cast<FileContext<Storage>*>(file_info->fh);
-} template <typename Storage>
+}
+
+template <typename Storage>
 static inline void SetFileContext(struct fuse_file_info* file_info,
                                   struct FileContext<Storage>* file_context) {
   file_info->fh = reinterpret_cast<uint64_t>(file_context);

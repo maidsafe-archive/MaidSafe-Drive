@@ -35,16 +35,17 @@ namespace test {
 void FilesMatchMask(const std::vector<fs::path>& all_files,
                     const std::set<fs::path>& matching_files, const std::wstring& mask) {
   std::for_each(all_files.begin(), all_files.end(), [&](const fs::path & file_name) {
-    if (matching_files.find(file_name) != matching_files.end())
-      REQUIRE_TRUE(MatchesMask(mask, file_name)) << "File " << file_name
-                                                << " should match for mask \"" << mask << "\"";
-    else
-      REQUIRE_FALSE(MatchesMask(mask, file_name)) << "File " << file_name
-                                                 << " should NOT match for mask \"" << mask << "\"";
+    if (matching_files.find(file_name) != matching_files.end()) {
+      INFO("File " << file_name << " should match for mask \"" << mask << "\"");
+      REQUIRE(MatchesMask(mask, file_name));
+    } else {
+      INFO("File " << file_name << " should NOT match for mask \"" << mask << "\"");
+      REQUIRE_FALSE(MatchesMask(mask, file_name));
+    }
   });
 }
 
-TEST_CASE("mask match", "[behavioural] [drive]" ) {
+TEST_CASE("Mask match", "[behavioural] [drive]" ) {
   std::set<fs::path> matching_files;
   matching_files.insert(L"1.txt");
   matching_files.insert(L"a.txt");
