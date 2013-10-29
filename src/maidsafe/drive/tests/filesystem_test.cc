@@ -167,8 +167,8 @@ void RequireDirectoriesEqual(const fs::path& lhs, const fs::path& rhs, bool chec
         REQUIRE(!fs::is_regular_file(rhs / (*rhs_itr++)));
         continue;
       }
-      REQUIRE(fs::is_regular_file(rhs / *rhs_itr));
-      REQUIRE(ReadFile(lhs / lhs_file) == ReadFile(rhs / (*rhs_itr++)));
+        REQUIRE(fs::is_regular_file(rhs / *rhs_itr));
+        REQUIRE((ReadFile(lhs / lhs_file)) == (ReadFile(rhs / (*rhs_itr++))));
     }
   }
 }
@@ -441,7 +441,7 @@ TEST_CASE("Copy directory hierarchy", "[Filesystem]") {
   for (const auto& dir : directories) {
     auto file_count((RandomUint32() % 4) + 2);
     for (uint32_t k(0); k != file_count; ++k)
-      CreateFile(dir, RandomUint32() % 1024);
+      CreateFile(dir, (RandomUint32() % 1024) + 1);
   }
 
   // Copy hierarchy to 'root_'
