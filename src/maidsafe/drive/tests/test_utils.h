@@ -76,6 +76,26 @@ uint64_t TotalSize(encrypt::DataMapPtr data_map);
 void GenerateDirectoryListingEntryForFile(DirectoryListing& directory_listing, const fs::path& path,
                                           const uintmax_t& file_size);
 
+void CheckedExists(const fs::path& path);
+void CheckedNotExists(const fs::path& path);
+void RequiredExists(const fs::path& path);
+void RequiredNotExists(const fs::path& path);
+
+void CheckedRemove(const fs::path& path);
+void CheckedNotRemove(const fs::path& path);
+void RequiredRemove(const fs::path& path);
+void RequiredNotRemove(const fs::path& path);
+
+void CheckedRename(const fs::path& old_path, const fs::path& new_path);
+void CheckedNotRename(const fs::path& old_path, const fs::path& new_path);
+void RequiredRename(const fs::path& old_path, const fs::path& new_path);
+void RequiredNotRename(const fs::path& old_path, const fs::path& new_path);
+
+void CheckedCreateDirectories(const fs::path& path);
+void CheckedNotCreateDirectories(const fs::path& path);
+void RequiredCreateDirectories(const fs::path& path);
+void RequiredNotCreateDirectories(const fs::path& path);
+
 }  // namespace test
 
 }  // namespace detail

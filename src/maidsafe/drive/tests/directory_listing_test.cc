@@ -50,128 +50,6 @@ namespace detail {
 
 namespace test {
 
-void CheckedExists(const fs::path& path, bool required = false, bool should_succeed = true) {
-  boost::system::error_code error_code;
-  auto result(fs::exists(path, error_code));
-  INFO("fs::exists(" << path << ", error_code) returned \"" << std::boolalpha << result
-       << "\" with error_code \"" << error_code << " (" << error_code.message() << ")\"");
-  if (required) {
-    if (should_succeed)
-      REQUIRE(result);
-    else
-      REQUIRE(!result);
-  } else {
-    if (should_succeed)
-      CHECK(result);
-    else
-      CHECK(!result);
-  }
-}
-
-void CheckedNotExists(const fs::path& path) {
-  CheckedExists(path, false, false);
-}
-
-void RequiredExists(const fs::path& path) {
-  CheckedExists(path, true, true);
-}
-
-void RequiredNotExists(const fs::path& path) {
-  CheckedExists(path, true, false);
-}
-
-void CheckedRemove(const fs::path& path, bool required = false, bool should_succeed = true) {
-  boost::system::error_code error_code;
-  auto result(fs::remove(path, error_code));
-  INFO("fs::remove(" << path << ", error_code) returned \"" << std::boolalpha << result
-       << "\" with error_code \"" << error_code << " (" << error_code.message() << ")\"");
-  if (required) {
-    if (should_succeed)
-      REQUIRE(result);
-    else
-      REQUIRE(!result);
-  } else {
-    if (should_succeed)
-      CHECK(result);
-    else
-      CHECK(!result);
-  }
-}
-
-void CheckedNotRemove(const fs::path& path) {
-  CheckedRemove(path, false, false);
-}
-
-void RequiredRemove(const fs::path& path) {
-  CheckedRemove(path, true, true);
-}
-
-void RequiredNotRemove(const fs::path& path) {
-  CheckedRemove(path, true, false);
-}
-
-void CheckedRename(const fs::path& old_path, const fs::path& new_path, bool required = false,
-                   bool should_succeed = true) {
-  boost::system::error_code error_code;
-  fs::rename(old_path, new_path, error_code);
-  INFO("fs::rename(" << old_path << ", " << new_path << ", error_code) returned with error_code \""
-       << error_code << " (" << error_code.message() << ")\"");
-  if (required) {
-    if (should_succeed)
-      REQUIRE(!error_code);
-    else
-      REQUIRE(error_code);
-  } else {
-    if (should_succeed)
-      CHECK(!error_code);
-    else
-      CHECK(error_code);
-  }
-}
-
-void CheckedNotRename(const fs::path& old_path, const fs::path& new_path) {
-  CheckedRename(old_path, new_path, false, false);
-}
-
-void RequiredRename(const fs::path& old_path, const fs::path& new_path) {
-  CheckedRename(old_path, new_path, true, true);
-}
-
-void RequiredNotRename(const fs::path& old_path, const fs::path& new_path) {
-  CheckedRename(old_path, new_path, true, false);
-}
-
-void CheckedCreateDirectories(const fs::path& path, bool required = false,
-                              bool should_succeed = true) {
-  boost::system::error_code error_code;
-  auto result(fs::create_directories(path, error_code));
-  INFO("fs::create_directories(" << path << ", error_code) returned \"" << std::boolalpha << result
-       << "\" with error_code \"" << error_code << " (" << error_code.message() << ")\"");
-  if (required) {
-    if (should_succeed)
-      REQUIRE(result);
-    else
-      REQUIRE(!result);
-  } else {
-    if (should_succeed)
-      CHECK(result);
-    else
-      CHECK(!result);
-  }
-}
-
-void CheckedNotCreateDirectories(const fs::path& path) {
-  CheckedCreateDirectories(path, false, false);
-}
-
-void RequiredCreateDirectories(const fs::path& path) {
-  CheckedCreateDirectories(path, true, true);
-}
-
-void RequiredNotCreateDirectories(const fs::path& path) {
-  CheckedCreateDirectories(path, true, false);
-}
-
 inline uint64_t GetSize(MetaData meta_data) {
 #ifdef MAIDSAFE_WIN32
   return meta_data.end_of_file;
@@ -192,7 +70,7 @@ class DirectoryListingTest {
   void GenerateDirectoryListingEntryForDirectory(DirectoryListing& directory_listing,
                                                  fs::path const& path) {
     MetaData meta_data(path.filename(), true);
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
     meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
     GetSystemTimeAsFileTime(&meta_data.creation_time);
     GetSystemTimeAsFileTime(&meta_data.last_access_time);
@@ -436,6 +314,10 @@ class DirectoryListingTest {
     return true;
   }
 
+  void SortAndResetChildrenIterator() {
+    directory_listing_.SortAndResetChildrenIterator();
+  }
+
   Identity name_;
   DirectoryListing directory_listing_;
   maidsafe::test::TestPath main_test_dir_;
@@ -551,9 +433,7 @@ TEST_CASE_METHOD(DirectoryListingTest, "Serialise and parse", "[DirectoryListing
   int64_t file_size(0);
   CheckedCreateDirectories(*testpath / directory_listing_.directory_id().string());
 
-  REQUIRE(fs::exists(*testpath / directory_listing_.directory_id().string(), error_code))
-      << error_code.message();
-  ASSERT_EQ(error_code.value(), 0) << error_code.message();
+  RequiredExists(*testpath / directory_listing_.directory_id().string());
   fs::path file(CreateTestFile(*testpath / directory_listing_.directory_id().string(), file_size));
 
   std::vector<MetaData> meta_datas_before;
@@ -624,7 +504,7 @@ TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][beh
     CHECK(((i % 2) == 0) == (meta_data.directory_id.get() != nullptr));
   }
   CHECK_FALSE(directory_listing_.GetChildAndIncrementItr(meta_data));
-  directory_listing_.SortAndResetChildrenIterator();
+  SortAndResetChildrenIterator();
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   CHECK("A" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
@@ -635,23 +515,23 @@ TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][beh
   meta_data.name = std::string(1, c);
   CHECK_NOTHROW(directory_listing_.AddChild(meta_data));
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("A", meta_data.name);
+  CHECK("A" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("[behavioural]", meta_data.name);
+  CHECK("[behavioural]" == meta_data.name);
 
   // Remove an element and check iterator is reset
   meta_data.name = std::string(1, c);
   REQUIRE(directory_listing_.HasChild(meta_data.name));
   CHECK_NOTHROW(directory_listing_.RemoveChild(meta_data));
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("A", meta_data.name);
+  CHECK("A" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  EXPECT_EQ("[behavioural]", meta_data.name);
+  CHECK("[behavioural]" == meta_data.name);
 
   // Try to remove a non-existent element and check iterator is not reset
   meta_data.name = std::string(1, c);
   REQUIRE_FALSE(directory_listing_.HasChild(meta_data.name));
-  CHECK_THROW_AS(directory_listing_.RemoveChild(meta_data), std::exception);
+  CHECK_THROWS_AS(directory_listing_.RemoveChild(meta_data), std::exception);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   CHECK("C" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
@@ -660,7 +540,7 @@ TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][beh
   // Update an element and check iterator is reset
   meta_data.name = "A";
   CHECK_NOTHROW(directory_listing_.GetChild("A", meta_data));
-// ASSERT_EQ(kDirectorySize, GetSize(meta_data));
+// REQUIRE(kDirectorySize == GetSize(meta_data));
 #ifdef MAIDSAFE_WIN32
   meta_data.end_of_file = 1U;
 #else
@@ -676,7 +556,7 @@ TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][beh
   // Try to update a non-existent element and check iterator is not reset
   meta_data.name = std::string(1, c);
   REQUIRE_FALSE(directory_listing_.HasChild(meta_data.name));
-  CHECK_THROW_AS(directory_listing_.UpdateChild(meta_data), std::exception);
+  CHECK_THROWS_AS(directory_listing_.UpdateChild(meta_data), std::exception);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   CHECK("C" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
@@ -686,7 +566,6 @@ TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][beh
   DirectoryListing directory_listing1(Identity(crypto::Hash<crypto::SHA512>(std::string("A")))),
       directory_listing2(Identity(crypto::Hash<crypto::SHA512>(std::string("[behavioural]"))));
   CHECK(directory_listing1 < directory_listing2);
-  CHECK(directory_listing2 => directory_listing1);
 }
 
 }  // namespace test

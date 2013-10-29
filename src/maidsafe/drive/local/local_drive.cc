@@ -37,7 +37,7 @@
 
 #include "maidsafe/data_store/local_store.h"
 
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
 #  include "maidsafe/drive/win_drive.h"
 #else
 #  include "maidsafe/drive/unix_drive.h"
@@ -52,10 +52,11 @@ namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 
 namespace maidsafe {
+
 namespace drive {
 
 template<typename Storage>
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
 struct GetDrive {
   typedef CbfsDrive<Storage> type;
 };
@@ -87,12 +88,11 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   std::string product_id;
   typedef GetDrive<maidsafe::data_store::LocalStore>::type Drive;
 
-  Drive drive(storage,
-              unique_user_id,
-              root_parent_id,
-              mount_dir,
-              product_id,
-              "MaidSafeDrive");
+#ifdef MAIDSAFE_WIN32
+  Drive drive(storage, unique_user_id, root_parent_id, mount_dir, std::string(), "MaidSafeDrive");
+#else
+  Drive drive(storage, unique_user_id, root_parent_id, mount_dir, "MaidSafeDrive");
+#endif
 
   if (first_run)
     BOOST_VERIFY(WriteFile(id_path, drive.root_parent_id().string()));
@@ -103,6 +103,7 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
 }
 
 }  // namespace drive
+
 }  // namespace maidsafe
 
 
@@ -147,7 +148,7 @@ int main(int argc, char *argv[]) {
   maidsafe::log::Logging::Instance().Initialise(argc, argv);
   boost::system::error_code error_code;
   // No logging when drive running
-// #ifdef WIN32
+// #ifdef MAIDSAFE_WIN32
 //   fs::path logging_dir("C:\\ProgramData\\MaidSafeDrive\\logs");
 // #else
 //   fs::path logging_dir(fs::temp_directory_path(error_code) / "maidsafe_drive/logs");
@@ -206,7 +207,7 @@ int main(int argc, char *argv[]) {
     }
 
     fs::path chunkstore_path(GetPathFromProgramOption("chunkdir", &variables_map, true));
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
     fs::path mount_path(GetPathFromProgramOption("mountdir", &variables_map, false));
 #else
     fs::path mount_path(GetPathFromProgramOption("mountdir", &variables_map, true));
