@@ -49,33 +49,6 @@ namespace {
 
 fs::path root_, temp_;
 
-bool ValidateRoot() {
-  if (root_.empty()) {
-    LOG(kError)
-        << "Failed to pass valid root directory.\nRun with '--root <path to empty root dir>'";
-    return false;
-  }
-
-  boost::system::error_code error_code;
-  if (!fs::is_directory(root_, error_code) || error_code) {
-    LOG(kError) << root_ << " is not a directory.\nRun with '--root <path to empty root dir>'";
-    return false;
-  }
-
-  if (!fs::is_empty(root_, error_code) || error_code) {
-    LOG(kError) << root_ << " is not empty.\nRun with '--root <path to empty root dir>'";
-    return false;
-  }
-
-  if (!WriteFile(root_ / "a.check", "check\n")) {
-    LOG(kError) << root_ << " is not writable.\nRun with '--root <path to writable empty dir>'";
-    return false;
-  }
-  fs::remove(root_ / "a.check", error_code);
-
-  return true;
-}
-
 int RunCatch(int argc, char** argv) {
   Catch::Session session;
   auto command_line_result(
@@ -644,13 +617,15 @@ int main(int argc, char** argv) {
   auto unused_options(maidsafe::log::Logging::Instance().Initialise(argc, argv));
 
   // Handle passing path to test root via command line
-  po::options_description path_option("Path option");
-  std::string description("Path to root directory for test, e.g. " +
-                          fs::temp_directory_path().string());
-  path_option.add_options()("help,h", "Show help message.")("root", po::value<std::string>(),
-                                                            description.c_str());
+  
+  po::options_description filesystem_options("Filesystem Test Options /n Only a single option will be performed per test run");
+  
+  filesystem_options.add_options()("help,h", "Show help message.")
+                           ("native,n", "Perform all tests on native hard disk")
+                           ("local,l", "Perform all tests on local vfs ")
+                           ("network,n", "Perform all tests on network vfs ");
   po::parsed_options parsed(
-      po::command_line_parser(unused_options).options(path_option).allow_unregistered().run());
+      po::command_line_parser(unused_options).options(filesystem_options).allow_unregistered().run());
 
   po::variables_map variables_map;
   po::store(parsed, variables_map);
@@ -664,14 +639,13 @@ int main(int argc, char** argv) {
     std::strcpy(argv[position++], unused_option.c_str());  // NOLINT
 
   if (variables_map.count("help")) {
-    std::cout << path_option << '\n';
+    std::cout << filesystem_options << '\n';
     ++argc;
     std::strcpy(argv[position], "--help");  // NOLINT
   } else {
     // Set up root_ directory
+    //
     maidsafe::test::root_ = maidsafe::GetPathFromProgramOptions("root", variables_map, true, false);
-    if (!maidsafe::test::ValidateRoot())
-      return -1;
 
     // Set up 'temp_' directory
     maidsafe::test::temp_ =

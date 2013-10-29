@@ -111,12 +111,12 @@ target_link_libraries(network_drive maidsafe_drive maidsafe_nfs_client)
 #TODO (TEAM) Create unit test target for directory listing to build even with dummy win dependency
 if(MaidsafeTesting AND (Cbfs_FOUND OR NOT WIN32))
   ms_add_executable(filesystem_benchmark "Tools/Drive" ${DriveSourcesDir}/tests/filesystem_benchmark.cc)
-  ms_add_executable(FilesystemTest "Tests/Drive" ${DriveSourcesDir}/tests/filesystem_test.cc)
+  ms_add_executable(filesystem_test "Tests/Drive" ${DriveSourcesDir}/tests/filesystem_test.cc)
   ms_add_executable(test_drive "Tests/Drive" ${DriveTestsAllFiles})
 
   target_link_libraries(filesystem_benchmark maidsafe_common)
-  target_link_libraries(FilesystemTest maidsafe_common)
-  add_dependencies(FilesystemTest catch)
+  target_link_libraries(filesystem_test maidsafe_common)
+  add_dependencies(filesystem_test catch)
   target_link_libraries(test_drive maidsafe_drive)
 endif()
 
