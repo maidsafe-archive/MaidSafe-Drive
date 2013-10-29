@@ -59,20 +59,11 @@ class Drive {
 
   virtual ~Drive() {}
 
-  virtual bool Unmount() = 0;
-
 #ifdef MAIDSAFE_APPLE
   boost::filesystem::path GetMountDir() const { return kMountDir_; }
 #endif
 
   Identity root_parent_id() const;
-
-  void SetMountState(bool mounted);
-
-  // Times out after 10 seconds.
-  bool WaitUntilMounted();
-  // Doesn't time out.
-  void WaitUntilUnMounted();
 
   // ********************* File / Folder Transfers ************************************************
 
@@ -98,26 +89,7 @@ class Drive {
   void Rename(const boost::filesystem::path& old_relative_path,
               const boost::filesystem::path& new_relative_path, MetaData& meta_data);
 
-  // *************************** Hidden Files *****************************************************
-
-  // All hidden files in this sense have extension ".ms_hidden" and are not accessible through the
-  // normal filesystem methods.
-  std::string ReadHiddenFile(const boost::filesystem::path& relative_path);
-  void WriteHiddenFile(const boost::filesystem::path& relative_path, const std::string& content,
-                       bool overwrite);
-  void DeleteHiddenFile(const boost::filesystem::path& relative_path);
-  // Returns all hidden files at 'relative_path'.
-  std::vector<std::string> GetHiddenFiles(const boost::filesystem::path& relative_path);
-
-  // **************************** File Notes ******************************************************
-
-  // Retrieve the collection of notes (serialised to strings) associated with given file/directory.
-  std::vector<std::string> GetNotes(const boost::filesystem::path& relative_path);
-  // Append a single serialised note to the collection of notes associated with given
-  // file/directory.
-  void AddNote(const boost::filesystem::path& relative_path, const std::string& note);
-
- protected:
+   protected:
   // Recovers Directory for 'relative_path'.
   Directory GetDirectory(const boost::filesystem::path& relative_path);
   // Returns FileContext associated with 'relative_path'.
@@ -132,24 +104,12 @@ class Drive {
   DirectoryHandler directory_handler_;
   StoragePtr storage_;
   const boost::filesystem::path kMountDir_;
-  std::mutex unmount_mutex_;
-  mutable std::mutex api_mutex_;
-  enum DriveStage {
-    kUnInitialised,
-    kInitialised,
-    kMounted,
-    kUnMounted,
-    kCleaned
-  } drive_stage_;
 
  private:
   virtual void SetNewAttributes(FileContextPtr file_context, bool is_directory,
                                 bool read_only) = 0;
   std::string ReadDataMap(const boost::filesystem::path& relative_path);
 
-  std::condition_variable unmount_condition_variable_;
-  std::mutex mount_mutex_;
-  std::condition_variable mount_condition_variable_;
 };
 
 #ifdef MAIDSAFE_WIN32
@@ -163,56 +123,19 @@ Drive<Storage>::Drive(StoragePtr storage, const Identity& unique_user_id,
                       const Identity& root_parent_id, const boost::filesystem::path& mount_dir)
     : directory_handler_(storage, unique_user_id, root_parent_id),
       storage_(storage),
-      kMountDir_(mount_dir),
-      unmount_mutex_(),
-      api_mutex_(),
-      unmount_condition_variable_(),
-      mount_mutex_(),
-      mount_condition_variable_(),
-      drive_stage_(kUnInitialised) {}
+      kMountDir_(mount_dir) {}
 
 template <typename Storage>
 Identity Drive<Storage>::root_parent_id() const {
-  std::lock_guard<std::mutex> guard(api_mutex_);
   return directory_handler_.root_parent_id();
 }
 
-template <typename Storage>
-void Drive<Storage>::SetMountState(bool mounted) {
-  {
-    std::lock_guard<std::mutex> lock(mount_mutex_);
-    drive_stage_ = (mounted ? kMounted : kUnMounted);
-  }
-  mount_condition_variable_.notify_one();
-}
-
-template <typename Storage>
-bool Drive<Storage>::WaitUntilMounted() {
-  std::unique_lock<std::mutex> lock(mount_mutex_);
-  bool result(mount_condition_variable_.wait_for(lock, std::chrono::seconds(10),
-                                                 [this] { return drive_stage_ == kMounted; }));
-#ifdef MAIDSAFE_APPLE
-//  Sleep(boost::posix_time::seconds(1));
-#endif
-  return result;
-}
-
-template <typename Storage>
-void Drive<Storage>::WaitUntilUnMounted() {
-  std::unique_lock<std::mutex> lock(mount_mutex_);
-  mount_condition_variable_.wait(lock, [this] { return drive_stage_ == kUnMounted; });
-}
 
 template <typename Storage>
 void Drive<Storage>::Add(const boost::filesystem::path& relative_path,
                          FileContext& file_context) {
   directory_handler_.Add(relative_path, *file_context.meta_data,
                          file_context.grandparent_directory_id, file_context.parent_directory_id);
-}
-
-template <typename Storage>
-bool Drive<Storage>::CanDelete(const boost::filesystem::path& /*relative_path*/) {
-  return true;
 }
 
 template <typename Storage>
@@ -231,22 +154,12 @@ void Drive<Storage>::Rename(const boost::filesystem::path& old_relative_path,
 
 template <typename Storage>
 std::string Drive<Storage>::GetDataMap(const boost::filesystem::path& relative_path) {
-  std::lock_guard<std::mutex> guard(api_mutex_);
-  return ReadDataMap(relative_path);
-}
-
-template <typename Storage>
-std::string Drive<Storage>::GetHiddenDataMap(const boost::filesystem::path& relative_path) {
-  std::lock_guard<std::mutex> guard(api_mutex_);
   return ReadDataMap(relative_path);
 }
 
 template <typename Storage>
 void Drive<Storage>::InsertDataMap(const boost::filesystem::path& relative_path,
                                    const std::string& serialised_data_map) {
-  std::lock_guard<std::mutex> guard(api_mutex_);
-  LOG(kInfo) << "InsertDataMap - " << relative_path;
-
   if (relative_path.empty())
     ThrowError(CommonErrors::invalid_parameter);
 
@@ -254,110 +167,6 @@ void Drive<Storage>::InsertDataMap(const boost::filesystem::path& relative_path,
   encrypt::ParseDataMap(serialised_data_map, *file_context.meta_data->data_map);
   SetNewAttributes(&file_context, false, false);
   Add(relative_path, file_context);
-}
-
-// **************************** Hidden Files ******************************************************
-
-// template <typename Storage>
-// std::string Drive<Storage>::ReadHiddenFile(const boost::filesystem::path& relative_path) {
-//   if (relative_path.empty() || (relative_path.extension() != detail::kMsHidden))
-//     ThrowError(CommonErrors::invalid_parameter);
-// 
-//   FileContext file_context(GetFileContext(relative_path));
-//   BOOST_ASSERT(!file_context.meta_data->directory_id);
-// 
-//   file_context.self_encryptor.reset(new SelfEncryptor(
-//       file_context.meta_data->data_map, *storage_));
-//   if (file_context.self_encryptor->size() > std::numeric_limits<uint32_t>::max())
-//     ThrowError(CommonErrors::invalid_parameter);
-// 
-//   std::string content;
-//   uint32_t bytes_to_read(static_cast<uint32_t>(file_context.self_encryptor->size()));
-//   content->resize(bytes_to_read);
-//   if (!file_context.self_encryptor->Read(const_cast<char*>(content.data()), bytes_to_read, 0))
-//     ThrowError(CommonErrors::invalid_parameter);
-//   return content;
-// }
-// 
-// template <typename Storage>
-// void Drive<Storage>::WriteHiddenFile(const boost::filesystem::path& relative_path,
-//                                      const std::string& content,
-//                                      bool overwrite) {
-//   if (relative_path.empty() || (relative_path.extension() != detail::kMsHidden))
-//     ThrowError(CommonErrors::invalid_parameter);
-// 
-//   boost::filesystem::path hidden_file_path(relative_path);
-//   // Try getting FileContext to existing
-//   FileContext file_context;
-//   try {
-//     file_context = GetFileContext(relative_path);
-//     if (!overwrite)
-//       ThrowError(CommonErrors::invalid_parameter);
-//   }
-//   catch(...) {
-//     // Try adding a new entry if the hidden file doesn't already exist
-//     file_context = FileContext(hidden_file_path.filename(), false);
-//     Add(hidden_file_path, file_context);
-//   }
-// 
-//   if (content.size() > std::numeric_limits<uint32_t>::max())
-//     ThrowError(CommonErrors::invalid_parameter);
-// 
-//   // Write the data
-//   file_context.self_encryptor.reset(new SelfEncryptor(
-//       file_context.meta_data->data_map, *storage_));
-// 
-//   if (file_context.self_encryptor->size() > content.size())
-//     file_context.self_encryptor->Truncate(content.size());
-//   if (!file_context.self_encryptor->Write(static_cast<char*>(content.data()),
-//                                           static_cast<uint32_t>(content.size()),
-//                                           0))
-//     ThrowError(CommonErrors::invalid_parameter);
-// 
-//   file_context.self_encryptor.reset();
-//   SetNewAttributes(&file_context, false, false);
-// }
-// 
-// template <typename Storage>
-// void Drive<Storage>::DeleteHiddenFile(const boost::filesystem::path &relative_path) {
-//   if (relative_path.empty() || (relative_path.extension() != detail::kMsHidden))
-//     ThrowError(CommonErrors::invalid_parameter);
-//   RemoveFile(relative_path);
-// }
-// 
-// template <typename Storage>
-// std::vector<std::string> Drive<Storage>::GetHiddenFiles(
-//     const boost::filesystem::path &relative_path) {
-//   auto directory(directory_handler_.Get(relative_path));
-//   return directory.listing.GetHiddenChildNames();
-// }
-// 
-// ***************************** File Notes *******************************************************
-
-template <typename Storage>
-std::vector<std::string> Drive<Storage>::GetNotes(const boost::filesystem::path& relative_path) {
-  LOG(kInfo) << "GetNotes - " << relative_path;
-  std::lock_guard<std::mutex> guard(api_mutex_);
-  if (relative_path.empty())
-    ThrowError(CommonErrors::invalid_parameter);
-
-  std::vector<std::string> notes;
-  FileContext file_context(GetFileContext(relative_path));
-  notes = file_context.meta_data->notes;
-  return notes;
-}
-
-template <typename Storage>
-void Drive<Storage>::AddNote(const boost::filesystem::path& relative_path,
-                             const std::string& note) {
-  LOG(kInfo) << "AddNote - " << relative_path;
-  std::lock_guard<std::mutex> guard(api_mutex_);
-  if (relative_path.empty())
-    ThrowError(CommonErrors::invalid_parameter);
-
-  FileContext file_context(GetFileContext(relative_path));
-  file_context.meta_data->notes.push_back(note);
-  UpdateParent(&file_context, relative_path.parent_path());
 }
 
 // **************************** Miscellaneous *****************************************************

@@ -98,9 +98,7 @@ class FuseDrive : public Drive<Storage> {
   FuseDrive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
             const boost::filesystem::path& mount_dir, const std::string& product_id,
             const boost::filesystem::path& drive_name);
-  virtual ~FuseDrive();
 
-  virtual bool Unmount();
   // Notifies filesystem of change in directory.  No-op on Unix.
   virtual void NotifyDirectoryChange(const boost::filesystem::path& /*relative_path*/,
                                      detail::OpType /*op*/) const {}
@@ -207,11 +205,6 @@ FuseDrive<Storage>::FuseDrive(StoragePtr storage, const Identity& unique_user_id
 }
 
 template <typename Storage>
-FuseDrive<Storage>::~FuseDrive() {
-  Unmount();
-}
-
-template <typename Storage>
 void FuseDrive<Storage>::Init() {
   Global<Storage>::g_fuse_drive = this;
   maidsafe_ops_.create = OpsCreate;
@@ -252,7 +245,6 @@ void FuseDrive<Storage>::Init() {
 #endif
 
   umask(0022);
-  Drive<Storage>::drive_stage_ = Drive<Storage>::kInitialised;
   Mount();
 }
 
@@ -328,8 +320,6 @@ void FuseDrive<Storage>::Mount() {
     ThrowError(DriveErrors::failed_to_mount);
   }
 
-  Drive<Storage>::SetMountState(true);
-
   //  int res;
   //  if (multithreaded)
   //  fuse_event_loop_thread_ = boost::move(boost::thread(&fuse_loop_mt, fuse_));
@@ -343,31 +333,6 @@ void FuseDrive<Storage>::Mount() {
   //    Drive<Storage>::SetMountState(false);
   //    return kFuseFailedToMount;
   //  }
-}
-
-template <typename Storage>
-bool FuseDrive<Storage>::Unmount() {
-  if (Drive<Storage>::drive_stage_ != Drive<Storage>::kMounted) {
-    LOG(kInfo) << "Not mounted at all;";
-    return false;
-  }
-#ifdef MAIDSAFE_APPLE
-  std::string command(Global<Storage>::g_fuse_drive->GetMountDir().string());
-  std::lock_guard<std::mutex> lock(Global<Storage>::g_fuse_drive->unmount_mutex_);
-#endif
-  fuse_exit(fuse_);
-#ifdef MAIDSAFE_APPLE
-  fuse_unmount(fuse_mountpoint_, fuse_channel_);
-#else
-  fuse_teardown(fuse_, fuse_mountpoint_);
-#endif
-  Drive<Storage>::SetMountState(false);
-#ifdef MAIDSAFE_APPLE
-  command = "diskutil unmount " + command;
-  system(command.c_str());
-#endif
-  fuse_event_loop_thread_.join();
-  return true;
 }
 
 /********************************* content ************************************/
@@ -398,9 +363,9 @@ int FuseDrive<Storage>::OpsCreate(const char* path, mode_t mode,
   file_context->meta_data->attributes.st_gid = fuse_get_context()->gid;
 
   try {
-    Global<Storage>::g_fuse_drive->AddFile(full_path, *file_context->meta_data.get(),
+    Global<Storage>::g_fuse_drive->Add(full_path, *file_context/*->meta_data.get()*/);/*,
                                            file_context->grandparent_directory_id,
-                                           file_context->parent_directory_id);
+                                           file_context->parent_directory_id);*/
   }
   catch (...) {
     LOG(kError) << "OpsCreate: " << path << ", failed to AddNewMetaData.  ";
@@ -412,7 +377,7 @@ int FuseDrive<Storage>::OpsCreate(const char* path, mode_t mode,
     encrypt::DataMapPtr data_map(new encrypt::DataMap());
     *data_map = *file_context->meta_data->data_map;
     file_context->meta_data->data_map = data_map;
-    auto storage(Global<Storage>::g_fuse_drive->GetStorage(full_path));
+    auto storage(Global<Storage>::g_fuse_drive->storage_);
     assert(storage);
     file_context->self_encryptor.reset(
         new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map, *storage));
@@ -460,7 +425,7 @@ int FuseDrive<Storage>::OpsFtruncate(const char* path, off_t size,
   if (!file_context)
     return -EINVAL;
 
-  if (Global<Storage>::g_fuse_drive->TruncateFile(fs::path(path), file_context, size)) {
+  if (Global<Storage>::g_fuse_drive->TruncateFile(file_context, size)) {
     file_context->meta_data->attributes.st_size = size;
     time(&file_context->meta_data->attributes.st_mtime);
     file_context->meta_data->attributes.st_ctime = file_context->meta_data->attributes.st_atime =
@@ -507,28 +472,28 @@ int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t rdev) {
     file_type = "Regular";
   LOG(kInfo) << "OpsMknod: " << path << "(" << file_type << "), mode: " << std::oct << mode
              << std::dec << ", rdev: " << rdev;
-  BOOST_ASSERT(!S_ISDIR(mode) && !file_type.empty());
+  assert(!S_ISDIR(mode) && !file_type.empty());
 #endif
+
+  bool is_directory(S_ISDIR(mode));
 
   fs::path full_path(path);
   // TODO(Fraser#5#): 2011-05-18 - Cater for FIFO (and other?) modes in MetaData.
-  MetaData meta_data(full_path.filename(), false);
-  meta_data.attributes.st_mode = mode;
-  meta_data.attributes.st_rdev = rdev;
-  meta_data.attributes.st_uid = fuse_get_context()->uid;
-  meta_data.attributes.st_gid = fuse_get_context()->gid;
+  detail::FileContext<Storage> file_context(full_path.filename(), is_directory);
+
+  file_context.meta_data->attributes.st_rdev = rdev;
+  file_context.meta_data->attributes.st_mode = mode;
+  file_context.meta_data->attributes.st_nlink = (is_directory ? 2 : 1);
+  file_context.meta_data->attributes.st_uid = fuse_get_context()->uid;
+  file_context.meta_data->attributes.st_gid = fuse_get_context()->gid;
 
   try {
-    DirectoryId grandparent_directory_id, parent_directory_id;
-    Global<Storage>::g_fuse_drive->AddFile(full_path, meta_data, grandparent_directory_id,
-                                           parent_directory_id);
-  }
-  catch (...) {
+    Global<Storage>::g_fuse_drive->Add(full_path, file_context);
+
+  }  catch (...) {
     LOG(kError) << "OpsMknod: " << path << ", failed to AddNewMetaData.  ";
     return -EIO;
   }
-
-  meta_data.attributes.st_size = 4096; //TODO (dirvine) detail::kDirectorySize;
   return 0;
 }
 
@@ -562,20 +527,10 @@ int FuseDrive<Storage>::OpsOpen(const char* path, struct fuse_file_info* file_in
     return -ENOENT;
   }
 
-  if (!file_context->meta_data->directory_id) {
-    //    encrypt::DataMapPtr data_map(new encrypt::DataMap);
-    //    *data_map = *file_context->meta_data->data_map;
-    //    file_context->meta_data->data_map = data_map;
-    if (!file_context->self_encryptor) {
-      //      encrypt::DataMapPtr data_map(new encrypt::DataMap);
-      //      *data_map = *file_context->meta_data->data_map;
-      //      file_context->meta_data->data_map = data_map;
-      auto storage(Global<Storage>::g_fuse_drive->GetStorage(full_path));
-      file_context->self_encryptor.reset(
-          new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map, *storage));
-    }
-  }
-  // Transfer ownership of the pointer to fuse's file_info.
+  assert(file_context->self_encryptor);
+  if(!file_context->self_encryptor)
+    return -ENOENT;
+
   detail::SetFileContext(file_info, file_context.get());
   file_context.release();
   return 0;
@@ -706,7 +661,7 @@ int FuseDrive<Storage>::OpsRmdir(const char* path) {
   // }
 
   try {
-    Global<Storage>::g_fuse_drive->RemoveFile(path);
+    Global<Storage>::g_fuse_drive->Delete(path);
   }
   catch (...) {
     LOG(kError) << "OpsRmdir: " << path << ", failed MaidSafeDelete.  ";
@@ -722,7 +677,7 @@ int FuseDrive<Storage>::OpsTruncate(const char* path, off_t size) {
   try {
     fs::path full_path(path);
     auto file_context(Global<Storage>::g_fuse_drive->GetFileContext(full_path));
-    if (Global<Storage>::g_fuse_drive->TruncateFile(full_path, &file_context, size)) {
+    if (Global<Storage>::g_fuse_drive->TruncateFile(&file_context, size)) {
       file_context.meta_data->attributes.st_size = size;
       time(&file_context.meta_data->attributes.st_mtime);
       file_context.meta_data->attributes.st_ctime = file_context.meta_data->attributes.st_atime =
@@ -752,7 +707,7 @@ int FuseDrive<Storage>::OpsUnlink(const char* path) {
   // }
 
   try {
-    Global<Storage>::g_fuse_drive->RemoveFile(path);
+    Global<Storage>::g_fuse_drive->Delete(path);
   }
   catch (...) {
     LOG(kError) << "OpsUnlink: " << path << ", failed MaidSafeDelete.  ";
@@ -772,12 +727,11 @@ int FuseDrive<Storage>::OpsWrite(const char* path, const char* buf, size_t size,
   if (!file_context)
     return -EINVAL;
 
-  if (!file_context->self_encryptor) {
-    LOG(kInfo) << "Resetting the encryption stream";
-    file_context->self_encryptor.reset(new encrypt::SelfEncryptor<Storage>(
-        file_context->meta_data->data_map,
-        *Global<Storage>::g_fuse_drive->GetStorage(fs::path(path))));
-  }
+
+  assert(file_context->self_encryptor);
+  if(!file_context->self_encryptor)
+    return -ENOENT;
+
 
   // TODO(JLB): 2011-06-02 - look into SSIZE_MAX?
 
@@ -938,12 +892,7 @@ int FuseDrive<Storage>::OpsFsyncDir(const char* path, int /*isdatasync*/,
 template <typename Storage>
 int FuseDrive<Storage>::OpsGetattr(const char* path, struct stat* stbuf) {
   LOG(kInfo) << "OpsGetattr: " << path;
-#ifdef MAIDSAFE_APPLE
-  if (!Global<Storage>::g_fuse_drive->unmount_mutex_.try_lock()) {
-    LOG(kInfo) << "try lock unmount_mutex_ failed";
-    return -EIO;
-  }
-#endif
+
   int result(0);
   fs::path full_path(path);
   try {
@@ -965,9 +914,6 @@ int FuseDrive<Storage>::OpsGetattr(const char* path, struct stat* stbuf) {
 //    LOG(kInfo) << "     st_mtim = " << file_context.meta_data->attributes.st_mtime;
 //    LOG(kInfo) << "     st_ctim = " << file_context.meta_data->attributes.st_ctime;
 
-#ifdef MAIDSAFE_APPLE
-    Global<Storage>::g_fuse_drive->unmount_mutex_.unlock();
-#endif
   }
   catch (...) {
     if (full_path.filename().string().size() > 255) {
@@ -1093,7 +1039,7 @@ int FuseDrive<Storage>::OpsRename(const char* old_name, const char* new_name) {
   // exceeding, requiring a return of EMLINK
 
   try {
-    Global<Storage>::g_fuse_drive->RenameFile(old_path, new_path, *old_file_context.meta_data);
+    Global<Storage>::g_fuse_drive->Rename(old_path, new_path, *old_file_context.meta_data);
   }
   catch (...) {
     LOG(kError) << "OpsRename " << old_path << " --> " << new_path
