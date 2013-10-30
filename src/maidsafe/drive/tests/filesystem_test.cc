@@ -781,7 +781,8 @@ int main(int argc, char** argv) {
     fs::path cwd(fs::current_path());
     const auto kExePath(bp::search_path("local_drive", cwd.string()));
     process_args.push_back(kExePath);
-    process_args.push_back(maidsafe::test::shm_name_);
+    std::string shm_opt("-S" +  maidsafe::test::shm_name_);
+    process_args.push_back(shm_opt);
     const auto kCommandLine(maidsafe::test::ConstructCommandLine(process_args));
     boost::system::error_code error_code;
 
@@ -789,7 +790,6 @@ int main(int argc, char** argv) {
                                             bp::initializers::set_cmd_line(kCommandLine),
                                             bp::initializers::set_on_error(error_code)));
     LOG(kInfo) << "error code " << error_code.message();
-    REQUIRE_FALSE(error_code);
 #ifdef WIN32
     maidsafe::test::child_handle_ = child.process_handle();
 #else
@@ -798,12 +798,6 @@ int main(int argc, char** argv) {
   tests_result = maidsafe::test::RunCatch(argc, argv);
   } else if (variables_map.count("network")) {
   }
-  // } else  {
-  //   std::cout << filesystem_options << '\n';
-  //   ++argc;
-  //   std::strcpy(argv[position], "--help");  // NOLINT
-  //   return 0;
-  // }
   
   maidsafe::test::RemoveRootDirectory();
   maidsafe::test::RemoveTempDirectory();
@@ -815,6 +809,7 @@ int main(int argc, char** argv) {
     GenerateConsoleCtrlEvent(CTRL_C_EVENT, pid);
   }
 #else
+std::cout << "pid set at " << maidsafe::test::child_pid_  << "/n";
   if (maidsafe::test::child_pid_ != 0) {
 #include "signal.h"
     kill(maidsafe::test::child_pid_, SIGKILL);
