@@ -94,7 +94,7 @@ void RequireDoesNotExist(const fs::path& path) {
 
 std::pair<fs::path, std::string> CreateFile(const fs::path& parent, size_t content_size) {
   auto file(parent / (RandomAlphaNumericString(5) + ".txt"));
-  std::string content(RandomString(content_size));
+  std::string content(RandomString(content_size + 1));
   REQUIRE(WriteFile(file, content));
   RequireExists(file);
   return std::make_pair(file, content);
