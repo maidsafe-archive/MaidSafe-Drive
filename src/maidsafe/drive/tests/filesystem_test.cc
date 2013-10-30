@@ -50,11 +50,12 @@ namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 namespace bp = boost::process;
 
+
 namespace maidsafe {
 
 namespace test {
 
-namespace {
+// namespace {
 
 fs::path root_, temp_, chunk_store_;
 std::string root_parent_, user_id_, shm_name_;
@@ -94,7 +95,7 @@ void RequireDoesNotExist(const fs::path& path) {
 
 std::pair<fs::path, std::string> CreateFile(const fs::path& parent, size_t content_size) {
   auto file(parent / (RandomAlphaNumericString(5) + ".txt"));
-  std::string content(RandomString(content_size));
+  std::string content(RandomString(content_size + 1));
   REQUIRE(WriteFile(file, content));
   RequireExists(file);
   return std::make_pair(file, content);
@@ -177,7 +178,7 @@ fs::path CreateDirectoryContainingFiles(const fs::path& parent) {
   auto directory(CreateDirectory(parent));
   auto file_count((RandomUint32() % 4) + 2);
   for (uint32_t i(0); i != file_count; ++i)
-    CreateFile(directory, RandomUint32() % 1024);
+    CreateFile(directory, (RandomUint32() % 1024) + 1);
   return directory;
 }
 
@@ -274,7 +275,7 @@ std::string ConstructCommandLine(std::vector<std::string> process_args) {
 #endif
 
 
-}  // unnamed namespace
+// }  // unnamed namespace
 
 TEST_CASE("Create empty file", "[Filesystem]") {
   on_scope_exit cleanup(clean_root);
@@ -801,8 +802,11 @@ int main(int argc, char** argv) {
   maidsafe::test::RemoveTempDirectory();
   if (fs::exists(maidsafe::test::chunk_store_))
     maidsafe::test::RemoveChunkStore();
-#ifdef WIN32
-// todo (team) what to do with a windows handle
+#ifdef MAIDSAFE_WIN32
+  if (maidsafe::test::child_handle_ != 0) {
+    DWORD pid(GetProcessId(maidsafe::test::child_handle_));
+    GenerateConsoleCtrlEvent(CTRL_C_EVENT, pid);
+  }
 #else
   if (maidsafe::test::child_pid_ != 0) {
 #include "signal.h"
