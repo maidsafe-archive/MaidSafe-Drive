@@ -392,8 +392,8 @@ void CbfsDrive<Storage>::UpdateMountingPoints() {
   LUID authentication_id;
   LPTSTR mounting_point = nullptr;
   for (int index = callback_filesystem_.GetMountingPointCount() - 1; index >= 0; --index) {
-    if (callback_filesystem_.GetMountingPoint(index, &mounting_point, &flags, &authentication_id)
-        && mounting_point) {
+    callback_filesystem_.GetMountingPoint(index, &mounting_point, &flags, &authentication_id);
+    if (mounting_point) {
       free(mounting_point);
       mounting_point = nullptr;
     }
