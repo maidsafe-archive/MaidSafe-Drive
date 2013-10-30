@@ -81,9 +81,14 @@ struct GetDrive {
 };
 #endif
 
+#ifdef MAIDSAFE_WIN32
 int Mount(const fs::path &mount_dir, const fs::path &chunk_dir, const Identity& unique_id,
           const Identity& parent_id, const std::string& product_id,
           const std::string& drive_name) {
+#else
+int Mount(const fs::path &mount_dir, const fs::path &chunk_dir, const Identity& unique_id,
+          const Identity& parent_id, const std::string& drive_name) {
+#endif
   fs::path storage_path(chunk_dir / "local_store");
   DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
   std::shared_ptr<maidsafe::data_store::LocalStore>
@@ -97,11 +102,11 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir, const Identity& 
 
   Drive drive(storage,
               unique_id,
-#ifdef MAIDSAFE_WIN32
               parent_id,
-#endif
               mount_dir,
+#ifdef MAIDSAFE_WIN32
               product_id,
+#endif
               drive_name);
 
   drive.Mount();
@@ -254,8 +259,13 @@ int main(int argc, char *argv[]) {
     std::string product_id("713CC6CE-B3E2-4fd9-838D-E28F558F6866");
     std::string drive_name("MaidSafeDrive");
 
+#ifdef MAIDSAFE_WIN32
     int result(maidsafe::drive::Mount(vec_strings[0], vec_strings[1], unique_id,
                                       maidsafe::Identity(vec_strings[2]), product_id, drive_name));
+#else
+    int result(maidsafe::drive::Mount(vec_strings[0], vec_strings[1], unique_id,
+                                      maidsafe::Identity(vec_strings[2]), drive_name));
+#endif
     return result;
   }
   catch (const std::exception& e) {
