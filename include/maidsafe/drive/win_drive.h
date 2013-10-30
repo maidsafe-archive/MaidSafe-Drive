@@ -89,7 +89,7 @@ class CbfsDrive : public Drive<Storage> {
             const boost::filesystem::path& mount_dir, const std::string& product_id,
             const boost::filesystem::path& drive_name);
 
-  virtual ~CbfsDrive() {}
+  virtual ~CbfsDrive();
 
   void Mount();
   virtual bool Unmount();
@@ -106,6 +106,9 @@ class CbfsDrive : public Drive<Storage> {
 
   void UnmountDrive(const std::chrono::steady_clock::duration& timeout_before_force);
   std::wstring drive_name() const;
+
+  void SetMountState(bool mounted);
+  void WaitUntilUnMounted();
 
   void UpdateDriverStatus();
   void UpdateMountingPoints();
@@ -183,11 +186,18 @@ class CbfsDrive : public Drive<Storage> {
   static void CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo* file_info);
   static void CbFsOnEjectStorage(CallbackFileSystem* sender);
 
+  enum DriveStage {
+    kMounted,
+    kUnMounted
+  } drive_stage_;
+
   mutable CallbackFileSystem callback_filesystem_;
   std::string guid_;
   LPCWSTR icon_id_;
   std::wstring drive_name_;
   LPCSTR registration_key_;
+  mutable std::mutex mutex_;
+  std::condition_variable condition_variable_;
 };
 
 template <typename Storage>
@@ -201,60 +211,48 @@ CbfsDrive<Storage>::CbfsDrive(StoragePtr storage, const Identity& unique_user_id
       guid_(product_id.empty() ? "713CC6CE-B3E2-4fd9-838D-E28F558F6866" : product_id),
       icon_id_(L"MaidSafeDriveIcon"),
       drive_name_(drive_name.wstring()),
-      registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)) {}
+      registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)),
+      mutex_(),
+      condition_variable_() {}
+
+
+template <typename Storage>
+CbfsDrive<Storage>::~CbfsDrive() {
+  Unmount();
+}
 
 template <typename Storage>
 void CbfsDrive<Storage>::Mount() {
-  if (drive_stage_ != kCleaned) {
-    OnCallbackFsInit();
-    UpdateDriverStatus();
-  }
-
-  try {
-    callback_filesystem_.Initialize(guid_.data());
-    callback_filesystem_.CreateStorage();
-    LOG(kInfo) << "Created Storage.";
-  }
-  catch (const ECBFSError& error) {
-    detail::ErrorMessage("Init CreateStorage ", error);
-    ThrowError(CommonErrors::uninitialised);
-  }
-  catch (const std::exception& e) {
-    LOG(kError) << "Cbfs::Init: " << e.what();
-    ThrowError(CommonErrors::uninitialised);
-  }
-  // SetIcon can only be called after CreateStorage has successfully completed.
-  try {
-    callback_filesystem_.SetIcon(icon_id_);
-  }
-  catch (const ECBFSError& error) {
-    detail::ErrorMessage("Init", error);
-  }
-
-  callback_filesystem_.SetTag(static_cast<void*>(this));
-  drive_stage_ = kInitialised;
-
-  try {
 #ifndef NDEBUG
     int timeout_milliseconds(0);
 #else
     int timeout_milliseconds(30000);
 #endif
+  try {
+    OnCallbackFsInit();
+    UpdateDriverStatus();
+    callback_filesystem_.Initialize(guid_.data());
+    callback_filesystem_.CreateStorage();
+    // SetIcon can only be called after CreateStorage has successfully completed.
+    callback_filesystem_.SetIcon(icon_id_);
+    callback_filesystem_.SetTag(static_cast<void*>(this));
     callback_filesystem_.MountMedia(timeout_milliseconds);
     // The following can only be called when the media is mounted.
-    LOG(kInfo) << "Started mount point.";
     callback_filesystem_.AddMountingPoint(kMountDir_.c_str());
     UpdateMountingPoints();
-    LOG(kInfo) << "Added mount point.";
+    LOG(kInfo) << "Mounted.";
   }
-  catch (ECBFSError& error) {
-    std::wstring errorMsg(error.Message());
-    detail::ErrorMessage("Mount", error);
-    ThrowError(DriveErrors::failed_to_mount);
+  catch (const ECBFSError& error) {
+    detail::ErrorMessage("Mount: ", error);
+    ThrowError(CommonErrors::uninitialised);
   }
+  catch (const std::exception& e) {
+    LOG(kError) << "Mount: " << e.what();
+    ThrowError(CommonErrors::uninitialised);
+  }
+
   drive_stage_ = kMounted;
   SetMountState(true);
-
   WaitUntilUnMounted();
 }
 
@@ -277,20 +275,17 @@ void CbfsDrive<Storage>::UnmountDrive(
 
 template <typename Storage>
 bool CbfsDrive<Storage>::Unmount() {
-  if (drive_stage_ != kCleaned) {
-    UnmountDrive(std::chrono::seconds(3));
-    if (callback_filesystem_.StoragePresent()) {
-      try {
-        callback_filesystem_.DeleteStorage();
-      }
-      catch (const ECBFSError& error) {
-        detail::ErrorMessage("Unmount", error);
-        return false;
-      }
+  UnmountDrive(std::chrono::seconds(3));
+  if (callback_filesystem_.StoragePresent()) {
+    try {
+      callback_filesystem_.DeleteStorage();
     }
-    callback_filesystem_.SetRegistrationKey(nullptr);
-    drive_stage_ = kCleaned;
+    catch (const ECBFSError& error) {
+      detail::ErrorMessage("Unmount", error);
+      return false;
+    }
   }
+  callback_filesystem_.SetRegistrationKey(nullptr);
   SetMountState(false);
   return true;
 }
@@ -334,6 +329,21 @@ uint32_t CbfsDrive<Storage>::max_file_path_length() {
 template <typename Storage>
 std::wstring CbfsDrive<Storage>::drive_name() const {
   return drive_name_;
+}
+
+template <typename Storage>
+void CbfsDrive<Storage>::SetMountState(bool mounted) {
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    drive_stage_ = (mounted ? kMounted : kUnMounted);
+  }
+  condition_variable_.notify_one();
+}
+
+template <typename Storage>
+void CbfsDrive<Storage>::WaitUntilUnMounted() {
+  std::unique_lock<std::mutex> lock(mutex_);
+  condition_variable_.wait(lock, [this] { return drive_stage_ == kUnMounted; });
 }
 
 template <typename Storage>
@@ -382,8 +392,8 @@ void CbfsDrive<Storage>::UpdateMountingPoints() {
   LUID authentication_id;
   LPTSTR mounting_point = nullptr;
   for (int index = callback_filesystem_.GetMountingPointCount() - 1; index >= 0; --index) {
-    if (callback_filesystem_.GetMountingPoint(index, &mounting_point, &flags, &authentication_id)
-        && mounting_point) {
+    callback_filesystem_.GetMountingPoint(index, &mounting_point, &flags, &authentication_id);
+    if (mounting_point) {
       free(mounting_point);
       mounting_point = nullptr;
     }
@@ -827,14 +837,15 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
 }
 
 template <typename Storage>
-void CbfsDrive<Storage>::CbFsCanFileBeDeleted(CallbackFileSystem* sender, CbFsFileInfo* file_info,
+void CbfsDrive<Storage>::CbFsCanFileBeDeleted(CallbackFileSystem* /*sender*/,
+                                              CbFsFileInfo* /*file_info*/,
                                               CbFsHandleInfo* /*handle_info*/,
                                               LPBOOL can_be_deleted) {
   SCOPED_PROFILE
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
-  LOG(kInfo) << "CbFsCanFileBeDeleted - " << relative_path;
-  *can_be_deleted = cbfs_drive->CanDelete(relative_path);
+  // auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
+  // boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
+  LOG(kInfo) << "CbFsCanFileBeDeleted - "; //  << relative_path;
+  *can_be_deleted = true;
 }
 
 template <typename Storage>

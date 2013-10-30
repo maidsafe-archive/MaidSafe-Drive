@@ -113,7 +113,17 @@ class Drive {
 };
 
 #ifdef MAIDSAFE_WIN32
-boost::filesystem::path GetNextAvailableDrivePath();
+inline boost::filesystem::path GetNextAvailableDrivePath() {
+  uint32_t drive_letters(GetLogicalDrives()), mask(0x4);
+  std::string path("C:");
+  while (drive_letters & mask) {
+    mask <<= 1;
+    ++path[0];
+  }
+  if (path[0] > 'Z')
+    ThrowError(DriveErrors::no_drive_letter_available);
+  return boost::filesystem::path(path);
+}
 #endif
 
 // ==================== Implementation ============================================================
