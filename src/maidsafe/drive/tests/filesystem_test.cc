@@ -35,6 +35,7 @@
 #include "boost/process/initializers.hpp"
 #include "boost/process/wait_for_exit.hpp"
 #include "boost/process/terminate.hpp"
+#include "boost/process/search_path.hpp"
 #include "boost/system/error_code.hpp"
 
 
@@ -777,12 +778,8 @@ int main(int argc, char** argv) {
     maidsafe::ipc::CreateSharedMemory(maidsafe::test::shm_name_, shm_args);
      // Set up boost::process args 
     std::vector<std::string> process_args;
-#ifdef WIN32
-    const auto kExePath("local_drive.exe");
-    maidsafe::test::root_ /= boost::filesystem::path("/").make_preferred();
-#else
-     const auto kExePath("./local_drive");
-#endif
+    fs::path cwd(fs::current_path());
+    const auto kExePath(bp::search_path("local_drive", cwd.string()));
     process_args.push_back(kExePath);
     process_args.push_back(maidsafe::test::shm_name_);
     const auto kCommandLine(maidsafe::test::ConstructCommandLine(process_args));
@@ -791,8 +788,8 @@ int main(int argc, char** argv) {
     bp::child child = bp::child(bp::execute(bp::initializers::run_exe(kExePath),
                                             bp::initializers::set_cmd_line(kCommandLine),
                                             bp::initializers::set_on_error(error_code)));
-    //INFO("error code " << error_code.message());
-    //REQUIRE_FALSE(error_code);
+    LOG(kInfo) << "error code " << error_code.message();
+    REQUIRE_FALSE(error_code);
 #ifdef WIN32
     maidsafe::test::child_handle_ = child.process_handle();
 #else
