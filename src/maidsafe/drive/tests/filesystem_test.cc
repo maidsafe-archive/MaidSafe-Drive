@@ -812,7 +812,7 @@ int main(int argc, char** argv) {
 std::cout << "pid set at " << maidsafe::test::child_pid_  << "/n";
   if (maidsafe::test::child_pid_ != 0) {
 #include "signal.h"
-    kill(maidsafe::test::child_pid_, SIGKILL);
+//    kill(maidsafe::test::child_pid_, SIGKILL);
   }
 #endif
   

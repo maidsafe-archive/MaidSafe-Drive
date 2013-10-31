@@ -36,6 +36,7 @@
 #include "maidsafe/common/utils.h"
 #include "maidsafe/common/application_support_directories.h"
 #include "maidsafe/common/ipc.h"
+#include "maidsafe/common/types.h"
 
 #include "maidsafe/data_store/local_store.h"
 

@@ -100,6 +100,7 @@ class FuseDrive : public Drive<Storage> {
   FuseDrive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
             const boost::filesystem::path& mount_dir, const boost::filesystem::path& drive_name);
 
+  ~FuseDrive();
   // Notifies filesystem of change in directory.  No-op on Unix.
   virtual void NotifyDirectoryChange(const boost::filesystem::path& /*relative_path*/,
                                      detail::OpType /*op*/) const {}
@@ -172,11 +173,8 @@ class FuseDrive : public Drive<Storage> {
 
   static struct fuse_operations maidsafe_ops_;
   struct fuse* fuse_;
-  struct fuse_chan* fuse_channel_;
-  char* fuse_mountpoint_;
+  fs::path fuse_mountpoint_;
   std::string drive_name_;
-  std::thread fuse_event_loop_thread_;
-  static const bool kAllowMsHidden_;
 };
 
 const int kMaxPath(4096);
@@ -188,20 +186,21 @@ template <typename Storage>
 struct fuse_operations FuseDrive<Storage>::maidsafe_ops_;
 
 template <typename Storage>
-const bool FuseDrive<Storage>::kAllowMsHidden_(false);
-
-template <typename Storage>
 FuseDrive<Storage>::FuseDrive(StoragePtr storage, const Identity& unique_user_id,
                               const Identity& root_parent_id,
                               const boost::filesystem::path& mount_dir,
                               const boost::filesystem::path& drive_name)
     : Drive<Storage>::Drive(storage, unique_user_id, root_parent_id, mount_dir),
       fuse_(nullptr),
-      fuse_channel_(nullptr),
-      fuse_mountpoint_(nullptr),
-      drive_name_(drive_name.string()),
-      fuse_event_loop_thread_() {
-  Init();
+      fuse_mountpoint_(mount_dir),
+      drive_name_(drive_name.string()) {
+        fs::create_directory(mount_dir);
+        Init();
+}
+
+template <typename Storage>
+FuseDrive<Storage>::~FuseDrive() {
+  fs::remove(fuse_mountpoint_);
 }
 
 template <typename Storage>
@@ -267,72 +266,75 @@ void FuseDrive<Storage>::Mount() {
   boost::shared_array<char*> opts(new char* [2]);
   opts[0] = const_cast<char*>(drive_name_.c_str());
   opts[1] = const_cast<char*>(Drive<Storage>::kMountDir_.c_str());
-
-  struct fuse_args args = FUSE_ARGS_INIT(2, opts.get());
+  char* argv[2];
+  argv[0] = const_cast<char*>(drive_name_.c_str());
+  argv[1] = const_cast<char*>(fuse_mountpoint_.c_str());
+  fuse_main(2, argv, &maidsafe_ops_, NULL);
+  // struct fuse_args args = FUSE_ARGS_INIT(2, opts.get());
   // fuse helper macros for options
-  fuse_opt_parse(&args, nullptr, nullptr, nullptr);
+  // fuse_opt_parse(&args, nullptr, nullptr, nullptr);
 
   // NB - If we remove -odefault_permissions, we must check in OpsOpen
   //      that the operation is permitted for the given flags.  We also need to
   //      implement OpsAccess.
-  fuse_opt_add_arg(&args, "-odefault_permissions,kernel_cache,direct_io");
+  // fuse_opt_add_arg(&args, "-odefault_permissions,kernel_cache,direct_io");
   //   if (read_only)
   //     fuse_opt_add_arg(&args, "-oro");
   //   if (debug_info)
   //     fuse_opt_add_arg(&args, "-odebug");
-  fuse_opt_add_arg(&args, "-f");  // run in foreground
-  fuse_opt_add_arg(&args, "-s");  // this is single threaded
+  // fuse_opt_add_arg(&args, "-f");  // run in foreground
+  // fuse_opt_add_arg(&args, "-s");  // this is single threaded
 
-  int multithreaded, foreground;
-  if (fuse_parse_cmdline(&args, &fuse_mountpoint_, &multithreaded, &foreground) == -1)
-    ThrowError(DriveErrors::failed_to_mount);
+  // int multithreaded, foreground;
+  // if (fuse_parse_cmdline(&args, &fuse_mountpoint_, &multithreaded, &foreground) == -1)
+  //   ThrowError(DriveErrors::failed_to_mount);
 
-  fuse_channel_ = fuse_mount(fuse_mountpoint_, &args);
-  if (!fuse_channel_) {
-    fuse_opt_free_args(&args);
-    free(fuse_mountpoint_);
-    ThrowError(DriveErrors::failed_to_mount);
-  }
+  // fuse_channel_ = fuse_mount(fuse_mountpoint_, &args);
+  // if (!fuse_channel_) {
+  //   fuse_opt_free_args(&args);
+  //   free(fuse_mountpoint_);
+  //   ThrowError(DriveErrors::failed_to_mount);
+  // }
 
-  fuse_ = fuse_new(fuse_channel_, &args, &maidsafe_ops_, sizeof(maidsafe_ops_), nullptr);
-  fuse_opt_free_args(&args);
-  if (fuse_ == nullptr) {
-    fuse_unmount(fuse_mountpoint_, fuse_channel_);
-    if (fuse_)
-      fuse_destroy(fuse_);
-    free(fuse_mountpoint_);
-    ThrowError(DriveErrors::failed_to_mount);
-  }
+  // fuse_ = fuse_new(fuse_channel_, &args, &maidsafe_ops_, sizeof(maidsafe_ops_), nullptr);
+  // fuse_opt_free_args(&args);
+  // if (fuse_ == nullptr) {
+  //   fuse_unmount(fuse_mountpoint_, fuse_channel_);
+  //   if (fuse_)
+  //     fuse_destroy(fuse_);
+  //   free(fuse_mountpoint_);
+  //   ThrowError(DriveErrors::failed_to_mount);
+  // }
 
-  if (fuse_daemonize(foreground) == -1) {
-    fuse_unmount(fuse_mountpoint_, fuse_channel_);
-    if (fuse_)
-      fuse_destroy(fuse_);
-    free(fuse_mountpoint_);
-    ThrowError(DriveErrors::failed_to_mount);
-  }
+  // if (fuse_daemonize(foreground) == -1) {
+  //   fuse_unmount(fuse_mountpoint_, fuse_channel_);
+  //   if (fuse_)
+  //     fuse_destroy(fuse_);
+  //   free(fuse_mountpoint_);
+  //   ThrowError(DriveErrors::failed_to_mount);
+  // }
 
-  if (fuse_set_signal_handlers(fuse_get_session(fuse_)) == -1) {
-    fuse_unmount(fuse_mountpoint_, fuse_channel_);
-    if (fuse_)
-      fuse_destroy(fuse_);
-    free(fuse_mountpoint_);
-    ThrowError(DriveErrors::failed_to_mount);
-  }
+  // if (fuse_set_signal_handlers(fuse_get_session(fuse_)) == -1) {
+  //   fuse_unmount(fuse_mountpoint_, fuse_channel_);
+  //   if (fuse_)
+  //     fuse_destroy(fuse_);
+  //   free(fuse_mountpoint_);
+  //   ThrowError(DriveErrors::failed_to_mount);
+  // }
 
-  //  int res;
-  //  if (multithreaded)
-  //  fuse_event_loop_thread_ = boost::move(boost::thread(&fuse_loop_mt, fuse_));
-  //    res = fuse_loop_mt(fuse_);
-  //  else
-  fuse_event_loop_thread_ = std::move(std::thread(&fuse_loop, fuse_));
-  //    res = fuse_loop(fuse_);
+  // //  int res;
+  // //  if (multithreaded)
+  // //  fuse_event_loop_thread_ = boost::move(boost::thread(&fuse_loop_mt, fuse_));
+  // //    res = fuse_loop_mt(fuse_);
+  // //  else
+  // fuse_event_loop_thread_ = std::move(std::thread(&fuse_loop, fuse_));
+  // //    res = fuse_loop(fuse_);
 
-  //  if (res != 0) {
-  //    LOG(kError) << "Fuse Loop result: " << res;
-  //    Drive<Storage>::SetMountState(false);
-  //    return kFuseFailedToMount;
-  //  }
+  // //  if (res != 0) {
+  // //    LOG(kError) << "Fuse Loop result: " << res;
+  // //    Drive<Storage>::SetMountState(false);
+  // //    return kFuseFailedToMount;
+  // //  }
 }
 
 /********************************* content ************************************/
