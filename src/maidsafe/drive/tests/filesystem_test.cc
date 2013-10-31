@@ -766,7 +766,7 @@ int main(int argc, char** argv) {
     tests_result = maidsafe::test::RunCatch(argc, argv);
   } else if (variables_map.count("local")) {
     maidsafe::test::shm_name_ = maidsafe::RandomAlphaNumericString(32);
-    maidsafe::test::root_parent_ = maidsafe::RandomAlphaNumericString(64);
+    // maidsafe::test::root_parent_ = maidsafe::RandomAlphaNumericString(64);
     std::vector<std::string> shm_args;
     maidsafe::test::SetUpRootDirectory(fs::unique_path(fs::path(maidsafe::GetHomeDir())));
     maidsafe::test::SetUpTempDirectory();
@@ -791,8 +791,10 @@ int main(int argc, char** argv) {
     bp::child child = bp::child(bp::execute(bp::initializers::run_exe(kExePath),
                                             bp::initializers::set_cmd_line(kCommandLine),
                                             bp::initializers::set_on_error(error_code)));
-    //INFO("error code " << error_code.message());
-    //REQUIRE_FALSE(error_code);
+
+    // REQUIRE_FALSE(error_code);
+    maidsafe::Sleep(std::chrono::seconds(3));
+
 #ifdef WIN32
     maidsafe::test::child_handle_ = child.process_handle();
 #else

@@ -255,7 +255,7 @@ int main(int argc, char *argv[]) {
     std::string drive_name("MaidSafeDrive");
 
     int result(maidsafe::drive::Mount(vec_strings[0], vec_strings[1], unique_id,
-                                      maidsafe::Identity(vec_strings[2]), product_id, drive_name));
+                                      maidsafe::Identity(), product_id, drive_name));
     return result;
   }
   catch (const std::exception& e) {
