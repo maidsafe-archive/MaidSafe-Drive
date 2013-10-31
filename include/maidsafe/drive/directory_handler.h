@@ -498,14 +498,14 @@ void DirectoryHandler<Storage>::Delete(const Directory& directory) {
   SelfEncryptor self_encryptor(data_map, *storage_);
   self_encryptor.DeleteAllChunks();
   MutableData::Name name(directory.listing->directory_id());
-  storage_->template Delete<MutableData>(name);
+  storage_->Delete(name);
 }
 
 template <typename Storage>
 typename DirectoryHandler<Storage>::DataMapPtr DirectoryHandler<Storage>::GetDataMap(
     const DirectoryId& parent_id, const DirectoryId& directory_id) const {
   MutableData::Name name = MutableData::Name(directory_id);
-  MutableData directory(storage_->template Get<MutableData>(name).get());
+  MutableData directory(storage_->Get(name).get());
   auto data_map(std::make_shared<DataMap>());
   encrypt::DecryptDataMap(parent_id, directory_id, directory.data().string(), data_map);
   return data_map;

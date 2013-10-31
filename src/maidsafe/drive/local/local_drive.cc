@@ -198,7 +198,7 @@ int main(int argc, char *argv[]) {
    } else {
 
      chunk_store = GetStringFromProgramOption("chunkdir", &variables_map);
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
      fs::path mount_dir(GetStringFromProgramOption("mountdir", &variables_map));
      if (!SetConsoleCtrlHandler(reinterpret_cast<PHANDLER_ROUTINE>(CtrlHandler), TRUE)) {
        LOG(kError) << "Failed to set control handler.";
@@ -212,24 +212,22 @@ int main(int argc, char *argv[]) {
      parent_id = GetStringFromProgramOption("parentid", &variables_map);
      drive_name = GetStringFromProgramOption("drivename", &variables_map);
 
-     if (chunk_store.empty() || mount_dir.empty() ||
-         unique_id.empty() || drive_name.empty()) {
+     if (chunk_store.empty() || mount_dir.empty() || unique_id.empty() || drive_name.empty()) {
        LOG(kWarning) << options_description;
        return 1;
      }
 
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
      std::string product_id(GetStringFromProgramOption("productid", &variables_map));
-     if(product_id.string().empty()) {
+     if(product_id.empty()) {
        LOG(kWarning) << options_description;
        return 1;
      }
-   result = maidsafe::drive::Mount(fs::path(mount_dir), fs::path(chunk_store),
+     result = maidsafe::drive::Mount(fs::path(mount_dir), fs::path(chunk_store),
                                      maidsafe::Identity(unique_id), maidsafe::Identity(parent_id),
-                                     Identity(product_id), drive_name);
+                                     product_id, drive_name);
 #else
-
-   result = maidsafe::drive::Mount(fs::path(mount_dir), fs::path(chunk_store),
+     result = maidsafe::drive::Mount(fs::path(mount_dir), fs::path(chunk_store),
                                      maidsafe::Identity(unique_id), maidsafe::Identity(parent_id),
                                      drive_name);
 #endif

@@ -64,11 +64,12 @@ namespace test {
 fs::path root_, temp_, chunk_store_;
 std::string root_parent_, user_id_, shm_name_;
 std::function<void()> child_;
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
 HANDLE child_handle_;
 #else
 pid_t child_pid_(0);
 #endif
+
 int RunCatch(int argc, char** argv) {
   Catch::Session session;
   auto command_line_result(
@@ -790,7 +791,7 @@ int main(int argc, char** argv) {
                                             bp::initializers::set_cmd_line(kCommandLine),
                                             bp::initializers::set_on_error(error_code)));
     LOG(kInfo) << "error code " << error_code.message();
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
     maidsafe::test::child_handle_ = child.process_handle();
 #else
     maidsafe::test::child_pid_ = child.pid;

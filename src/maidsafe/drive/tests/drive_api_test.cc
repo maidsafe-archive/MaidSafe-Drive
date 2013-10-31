@@ -55,18 +55,18 @@ namespace drive {
 namespace test {
 
 #ifdef MAIDSAFE_WIN32
-testing::AssertionResult TimesMatch(const FILETIME& time1, const FILETIME& time2) {
+bool TimesMatch(const FILETIME& time1, const FILETIME& time2) {
   if (time1.dwHighDateTime != time2.dwHighDateTime) {
-    return testing::AssertionFailure() << "time1.dwHighDateTime (" << time1.dwHighDateTime
-                                       << ") != time2.dwHighDateTime (" << time2.dwHighDateTime
-                                       << ")";
+    LOG(kWarning) << "time1.dwHighDateTime (" << time1.dwHighDateTime
+                  << ") != time2.dwHighDateTime (" << time2.dwHighDateTime << ")";
+    return false;
   }
   if (time1.dwLowDateTime != time2.dwLowDateTime) {
-    return testing::AssertionFailure() << "time1.dwLowDateTime (" << time1.dwLowDateTime
-                                       << ") != time2.dwLowDateTime (" << time2.dwLowDateTime
-                                       << ")";
+    LOG(kWarning) << "time1.dwLowDateTime (" << time1.dwLowDateTime
+                  << ") != time2.dwLowDateTime (" << time2.dwLowDateTime << ")";
+    return false;
   }
-  return testing::AssertionSuccess();
+  return true;
 }
 #endif
 
@@ -80,7 +80,7 @@ void SetLastAccessTime(MetaData* meta_data) {
 
 void AssertLastAccessTimesMatch(const MetaData& meta_data1, const MetaData& meta_data2) {
 #ifdef MAIDSAFE_WIN32
-  return TimesMatch(meta_data1.last_access_time, meta_data2.last_access_time);
+  REQUIRE(TimesMatch(meta_data1.last_access_time, meta_data2.last_access_time));
 #else
   REQUIRE(meta_data1.attributes.st_atime == meta_data2.attributes.st_atime);
 #endif
