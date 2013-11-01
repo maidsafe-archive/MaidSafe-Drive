@@ -50,6 +50,9 @@
 
 #include "maidsafe/drive/drive.h"
 
+#include "local_drive_location.h"  // NOLINT
+#include "network_drive_location.h"  // NOLINT
+
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 namespace bp = boost::process;
@@ -779,8 +782,7 @@ int main(int argc, char** argv) {
     maidsafe::ipc::CreateSharedMemory(maidsafe::test::shm_name_, shm_args);
      // Set up boost::process args 
     std::vector<std::string> process_args;
-    fs::path cwd(fs::current_path());
-    const auto kExePath(bp::search_path("local_drive", cwd.string()));
+    const auto kExePath(maidsafe::process::GetLocalDriveLocation());
     process_args.push_back(kExePath);
     std::string shm_opt("-S" +  maidsafe::test::shm_name_);
     process_args.push_back(shm_opt);

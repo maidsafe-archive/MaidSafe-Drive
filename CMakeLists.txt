@@ -110,9 +110,27 @@ target_link_libraries(network_drive maidsafe_drive maidsafe_nfs_client)
 
 #TODO (TEAM) Create unit test target for directory listing to build even with dummy win dependency
 if(MaidsafeTesting AND (Cbfs_FOUND OR NOT WIN32))
-  ms_add_executable(filesystem_benchmark "Tools/Drive" ${DriveSourcesDir}/tests/filesystem_benchmark.cc)
-  ms_add_executable(filesystem_test "Tests/Drive" ${DriveSourcesDir}/tests/filesystem_test.cc)
+  set(LocalDriveLocationFile ${CMAKE_CURRENT_BINARY_DIR}/filesystem_test/local_drive_location.h)
+  set(NetworkDriveLocationFile ${CMAKE_CURRENT_BINARY_DIR}/filesystem_test/network_drive_location.h)
+
+  ms_add_executable(filesystem_benchmark "Tools/Drive"
+                    ${DriveSourcesDir}/tests/filesystem_benchmark.cc
+                    ${LocalDriveLocationFile}
+                    ${NetworkDriveLocationFile})
+  ms_add_executable(filesystem_test "Tests/Drive"
+                    ${DriveSourcesDir}/tests/filesystem_test.cc
+                    ${LocalDriveLocationFile}
+                    ${NetworkDriveLocationFile})
   ms_add_executable(test_drive "Tests/Drive" ${DriveTestsAllFiles})
+
+  add_process_location(local_drive "${LocalDriveLocationFile}")
+  add_process_location(network_drive "${NetworkDriveLocationFile}")
+  add_dependencies(filesystem_benchmark local_drive network_drive)
+  add_dependencies(filesystem_test local_drive network_drive)
+  get_target_property(IncDirs filesystem_benchmark INCLUDE_DIRECTORIES)
+  set_target_properties(filesystem_benchmark PROPERTIES INCLUDE_DIRECTORIES "${IncDirs};${CMAKE_CURRENT_BINARY_DIR}/filesystem_test")
+  get_target_property(IncDirs filesystem_test INCLUDE_DIRECTORIES)
+  set_target_properties(filesystem_test PROPERTIES INCLUDE_DIRECTORIES "${IncDirs};${CMAKE_CURRENT_BINARY_DIR}/filesystem_test")
 
   target_link_libraries(filesystem_benchmark maidsafe_common)
   target_link_libraries(filesystem_test maidsafe_common)
