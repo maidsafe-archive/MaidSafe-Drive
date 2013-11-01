@@ -18,9 +18,6 @@
 
 #include "maidsafe/drive/win_drive.h"
 
-#include <locale>
-#include <cwchar>
-
 #include "maidsafe/common/log.h"
 
 
@@ -33,14 +30,6 @@ namespace drive {
 #endif
 
 namespace detail {
-
-std::string WstringToString(const std::wstring &input) {
-  std::locale locale("");
-  std::string string_buffer(input.size() * 4 + 1, 0);
-  std::use_facet<std::ctype<wchar_t>>(locale).narrow(
-        &input[0], &input[0] + input.size(), '?', &string_buffer[0]);
-  return std::string(&string_buffer[0]);
-}
 
 void ErrorMessage(const std::string &method_name, ECBFSError error) {
   LOG(kError) << "Cbfs::" << method_name << ": " << WstringToString(error.Message());

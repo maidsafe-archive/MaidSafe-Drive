@@ -42,11 +42,12 @@
 #define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
 
+#include "maidsafe/common/application_support_directories.h"
+#include "maidsafe/common/ipc.h"
 #include "maidsafe/common/log.h"
 #include "maidsafe/common/on_scope_exit.h"
+#include "maidsafe/common/process.h"
 #include "maidsafe/common/utils.h"
-#include "maidsafe/common/ipc.h"
-#include "maidsafe/common/application_support_directories.h"
 
 #include "maidsafe/drive/drive.h"
 
@@ -264,29 +265,6 @@ void RemoveRootDirectory() {
     LOG(kInfo) << "Removed " << maidsafe::test::root_ << "  " << error_code.message();
   }
 }
-
-#ifdef MAIDSAFE_WIN32
-std::wstring StringToWstring(const std::string& input) {
-  std::unique_ptr<wchar_t[]> buffer(new wchar_t[input.size()]);
-  size_t num_chars = mbstowcs(buffer.get(), input.c_str(), input.size());
-  return std::wstring(buffer.get(), num_chars);
-}
-
-std::wstring ConstructCommandLine(std::vector<std::string> process_args) {
-  std::string args;
-  for (auto arg : process_args)
-    args += (arg + " ");
-  return StringToWstring(args);
-}
-#else
-std::string ConstructCommandLine(std::vector<std::string> process_args) {
-  std::string args;
-  for (auto arg : process_args)
-    args += (arg + " ");
-  return args;
-}
-#endif
-
 
 // }  // unnamed namespace
 
@@ -786,7 +764,7 @@ int main(int argc, char** argv) {
     process_args.push_back(kExePath);
     std::string shm_opt("-S" +  maidsafe::test::shm_name_);
     process_args.push_back(shm_opt);
-    const auto kCommandLine(maidsafe::test::ConstructCommandLine(process_args));
+    const auto kCommandLine(maidsafe::process::ConstructCommandLine(process_args));
     boost::system::error_code error_code;
 
     bp::child child = bp::child(bp::execute(bp::initializers::run_exe(kExePath),

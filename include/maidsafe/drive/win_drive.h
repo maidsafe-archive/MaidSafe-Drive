@@ -36,6 +36,7 @@
 #include "boost/filesystem/path.hpp"
 #include "boost/preprocessor/stringize.hpp"
 
+#include "maidsafe/common/utils.h"
 #include "maidsafe/encrypt/self_encryptor.h"
 #include "maidsafe/drive/drive.h"
 #include "maidsafe/drive/directory_handler.h"
@@ -67,7 +68,6 @@ boost::filesystem::path GetRelativePath(CbfsDrive<Storage>* cbfs_drive, CbFsFile
   return boost::filesystem::path(file_name.get());
 }
 
-std::string WstringToString(const std::wstring& input);
 void ErrorMessage(const std::string& method_name, ECBFSError error);
 
 }  // namespace detail
@@ -682,7 +682,7 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
   std::wstring mask_str(mask);
   LOG(kInfo) << "CbFsEnumerateDirectory - " << relative_path << " index: " << index
              << std::boolalpha << " nullptr context: " << (directory_enumeration_info == nullptr)
-             << " mask: " << detail::WstringToString(mask_str) << " restart: " << restart;
+             << " mask: " << WstringToString(mask_str) << " restart: " << restart;
   bool exact_match(mask_str != L"*");
   *file_found = false;
 
