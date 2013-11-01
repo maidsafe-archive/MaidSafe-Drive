@@ -147,10 +147,14 @@ rename_outdated_built_exes()
 include(standard_flags)
 if(Cbfs_FOUND)
   add_definitions(-DCBFS_KEY=${Cbfs_KEY} -DHAVE_CBFS)
-endif()
-
-if(Cbfs_FOUND)
   set_target_properties(cbfs_driver PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")
+  if(MaidsafeTesting)
+    set_target_properties(local_drive network_drive PROPERTIES COMPILE_DEFINITIONS "CBFS_GUID=713CC6CE-B3E2-4fd9-838D-E28F558F6866")
+  else()
+    # TODO(Brian) BEFORE_RELEASE - Set these UIDs appropriately
+    set_target_properties(local_drive PROPERTIES COMPILE_DEFINITIONS "CBFS_GUID=SUREFILE-UID")
+    set_target_properties(network_drive PROPERTIES COMPILE_DEFINITIONS "CBFS_GUID=LIFESTUFF-UID")
+  endif()
 endif()
 
 

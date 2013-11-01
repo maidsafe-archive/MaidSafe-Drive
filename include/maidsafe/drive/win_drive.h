@@ -43,6 +43,7 @@
 
 
 namespace maidsafe {
+
 namespace drive {
 
 template <typename Storage>
@@ -68,8 +69,6 @@ boost::filesystem::path GetRelativePath(CbfsDrive<Storage>* cbfs_drive, CbFsFile
 
 std::string WstringToString(const std::wstring& input);
 void ErrorMessage(const std::string& method_name, ECBFSError error);
-boost::filesystem::path RelativePath(const boost::filesystem::path& mount_dir,
-                                     const boost::filesystem::path& absolute_path);
 
 }  // namespace detail
 
@@ -86,8 +85,7 @@ class CbfsDrive : public Drive<Storage> {
   typedef detail::OpType OpType;
 
   CbfsDrive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
-            const boost::filesystem::path& mount_dir, const std::string& product_id,
-            const boost::filesystem::path& drive_name);
+            const boost::filesystem::path& mount_dir, const boost::filesystem::path& drive_name);
 
   virtual ~CbfsDrive();
 
@@ -204,11 +202,10 @@ template <typename Storage>
 CbfsDrive<Storage>::CbfsDrive(StoragePtr storage, const Identity& unique_user_id,
                               const Identity& root_parent_id,
                               const boost::filesystem::path& mount_dir,
-                              const std::string& product_id,
                               const boost::filesystem::path& drive_name)
     : Drive<Storage>(storage, unique_user_id, root_parent_id, mount_dir),
       callback_filesystem_(),
-      guid_(product_id.empty() ? "713CC6CE-B3E2-4fd9-838D-E28F558F6866" : product_id),
+      guid_(BOOST_PP_STRINGIZE(CBFS_GUID)),
       icon_id_(L"MaidSafeDriveIcon"),
       drive_name_(drive_name.wstring()),
       registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)),
@@ -1014,6 +1011,7 @@ void CbfsDrive<Storage>::SetNewAttributes(FileContextPtr file_context, bool is_d
 }
 
 }  // namespace drive
+
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_WIN_DRIVE_H_

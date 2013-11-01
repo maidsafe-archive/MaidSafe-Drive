@@ -25,6 +25,7 @@
 
 
 namespace maidsafe {
+
 namespace drive {
 
 #ifndef CBFS_KEY
@@ -32,14 +33,6 @@ namespace drive {
 #endif
 
 namespace detail {
-
-boost::filesystem::path RelativePath(const boost::filesystem::path& mount_path,
-                                     const boost::filesystem::path& absolute_path) {
-  if (absolute_path.root_name() != mount_path.root_name() &&
-      absolute_path.root_name() != mount_path)
-    return boost::filesystem::path();
-  return absolute_path.root_directory() / absolute_path.relative_path();
-}
 
 std::string WstringToString(const std::wstring &input) {
   std::locale locale("");
@@ -54,5 +47,7 @@ void ErrorMessage(const std::string &method_name, ECBFSError error) {
 }
 
 }  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe

@@ -99,13 +99,13 @@ TEST_CASE("Local store", "[behavioural]") {
   {
 #ifdef MAIDSAFE_WIN32
     auto mount_dir(GetNextAvailableDrivePath());
-    VirtualDrive<data_store::LocalStore>::value_type drive(
-        storage, unique_user_id, root_parent_id, mount_dir, std::string(), "SureFileDrive");
-    mount_dir /= "\\";
 #else
     fs::path mount_dir(*main_test_dir / "mount");
+#endif
     VirtualDrive<data_store::LocalStore>::value_type drive(
         storage, unique_user_id, root_parent_id, mount_dir, "SureFileDrive");
+#ifdef MAIDSAFE_WIN32
+    mount_dir /= "\\";
 #endif
     CHECK(WriteFile(mount_dir / file_name, content));
     CHECK(NonEmptyString(content) == ReadFile(mount_dir / file_name));
@@ -114,13 +114,13 @@ TEST_CASE("Local store", "[behavioural]") {
   {
 #ifdef MAIDSAFE_WIN32
     auto mount_dir(GetNextAvailableDrivePath());
-    VirtualDrive<data_store::LocalStore>::value_type drive(
-        storage, unique_user_id, root_parent_id, mount_dir, std::string(), "SureFileDrive");
-    mount_dir /= "\\";
 #else
     fs::path mount_dir(*main_test_dir / "mount");
+#endif
     VirtualDrive<data_store::LocalStore>::value_type drive(
         storage, unique_user_id, root_parent_id, mount_dir, "SureFileDrive");
+#ifdef MAIDSAFE_WIN32
+    mount_dir /= "\\";
 #endif
     CHECK(NonEmptyString(content) == ReadFile(mount_dir / file_name));
   }

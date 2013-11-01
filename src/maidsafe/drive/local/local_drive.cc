@@ -67,6 +67,7 @@ namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 
 namespace maidsafe {
+
 namespace drive {
 
 template<typename Storage>
@@ -80,18 +81,11 @@ struct GetDrive {
 };
 #endif
 
-#ifdef MAIDSAFE_WIN32
-int Mount(const fs::path &mount_dir, const fs::path &chunk_dir, const Identity& unique_id,
-          const Identity& parent_id, const std::string& product_id,
-          const std::string& drive_name) {
-#else
 int Mount(const fs::path &mount_dir, const fs::path &chunk_dir, const Identity& unique_id,
           const Identity& parent_id, const std::string& drive_name) {
-#endif
   fs::path storage_path(chunk_dir / "local_store");
   DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
-  std::shared_ptr<maidsafe::data_store::LocalStore>
-    storage(new maidsafe::data_store::LocalStore(storage_path, disk_usage));
+  auto storage(std::make_shared<maidsafe::data_store::LocalStore>(storage_path, disk_usage));
 
   boost::system::error_code error_code;
   if (!fs::exists(chunk_dir, error_code))
@@ -99,21 +93,14 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir, const Identity& 
 
   typedef GetDrive<maidsafe::data_store::LocalStore>::type Drive;
 
-  Drive drive(storage,
-              unique_id,
-              parent_id,
-              mount_dir,
-#ifdef MAIDSAFE_WIN32
-              product_id,
-#endif
-              drive_name);
-
+  Drive drive(storage, unique_id, parent_id, mount_dir, drive_name);
   drive.Mount();
 
   return 0;
 }
 
 }  // namespace drive
+
 }  // namespace maidsafe
 
 std::string GetStringFromProgramOption(const std::string &option_name,
@@ -144,7 +131,7 @@ int main(int argc, char *argv[]) {
        ("uniqueid,U", po::value<std::string>(), "set unique identifier")
        ("parentid,R", po::value<std::string>(), "set root parent directory identifier")
        ("productid,P", po::value<std::string>(), "set drive product identifier (Windows only)")
-       ("drivename,R", po::value<std::string>(), "set virtual drive name")
+       ("drivename,N", po::value<std::string>(), "set virtual drive name")
        ("checkdata,z", "check all data in chunkstore");
 
    po::variables_map variables_map;
@@ -179,7 +166,7 @@ int main(int argc, char *argv[]) {
      return 0;
    }
 
-   std::string shared_memory_name, product_id, parent_id, drive_name,
+   std::string shared_memory_name, product_id, parent_id_str, drive_name,
                unique_id, mount_dir, chunk_store;
    int result(-1);
    if (variables_map.count("sharedmemory")) {
@@ -191,25 +178,23 @@ int main(int argc, char *argv[]) {
      auto vec_strings = maidsafe::ipc::ReadSharedMemory(shared_memory_name.c_str(), 5);
      product_id = vec_strings.at(4);
 #endif
-   mount_dir = vec_strings.at(1);
-   chunk_store = vec_strings.at(2);
-   unique_id = vec_strings.at(3);
-   parent_id = vec_strings.at(4);
+     mount_dir = vec_strings.at(1);
+     chunk_store = vec_strings.at(2);
+     unique_id = vec_strings.at(3);
+     parent_id_str = vec_strings.at(4);
    } else {
 
      chunk_store = GetStringFromProgramOption("chunkdir", &variables_map);
+     mount_dir = GetStringFromProgramOption("mountdir", &variables_map);
 #ifdef MAIDSAFE_WIN32
-     fs::path mount_dir(GetStringFromProgramOption("mountdir", &variables_map));
      if (!SetConsoleCtrlHandler(reinterpret_cast<PHANDLER_ROUTINE>(CtrlHandler), TRUE)) {
        LOG(kError) << "Failed to set control handler.";
        return 1;
      }
-#else
-     mount_dir = GetStringFromProgramOption("mountdir", &variables_map);
 #endif
 
      unique_id = GetStringFromProgramOption("uniqueid", &variables_map);
-     parent_id = GetStringFromProgramOption("parentid", &variables_map);
+     parent_id_str = GetStringFromProgramOption("parentid", &variables_map);
      drive_name = GetStringFromProgramOption("drivename", &variables_map);
 
      if (chunk_store.empty() || mount_dir.empty() || unique_id.empty() || drive_name.empty()) {
@@ -217,20 +202,12 @@ int main(int argc, char *argv[]) {
        return 1;
      }
 
-#ifdef MAIDSAFE_WIN32
-     std::string product_id(GetStringFromProgramOption("productid", &variables_map));
-     if(product_id.empty()) {
-       LOG(kWarning) << options_description;
-       return 1;
-     }
-     result = maidsafe::drive::Mount(fs::path(mount_dir), fs::path(chunk_store),
-                                     maidsafe::Identity(unique_id), maidsafe::Identity(parent_id),
-                                     product_id, drive_name);
-#else
-     result = maidsafe::drive::Mount(fs::path(mount_dir), fs::path(chunk_store),
-                                     maidsafe::Identity(unique_id), maidsafe::Identity(parent_id),
-                                     drive_name);
-#endif
+     maidsafe::Identity parent_id;
+     if (!parent_id_str.empty())
+       parent_id = maidsafe::Identity(parent_id_str);
+
+     return maidsafe::drive::Mount(fs::path(mount_dir), fs::path(chunk_store),
+                                   maidsafe::Identity(unique_id), parent_id, drive_name);
    }
 
    return result;

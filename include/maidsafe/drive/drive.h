@@ -40,9 +40,6 @@
 namespace maidsafe {
 namespace drive {
 
-boost::filesystem::path RelativePath(const boost::filesystem::path& mount_dir,
-                                     const boost::filesystem::path& absolute_path);
-
 template <typename Storage>
 class Drive {
  public:
