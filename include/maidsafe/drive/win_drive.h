@@ -212,7 +212,6 @@ CbfsDrive<Storage>::CbfsDrive(StoragePtr storage, const Identity& unique_user_id
       mutex_(),
       condition_variable_() {}
 
-
 template <typename Storage>
 CbfsDrive<Storage>::~CbfsDrive() {
   Unmount();

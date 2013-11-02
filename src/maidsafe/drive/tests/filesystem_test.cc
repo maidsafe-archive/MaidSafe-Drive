@@ -66,7 +66,7 @@ namespace test {
 // namespace {
 
 fs::path root_, temp_, chunk_store_;
-std::string root_parent_, user_id_, shm_name_;
+std::string root_parent_, user_id_, drive_name_, shm_name_;
 std::function<void()> child_;
 #ifdef MAIDSAFE_WIN32
 HANDLE child_handle_;
@@ -749,14 +749,17 @@ int main(int argc, char** argv) {
     tests_result = maidsafe::test::RunCatch(argc, argv);
   } else if (variables_map.count("local")) {
     maidsafe::test::shm_name_ = maidsafe::RandomAlphaNumericString(32);
-    // maidsafe::test::root_parent_ = maidsafe::RandomAlphaNumericString(64);
+    maidsafe::test::user_id_ = maidsafe::RandomAlphaNumericString(64);
+    maidsafe::test::drive_name_ = maidsafe::RandomAlphaNumericString(10);
     std::vector<std::string> shm_args;
     maidsafe::test::SetUpRootDirectory(fs::unique_path(fs::path(maidsafe::GetHomeDir())));
     maidsafe::test::SetUpTempDirectory();
     maidsafe::test::SetUpChunkStore();
     shm_args.push_back(maidsafe::test::root_.string());
     shm_args.push_back(maidsafe::test::chunk_store_.string());
+    shm_args.push_back(maidsafe::test::user_id_);
     shm_args.push_back(maidsafe::test::root_parent_);
+    shm_args.push_back(maidsafe::test::drive_name_);
     maidsafe::ipc::CreateSharedMemory(maidsafe::test::shm_name_, shm_args);
      // Set up boost::process args 
     std::vector<std::string> process_args;
@@ -776,6 +779,7 @@ int main(int argc, char** argv) {
 
 #ifdef WIN32
     maidsafe::test::child_handle_ = child.process_handle();
+    maidsafe::test::root_ /= boost::filesystem::path("/").make_preferred();
 #else
     maidsafe::test::child_pid_ = child.pid;
 #endif
