@@ -19,10 +19,11 @@
 #include <signal.h>
 
 #include <functional>
-#include <iostream>  // NOLINT
+#include <iostream>
+#include <sstream>
 #include <memory>
 #include <string>
-#include <fstream>  // NOLINT
+#include <fstream>
 #include <iterator>
 
 #include "boost/filesystem.hpp"
@@ -31,6 +32,7 @@
 #include "boost/system/error_code.hpp"
 
 #include "maidsafe/common/crypto.h"
+#include "maidsafe/common/error.h"
 #include "maidsafe/common/log.h"
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
@@ -42,26 +44,9 @@
 
 #ifdef MAIDSAFE_WIN32
 #include "maidsafe/drive/win_drive.h"
-
-BOOL CtrlHandler(DWORD control_type) {
-  switch (control_type) {
-    case CTRL_C_EVENT:
-    case CTRL_CLOSE_EVENT:
-    case CTRL_SHUTDOWN_EVENT:
-      exit(control_type);
-    default:
-      exit(0);
-  }
-}
-
 #else
 #include "maidsafe/drive/unix_drive.h"
 #endif
-
-#undef APPLICATION_NAME
-#undef COMPANY_NAME
-#define APPLICATION_NAME LocalDrive
-#define COMPANY_NAME MaidSafe
 
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
@@ -82,7 +67,7 @@ struct GetDrive {
 #endif
 
 int Mount(const fs::path &mount_dir, const fs::path &chunk_dir, const Identity& unique_id,
-          const Identity& parent_id, const std::string& drive_name) {
+          const Identity& parent_id, const fs::path& drive_name) {
   fs::path storage_path(chunk_dir / "local_store");
   DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
   auto storage(std::make_shared<maidsafe::data_store::LocalStore>(storage_path, disk_usage));
@@ -103,110 +88,212 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir, const Identity& 
 
 }  // namespace maidsafe
 
-std::string GetStringFromProgramOption(const std::string &option_name,
-                                       po::variables_map *variables_map) {
-  if (variables_map->count(option_name)) {
-    std::string option_string(variables_map->at(option_name).as<std::string>());
+const std::string kConfigFile("maidsafe_local_drive.conf");
+std::string g_error_message;
+int g_return_code(0);
+
+std::string GetStringFromProgramOption(const std::string& option_name,
+                                       const po::variables_map& variables_map) {
+  if (variables_map.count(option_name)) {
+    std::string option_string(variables_map.at(option_name).as<std::string>());
     LOG(kInfo) << option_name << " set to " << option_string;
     return option_string;
   } else {
-    LOG(kWarning) << "You must set the " << option_name << " option to a string.";
-    return std::string();
+    return "";
   }
 }
 
-int main(int argc, char *argv[]) {
+po::options_description VisibleOptions() {
+  po::options_description options("LocalDrive options");
+  options.add_options()
+#ifdef MAIDSAFE_WIN32
+      ("mount_dir,D", po::value<std::string>(), " virtual drive letter (required)")
+#else
+      ("mount_dir,D", po::value<std::string>(), " virtual drive mount point (required)")
+#endif
+      ("chunk_dir,C", po::value<std::string>(), " directory to store chunks (required)")
+      ("unique_id,U", po::value<std::string>(), " unique identifier (required)")
+      ("parent_id,R", po::value<std::string>(), " root parent directory identifier (required)")
+      ("drive_name,N", po::value<std::string>(), " virtual drive name")
+      ("check_data,Z", " check all data in chunkstore");
+  return options;
+}
+
+po::options_description HiddenOptions() {
+  po::options_description options("Hidden options");
+  options.add_options()
+      ("help,h", "help message")
+      ("shared_memory,S", po::value<std::string>(), "shared memory name (IPC)");
+  return options;
+}
+
+po::variables_map ParseAllOptions(int argc, char* argv[],
+                                  const po::options_description& command_line_options,
+                                  const po::options_description& config_file_options) {
+  po::variables_map variables_map;
+  try {
+    // Parse command line
+    po::store(po::command_line_parser(argc, argv).options(command_line_options).
+                  allow_unregistered().run(), variables_map);
+    po::notify(variables_map);
+
+    // Try to open local or main config files
+    std::ifstream local_config_file(kConfigFile.c_str());
+    fs::path main_config_path(fs::path(maidsafe::GetUserAppDir() / kConfigFile));
+    std::ifstream main_config_file(main_config_path.string().c_str());
+
+    // Try local first for testing
+    if (local_config_file) {
+      std::cout << "Using local config file \"./" << kConfigFile << "\"";
+      po::store(parse_config_file(local_config_file, config_file_options), variables_map);
+      po::notify(variables_map);
+    } else if (main_config_file) {
+      std::cout << "Using main config file \"" << main_config_path << "\"\n";
+      po::store(parse_config_file(main_config_file, config_file_options), variables_map);
+      po::notify(variables_map);
+    }
+  }
+  catch (const std::exception& e) {
+    g_error_message = "Fatal error:\n  " + std::string(e.what()) +
+                      "\nRun with -h to see all options.\n\n";
+    g_return_code = 32;
+    maidsafe::ThrowError(maidsafe::CommonErrors::invalid_parameter);
+  }
+  return variables_map;
+}
+
+void HandleHelp(const po::variables_map& variables_map) {
+  if (variables_map.count("help")) {
+    std::ostringstream stream;
+    stream << VisibleOptions() << "\nThese can also be set via a config file at \"./"
+           << kConfigFile << "\" or at " << fs::path(maidsafe::GetUserAppDir() / kConfigFile)
+           << "\n\n";
+    g_error_message = stream.str();
+    g_return_code = 0;
+    throw maidsafe::MakeError(maidsafe::CommonErrors::success);
+  }
+}
+
+struct Options {
+  Options()
+      : mount_dir(), chunk_store(), drive_name(), unique_id(), parent_id(), check_data(false) {}
+  fs::path mount_dir, chunk_store, drive_name;
+  maidsafe::Identity unique_id, parent_id;
+  bool check_data;
+};
+
+bool GetFromIpc(const po::variables_map& variables_map, Options& options) {
+  if (variables_map.count("shared_memory")) {
+    std::string shared_memory_name(variables_map.at("shared_memory").as<std::string>());
+    auto vec_strings = maidsafe::ipc::ReadSharedMemory(shared_memory_name.c_str(), 5);
+    options.mount_dir = vec_strings.at(1);
+    options.chunk_store = vec_strings.at(2);
+    if (!vec_strings.at(3).empty())
+      options.unique_id = maidsafe::Identity(vec_strings.at(3));
+    if (!vec_strings.at(4).empty())
+      options.parent_id = maidsafe::Identity(vec_strings.at(4));
+    return true;
+  }
+  return false;
+}
+
+void GetFromProgramOptions(const po::variables_map& variables_map, Options& options) {
+  options.mount_dir = GetStringFromProgramOption("mount_dir", variables_map);
+  options.chunk_store = GetStringFromProgramOption("chunk_dir", variables_map);
+  auto unique_id(GetStringFromProgramOption("unique_id", variables_map));
+  if (!unique_id.empty())
+    options.unique_id = maidsafe::Identity(unique_id);
+  auto parent_id(GetStringFromProgramOption("parent_id", variables_map));
+  if (!parent_id.empty())
+    options.parent_id = maidsafe::Identity(parent_id);
+  options.drive_name = GetStringFromProgramOption("drive_name", variables_map);
+}
+
+void ValidateOptions(const Options& options) {
+  std::string error_message;
+  g_return_code = 0;
+  if (options.mount_dir.empty()) {
+    error_message += "  mount_dir must be set\n";
+    ++g_return_code;
+  }
+  if (options.chunk_store.empty()) {
+    error_message += "  chunk_store must be set\n";
+    g_return_code += 2;
+  }
+  if (!options.unique_id.IsInitialised()) {
+    error_message += "  unique_id must be set to a 64 character string\n";
+    g_return_code += 4;
+  }
+  if (!options.parent_id.IsInitialised()) {
+    error_message += "  parent_id must be set to a 64 character string\n";
+    g_return_code += 8;
+  }
+
+  if (g_return_code) {
+    g_error_message = "Fatal error:\n" + error_message + "\nRun with -h to see all options.\n\n";
+    maidsafe::ThrowError(maidsafe::CommonErrors::invalid_parameter);
+  }
+}
+
+#ifdef MAIDSAFE_WIN32
+
+BOOL CtrlHandler(DWORD control_type) {
+  switch (control_type) {
+    case CTRL_C_EVENT:
+    case CTRL_CLOSE_EVENT:
+    case CTRL_SHUTDOWN_EVENT:
+      exit(control_type);
+    default:
+      exit(0);
+  }
+}
+
+void SetSignalHandler() {
+  if (!SetConsoleCtrlHandler(reinterpret_cast<PHANDLER_ROUTINE>(CtrlHandler), TRUE)) {
+    g_error_message = "Failed to set control handler.\n\n";
+    g_return_code = 16;
+    maidsafe::ThrowError(maidsafe::CommonErrors::unknown);
+  }
+}
+
+#else
+
+void SetSignalHandler() {}
+
+#endif
+
+int main(int argc, char* argv[]) {
   maidsafe::log::Logging::Instance().Initialise(argc, argv);
   boost::system::error_code error_code;
   try {
-    std::string help_text("Please note that SharedMemory is a stand alone option.\n");
-    help_text += "Setting any other option requires all options for your system must be set \n";
-    help_text += "with the exception of ShareMemory of course. The config file obeys the same rules.\n";
-    po::options_description options_description(help_text);
-    options_description.add_options()
-        ("help,h", "print this help message")
-        ("sharedmemory,S", po::value<std::string>(), "set Shared Memory Name (ipc)")
-        ("mountdir,D", po::value<std::string>(), "set virtual drive mount point")
-        ("chunkdir,C", po::value<std::string>(), "set directory to store chunks")
-        ("uniqueid,U", po::value<std::string>(), "set unique identifier")
-        ("parentid,R", po::value<std::string>(), "set root parent directory identifier")
-        ("drivename,N", po::value<std::string>(), "set virtual drive name")
-        ("checkdata,z", "check all data in chunkstore");
+    // Set up command line options and config file options
+    auto visible_options(VisibleOptions());
+    po::options_description command_line_options, config_file_options;
+    command_line_options.add(visible_options).add(HiddenOptions());
+    config_file_options.add(visible_options);
 
-    po::variables_map variables_map;
-    po::store(po::command_line_parser(argc, argv).options(options_description).allow_unregistered().
-                                                  run(), variables_map);
-    po::notify(variables_map);
+    // Read in options
+    auto variables_map(ParseAllOptions(argc, argv, command_line_options, config_file_options));
+    HandleHelp(variables_map);
+    Options options;
+    if (!GetFromIpc(variables_map, options))
+      GetFromProgramOptions(variables_map, options);
 
-    if (variables_map.count("help")) {
-      std::cout << options_description << '\n';
-      return 0;
-    }
-#ifdef MAIDSAFE_WIN32
-      if (!SetConsoleCtrlHandler(reinterpret_cast<PHANDLER_ROUTINE>(CtrlHandler), TRUE)) {
-        LOG(kError) << "Failed to set control handler.";
-        return 1;
-      }
-#endif
-    std::string mount_dir, chunk_store, product_id, unique_id, parent_id_str, drive_name;
-
-    if (variables_map.count("sharedmemory")) {
-      std::string shared_memory_name = GetStringFromProgramOption("sharedmemory", &variables_map);
-      auto shared_strings = maidsafe::ipc::ReadSharedMemory(shared_memory_name, 5);
-
-      mount_dir = shared_strings.at(0);
-      chunk_store = shared_strings.at(1);
-      unique_id = shared_strings.at(2);
-      parent_id_str = shared_strings.at(3);
-      drive_name = shared_strings.at(4);
-    } else {
-      // set up options for config file
-      po::options_description config_file_options;
-      config_file_options.add(options_description);
-
-      // try open some config options
-      std::ifstream local_config_file("maidsafe_drive.conf");
-      fs::path main_config_path(fs::path(maidsafe::GetUserAppDir() / "maidsafe_drive.conf"));
-      std::ifstream main_config_file(main_config_path.string().c_str());
-
-      // try local first for testing
-      if (local_config_file) {
-        std::cout << "Using local config file \"maidsafe_drive.conf\"";
-        po::store(parse_config_file(local_config_file, config_file_options), variables_map);
-        notify(variables_map);
-      } else if (main_config_file) {
-        std::cout << "Using main config file " << main_config_path;
-        po::store(parse_config_file(main_config_file, config_file_options), variables_map);
-        notify(variables_map);
-      } else {
-        std::cout << "No configuration file found at " << main_config_path;
-      }
-
-      mount_dir = GetStringFromProgramOption("mountdir", &variables_map);
-      chunk_store = GetStringFromProgramOption("chunkdir", &variables_map);
-      unique_id = GetStringFromProgramOption("uniqueid", &variables_map);
-      parent_id_str = GetStringFromProgramOption("parentid", &variables_map);
-      drive_name = GetStringFromProgramOption("drivename", &variables_map);
-    }
-
-    if (mount_dir.empty() || chunk_store.empty() || unique_id.empty() || drive_name.empty()) {
-      LOG(kWarning) << options_description;
-      return 1;
-    }
-
-    maidsafe::Identity parent_id;
-    if (!parent_id_str.empty())
-      parent_id = maidsafe::Identity(parent_id_str);
-
-    return maidsafe::drive::Mount(fs::path(mount_dir), fs::path(chunk_store),
-                                  maidsafe::Identity(unique_id), parent_id, drive_name);
+    // Validate options and run the Drive
+    ValidateOptions(options);
+    SetSignalHandler();
+    return maidsafe::drive::Mount(options.mount_dir, options.chunk_store, options.unique_id,
+                                  options.parent_id, options.drive_name);
   }
   catch (const std::exception& e) {
+    if (!g_error_message.empty()) {
+      std::cout << g_error_message;
+      return g_return_code;
+    }
     LOG(kError) << "Exception: " << e.what();
-    return 1;
   }
   catch (...) {
     LOG(kError) << "Exception of unknown type!";
   }
-  return 0;
+  return 64;
 }

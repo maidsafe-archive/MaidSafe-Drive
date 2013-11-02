@@ -16,6 +16,11 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
+
+#ifndef MAIDSAFE_WIN32
+#include <signal.h>
+#endif
+
 #include <algorithm>
 #include <cstdio>
 #include <cstdint>
@@ -209,7 +214,7 @@ void RemoveTempDirectory() {
   }
   if (error_code.value() != 0) {
     LOG(kWarning) << "Error removing " << maidsafe::test::temp_ << "  " << error_code.message();
-  }else {
+  } else {
     LOG(kInfo) << "Removed " << maidsafe::test::temp_ << "  " << error_code.message();
   }
 }
@@ -231,9 +236,9 @@ void RemoveChunkStore() {
     LOG(kWarning) << "Failed to remove chunk_store" << maidsafe::test::chunk_store_;
   }
   if (error_code.value() != 0) {
-    LOG(kWarning) << "Error removing " << maidsafe::test::chunk_store_ << "  " 
+    LOG(kWarning) << "Error removing " << maidsafe::test::chunk_store_ << "  "
                                        << error_code.message();
-  }else {
+  } else {
     LOG(kInfo) << "Removed " << maidsafe::test::chunk_store_ << "  " << error_code.message();
   }
 }
@@ -717,15 +722,15 @@ int main(int argc, char** argv) {
   auto unused_options(maidsafe::log::Logging::Instance().Initialise(argc, argv));
   auto tests_result(0);
   // Handle passing path to test root via command line
-  
-  po::options_description filesystem_options("Filesystem Test Options /n Only a single option will be performed per test run");
-  
+  po::options_description filesystem_options(
+      "Filesystem Test Options /n Only a single option will be performed per test run");
+
   filesystem_options.add_options()("help,h", "Show help message.")
                                   ("disk,d", "Perform all tests on native hard disk")
                                   ("local,l", "Perform all tests on local vfs ")
                                   ("network,n", "Perform all tests on network vfs ");
-  po::parsed_options parsed(
-      po::command_line_parser(unused_options).options(filesystem_options).allow_unregistered().run());
+  po::parsed_options parsed(po::command_line_parser(unused_options).options(filesystem_options).
+                            allow_unregistered().run());
 
   po::variables_map variables_map;
   po::store(parsed, variables_map);
@@ -761,7 +766,7 @@ int main(int argc, char** argv) {
     shm_args.push_back(maidsafe::test::root_parent_);
     shm_args.push_back(maidsafe::test::drive_name_);
     maidsafe::ipc::CreateSharedMemory(maidsafe::test::shm_name_, shm_args);
-     // Set up boost::process args 
+    // Set up boost::process args
     std::vector<std::string> process_args;
     const auto kExePath(maidsafe::process::GetLocalDriveLocation());
     process_args.push_back(kExePath);
@@ -786,7 +791,7 @@ int main(int argc, char** argv) {
   tests_result = maidsafe::test::RunCatch(argc, argv);
   } else if (variables_map.count("network")) {
   }
-  
+
   maidsafe::test::RemoveRootDirectory();
   maidsafe::test::RemoveTempDirectory();
   if (fs::exists(maidsafe::test::chunk_store_))
@@ -799,10 +804,9 @@ int main(int argc, char** argv) {
 #else
 std::cout << "pid set at " << maidsafe::test::child_pid_  << "/n";
   if (maidsafe::test::child_pid_ != 0) {
-#include "signal.h"
 //    kill(maidsafe::test::child_pid_, SIGKILL);
   }
 #endif
-  
+
   return tests_result;
 }

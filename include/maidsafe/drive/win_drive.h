@@ -294,7 +294,8 @@ void CbfsDrive<Storage>::NotifyRename(const boost::filesystem::path& from_relati
 }
 
 template <typename Storage>
-void CbfsDrive<Storage>::NotifyDirectoryChange(const boost::filesystem::path& relative_path, OpType op) const {
+void CbfsDrive<Storage>::NotifyDirectoryChange(const boost::filesystem::path& relative_path,
+                                               OpType op) const {
   BOOL success(FALSE);
   switch (op) {
     case OpType::kRemoved: {
@@ -745,7 +746,8 @@ void CbfsDrive<Storage>::CbFsCloseDirectoryEnumeration(
     CbFsDirectoryEnumerationInfo* directory_enumeration_info) {
   SCOPED_PROFILE
   auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, directory_info));
+  boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive,
+                                                                         directory_info));
   LOG(kInfo) << "CbFsCloseEnumeration - " << relative_path;
   if (directory_enumeration_info) {
     auto enum_context = static_cast<detail::DirectoryEnumerationContext*>(
@@ -840,7 +842,7 @@ void CbfsDrive<Storage>::CbFsCanFileBeDeleted(CallbackFileSystem* /*sender*/,
   SCOPED_PROFILE
   // auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
   // boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
-  LOG(kInfo) << "CbFsCanFileBeDeleted - "; //  << relative_path;
+  LOG(kInfo) << "CbFsCanFileBeDeleted - ";  //  << relative_path;
   *can_be_deleted = true;
 }
 
@@ -863,8 +865,9 @@ void CbfsDrive<Storage>::CbFsRenameOrMoveFile(CallbackFileSystem* sender, CbFsFi
                                               LPCTSTR new_file_name) {
   SCOPED_PROFILE
   auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  boost::filesystem::path old_relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info)),
-           new_relative_path(new_file_name);
+  boost::filesystem::path old_relative_path(detail::GetRelativePath<Storage>(cbfs_drive,
+                                                                             file_info));
+  boost::filesystem::path new_relative_path(new_file_name);
   LOG(kInfo) << "CbFsRenameOrMoveFile - " << old_relative_path << " to " << new_relative_path;
   FileContext file_context;
   try {

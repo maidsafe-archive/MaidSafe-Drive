@@ -106,7 +106,6 @@ class Drive {
   virtual void SetNewAttributes(FileContextPtr file_context, bool is_directory,
                                 bool read_only) = 0;
   std::string ReadDataMap(const boost::filesystem::path& relative_path);
-
 };
 
 #ifdef MAIDSAFE_WIN32

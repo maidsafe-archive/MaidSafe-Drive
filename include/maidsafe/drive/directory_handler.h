@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <functional>
 #include <limits>
+#include <map>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -188,7 +189,7 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
 template <typename Storage>
 Directory DirectoryHandler<Storage>::Get(const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
-  {
+  {  // NOLINT
     std::lock_guard<std::mutex> lock(cache_mutex_);
     auto itr(cache_.find(relative_path));
     if (itr != std::end(cache_))

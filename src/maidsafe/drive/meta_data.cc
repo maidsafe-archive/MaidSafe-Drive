@@ -150,7 +150,7 @@ MetaData::MetaData(const fs::path& name, bool is_directory)
 
   if (is_directory) {
     attributes.st_mode = (0755 | S_IFDIR);
-    attributes.st_size = 4096; // #BEFORE_RELEASE detail::kDirectorySize;
+    attributes.st_size = 4096;  // #BEFORE_RELEASE detail::kDirectorySize;
   }
 }
 #endif

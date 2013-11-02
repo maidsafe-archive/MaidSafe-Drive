@@ -365,9 +365,9 @@ int FuseDrive<Storage>::OpsCreate(const char* path, mode_t mode,
   file_context->meta_data->attributes.st_gid = fuse_get_context()->gid;
 
   try {
-    Global<Storage>::g_fuse_drive->Add(full_path, *file_context/*->meta_data.get()*/);/*,
-                                           file_context->grandparent_directory_id,
-                                           file_context->parent_directory_id);*/
+    Global<Storage>::g_fuse_drive->Add(full_path, *file_context);
+        // ->meta_data.get(), file_context->grandparent_directory_id,
+        // file_context->parent_directory_id);
   }
   catch (...) {
     LOG(kError) << "OpsCreate: " << path << ", failed to AddNewMetaData.  ";
@@ -411,7 +411,7 @@ int FuseDrive<Storage>::OpsFlush(const char* path, struct fuse_file_info* file_i
     LOG(kError) << "OpsFlush: " << path << ", failed find filecontext for " << path;
     return -EINVAL;
   }
-//TODO (dirvine)
+// TODO(dirvine)
   // if (!detail::ForceFlush(Global<Storage>::g_fuse_drive->root_handler_, file_context)) {
   //   LOG(kError) << "OpsFlush: " << path << ", failed to update";
   //   return -EBADF;
@@ -491,7 +491,6 @@ int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t rdev) {
 
   try {
     Global<Storage>::g_fuse_drive->Add(full_path, file_context);
-
   }  catch (...) {
     LOG(kError) << "OpsMknod: " << path << ", failed to AddNewMetaData.  ";
     return -EIO;
@@ -530,7 +529,7 @@ int FuseDrive<Storage>::OpsOpen(const char* path, struct fuse_file_info* file_in
   }
 
   assert(file_context->self_encryptor);
-  if(!file_context->self_encryptor)
+  if (!file_context->self_encryptor)
     return -ENOENT;
 
   detail::SetFileContext(file_info, file_context.get());
@@ -731,7 +730,7 @@ int FuseDrive<Storage>::OpsWrite(const char* path, const char* buf, size_t size,
 
 
   assert(file_context->self_encryptor);
-  if(!file_context->self_encryptor)
+  if (!file_context->self_encryptor)
     return -ENOENT;
 
 
@@ -915,7 +914,6 @@ int FuseDrive<Storage>::OpsGetattr(const char* path, struct stat* stbuf) {
 //    LOG(kInfo) << "     st_atim = " << file_context.meta_data->attributes.st_atime;
 //    LOG(kInfo) << "     st_mtim = " << file_context.meta_data->attributes.st_mtime;
 //    LOG(kInfo) << "     st_ctim = " << file_context.meta_data->attributes.st_ctime;
-
   }
   catch (...) {
     if (full_path.filename().string().size() > 255) {
