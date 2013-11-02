@@ -135,7 +135,7 @@ int main(int argc, char *argv[]) {
 
     po::variables_map variables_map;
     po::store(po::command_line_parser(argc, argv).options(options_description).allow_unregistered().
-                                                 run(), variables_map);
+                                                  run(), variables_map);
     po::notify(variables_map);
 
     if (variables_map.count("help")) {
@@ -148,8 +148,7 @@ int main(int argc, char *argv[]) {
         return 1;
       }
 #endif
-    std::string shared_memory_name, mount_dir, chunk_store, product_id, unique_id, parent_id_str,
-                drive_name;
+    std::string mount_dir, chunk_store, product_id, unique_id, parent_id_str, drive_name;
 
     if (variables_map.count("sharedmemory")) {
       std::string shared_memory_name = GetStringFromProgramOption("sharedmemory", &variables_map);
@@ -160,11 +159,6 @@ int main(int argc, char *argv[]) {
       unique_id = shared_strings.at(2);
       parent_id_str = shared_strings.at(3);
       drive_name = shared_strings.at(4);
-
-      if (mount_dir.empty() || chunk_store.empty() || unique_id.empty() || drive_name.empty()) {
-        LOG(kWarning) << options_description;
-        return 1;
-      }
     } else {
       // set up options for config file
       po::options_description config_file_options;
@@ -178,11 +172,11 @@ int main(int argc, char *argv[]) {
       // try local first for testing
       if (local_config_file) {
         std::cout << "Using local config file \"maidsafe_drive.conf\"";
-        store(parse_config_file(local_config_file, config_file_options), variables_map);
+        po::store(parse_config_file(local_config_file, config_file_options), variables_map);
         notify(variables_map);
       } else if (main_config_file) {
         std::cout << "Using main config file " << main_config_path;
-        store(parse_config_file(main_config_file, config_file_options), variables_map);
+        po::store(parse_config_file(main_config_file, config_file_options), variables_map);
         notify(variables_map);
       } else {
         std::cout << "No configuration file found at " << main_config_path;
@@ -193,11 +187,11 @@ int main(int argc, char *argv[]) {
       unique_id = GetStringFromProgramOption("uniqueid", &variables_map);
       parent_id_str = GetStringFromProgramOption("parentid", &variables_map);
       drive_name = GetStringFromProgramOption("drivename", &variables_map);
+    }
 
-      if (mount_dir.empty() || chunk_store.empty() || unique_id.empty() || drive_name.empty()) {
-        LOG(kWarning) << options_description;
-        return 1;
-      }
+    if (mount_dir.empty() || chunk_store.empty() || unique_id.empty() || drive_name.empty()) {
+      LOG(kWarning) << options_description;
+      return 1;
     }
 
     maidsafe::Identity parent_id;
