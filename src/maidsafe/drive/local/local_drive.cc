@@ -192,7 +192,7 @@ bool GetFromIpc(const po::variables_map& variables_map, Options& options) {
     options.unique_id = maidsafe::Identity(vec_strings[2]);
     options.parent_id = maidsafe::Identity(vec_strings[3]);
     options.drive_name = vec_strings[4];
-    options.create = static_cast<bool>(std::stoi(vec_strings[5]));
+    options.create = (std::stoi(vec_strings[5]) != 0);
     return true;
   }
   return false;
@@ -208,7 +208,7 @@ void GetFromProgramOptions(const po::variables_map& variables_map, Options& opti
   if (!parent_id.empty())
     options.parent_id = maidsafe::Identity(parent_id);
   options.drive_name = GetStringFromProgramOption("drive_name", variables_map);
-  options.create = variables_map.count("create");
+  options.create = (variables_map.count("create") != 0);
 }
 
 void ValidateOptions(const Options& options) {

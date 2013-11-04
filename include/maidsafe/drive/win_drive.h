@@ -203,8 +203,8 @@ template <typename Storage>
 CbfsDrive<Storage>::CbfsDrive(StoragePtr storage, const Identity& unique_user_id,
                               const Identity& root_parent_id,
                               const boost::filesystem::path& mount_dir,
-                              const boost::filesystem::path& drive_name)
-    : Drive<Storage>(storage, unique_user_id, root_parent_id, mount_dir),
+                              const boost::filesystem::path& drive_name, bool create)
+    : Drive<Storage>(storage, unique_user_id, root_parent_id, mount_dir, create),
       callback_filesystem_(),
       guid_(BOOST_PP_STRINGIZE(CBFS_GUID)),
       icon_id_(L"MaidSafeDriveIcon"),
