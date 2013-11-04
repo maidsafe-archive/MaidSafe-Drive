@@ -176,24 +176,23 @@ void HandleHelp(const po::variables_map& variables_map) {
 }
 
 struct Options {
-  Options()
-      : mount_dir(), chunk_store(), drive_name(), unique_id(), parent_id(), check_data(false), create() {}
+  Options() : mount_dir(), chunk_store(), drive_name(), unique_id(), parent_id(), create(false),
+              check_data(false) {}
   fs::path mount_dir, chunk_store, drive_name;
   maidsafe::Identity unique_id, parent_id;
-  bool check_data;
-  bool create;
+  bool create, check_data;
 };
 
 bool GetFromIpc(const po::variables_map& variables_map, Options& options) {
   if (variables_map.count("shared_memory")) {
     std::string shared_memory_name(variables_map.at("shared_memory").as<std::string>());
-    auto vec_strings = maidsafe::ipc::ReadSharedMemory(shared_memory_name.c_str(), 5);
-    options.mount_dir = vec_strings.at(1);
-    options.chunk_store = vec_strings.at(2);
-    if (!vec_strings.at(3).empty())
-      options.unique_id = maidsafe::Identity(vec_strings.at(3));
-    if (!vec_strings.at(4).empty())
-      options.parent_id = maidsafe::Identity(vec_strings.at(4));
+    auto vec_strings = maidsafe::ipc::ReadSharedMemory(shared_memory_name.c_str(), 6);
+    options.mount_dir = vec_strings[0];
+    options.chunk_store = vec_strings[1];
+    options.unique_id = maidsafe::Identity(vec_strings[2]);
+    options.parent_id = maidsafe::Identity(vec_strings[3]);
+    options.drive_name = vec_strings[4];
+    options.create = static_cast<bool>(std::stoi(vec_strings[5]));
     return true;
   }
   return false;
@@ -209,6 +208,7 @@ void GetFromProgramOptions(const po::variables_map& variables_map, Options& opti
   if (!parent_id.empty())
     options.parent_id = maidsafe::Identity(parent_id);
   options.drive_name = GetStringFromProgramOption("drive_name", variables_map);
+  options.create = variables_map.count("create");
 }
 
 void ValidateOptions(const Options& options) {
@@ -284,9 +284,8 @@ int main(int argc, char* argv[]) {
     // Validate options and run the Drive
     ValidateOptions(options);
     SetSignalHandler();
-    bool create((options.create) ? true : false);
     return maidsafe::drive::Mount(options.mount_dir, options.chunk_store, options.unique_id,
-                                  options.parent_id, options.drive_name, create);
+                                  options.parent_id, options.drive_name, options.create);
   }
   catch (const std::exception& e) {
     if (!g_error_message.empty()) {

@@ -68,10 +68,10 @@ namespace maidsafe {
 
 namespace test {
 
-// namespace {
+namespace {
 
-fs::path root_, temp_, chunk_store_;
-std::string root_parent_, user_id_, drive_name_, shm_name_;
+fs::path root_, temp_, storage_path_;
+std::string unique_id_, root_parent_id_, drive_name_, shared_memory_name_;
 std::function<void()> child_;
 #ifdef MAIDSAFE_WIN32
 HANDLE child_handle_;
@@ -197,81 +197,72 @@ fs::path CreateDirectoryContainingFiles(const fs::path& parent) {
 }
 
 bool SetUpTempDirectory() {
-    maidsafe::test::temp_ =
-        fs::unique_path(fs::temp_directory_path() / "MaidSafe_Test_Filesystem_%%%%-%%%%-%%%%");
-    if (!fs::create_directories(maidsafe::test::temp_)) {
-      LOG(kWarning) << "Failed to create test directory " << maidsafe::test::temp_;
-      return false;
-    }
-    LOG(kInfo) << "Created test directory " << maidsafe::test::temp_;
-    return true;
+  boost::system::error_code error_code;
+  temp_ = fs::unique_path(fs::temp_directory_path() / "MaidSafe_Test_Filesystem_%%%%-%%%%-%%%%");
+  if (!fs::create_directories(temp_, error_code) || error_code) {
+    LOG(kWarning) << "Failed to create temp directory " << temp_ << ": " << error_code.message();
+    return false;
+  }
+  LOG(kInfo) << "Created temp directory " << temp_;
+  return true;
 }
 
 void RemoveTempDirectory() {
   boost::system::error_code error_code;
-  if (fs::remove_all(maidsafe::test::temp_, error_code) == 0) {
-    LOG(kWarning) << "Failed to remove " << maidsafe::test::temp_;
-  }
-  if (error_code.value() != 0) {
-    LOG(kWarning) << "Error removing " << maidsafe::test::temp_ << "  " << error_code.message();
-  } else {
-    LOG(kInfo) << "Removed " << maidsafe::test::temp_ << "  " << error_code.message();
-  }
+  if (fs::remove_all(temp_, error_code) == 0 || error_code)
+    LOG(kWarning) << "Failed to remove temp_ " << temp_ << ": " << error_code.message();
+  else
+    LOG(kInfo) << "Removed " << temp_;
 }
 
-bool SetUpChunkStore() {
-    maidsafe::test::chunk_store_ =
-        fs::unique_path(fs::temp_directory_path() / "MaidSafe_Test_ChunkStore%%%%-%%%%-%%%%");
-    if (!fs::create_directories(maidsafe::test::chunk_store_)) {
-      LOG(kWarning) << "Failed to create chunk_store_ directory " << maidsafe::test::chunk_store_;
-      return false;
-    }
-    LOG(kInfo) << "Created chunk_store directory " << maidsafe::test::chunk_store_;
-    return true;
-}
-
-void RemoveChunkStore() {
+bool SetUpStorageDirectory() {
   boost::system::error_code error_code;
-  if (fs::remove_all(maidsafe::test::chunk_store_, error_code) == 0) {
-    LOG(kWarning) << "Failed to remove chunk_store" << maidsafe::test::chunk_store_;
+  storage_path_ =
+      fs::unique_path(fs::temp_directory_path() / "MaidSafe_Test_ChunkStore%%%%-%%%%-%%%%");
+  if (!fs::create_directories(storage_path_, error_code) || error_code) {
+    LOG(kWarning) << "Failed to create storage_path_ " << storage_path_ << ": "
+                  << error_code.message();
+    return false;
   }
-  if (error_code.value() != 0) {
-    LOG(kWarning) << "Error removing " << maidsafe::test::chunk_store_ << "  "
-                                       << error_code.message();
+  LOG(kInfo) << "Created storage_path_ " << storage_path_;
+  return true;
+}
+
+void RemoveStorageDirectory() {
+  boost::system::error_code error_code;
+  if (fs::remove_all(storage_path_, error_code) == 0 || error_code) {
+    LOG(kWarning) << "Failed to remove storage_path_ " << storage_path_ << ": "
+                  << error_code.message();
   } else {
-    LOG(kInfo) << "Removed " << maidsafe::test::chunk_store_ << "  " << error_code.message();
+    LOG(kInfo) << "Removed " << storage_path_;
   }
 }
 
 bool SetUpRootDirectory(fs::path base_dir) {
 #ifdef MAIDSAFE_WIN32
   static_cast<void>(base_dir);
-  maidsafe::test::root_ = drive::GetNextAvailableDrivePath();
+  root_ = drive::GetNextAvailableDrivePath();
 #else
-  maidsafe::test::root_ =
-     fs::unique_path(base_dir / "MaidSafe_Root_Filesystem_%%%%-%%%%-%%%%");
-  if (!fs::create_directories(maidsafe::test::root_)) {
-    LOG(kWarning) << "Failed to create root directory " << maidsafe::test::root_;
+  root_ = fs::unique_path(base_dir / "MaidSafe_Root_Filesystem_%%%%-%%%%-%%%%");
+  boost::system::error_code error_code;
+  if (!fs::create_directories(root_, error_code)) {
+    LOG(kWarning) << "Failed to create root directory " << root_ << ": " << error_code.message();
     return false;
   }
 #endif
-  LOG(kInfo) << "Created test directory " << maidsafe::test::root_;
+  LOG(kInfo) << "Created root directory " << root_;
   return true;
 }
 
 void RemoveRootDirectory() {
   boost::system::error_code error_code;
-  if (fs::remove_all(maidsafe::test::root_, error_code) == 0) {
-    LOG(kWarning) << "Failed to remove root directory " << maidsafe::test::root_;
-  }
-  if (error_code.value() != 0) {
-    LOG(kWarning) << "Error removing " << maidsafe::test::root_ << "  " << error_code.message();
-  } else {
-    LOG(kInfo) << "Removed " << maidsafe::test::root_ << "  " << error_code.message();
-  }
+  if (fs::remove_all(root_, error_code) == 0 || error_code)
+    LOG(kWarning) << "Failed to remove root directory " << root_ << ": " << error_code.message();
+  else
+    LOG(kInfo) << "Removed " << root_;
 }
 
-// }  // unnamed namespace
+}  // unnamed namespace
 
 TEST_CASE("Create empty file", "[Filesystem]") {
   on_scope_exit cleanup(clean_root);
@@ -749,29 +740,38 @@ int main(int argc, char** argv) {
     std::strcpy(argv[position], "--help");  // NOLINT
     return 0;
   } else if (variables_map.count("disk")) {
-    maidsafe::test::SetUpRootDirectory(fs::unique_path(fs::temp_directory_path()));
-    maidsafe::test::SetUpTempDirectory();
+    if (!maidsafe::test::SetUpRootDirectory(fs::temp_directory_path()))
+      return -1;
+    if (!maidsafe::test::SetUpTempDirectory())
+      return -2;
     tests_result = maidsafe::test::RunCatch(argc, argv);
   } else if (variables_map.count("local")) {
-    maidsafe::test::shm_name_ = maidsafe::RandomAlphaNumericString(32);
-    maidsafe::test::user_id_ = maidsafe::RandomAlphaNumericString(64);
+    maidsafe::test::shared_memory_name_ = maidsafe::RandomAlphaNumericString(32);
+    maidsafe::test::unique_id_ = maidsafe::RandomString(64);
+    maidsafe::test::root_parent_id_ = maidsafe::RandomString(64);
     maidsafe::test::drive_name_ = maidsafe::RandomAlphaNumericString(10);
-    std::vector<std::string> shm_args;
-    maidsafe::test::SetUpRootDirectory(fs::unique_path(fs::path(maidsafe::GetHomeDir())));
-    maidsafe::test::SetUpTempDirectory();
-    maidsafe::test::SetUpChunkStore();
-    shm_args.push_back(maidsafe::test::root_.string());
-    shm_args.push_back(maidsafe::test::chunk_store_.string());
-    shm_args.push_back(maidsafe::test::user_id_);
-    shm_args.push_back(maidsafe::test::root_parent_);
-    shm_args.push_back(maidsafe::test::drive_name_);
-    maidsafe::ipc::CreateSharedMemory(maidsafe::test::shm_name_, shm_args);
+    if (!maidsafe::test::SetUpRootDirectory(maidsafe::GetHomeDir()))
+      return -1;
+    if (!maidsafe::test::SetUpTempDirectory())
+      return -2;
+    if (!maidsafe::test::SetUpStorageDirectory())
+      return -3;
+
+    std::vector<std::string> shared_memory_args;
+    shared_memory_args.push_back(maidsafe::test::root_.string());
+    shared_memory_args.push_back(maidsafe::test::storage_path_.string());
+    shared_memory_args.push_back(maidsafe::test::unique_id_);
+    shared_memory_args.push_back(maidsafe::test::root_parent_id_);
+    shared_memory_args.push_back(maidsafe::test::drive_name_);
+    shared_memory_args.push_back("1");  // Create flag set to "true".
+    maidsafe::ipc::CreateSharedMemory(maidsafe::test::shared_memory_name_, shared_memory_args);
+
     // Set up boost::process args
     std::vector<std::string> process_args;
     const auto kExePath(maidsafe::process::GetLocalDriveLocation());
     process_args.push_back(kExePath);
-    std::string shm_opt("-S" +  maidsafe::test::shm_name_);
-    process_args.push_back(shm_opt);
+    std::string shared_memory_opt("--shared_memory " + maidsafe::test::shared_memory_name_);
+    process_args.push_back(shared_memory_opt);
     const auto kCommandLine(maidsafe::process::ConstructCommandLine(process_args));
     boost::system::error_code error_code;
 
@@ -779,7 +779,6 @@ int main(int argc, char** argv) {
                                             bp::initializers::set_cmd_line(kCommandLine),
                                             bp::initializers::set_on_error(error_code)));
 
-    // REQUIRE_FALSE(error_code);
     maidsafe::Sleep(std::chrono::seconds(3));
 
 #ifdef WIN32
@@ -788,25 +787,30 @@ int main(int argc, char** argv) {
 #else
     maidsafe::test::child_pid_ = child.pid;
 #endif
-  tests_result = maidsafe::test::RunCatch(argc, argv);
+    tests_result = maidsafe::test::RunCatch(argc, argv);
   } else if (variables_map.count("network")) {
   }
 
-  maidsafe::test::RemoveRootDirectory();
-  maidsafe::test::RemoveTempDirectory();
-  if (fs::exists(maidsafe::test::chunk_store_))
-    maidsafe::test::RemoveChunkStore();
 #ifdef MAIDSAFE_WIN32
   if (maidsafe::test::child_handle_ != 0) {
     DWORD pid(GetProcessId(maidsafe::test::child_handle_));
     GenerateConsoleCtrlEvent(CTRL_C_EVENT, pid);
   }
 #else
-std::cout << "pid set at " << maidsafe::test::child_pid_  << "/n";
-  if (maidsafe::test::child_pid_ != 0) {
-//    kill(maidsafe::test::child_pid_, SIGKILL);
+  assert(maidsafe::test::child_pid_);
+  int result(kill(maidsafe::test::child_pid_, SIGINT));
+  if (result) {
+    LOG(kError) << "Sending signal to drive process ID " << maidsafe::test::child_pid_
+                << " returned result " << result;
+  } else {
+    LOG(kInfo) << "Sending signal to drive process ID " << maidsafe::test::child_pid_
+               << " returned result " << result;
   }
 #endif
+  maidsafe::test::RemoveTempDirectory();
+  if (fs::exists(maidsafe::test::storage_path_))
+    maidsafe::test::RemoveStorageDirectory();
+  maidsafe::test::RemoveRootDirectory();
 
   return tests_result;
 }
