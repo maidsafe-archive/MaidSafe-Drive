@@ -44,9 +44,13 @@ message MetaData {
   repeated bytes notes = 5;
 }
 
+message MetaDataVersions {
+  repeated bytes serialised_meta_data = 1;
+}
+
 message DirectoryListing {
   message Child {
-    required bytes serialised_meta_data = 1;
+    required bytes serialised_meta_data_versions = 1;
   }
   required bytes directory_id = 1;
   repeated Child children = 2;

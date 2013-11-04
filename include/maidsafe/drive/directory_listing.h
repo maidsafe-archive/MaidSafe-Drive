@@ -82,7 +82,8 @@ class DirectoryListing {
   void SortAndResetChildrenIterator();
 
   DirectoryId directory_id_;
-  std::vector<MetaData> children_;
+  const uint32_t kMaxVersions_;
+  std::vector<std::deque<MetaData>> children_;
   size_t children_itr_position_;
 };
 

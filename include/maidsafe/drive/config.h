@@ -49,6 +49,7 @@ enum OpType : int32_t {
 extern const boost::filesystem::path kMsHidden;
 extern const boost::filesystem::path kRoot;
 
+extern const TaggedValue<uint32_t, struct MaxVersionsTag> kMaxFileVersions;
 
 }  // namespace detail
 }  // namespace drive
