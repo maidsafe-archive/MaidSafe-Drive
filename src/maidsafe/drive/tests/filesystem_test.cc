@@ -718,9 +718,9 @@ int main(int argc, char** argv) {
       "Filesystem Test Options /n Only a single option will be performed per test run");
 
   filesystem_options.add_options()("help,h", "Show help message.")
-                                  ("disk,d", "Perform all tests on native hard disk")
-                                  ("local,l", "Perform all tests on local vfs ")
-                                  ("network,n", "Perform all tests on network vfs ");
+                                  ("disk", "Perform all tests on native hard disk")
+                                  ("local", "Perform all tests on local vfs ")
+                                  ("network", "Perform all tests on network vfs ");
   po::parsed_options parsed(po::command_line_parser(unused_options).options(filesystem_options).
                             allow_unregistered().run());
 

@@ -428,12 +428,12 @@ void CbfsDrive<Storage>::OnCallbackFsInit() {
     callback_filesystem_.SetSerializeCallbacks(true);
     callback_filesystem_.SetFileCacheEnabled(false);
     callback_filesystem_.SetMetaDataCacheEnabled(false);
-    callback_filesystem_.SetStorageCharacteristics(
-        CallbackFileSystem::CbFsStorageCharacteristics(
-            CallbackFileSystem::scRemovableMedia |
-            CallbackFileSystem::scShowInEjectionTray |
-            CallbackFileSystem::scAllowEjection));
-    callback_filesystem_.SetStorageType(CallbackFileSystem::stDiskPnP);
+//    callback_filesystem_.SetStorageCharacteristics(
+//        CallbackFileSystem::CbFsStorageCharacteristics(
+//            CallbackFileSystem::scRemovableMedia |
+//            CallbackFileSystem::scShowInEjectionTray |
+//            CallbackFileSystem::scAllowEjection));
+//    callback_filesystem_.SetStorageType(CallbackFileSystem::stDiskPnP);
   }
   catch (const ECBFSError& error) {
     detail::ErrorMessage("OnCallbackFsInit", error);
