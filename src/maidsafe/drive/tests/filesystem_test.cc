@@ -256,7 +256,8 @@ bool SetUpRootDirectory(fs::path base_dir) {
 
 void RemoveRootDirectory() {
   boost::system::error_code error_code;
-  if (fs::remove_all(root_, error_code) == 0 || error_code)
+  fs::remove_all(root_, error_code);
+  if (error_code)
     LOG(kWarning) << "Failed to remove root directory " << root_ << ": " << error_code.message();
   else
     LOG(kInfo) << "Removed " << root_;
@@ -778,7 +779,6 @@ int main(int argc, char** argv) {
     bp::child child = bp::child(bp::execute(bp::initializers::run_exe(kExePath),
                                             bp::initializers::set_cmd_line(kCommandLine),
                                             bp::initializers::set_on_error(error_code)));
-
     maidsafe::Sleep(std::chrono::seconds(3));
 
 #ifdef WIN32
@@ -806,6 +806,7 @@ int main(int argc, char** argv) {
     LOG(kInfo) << "Sending signal to drive process ID " << maidsafe::test::child_pid_
                << " returned result " << result;
   }
+  maidsafe::Sleep(std::chrono::seconds(1));
 #endif
   maidsafe::test::RemoveTempDirectory();
   if (fs::exists(maidsafe::test::storage_path_))

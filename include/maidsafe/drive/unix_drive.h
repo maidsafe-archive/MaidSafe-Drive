@@ -196,8 +196,8 @@ FuseDrive<Storage>::FuseDrive(StoragePtr storage, const Identity& unique_user_id
       fuse_(nullptr),
       fuse_mountpoint_(mount_dir),
       drive_name_(drive_name.string()) {
-        fs::create_directory(mount_dir);
-        Init();
+  fs::create_directory(mount_dir);
+  Init();
 }
 
 template <typename Storage>
@@ -246,10 +246,8 @@ void FuseDrive<Storage>::Init() {
 #endif
 
   umask(0022);
-  Mount();
 }
 
-// TODO(Team): Consider using exceptions
 template <typename Storage>
 void FuseDrive<Storage>::Mount() {
   boost::system::error_code error_code;
@@ -265,13 +263,15 @@ void FuseDrive<Storage>::Mount() {
     ThrowError(DriveErrors::failed_to_mount);
   }
 
-  boost::shared_array<char*> opts(new char* [2]);
-  opts[0] = const_cast<char*>(drive_name_.c_str());
-  opts[1] = const_cast<char*>(Drive<Storage>::kMountDir_.c_str());
-  char* argv[2];
+  // boost::shared_array<char*> opts(new char* [2]);
+  // opts[0] = const_cast<char*>(drive_name_.c_str());
+  // opts[1] = const_cast<char*>(Drive<Storage>::kMountDir_.c_str());
+  char* argv[4];
   argv[0] = const_cast<char*>(drive_name_.c_str());
-  argv[1] = const_cast<char*>(fuse_mountpoint_.c_str());
-  fuse_main(2, argv, &maidsafe_ops_, NULL);
+  argv[1] = const_cast<char*>((std::string("-ofsname=") + drive_name_).c_str());
+  argv[2] = const_cast<char*>(fuse_mountpoint_.c_str());
+  argv[3] = const_cast<char*>(std::string("-d").c_str());
+  fuse_main(4, argv, &maidsafe_ops_, NULL);
   // struct fuse_args args = FUSE_ARGS_INIT(2, opts.get());
   // fuse helper macros for options
   // fuse_opt_parse(&args, nullptr, nullptr, nullptr);
