@@ -68,7 +68,7 @@ class DirectoryHandler {
   typedef encrypt::DataMapPtr DataMapPtr;
 
   DirectoryHandler(StoragePtr storage, const Identity& unique_user_id,
-                   const Identity& root_parent_id);
+                   const Identity& root_parent_id, bool create);
   virtual ~DirectoryHandler() {}
 
   void Add(const boost::filesystem::path& relative_path, const MetaData& meta_data,
@@ -112,7 +112,7 @@ class DirectoryHandler {
 
 template <typename Storage>
 DirectoryHandler<Storage>::DirectoryHandler(StoragePtr storage, const Identity& unique_user_id,
-                                            const Identity& root_parent_id)
+                                            const Identity& root_parent_id, bool create)
     : storage_(storage),
       unique_user_id_(unique_user_id),
       root_parent_id_(root_parent_id),
@@ -120,8 +120,9 @@ DirectoryHandler<Storage>::DirectoryHandler(StoragePtr storage, const Identity& 
       cache_() {
   if (!unique_user_id.IsInitialised())
     ThrowError(CommonErrors::uninitialised);
-  if (!root_parent_id.IsInitialised()) {
-    root_parent_id_ = Identity(RandomString(64));
+  if (!root_parent_id.IsInitialised())
+    ThrowError(CommonErrors::uninitialised);
+  if (create) {
     MetaData root_meta_data(kRoot, true);
     Directory root_parent, root;
     DirectoryListingPtr root_parent_listing(std::make_shared<DirectoryListing>(root_parent_id_)),

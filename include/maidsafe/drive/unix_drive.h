@@ -192,7 +192,7 @@ FuseDrive<Storage>::FuseDrive(StoragePtr storage, const Identity& unique_user_id
                               const boost::filesystem::path& mount_dir,
                               const boost::filesystem::path& drive_name,
                               bool create)
-    : Drive<Storage>::Drive(storage, unique_user_id, root_parent_id, mount_dir),
+    : Drive<Storage>::Drive(storage, unique_user_id, root_parent_id, mount_dir, create),
       fuse_(nullptr),
       fuse_mountpoint_(mount_dir),
       drive_name_(drive_name.string()) {

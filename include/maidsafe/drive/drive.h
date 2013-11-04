@@ -130,7 +130,7 @@ Drive<Storage>::Drive(StoragePtr storage,
                       const Identity& root_parent_id,
                       const boost::filesystem::path& mount_dir,
                       bool create)
-    : directory_handler_(storage, unique_user_id, root_parent_id),
+    : directory_handler_(storage, unique_user_id, root_parent_id, create),
       storage_(storage),
       kMountDir_(mount_dir) {}
 
