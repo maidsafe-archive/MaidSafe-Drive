@@ -66,19 +66,19 @@ struct GetDrive {
 };
 #endif
 
-int Mount(const fs::path &mount_dir, const fs::path &chunk_dir, const Identity& unique_id,
-          const Identity& parent_id, const fs::path& drive_name) {
-  fs::path storage_path(chunk_dir / "local_store");
+int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity& unique_id,
+          const Identity& parent_id, const fs::path& drive_name, bool create) {
+  fs::path storage_path(storage_dir / "local_store");
   DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
   auto storage(std::make_shared<maidsafe::data_store::LocalStore>(storage_path, disk_usage));
 
   boost::system::error_code error_code;
-  if (!fs::exists(chunk_dir, error_code))
+  if (!fs::exists(storage_dir, error_code))
     return error_code.value();
 
   typedef GetDrive<maidsafe::data_store::LocalStore>::type Drive;
 
-  Drive drive(storage, unique_id, parent_id, mount_dir, drive_name);
+  Drive drive(storage, unique_id, parent_id, mount_dir, drive_name, create);
   drive.Mount();
 
   return 0;
@@ -111,10 +111,11 @@ po::options_description VisibleOptions() {
 #else
       ("mount_dir,D", po::value<std::string>(), " virtual drive mount point (required)")
 #endif
-      ("chunk_dir,C", po::value<std::string>(), " directory to store chunks (required)")
+      ("storage_dir,S", po::value<std::string>(), " directory to store chunks (required)")
       ("unique_id,U", po::value<std::string>(), " unique identifier (required)")
       ("parent_id,R", po::value<std::string>(), " root parent directory identifier (required)")
       ("drive_name,N", po::value<std::string>(), " virtual drive name")
+      ("create,C", " Must be called on first run")
       ("check_data,Z", " check all data in chunkstore");
   return options;
 }
@@ -123,7 +124,7 @@ po::options_description HiddenOptions() {
   po::options_description options("Hidden options");
   options.add_options()
       ("help,h", "help message")
-      ("shared_memory,S", po::value<std::string>(), "shared memory name (IPC)");
+      ("shared_memory", po::value<std::string>(), "shared memory name (IPC)");
   return options;
 }
 
@@ -176,10 +177,11 @@ void HandleHelp(const po::variables_map& variables_map) {
 
 struct Options {
   Options()
-      : mount_dir(), chunk_store(), drive_name(), unique_id(), parent_id(), check_data(false) {}
+      : mount_dir(), chunk_store(), drive_name(), unique_id(), parent_id(), check_data(false), create() {}
   fs::path mount_dir, chunk_store, drive_name;
   maidsafe::Identity unique_id, parent_id;
   bool check_data;
+  bool create;
 };
 
 bool GetFromIpc(const po::variables_map& variables_map, Options& options) {
@@ -199,7 +201,7 @@ bool GetFromIpc(const po::variables_map& variables_map, Options& options) {
 
 void GetFromProgramOptions(const po::variables_map& variables_map, Options& options) {
   options.mount_dir = GetStringFromProgramOption("mount_dir", variables_map);
-  options.chunk_store = GetStringFromProgramOption("chunk_dir", variables_map);
+  options.chunk_store = GetStringFromProgramOption("storage_dir", variables_map);
   auto unique_id(GetStringFromProgramOption("unique_id", variables_map));
   if (!unique_id.empty())
     options.unique_id = maidsafe::Identity(unique_id);
@@ -282,8 +284,9 @@ int main(int argc, char* argv[]) {
     // Validate options and run the Drive
     ValidateOptions(options);
     SetSignalHandler();
+    bool create((options.create) ? true : false);
     return maidsafe::drive::Mount(options.mount_dir, options.chunk_store, options.unique_id,
-                                  options.parent_id, options.drive_name);
+                                  options.parent_id, options.drive_name, create);
   }
   catch (const std::exception& e) {
     if (!g_error_message.empty()) {

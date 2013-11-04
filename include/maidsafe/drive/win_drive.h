@@ -85,7 +85,8 @@ class CbfsDrive : public Drive<Storage> {
   typedef detail::OpType OpType;
 
   CbfsDrive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
-            const boost::filesystem::path& mount_dir, const boost::filesystem::path& drive_name);
+            const boost::filesystem::path& mount_dir, const boost::filesystem::path& drive_name,
+            bool create);
 
   virtual ~CbfsDrive();
 

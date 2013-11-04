@@ -98,7 +98,8 @@ class FuseDrive : public Drive<Storage> {
   typedef std::shared_ptr<Storage> StoragePtr;
 
   FuseDrive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
-            const boost::filesystem::path& mount_dir, const boost::filesystem::path& drive_name);
+            const boost::filesystem::path& mount_dir, const boost::filesystem::path& drive_name,
+            bool create);
 
   ~FuseDrive();
   // Notifies filesystem of change in directory.  No-op on Unix.
@@ -189,7 +190,8 @@ template <typename Storage>
 FuseDrive<Storage>::FuseDrive(StoragePtr storage, const Identity& unique_user_id,
                               const Identity& root_parent_id,
                               const boost::filesystem::path& mount_dir,
-                              const boost::filesystem::path& drive_name)
+                              const boost::filesystem::path& drive_name,
+                              bool create)
     : Drive<Storage>::Drive(storage, unique_user_id, root_parent_id, mount_dir),
       fuse_(nullptr),
       fuse_mountpoint_(mount_dir),

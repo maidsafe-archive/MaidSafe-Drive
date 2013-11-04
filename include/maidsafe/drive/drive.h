@@ -52,7 +52,7 @@ class Drive {
   typedef detail::OpType OpType;
 
   Drive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
-        const boost::filesystem::path& mount_dir);
+        const boost::filesystem::path& mount_dir, bool create = false);
 
   virtual ~Drive() {}
 
@@ -125,8 +125,11 @@ inline boost::filesystem::path GetNextAvailableDrivePath() {
 // ==================== Implementation ============================================================
 
 template <typename Storage>
-Drive<Storage>::Drive(StoragePtr storage, const Identity& unique_user_id,
-                      const Identity& root_parent_id, const boost::filesystem::path& mount_dir)
+Drive<Storage>::Drive(StoragePtr storage,
+                      const Identity& unique_user_id,
+                      const Identity& root_parent_id,
+                      const boost::filesystem::path& mount_dir,
+                      bool create)
     : directory_handler_(storage, unique_user_id, root_parent_id),
       storage_(storage),
       kMountDir_(mount_dir) {}
