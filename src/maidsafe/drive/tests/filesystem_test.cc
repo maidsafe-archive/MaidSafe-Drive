@@ -72,12 +72,7 @@ namespace {
 
 fs::path root_, temp_, storage_path_;
 std::string unique_id_, root_parent_id_, drive_name_, shared_memory_name_;
-std::function<void()> child_;
-#ifdef MAIDSAFE_WIN32
-HANDLE child_handle_;
-#else
-pid_t child_pid_(0);
-#endif
+std::unique_ptr<bp::child> child_;
 
 int RunCatch(int argc, char** argv) {
   Catch::Session session;
@@ -339,6 +334,7 @@ TEST_CASE("Copy directory, delete then re-copy", "[Filesystem]") {
   // Delete the directory along with its contents
   boost::system::error_code error_code;
   REQUIRE(fs::remove_all(copied_directory, error_code) == 3U);
+  INFO(copied_directory << ": " << error_code.message());
   REQUIRE(error_code.value() == 0);
 
   // Re-copy directory and file to 'root_'
@@ -735,6 +731,7 @@ int main(int argc, char** argv) {
   for (const auto& unused_option : unused_options)
     std::strcpy(argv[position++], unused_option.c_str());  // NOLINT
 
+  boost::system::error_code error_code;
   if (variables_map.count("help")) {
     std::cout << filesystem_options << '\n';
     ++argc;
@@ -774,18 +771,15 @@ int main(int argc, char** argv) {
     process_args.push_back(shared_memory_opt);
     process_args.push_back("--log_* I");
     const auto kCommandLine(maidsafe::process::ConstructCommandLine(process_args));
-    boost::system::error_code error_code;
 
-    bp::child child = bp::child(bp::execute(bp::initializers::run_exe(kExePath),
-                                            bp::initializers::set_cmd_line(kCommandLine),
-                                            bp::initializers::set_on_error(error_code)));
+    maidsafe::test::child_.reset(
+        new bp::child(bp::execute(bp::initializers::run_exe(kExePath),
+                                  bp::initializers::set_cmd_line(kCommandLine),
+                                  bp::initializers::set_on_error(error_code))));
     maidsafe::Sleep(std::chrono::seconds(3));
 
 #ifdef MAIDSAFE_WIN32
-    maidsafe::test::child_handle_ = child.process_handle();
     maidsafe::test::root_ /= boost::filesystem::path("/").make_preferred();
-#else
-    maidsafe::test::child_pid_ = child.pid;
 #endif
   } else if (variables_map.count("network")) {
   } else {
@@ -796,22 +790,27 @@ int main(int argc, char** argv) {
   tests_result = maidsafe::test::RunCatch(argc, argv);
 
 #ifdef MAIDSAFE_WIN32
-  if (maidsafe::test::child_handle_ != 0) {
-    DWORD pid(GetProcessId(maidsafe::test::child_handle_));
+  if (maidsafe::test::child_->process_handle() != 0) {
+    DWORD pid(GetProcessId(maidsafe::test::child_->process_handle()));
     GenerateConsoleCtrlEvent(CTRL_C_EVENT, pid);
   }
 #else
-  assert(maidsafe::test::child_pid_);
-  int result(kill(maidsafe::test::child_pid_, SIGINT));
+  assert(maidsafe::test::child_->pid);
+  int result(kill(maidsafe::test::child_->pid, SIGINT));
   if (result) {
-    LOG(kError) << "Sending signal to drive process ID " << maidsafe::test::child_pid_
+    LOG(kError) << "Sending signal to drive process ID " << maidsafe::test::child_->pid
                 << " returned result " << result;
   } else {
-    LOG(kInfo) << "Sending signal to drive process ID " << maidsafe::test::child_pid_
+    LOG(kInfo) << "Sending signal to drive process ID " << maidsafe::test::child_->pid
                << " returned result " << result;
   }
-  maidsafe::Sleep(std::chrono::seconds(1));
 #endif
+  auto exit_code = bp::wait_for_exit(*maidsafe::test::child_, error_code);
+  if (error_code)
+    LOG(kError) << "Error waiting for child to exit: " << error_code.message();
+  else
+    LOG(kInfo) << "Drive process has completed with exit code " << exit_code;
+
   maidsafe::test::RemoveTempDirectory();
   if (fs::exists(maidsafe::test::storage_path_))
     maidsafe::test::RemoveStorageDirectory();
