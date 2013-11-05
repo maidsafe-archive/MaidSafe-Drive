@@ -368,8 +368,6 @@ int FuseDrive<Storage>::OpsCreate(const char* path, mode_t mode,
 
   try {
     Global<Storage>::g_fuse_drive->Add(full_path, *file_context);
-        // ->meta_data.get(), file_context->grandparent_directory_id,
-        // file_context->parent_directory_id);
   }
   catch (...) {
     LOG(kError) << "OpsCreate: " << path << ", failed to AddNewMetaData.  ";
@@ -456,6 +454,15 @@ int FuseDrive<Storage>::OpsMkdir(const char* path, mode_t mode) {
   meta_data.attributes.st_nlink = 2;
   meta_data.attributes.st_uid = fuse_get_context()->uid;
   meta_data.attributes.st_gid = fuse_get_context()->gid;
+
+  try {
+    detail::FileContext<Storage> file_context(full_path.filename(), true);
+    Global<Storage>::g_fuse_drive->Add(full_path, file_context);
+  }
+  catch(const std::exception& e) {
+    LOG(kError) << "OpsMkdir: " << path << ", failed to Add: " << e.what();
+    return -EIO;
+  }
 
   return 0;
 }

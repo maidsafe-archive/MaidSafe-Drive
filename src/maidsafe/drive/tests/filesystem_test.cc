@@ -745,7 +745,6 @@ int main(int argc, char** argv) {
       return -1;
     if (!maidsafe::test::SetUpTempDirectory())
       return -2;
-    tests_result = maidsafe::test::RunCatch(argc, argv);
   } else if (variables_map.count("local")) {
     maidsafe::test::shared_memory_name_ = maidsafe::RandomAlphaNumericString(32);
     maidsafe::test::unique_id_ = maidsafe::RandomString(64);
@@ -773,6 +772,7 @@ int main(int argc, char** argv) {
     process_args.push_back(kExePath);
     std::string shared_memory_opt("--shared_memory " + maidsafe::test::shared_memory_name_);
     process_args.push_back(shared_memory_opt);
+    process_args.push_back("--log_* I");
     const auto kCommandLine(maidsafe::process::ConstructCommandLine(process_args));
     boost::system::error_code error_code;
 
@@ -781,15 +781,19 @@ int main(int argc, char** argv) {
                                             bp::initializers::set_on_error(error_code)));
     maidsafe::Sleep(std::chrono::seconds(3));
 
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
     maidsafe::test::child_handle_ = child.process_handle();
     maidsafe::test::root_ /= boost::filesystem::path("/").make_preferred();
 #else
     maidsafe::test::child_pid_ = child.pid;
 #endif
-    tests_result = maidsafe::test::RunCatch(argc, argv);
   } else if (variables_map.count("network")) {
+  } else {
+    std::cout << "You must run with '--disk', '--local', or '--network'.  To see all options, "
+              << "run with '--help'.\n\n";
+    return 1;
   }
+  tests_result = maidsafe::test::RunCatch(argc, argv);
 
 #ifdef MAIDSAFE_WIN32
   if (maidsafe::test::child_handle_ != 0) {
