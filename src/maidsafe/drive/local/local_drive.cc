@@ -58,7 +58,7 @@ namespace drive {
 #ifdef MAIDSAFE_WIN32
 typedef CbfsDrive<data_store::LocalStore> LocalDrive;
 #else
-typedef FuseDrive<data_store::LocalStore> type;
+typedef FuseDrive<data_store::LocalStore> LocalDrive;
 #endif
 LocalDrive* g_local_drive(nullptr);
 
