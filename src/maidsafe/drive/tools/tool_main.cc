@@ -127,6 +127,7 @@ void SetUpRootDirectory(fs::path base_dir) {
 #else
   g_root = fs::unique_path(base_dir / "MaidSafe_Root_Filesystem_%%%%-%%%%-%%%%");
   CreateDir(g_root);
+
 #endif
   LOG(kInfo) << "Created root directory " << g_root;
 }

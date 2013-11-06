@@ -251,7 +251,7 @@ void FuseDrive<Storage>::Mount() {
   }
 
   fuse_args args = FUSE_ARGS_INIT(0, nullptr);
-  fuse_opt_add_arg(&args, (std::string("-ofsname=") + drive_name_).c_str());
+  fuse_opt_add_arg(&args, (std::string("-oallow_others,fsname=") + drive_name_).c_str());
   fuse_opt_add_arg(&args, fuse_mountpoint_.c_str());
   // NB - If we remove -odefault_permissions, we must check in OpsOpen
   //      that the operation is permitted for the given flags.  We also need to
@@ -264,8 +264,9 @@ void FuseDrive<Storage>::Mount() {
   // fuse_opt_add_arg(&args, "-f");  // run in foreground
   //   if (read_only)
   //     fuse_opt_add_arg(&args, "-oro");
-
+  LOG(kInfo) << "\ncalling fuse main \n";
   fuse_main(args.argc, args.argv, &maidsafe_ops_, nullptr);
+  LOG(kInfo) << "\ncalled fuse main \n";
   // struct fuse_args args = FUSE_ARGS_INIT(2, opts.get());
   // fuse helper macros for options
   // fuse_opt_parse(&args, nullptr, nullptr, nullptr);
