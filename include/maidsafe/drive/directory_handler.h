@@ -272,10 +272,28 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
   if (old_relative_path == new_relative_path)
     return;
 
-  if (old_relative_path.parent_path() == new_relative_path.parent_path())
+  if (old_relative_path.parent_path() == new_relative_path.parent_path()) {
     RenameSameParent(old_relative_path, new_relative_path, meta_data);
-  else
+    std::lock_guard<std::mutex> lock(cache_mutex_);
+    auto itr(cache_.find(old_relative_path.parent_path()));
+    if (itr != std::end(cache_))
+      cache_.erase(old_relative_path.parent_path());
+  } else {
     RenameDifferentParent(old_relative_path, new_relative_path, meta_data);
+    std::lock_guard<std::mutex> lock(cache_mutex_);
+    auto itr1(cache_.find(old_relative_path.parent_path()));
+    if (itr1 != std::end(cache_))
+      cache_.erase(old_relative_path.parent_path());
+    auto itr2(cache_.find(new_relative_path.parent_path()));
+    if (itr2 != std::end(cache_))
+      cache_.erase(new_relative_path.parent_path());
+  }
+  if (IsDirectory(meta_data)) {
+    std::lock_guard<std::mutex> lock(cache_mutex_);
+    auto itr(cache_.find(old_relative_path));
+    if (itr != std::end(cache_))
+      cache_.erase(old_relative_path);
+  }
 }
 
 template <typename Storage>

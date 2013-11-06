@@ -121,6 +121,7 @@ if(MaidsafeTesting AND (Cbfs_FOUND OR NOT WIN32))
                     ${LocalDriveLocationFile}
                     ${NetworkDriveLocationFile})
   ms_add_executable(test_drive "Tests/Drive" ${DriveTestsAllFiles})
+  set_target_properties(test_drive PROPERTIES COMPILE_DEFINITIONS "CBFS_GUID=713CC6CE-B3E2-4fd9-838D-E28F558F6866")
 
   add_process_location(local_drive "${LocalDriveLocationFile}")
   add_process_location(network_drive "${NetworkDriveLocationFile}")
