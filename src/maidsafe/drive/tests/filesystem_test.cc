@@ -769,7 +769,7 @@ int main(int argc, char** argv) {
     process_args.push_back(kExePath);
     std::string shared_memory_opt("--shared_memory " + maidsafe::test::shared_memory_name_);
     process_args.push_back(shared_memory_opt);
-    process_args.push_back("--log_* I");
+    process_args.push_back("--log_* I --log_colour_mode 2");
     const auto kCommandLine(maidsafe::process::ConstructCommandLine(process_args));
 
     maidsafe::test::child_.reset(
@@ -790,10 +790,12 @@ int main(int argc, char** argv) {
   tests_result = maidsafe::test::RunCatch(argc, argv);
 
 #ifdef MAIDSAFE_WIN32
-  if (maidsafe::test::child_->process_handle() != 0) {
-    DWORD pid(GetProcessId(maidsafe::test::child_->process_handle()));
-    GenerateConsoleCtrlEvent(CTRL_C_EVENT, pid);
-  }
+  SetConsoleCtrlHandler([](DWORD control_type)->BOOL {
+        LOG(kInfo) << "Received console control signal " << control_type << ".";
+        return (control_type == CTRL_BREAK_EVENT ? TRUE : FALSE);
+      }, TRUE);
+  assert(maidsafe::test::child_->proc_info.dwProcessId);
+  GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, maidsafe::test::child_->proc_info.dwProcessId);
 #else
   assert(maidsafe::test::child_->pid);
   int result(kill(maidsafe::test::child_->pid, SIGINT));

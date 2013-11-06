@@ -26,6 +26,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 
@@ -35,6 +36,7 @@
 
 #include "boost/filesystem/path.hpp"
 #include "boost/preprocessor/stringize.hpp"
+#include "boost/thread/future.hpp"
 
 #include "maidsafe/common/utils.h"
 #include "maidsafe/encrypt/self_encryptor.h"
@@ -105,9 +107,6 @@ class CbfsDrive : public Drive<Storage> {
 
   void UnmountDrive(const std::chrono::steady_clock::duration& timeout_before_force);
   std::wstring drive_name() const;
-
-  void SetMountState(bool mounted);
-  void WaitUntilUnMounted();
 
   void UpdateDriverStatus();
   void UpdateMountingPoints();
@@ -185,18 +184,13 @@ class CbfsDrive : public Drive<Storage> {
   static void CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo* file_info);
   static void CbFsOnEjectStorage(CallbackFileSystem* sender);
 
-  enum DriveStage {
-    kMounted,
-    kUnMounted
-  } drive_stage_;
-
   mutable CallbackFileSystem callback_filesystem_;
   std::string guid_;
   LPCWSTR icon_id_;
   std::wstring drive_name_;
   LPCSTR registration_key_;
-  mutable std::mutex mutex_;
-  std::condition_variable condition_variable_;
+  boost::promise<void> unmounted_;
+  std::once_flag unmounted_once_flag_;
 };
 
 template <typename Storage>
@@ -210,8 +204,8 @@ CbfsDrive<Storage>::CbfsDrive(StoragePtr storage, const Identity& unique_user_id
       icon_id_(L"MaidSafeDriveIcon"),
       drive_name_(drive_name.wstring()),
       registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)),
-      mutex_(),
-      condition_variable_() {}
+      unmounted_(),
+      unmounted_once_flag_() {}
 
 template <typename Storage>
 CbfsDrive<Storage>::~CbfsDrive() {
@@ -237,7 +231,6 @@ void CbfsDrive<Storage>::Mount() {
     // The following can only be called when the media is mounted.
     callback_filesystem_.AddMountingPoint(kMountDir_.c_str());
     UpdateMountingPoints();
-    LOG(kInfo) << "Mounted.";
   }
   catch (const ECBFSError& error) {
     detail::ErrorMessage("Mount: ", error);
@@ -248,9 +241,9 @@ void CbfsDrive<Storage>::Mount() {
     ThrowError(CommonErrors::uninitialised);
   }
 
-  drive_stage_ = kMounted;
-  SetMountState(true);
-  WaitUntilUnMounted();
+  LOG(kInfo) << "Mounted.";
+  auto wait_until_unmounted(unmounted_.get_future());
+  wait_until_unmounted.get();
 }
 
 template <typename Storage>
@@ -272,18 +265,21 @@ void CbfsDrive<Storage>::UnmountDrive(
 
 template <typename Storage>
 bool CbfsDrive<Storage>::Unmount() {
-  UnmountDrive(std::chrono::seconds(3));
-  if (callback_filesystem_.StoragePresent()) {
-    try {
-      callback_filesystem_.DeleteStorage();
-    }
-    catch (const ECBFSError& error) {
-      detail::ErrorMessage("Unmount", error);
-      return false;
-    }
+  try {
+    std::call_once(unmounted_once_flag_, [&]() {
+        // Only one instance of this lambda function can be run simultaneously.  If any CBFS
+        // function throws, the unmounted_once_flag_ remains unset and another attempt can be made.
+        UnmountDrive(std::chrono::seconds(3));
+        if (callback_filesystem_.StoragePresent())
+          callback_filesystem_.DeleteStorage();
+        callback_filesystem_.SetRegistrationKey(nullptr);
+        unmounted_.set_value();
+    });
   }
-  callback_filesystem_.SetRegistrationKey(nullptr);
-  SetMountState(false);
+  catch (const ECBFSError& error) {
+    detail::ErrorMessage("Unmount", error);
+    return false;
+  }
   return true;
 }
 
@@ -327,21 +323,6 @@ uint32_t CbfsDrive<Storage>::max_file_path_length() {
 template <typename Storage>
 std::wstring CbfsDrive<Storage>::drive_name() const {
   return drive_name_;
-}
-
-template <typename Storage>
-void CbfsDrive<Storage>::SetMountState(bool mounted) {
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    drive_stage_ = (mounted ? kMounted : kUnMounted);
-  }
-  condition_variable_.notify_one();
-}
-
-template <typename Storage>
-void CbfsDrive<Storage>::WaitUntilUnMounted() {
-  std::unique_lock<std::mutex> lock(mutex_);
-  condition_variable_.wait(lock, [this] { return drive_stage_ == kUnMounted; });
 }
 
 template <typename Storage>
@@ -986,7 +967,7 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsOnEjectStorage(CallbackFileSystem* sender) {
   LOG(kInfo) << "CbFsOnEjectStorage";
   auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  cbfs_drive->SetMountState(false);
+  boost::async(boost::launch::async, [cbfs_drive] { cbfs_drive->Unmount(); });
 }
 
 template <typename Storage>
