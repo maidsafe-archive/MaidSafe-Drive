@@ -55,30 +55,25 @@ namespace maidsafe {
 
 namespace drive {
 
-template<typename Storage>
 #ifdef MAIDSAFE_WIN32
-struct GetDrive {
-  typedef CbfsDrive<Storage> type;
-};
+typedef CbfsDrive<data_store::LocalStore> LocalDrive;
 #else
-struct GetDrive {
-  typedef FuseDrive<Storage> type;
-};
+typedef FuseDrive<data_store::LocalStore> type;
 #endif
+LocalDrive* g_local_drive(nullptr);
 
 int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity& unique_id,
           const Identity& parent_id, const fs::path& drive_name, bool create) {
   fs::path storage_path(storage_dir / "local_store");
   DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
-  auto storage(std::make_shared<maidsafe::data_store::LocalStore>(storage_path, disk_usage));
+  auto storage(std::make_shared<data_store::LocalStore>(storage_path, disk_usage));
 
   boost::system::error_code error_code;
   if (!fs::exists(storage_dir, error_code))
     return error_code.value();
 
-  typedef GetDrive<maidsafe::data_store::LocalStore>::type Drive;
-
-  Drive drive(storage, unique_id, parent_id, mount_dir, drive_name, create);
+  LocalDrive drive(storage, unique_id, parent_id, mount_dir, drive_name, create);
+  g_local_drive = &drive;
   drive.Mount();
 
   return 0;
@@ -240,18 +235,15 @@ void ValidateOptions(const Options& options) {
 #ifdef MAIDSAFE_WIN32
 
 BOOL CtrlHandler(DWORD control_type) {
-  switch (control_type) {
-    case CTRL_C_EVENT:
-    case CTRL_CLOSE_EVENT:
-    case CTRL_SHUTDOWN_EVENT:
-      exit(control_type);
-    default:
-      exit(0);
-  }
+  LOG(kInfo) << "Received console control signal " << control_type << ".  Unmounting.";
+  if (!maidsafe::drive::g_local_drive)
+    return FALSE;
+  maidsafe::drive::g_local_drive->Unmount();
+  return TRUE;
 }
 
 void SetSignalHandler() {
-  if (!SetConsoleCtrlHandler(reinterpret_cast<PHANDLER_ROUTINE>(CtrlHandler), TRUE)) {
+  if (!SetConsoleCtrlHandler(&CtrlHandler, TRUE)) {
     g_error_message = "Failed to set control handler.\n\n";
     g_return_code = 16;
     maidsafe::ThrowError(maidsafe::CommonErrors::unknown);
