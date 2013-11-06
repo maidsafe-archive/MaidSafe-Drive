@@ -31,6 +31,8 @@ const boost::filesystem::path kMsHidden(".ms_hidden");
 
 const boost::filesystem::path kRoot(boost::filesystem::path("/").make_preferred());
 
+const TaggedValue<uint32_t, struct MaxVersionsTag> kMaxFileVersions(21);
+
 }  // namespace detail
 }  // namespace drive
 }  // namespace maidsafe
