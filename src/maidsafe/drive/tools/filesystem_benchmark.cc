@@ -51,33 +51,6 @@ void UseUnreferenced() {
 
 fs::path root_, temp_;
 
-bool ValidateRoot() {
-  if (root_.empty()) {
-    LOG(kError)
-        << "Failed to pass valid root directory.\nRun with '--root <path to empty root dir>'";
-    return false;
-  }
-
-  boost::system::error_code error_code;
-  if (!fs::is_directory(root_, error_code) || error_code) {
-    LOG(kError) << root_ << " is not a directory.\nRun with '--root <path to empty root dir>'";
-    return false;
-  }
-
-  if (!fs::is_empty(root_, error_code) || error_code) {
-    LOG(kError) << root_ << " is not empty.\nRun with '--root <path to empty root dir>'";
-    return false;
-  }
-
-  if (!WriteFile(root_ / "a.check", "check\n")) {
-    LOG(kError) << root_ << " is not writable.\nRun with '--root <path to writable empty dir>'";
-    return false;
-  }
-  fs::remove(root_ / "a.check", error_code);
-
-  return true;
-}
-
 std::function<void()> clean_root([] {
   boost::system::error_code error_code;
   fs::directory_iterator end;
@@ -293,69 +266,21 @@ void CopyThenReadManySmallFiles() {
   }
 }
 
+int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp) {
+  std::vector<std::string> arguments(argv, argv + argc);
+  bool no_big_test(std::any_of(std::begin(arguments), std::end(arguments),
+                               [](const std::string& arg) { return arg == "--no_big_test"; }));
+  bool no_small_test(std::any_of(std::begin(arguments), std::end(arguments),
+                                 [](const std::string& arg) { return arg == "--no_small_test"; }));
+  root_ = root;
+  temp_ = temp;
+  if (!no_big_test)
+    CopyThenReadLargeFile();
+  if (!no_small_test)
+    CopyThenReadManySmallFiles();
+  return 0;
+}
+
 }  // namespace test
 
 }  // namespace maidsafe
-
-int main(int argc, char** argv) {
-  auto unused_options(maidsafe::log::Logging::Instance().Initialise(argc, argv));
-
-  try {
-    // Handle passing path to test root via command line
-    po::options_description command_line_options("Command line options");
-    std::string description("Path to root directory for test, e.g. " +
-                            fs::temp_directory_path().string());
-    bool no_big_test(false), no_small_test(false);
-    command_line_options.add_options()("help,h", "Show help message.")(
-        "root", po::value<std::string>(), description.c_str())(
-        "no_big_test", po::bool_switch(&no_big_test), "Disable single large file test.")(
-        "no_small_test", po::bool_switch(&no_small_test), "Disable multiple small files test.");
-    po::parsed_options parsed(po::command_line_parser(unused_options)
-                                  .options(command_line_options)
-                                  .allow_unregistered()
-                                  .run());
-
-    po::variables_map variables_map;
-    po::store(parsed, variables_map);
-    po::notify(variables_map);
-
-    if (variables_map.count("help")) {
-      std::cout << command_line_options << '\n';
-      return 0;
-    }
-
-    // Set up root_ directory
-    maidsafe::test::root_ = maidsafe::GetPathFromProgramOptions("root", variables_map, true, false);
-    if (!maidsafe::test::ValidateRoot())
-      return -1;
-
-    // Set up 'temp_' directory
-    maidsafe::test::temp_ =
-        fs::unique_path(fs::temp_directory_path() / "MaidSafe_Test_Filesystem_%%%%-%%%%-%%%%");
-    if (!fs::create_directories(maidsafe::test::temp_)) {
-      LOG(kWarning) << "Failed to create test directory " << maidsafe::test::temp_;
-      return -2;
-    }
-    LOG(kInfo) << "Created test directory " << maidsafe::test::temp_;
-
-    // Run benchmark tests
-    if (!no_big_test)
-      maidsafe::test::CopyThenReadLargeFile();
-    if (!no_small_test)
-      maidsafe::test::CopyThenReadManySmallFiles();
-
-    // Clean up 'temp_' directory
-    boost::system::error_code error_code;
-    if (fs::remove_all(maidsafe::test::temp_, error_code) == 0) {
-      LOG(kWarning) << "Failed to remove " << maidsafe::test::temp_;
-    }
-    if (error_code.value() != 0) {
-      LOG(kWarning) << "Error removing " << maidsafe::test::temp_ << "  " << error_code.message();
-    }
-  }
-  catch (const std::exception& e) {
-    std::cout << "Error: " << e.what() << '\n';
-    return -3;
-  }
-  return 0;
-}

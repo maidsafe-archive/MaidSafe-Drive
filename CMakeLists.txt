@@ -76,10 +76,7 @@ else()
 endif()
 
 glob_dir(DriveTests ${DriveSourcesDir}/tests Tests)
-list(REMOVE_ITEM DriveTestsAllFiles ${DriveSourcesDir}/tests/filesystem_benchmark.cc
-                                    ${DriveSourcesDir}/tests/filesystem_test.cc)
-source_group("Source Files" FILES ${DriveSourcesDir}/tests/filesystem_benchmark.cc
-                                  ${DriveSourcesDir}/tests/filesystem_test.cc)
+glob_dir(DriveTools ${DriveSourcesDir}/tools Tools)
 if(WIN32)
   glob_dir(Installer ${DriveSourcesDir}/installer Installer)
 endif()
@@ -114,11 +111,13 @@ if(MaidsafeTesting AND (Cbfs_FOUND OR NOT WIN32))
   set(NetworkDriveLocationFile ${CMAKE_CURRENT_BINARY_DIR}/filesystem_test/network_drive_location.h)
 
   ms_add_executable(filesystem_benchmark "Tools/Drive"
-                    ${DriveSourcesDir}/tests/filesystem_benchmark.cc
+                    ${DriveSourcesDir}/tools/filesystem_benchmark.cc
+                    ${DriveSourcesDir}/tools/tool_main.cc
                     ${LocalDriveLocationFile}
                     ${NetworkDriveLocationFile})
-  ms_add_executable(filesystem_test "Tests/Drive"
-                    ${DriveSourcesDir}/tests/filesystem_test.cc
+  ms_add_executable(filesystem_test "Tools/Drive"
+                    ${DriveSourcesDir}/tools/filesystem_test.cc
+                    ${DriveSourcesDir}/tools/tool_main.cc
                     ${LocalDriveLocationFile}
                     ${NetworkDriveLocationFile})
   ms_add_executable(test_drive "Tests/Drive" ${DriveTestsAllFiles})
