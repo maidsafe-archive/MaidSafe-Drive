@@ -49,9 +49,7 @@
 namespace fs = boost::filesystem;
 
 namespace maidsafe {
-
 namespace drive {
-
 namespace test {
 
 #ifdef MAIDSAFE_WIN32
@@ -91,7 +89,7 @@ TEST_CASE("Local store", "[behavioural]") {
   Identity unique_user_id(RandomString(64));
   Identity root_parent_id(RandomString(64));
   fs::path file_name("test.txt");
-  fs::path storage_path(*main_test_dir / "SureFile");
+  fs::path storage_path(*main_test_dir / "Drive");
   DiskUsage disk_usage(1048576000);
   std::shared_ptr<maidsafe::data_store::LocalStore>
       storage(new maidsafe::data_store::LocalStore(storage_path, disk_usage));
@@ -103,12 +101,19 @@ TEST_CASE("Local store", "[behavioural]") {
     fs::path mount_dir(*main_test_dir / "mount");
 #endif
     VirtualDrive<data_store::LocalStore>::value_type drive(
-        storage, unique_user_id, root_parent_id, mount_dir, "SureFileDrive");
+        storage, unique_user_id, root_parent_id, mount_dir, "MaidSafeDrive", true);
+
+    auto promise(std::make_shared<boost::promise<void>>());
+    auto async_future(boost::async(boost::launch::async, [&drive] { drive.Mount(); }));
 #ifdef MAIDSAFE_WIN32
     mount_dir /= "\\";
 #endif
+    maidsafe::Sleep(std::chrono::seconds(3));
     CHECK(WriteFile(mount_dir / file_name, content));
     CHECK(NonEmptyString(content) == ReadFile(mount_dir / file_name));
+    promise->set_value();
+    boost::future<void> future(promise->get_future());
+    future.get();
   }
 
   {
@@ -118,11 +123,17 @@ TEST_CASE("Local store", "[behavioural]") {
     fs::path mount_dir(*main_test_dir / "mount");
 #endif
     VirtualDrive<data_store::LocalStore>::value_type drive(
-        storage, unique_user_id, root_parent_id, mount_dir, "SureFileDrive");
+        storage, unique_user_id, root_parent_id, mount_dir, "MaidSafeDrive", false);
+    auto promise(std::make_shared<boost::promise<void>>());
+    auto async_future(boost::async(boost::launch::async, [&drive] { drive.Mount(); }));
 #ifdef MAIDSAFE_WIN32
     mount_dir /= "\\";
 #endif
+    maidsafe::Sleep(std::chrono::seconds(3));
     CHECK(NonEmptyString(content) == ReadFile(mount_dir / file_name));
+    promise->set_value();
+    boost::future<void> future(promise->get_future());
+    future.get();
   }
 }
 
@@ -527,7 +538,5 @@ TEST_CASE("Local store", "[behavioural]") {
 // }
 
 }  // namespace test
-
 }  // namespace drive
-
 }  // namespace maidsafe

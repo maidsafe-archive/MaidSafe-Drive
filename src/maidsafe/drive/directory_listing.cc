@@ -120,8 +120,10 @@ bool DirectoryListing::GetChildAndIncrementItr(MetaData& meta_data) {
 }
 
 void DirectoryListing::AddChild(const MetaData& child) {
-  assert(!std::any_of(std::begin(children_), std::end(children_),
-                      [&child](const MetaData & entry) { return child.name == entry.name; }));
+  auto itr(std::find_if(std::begin(children_), std::end(children_),
+                        [&child](const MetaData & entry) { return child.name == entry.name; }));
+  if (itr != std::end(children_))
+    ThrowError(CommonErrors::invalid_parameter);
   children_.push_back(child);
   SortAndResetChildrenIterator();
 }

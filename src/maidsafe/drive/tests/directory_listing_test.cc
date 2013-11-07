@@ -374,7 +374,7 @@ void DirectoriesMatch(const DirectoryListing& lhs, const DirectoryListing& rhs) 
       FAIL("Data map pointer mismatch");
     if ((*itr1).data_map) {
       REQUIRE(TotalSize((*itr1).data_map) == TotalSize((*itr2).data_map));
-      REQUIRE((*itr1).data_map->chunks.size() != (*itr2).data_map->chunks.size());
+      REQUIRE((*itr1).data_map->chunks.size() == (*itr2).data_map->chunks.size());
       auto chunk_itr1((*itr1).data_map->chunks.begin());
       auto chunk_itr2((*itr2).data_map->chunks.begin());
       size_t chunk_no(0);
@@ -508,7 +508,7 @@ TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][beh
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   CHECK("A" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  CHECK("[behavioural]" == meta_data.name);
+  CHECK("B" == meta_data.name);
 
   // Add another element and check iterator is reset
   ++c;
@@ -517,7 +517,7 @@ TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][beh
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   CHECK("A" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  CHECK("[behavioural]" == meta_data.name);
+  CHECK("B" == meta_data.name);
 
   // Remove an element and check iterator is reset
   meta_data.name = std::string(1, c);
@@ -526,7 +526,7 @@ TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][beh
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   CHECK("A" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  CHECK("[behavioural]" == meta_data.name);
+  CHECK("B" == meta_data.name);
 
   // Try to remove a non-existent element and check iterator is not reset
   meta_data.name = std::string(1, c);
@@ -551,7 +551,7 @@ TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][beh
   CHECK("A" == meta_data.name);
   CHECK(1U == GetSize(meta_data));
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  CHECK("[behavioural]" == meta_data.name);
+  CHECK("B" == meta_data.name);
 
   // Try to update a non-existent element and check iterator is not reset
   meta_data.name = std::string(1, c);
@@ -564,7 +564,7 @@ TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][beh
 
   // Check operator<
   DirectoryListing directory_listing1(Identity(crypto::Hash<crypto::SHA512>(std::string("A")))),
-      directory_listing2(Identity(crypto::Hash<crypto::SHA512>(std::string("[behavioural]"))));
+      directory_listing2(Identity(crypto::Hash<crypto::SHA512>(std::string("B"))));
   CHECK(directory_listing1 < directory_listing2);
 }
 
