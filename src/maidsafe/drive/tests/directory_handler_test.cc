@@ -49,69 +49,9 @@
 namespace fs = boost::filesystem;
 
 namespace maidsafe {
-
 namespace drive {
-
 namespace detail {
-
 namespace test {
-
-// TODO(Team): 2013-09-25 - Uncomment and fix or delete
-// template<typename Storage>
-// class FailDirectoryHandler : public DirectoryHandler<Storage> {
-// public:
-//  typedef nfs::ClientMaidNfs ClientNfs;
-//  typedef data_store::PermanentStore DataStore;
-//
-//  enum { kValue = DirectoryHandler::DataTagValue::kOwnerDirectoryValue };
-//
-//  FailDirectoryHandler(ClientNfs& client_nfs,
-//                              DataStore& data_store,
-//                              const Identity& unique_user_id,
-//                              const Identity& drive_root_id,
-//                              int fail_for_put,
-//                              bool use_real)
-//      : DirectoryHandler(client_nfs, data_store, maid, unique_user_id, drive_root_id),
-//        fail_for_put_(fail_for_put),
-//        fail_count_(0),
-//        use_real_(use_real) {}
-//
-//  ~FailDirectoryHandler() {}
-//  Directory GetDirectoryFromStorage(const DirectoryId &pid,
-//                                    const DirectoryId &id) const {
-//    if (use_real_)
-//      return DirectoryHandler::GetFromStorage(pid, id, kValue);
-//    else
-//      return Directory();
-//  }
-//  void PutToStorage(Directory data) {
-//    if (++fail_count_ == fail_for_put_)
-//      ThrowError(CommonErrors::invalid_parameter);
-//    else if (use_real_)
-//      DirectoryHandler::PutToStorage(std::make_pair(data, kValue));
-//    else
-//      return;
-//  }
-//  void DeleteFromStorage(const DirectoryId &pid, const DirectoryId &id) {
-//    if (use_real_)
-//      DirectoryHandler::DeleteFromStorage(pid, id, kValue);
-//    else
-//      return;
-//  }
-//
-// private:
-//  friend class test::DirectoryHandlerTest;
-//  int fail_for_put_;
-//  int fail_count_;
-//  bool use_real_;
-// };
-
-struct TestTreeEntry {
-  TestTreeEntry() : path(), leaf(true) {}
-  TestTreeEntry(const fs::path fs_path, bool leafness) : path(fs_path), leaf(leafness) {}
-  fs::path path;
-  bool leaf;
-};
 
 class DirectoryHandlerTest {
  public:
@@ -120,283 +60,383 @@ class DirectoryHandlerTest {
         data_store_(new data_store::LocalStore(*main_test_dir_, DiskUsage(1 << 30))),
         unique_user_id_(RandomString(64)),
         root_parent_id_(RandomString(64)),
-        listing_handler_(),
-        created_paths_(),
-        created_paths_mutex_() {}
-  //
-  //  typedef nfs::ClientMaidNfs ClientNfs;
-  //  typedef data_store::PermanentStore DataStore;
-  //
-  // protected:
-  //  void SetUp() {
-  //    DiskUsage disk_usage(1048576000);
-  //    data_store_.reset(new DataStore(*main_test_dir_ / RandomAlphaNumericString(8), disk_usage));
-  //    client_nfs_.reset(new ClientNfs(routing_, default_maid_));
-  //    listing_handler_.reset(new DirectoryHandler(*client_nfs_,
-  //                                                       *data_store_,
-  //                                                       default_maid_,
-  //                                                       unique_user_id_,
-  //                                                       ""));
-  //  }
-  //
-  //  void TearDown() {}
-  //
-  //  void FullCoverageAddElement() {
-  //    // Originally tested cached directories which are now gone...
-  //    // Failure to get parent
-  //    fs::path test_path(owner_ / "some_path");
-  //    MetaData meta_data(test_path.filename(), true);
-  //    // Successful addition and failure to add same again
-  //    EXPECT_NO_THROW(listing_handler_->AddElement(test_path, meta_data, nullptr, nullptr));
-  //    EXPECT_THROW(listing_handler_->AddElement(test_path, meta_data, nullptr, nullptr),
-  //                 std::exception);
-  //    // Make the add child fail with different path but same meta_data
-  //    test_path = fs::path(owner_ / "some_other_path");
-  //    EXPECT_THROW(listing_handler_->AddElement(test_path, meta_data, nullptr, nullptr),
-  //                 std::exception);
-  //    test_path = fs::path(owner_ / "some_path");
-  //    EXPECT_NO_THROW(listing_handler_->DeleteElement(test_path, meta_data));
-  //    EXPECT_NO_THROW(listing_handler_->AddElement(test_path, meta_data, nullptr, nullptr));
-  //    test_path = fs::path(owner_ / "and_yet_one_more");
-  //    meta_data = MetaData(test_path.filename(), true);
-  //    EXPECT_NO_THROW(listing_handler_->AddElement(test_path, meta_data, nullptr, nullptr));
-  //  }
-  //
-  //  void FullCoverageByPath() {
-  //    // Originally tested cached directories which are now gone...
-  //    // Get the root listing from storage
-  //    auto directory(listing_handler_->GetFromPath("/"));
-  //    EXPECT_EQ(directory.first.parent_id, listing_handler_->drive_root_id_);
-  //    // Try to get the non-existant dir listing
-  //    EXPECT_THROW(directory = listing_handler_->GetFromPath(owner_ / "some_dir"),
-  // std::exception);
-  //    // Adding some_dir
-  //    fs::path path(owner_ / "some_dir");
-  //    MetaData meta_data(path.filename(), true);
-  // #ifdef MAIDSAFE_WIN32
-  //    meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
-  //    GetSystemTimeAsFileTime(&meta_data.creation_time);
-  //    GetSystemTimeAsFileTime(&meta_data.last_access_time);
-  //    GetSystemTimeAsFileTime(&meta_data.last_write_time);
-  // #else
-  //    time(&meta_data.attributes.st_atime);
-  //    time(&meta_data.attributes.st_mtime);
-  // #endif
-  //    DirectoryId grandparent_dir_id, parent_dir_id;
-  //    EXPECT_NO_THROW(listing_handler_->AddElement(path, meta_data, nullptr, nullptr));
-  //    EXPECT_NO_THROW(listing_handler_->DeleteElement(path, meta_data));
-  //    // Try to get the non-nexistant dir listing...
-  //    EXPECT_THROW(directory = listing_handler_->GetFromPath(owner_ / "some_dir/another_dir"),
-  //                 std::exception);
-  //  }
-  //
-  //  void AddToListing(int id, const uint8_t total_elements) {
-  //    fs::path directory;
-  //    for (;;) {
-  //      boost::this_thread::sleep(boost::posix_time::milliseconds((id + 1) * 50));
-  //      {
-  //        boost::mutex::scoped_lock loch_easaidh(created_paths_mutex_);
-  //        if (created_paths_.size() >= total_elements) {
-  //          return;
-  //        } else {
-  //          if (RandomUint32() % 2 == 0 || created_paths_.size() == 0) {
-  //            directory = fs::path(relative_root_ / RandomAlphaNumericString(5));
-  //          } else {
-  //            size_t index = RandomUint32() % created_paths_.size();
-  //            if (created_paths_.at(index).leaf)
-  //              created_paths_.at(index).leaf = false;
-  //            directory = fs::path(created_paths_.at(index).path / RandomAlphaNumericString(5));
-  //          }
-  //          created_paths_.push_back(TestTreeEntry(directory, true));
-  //        }
-  //      }
-  //
-  //      MetaData meta_data(directory.filename(), true);
-  //  #ifdef MAIDSAFE_WIN32
-  //      meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
-  //      GetSystemTimeAsFileTime(&meta_data.creation_time);
-  //      GetSystemTimeAsFileTime(&meta_data.last_access_time);
-  //      GetSystemTimeAsFileTime(&meta_data.last_write_time);
-  //  #else
-  //      time(&meta_data.attributes.st_atime);
-  //      time(&meta_data.attributes.st_mtime);
-  //  #endif
-  //      EXPECT_NO_THROW(listing_handler_->AddElement(directory, meta_data, nullptr, nullptr));
-  //    }
-  //  }
-  //
-  //  void QueryFromListing(int id, const uint8_t total_queries, uint8_t *queries_so_far) {
-  //    fs::path search;
-  //    for (;;) {
-  //      boost::this_thread::sleep(boost::posix_time::milliseconds((id + 1) * 50));
-  //      {
-  //        boost::mutex::scoped_lock loch_leitreach(created_paths_mutex_);
-  //        if (*queries_so_far >= total_queries) {
-  //          return;
-  //        } else if (created_paths_.size() > 0) {
-  //          search = created_paths_.at(RandomUint32() % created_paths_.size()).path;
-  //          ++(*queries_so_far);
-  //          auto directory(listing_handler_->GetFromPath(search));
-  //        }
-  //      }
-  //    }
-  //  }
-  //
-  //  void EraseFromListing(int id, const uint8_t total_deletes, uint8_t *deletes_so_far) {
-  //    fs::path search;
-  //    MetaData meta_data;
-  //    for (;;) {
-  //      boost::this_thread::sleep(boost::posix_time::milliseconds((id + 1) * 30));
-  //      {
-  //        boost::mutex::scoped_lock loch_leitreach(created_paths_mutex_);
-  //        if (*deletes_so_far >= total_deletes) {
-  //          return;
-  //        } else if (created_paths_.size() > 0) {
-  //          size_t index = RandomUint32() % created_paths_.size();
-  //          if (created_paths_.at(index).leaf) {
-  //            search = created_paths_.at(index).path;
-  //            created_paths_.erase(created_paths_.begin() + index);
-  //            ++(*deletes_so_far);
-  //            EXPECT_NO_THROW(listing_handler_->DeleteElement(search, meta_data));
-  //          }
-  //        }
-  //      }
-  //    }
-  //  }
-  //
+        listing_handler_() {}
+
+ protected:
   maidsafe::test::TestPath main_test_dir_;
   std::shared_ptr<data_store::LocalStore> data_store_;
   Identity unique_user_id_, root_parent_id_;
   std::shared_ptr<detail::DirectoryHandler<data_store::LocalStore>> listing_handler_;
-  std::vector<TestTreeEntry> created_paths_;
-  std::mutex created_paths_mutex_;
 
  private:
   DirectoryHandlerTest(const DirectoryHandlerTest&);
   DirectoryHandlerTest& operator=(const DirectoryHandlerTest&);
 };
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "Basic tests", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Construct", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
-      data_store_, unique_user_id_, Identity()));
-  Identity root_parent_id(listing_handler_->root_parent_id());
-  MetaData meta_data("Directory", true), recovered_meta_data;
+      data_store_, unique_user_id_, root_parent_id_, true));
   Directory recovered_directory;
-  CHECK_NOTHROW(listing_handler_->Add(kRoot / "Directory", meta_data, unique_user_id_,
-                                        root_parent_id));
-  CHECK_NOTHROW(recovered_directory = listing_handler_->Get(kRoot / "Directory"));
-  CHECK(recovered_directory.listing->directory_id() == *meta_data.directory_id);
+  MetaData recovered_meta_data;
+
+  CHECK_NOTHROW(recovered_directory = listing_handler_->Get(""));
+  CHECK(recovered_directory.parent_id == unique_user_id_);
+  CHECK(recovered_directory.listing->directory_id() == root_parent_id_);
+  CHECK(!recovered_directory.listing->empty());
+  CHECK_NOTHROW(recovered_directory.listing->GetChild(kRoot, recovered_meta_data));
+  CHECK(kRoot == recovered_meta_data.name);
   CHECK_NOTHROW(recovered_directory = listing_handler_->Get(kRoot));
-  CHECK_NOTHROW(recovered_directory.listing->GetChild("Directory", recovered_meta_data));
-  CHECK(meta_data.name == recovered_meta_data.name);
-  CHECK_NOTHROW(listing_handler_->Delete(kRoot / "Directory"));
-  CHECK_THROWS_AS(recovered_directory = listing_handler_->Get(kRoot / "Directory"), std::exception);
+  CHECK(recovered_directory.parent_id == root_parent_id_);
 }
 
-// TODO(Team): 2013-09-25 - Uncomment and fix or delete
-// TEST_F(DirectoryHandlerTest, BEH_Construct) {
-//  EXPECT_NO_THROW(DirectoryHandler local_listing_handler(*client_nfs_,
-//                                                                *data_store_,
-//                                                                unique_user_id_,
-//                                                                ""));
-//  /*EXPECT_THROW(FailDirectoryHandler fail_listing_handler(*client_nfs_,
-//                                                                *data_store_,
-//                                                                maid,
-//                                                                unique_user_id_,
-//                                                                "",
-//                                                                1,
-//                                                                true),
-//               std::exception);
-//  EXPECT_THROW(FailDirectoryHandler fail_listing_handler(*client_nfs_,
-//                                                                *data_store_,
-//                                                                maid,
-//                                                                unique_user_id_,
-//                                                                "",
-//                                                                2,
-//                                                                true),
-//               std::exception);*/
-// }
-//
-// TEST_F(DirectoryHandlerTest, BEH_GetDirectoryDataByPath) {
-//  FullCoverageByPath();
-// }
-//
-// TEST_F(DirectoryHandlerTest, BEH_AddElement) {
-//  FullCoverageAddElement();
-// }
-//
-// TEST_F(DirectoryHandlerTest, BEH_AddThenDelete) {
-//  {
-//    // Add then Delete Directory Element
-//    MetaData directory_meta("directory_test", true);
-//    EXPECT_NO_THROW(listing_handler_->AddElement(owner_ / "test",
-//                                                 directory_meta,
-//                                                 nullptr,
-//                                                 &(*owner_meta_data_.directory_id)));
-//    EXPECT_NO_THROW(listing_handler_->DeleteElement(owner_ / "directory_test", directory_meta));
-//  }
-//  {
-//    // Add then Delete File Element
-//    MetaData file_meta("file_test", false);
-//    EXPECT_NO_THROW(listing_handler_->AddElement(owner_ / "test",
-//                                                 file_meta,
-//                                                 nullptr,
-//                                                 &(*owner_meta_data_.directory_id)));
-//    EXPECT_NO_THROW(listing_handler_->DeleteElement(owner_ / "file_test", file_meta));
-//  }
-// }
-//
-// TEST_F(DirectoryHandlerTest, BEH_RenameElement) {
-//  MetaData directory_meta("test", true);
-//  EXPECT_NO_THROW(listing_handler_->AddElement(owner_ / "test",
-//                                               directory_meta,
-//                                               nullptr,
-//                                               &(*owner_meta_data_.directory_id)));
-//  int64_t reclaimed_size;
-//  EXPECT_NO_THROW(listing_handler_->RenameElement(owner_ / "test",
-//                                                  owner_ / "new_test",
-//                                                  directory_meta,
-//                                                  reclaimed_size));
-//  EXPECT_THROW(listing_handler_->DeleteElement(owner_ / "test", directory_meta),
-//               std::exception);
-//  MetaData new_meta("new_test", true);
-//  EXPECT_NO_THROW(listing_handler_->DeleteElement(owner_ / "new_test", new_meta));
-// }
-//
-// TEST_F(DirectoryHandlerTest, BEH_UpdateParentDirectoryListing) {
-//  MetaData directory_meta("test", true);
-//  EXPECT_NO_THROW(listing_handler_->AddElement(owner_ / "test",
-//                                               directory_meta,
-//                                               nullptr,
-//                                               &(*owner_meta_data_.directory_id)));
-//  MetaData non_exists_meta("non_exists", true);
-//  EXPECT_THROW(listing_handler_->UpdateParentDirectoryListing(owner_, non_exists_meta),
-//               std::exception);
-//  MetaData new_meta("test", true);
-// #ifdef MAIDSAFE_WIN32
-//  GetSystemTimeAsFileTime(&new_meta.last_access_time);
-// #else
-//  time(&new_meta.attributes.st_atime);
-// #endif
-//  EXPECT_NO_THROW(listing_handler_->UpdateParentDirectoryListing(owner_, new_meta));
-//  MetaData result_temp;
-//  EXPECT_NO_THROW(
-//    listing_handler_->GetFromPath(owner_).first.listing->GetChild("test", result_temp));
-// #ifdef MAIDSAFE_WIN32
-//  EXPECT_EQ(new_meta.last_access_time.dwHighDateTime,
-//            result_temp.last_access_time.dwHighDateTime);
-//  // This fails due to time conversion inaccuracies...
-//  /*EXPECT_EQ(new_meta.last_access_time.dwLowDateTime,
-//            result_temp.last_access_time.dwLowDateTime);*/
-// #else
-//  EXPECT_EQ(new_meta.attributes.st_atime, result_temp.attributes.st_atime);
-// #endif
-// }
+TEST_CASE_METHOD(DirectoryHandlerTest, "AddDirectory", "[DirectoryHandler][behavioural]") {
+  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+      data_store_, unique_user_id_, root_parent_id_, true));
+  std::string directory_name("Directory");
+  MetaData meta_data(directory_name, true), recovered_meta_data;
+  Directory directory;
+
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / directory_name, meta_data, unique_user_id_,
+                                      root_parent_id_));
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / directory_name));
+  CHECK(directory.listing->directory_id() == *meta_data.directory_id);
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
+  CHECK_NOTHROW(directory.listing->GetChild(directory_name, recovered_meta_data));
+  CHECK(meta_data.name == recovered_meta_data.name);
+}
+
+TEST_CASE_METHOD(DirectoryHandlerTest, "AddSameDirectory", "[DirectoryHandler][behavioural]") {
+  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+      data_store_, unique_user_id_, root_parent_id_, true));
+  std::string directory_name("Directory");
+  MetaData meta_data(directory_name, true), recovered_meta_data;
+  Directory directory;
+
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / directory_name, meta_data, unique_user_id_,
+                                      root_parent_id_));
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / directory_name));
+  CHECK(directory.listing->directory_id() == *meta_data.directory_id);
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
+  CHECK_NOTHROW(directory.listing->GetChild(directory_name, recovered_meta_data));
+  CHECK(meta_data.name == recovered_meta_data.name);
+
+  CHECK_THROWS_AS(listing_handler_->Add(kRoot / directory_name, meta_data, unique_user_id_,
+                  root_parent_id_), std::exception);
+  CHECK_NOTHROW(directory.listing->GetChild(directory_name, recovered_meta_data));
+  CHECK(meta_data.name == recovered_meta_data.name);
+}
+
+TEST_CASE_METHOD(DirectoryHandlerTest, "AddFile", "[DirectoryHandler][behavioural]") {
+  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+      data_store_, unique_user_id_, root_parent_id_, true));
+  std::string file_name("File");
+  MetaData meta_data(file_name, false), recovered_meta_data;
+  Directory directory;
+
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / file_name, meta_data, unique_user_id_,
+                                      root_parent_id_));
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / file_name), std::exception);
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
+  CHECK(directory.listing->HasChild(file_name));
+  CHECK_NOTHROW(directory.listing->GetChild(file_name, recovered_meta_data));
+  CHECK(meta_data.name == recovered_meta_data.name);
+}
+
+TEST_CASE_METHOD(DirectoryHandlerTest, "AddSameFile", "[DirectoryHandler][behavioural]") {
+  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+      data_store_, unique_user_id_, root_parent_id_, true));
+  std::string file_name("File");
+  MetaData meta_data(file_name, false), recovered_meta_data;
+  Directory directory;
+
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / file_name, meta_data, unique_user_id_,
+                                      root_parent_id_));
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / file_name), std::exception);
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
+  CHECK(directory.listing->HasChild(file_name));
+  CHECK_NOTHROW(directory.listing->GetChild(file_name, recovered_meta_data));
+  CHECK(meta_data.name == recovered_meta_data.name);
+
+  CHECK_THROWS_AS(listing_handler_->Add(kRoot / file_name, meta_data, unique_user_id_,
+                  root_parent_id_), std::exception);
+  CHECK(directory.listing->HasChild(file_name));
+  CHECK_NOTHROW(directory.listing->GetChild(file_name, recovered_meta_data));
+  CHECK(meta_data.name == recovered_meta_data.name);
+}
+
+TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteDirectory", "[DirectoryHandler][behavioural]") {
+  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+      data_store_, unique_user_id_, root_parent_id_, true));
+  std::string directory_name("Directory");
+  MetaData meta_data(directory_name, true), recovered_meta_data;
+  Directory directory;
+
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / directory_name, meta_data, unique_user_id_,
+                                      root_parent_id_));
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / directory_name));
+  CHECK(directory.listing->directory_id() == *meta_data.directory_id);
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
+  CHECK_NOTHROW(directory.listing->GetChild(directory_name, recovered_meta_data));
+  CHECK(meta_data.name == recovered_meta_data.name);
+
+  CHECK_NOTHROW(listing_handler_->Delete(kRoot / directory_name));
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / directory_name), std::exception);
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
+  CHECK_THROWS_AS(directory.listing->GetChild(directory_name, recovered_meta_data),
+                  std::exception);
+}
+
+TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteSameDirectory", "[DirectoryHandler][behavioural]") {
+  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+      data_store_, unique_user_id_, root_parent_id_, true));
+  std::string directory_name("Directory");
+  MetaData meta_data(directory_name, true), recovered_meta_data;
+  Directory directory;
+
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / directory_name, meta_data, unique_user_id_,
+                                      root_parent_id_));
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / directory_name));
+  CHECK(directory.listing->directory_id() == *meta_data.directory_id);
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
+  CHECK_NOTHROW(directory.listing->GetChild(directory_name, recovered_meta_data));
+  CHECK(meta_data.name == recovered_meta_data.name);
+
+  CHECK_NOTHROW(listing_handler_->Delete(kRoot / directory_name));
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / directory_name), std::exception);
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
+  CHECK_THROWS_AS(directory.listing->GetChild(directory_name, recovered_meta_data),
+                  std::exception);
+
+  CHECK_THROWS_AS(listing_handler_->Delete(kRoot / directory_name), std::exception);
+}
+
+TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteFile", "[DirectoryHandler][behavioural]") {
+  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+      data_store_, unique_user_id_, root_parent_id_, true));
+  std::string file_name("File");
+  MetaData meta_data(file_name, false), recovered_meta_data;
+  Directory directory;
+
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / file_name, meta_data, unique_user_id_,
+                                      root_parent_id_));
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / file_name), std::exception);
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
+  CHECK_NOTHROW(directory.listing->GetChild(file_name, recovered_meta_data));
+  CHECK(meta_data.name == recovered_meta_data.name);
+
+  CHECK_NOTHROW(listing_handler_->Delete(kRoot / file_name));
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
+  CHECK_THROWS_AS(directory.listing->GetChild(file_name, recovered_meta_data), std::exception);
+}
+
+TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteSameFile", "[DirectoryHandler][behavioural]") {
+  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+      data_store_, unique_user_id_, root_parent_id_, true));
+  std::string file_name("File");
+  MetaData meta_data(file_name, false), recovered_meta_data;
+  Directory directory;
+
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / file_name, meta_data, unique_user_id_,
+                                      root_parent_id_));
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / file_name), std::exception);
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
+  CHECK_NOTHROW(directory.listing->GetChild(file_name, recovered_meta_data));
+  CHECK(meta_data.name == recovered_meta_data.name);
+
+  CHECK_NOTHROW(listing_handler_->Delete(kRoot / file_name));
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
+  CHECK_THROWS_AS(directory.listing->GetChild(file_name, recovered_meta_data), std::exception);
+
+  CHECK_THROWS_AS(listing_handler_->Delete(kRoot / file_name), std::exception);
+}
+
+TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveDirectory", "[DirectoryHandler][behavioural]") {
+  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+      data_store_, unique_user_id_, root_parent_id_, true));
+  std::string first_directory_name("Directory1"), second_directory_name("Directory2"),
+              old_directory_name("OldName"), new_directory_name("NewName");
+  MetaData first_meta_data(first_directory_name, true),
+           second_meta_data(second_directory_name, true),
+           meta_data(old_directory_name, true), recovered_meta_data;
+  Directory old_parent_directory, new_parent_directory, directory;
+
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / first_directory_name, first_meta_data,
+                                      unique_user_id_, root_parent_id_));
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / second_directory_name, second_meta_data,
+                                      unique_user_id_, root_parent_id_));
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / first_directory_name / old_directory_name,
+                                      meta_data, root_parent_id_, *first_meta_data.directory_id));
+
+  CHECK_NOTHROW(old_parent_directory = listing_handler_->Get(kRoot / first_directory_name));
+  CHECK_NOTHROW(old_parent_directory.listing->GetChild(old_directory_name, recovered_meta_data));
+  CHECK(old_directory_name == recovered_meta_data.name);
+  CHECK_THROWS_AS(old_parent_directory.listing->GetChild(new_directory_name, recovered_meta_data),
+                  std::exception);
+  CHECK_NOTHROW(new_parent_directory = listing_handler_->Get(kRoot / second_directory_name));
+  CHECK_THROWS_AS(new_parent_directory.listing->GetChild(old_directory_name, recovered_meta_data),
+                  std::exception);
+  CHECK_THROWS_AS(new_parent_directory.listing->GetChild(new_directory_name, recovered_meta_data),
+                  std::exception);
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / first_directory_name /
+                                                  old_directory_name));
+  CHECK(directory.parent_id == old_parent_directory.listing->directory_id());
+  CHECK(directory.listing->directory_id() == *meta_data.directory_id);
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / first_directory_name /
+                  new_directory_name), std::exception);
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / second_directory_name /
+                  old_directory_name), std::exception);
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / second_directory_name /
+                  new_directory_name), std::exception);
+
+  CHECK_NOTHROW(listing_handler_->Rename(kRoot / first_directory_name / old_directory_name,
+                                         kRoot / first_directory_name / new_directory_name,
+                                         meta_data));
+
+  CHECK_NOTHROW(old_parent_directory = listing_handler_->Get(kRoot / first_directory_name));
+  CHECK_THROWS_AS(old_parent_directory.listing->GetChild(old_directory_name, recovered_meta_data),
+                  std::exception);
+  CHECK_NOTHROW(old_parent_directory.listing->GetChild(new_directory_name, recovered_meta_data));
+  CHECK(new_directory_name == recovered_meta_data.name);
+  CHECK_NOTHROW(new_parent_directory = listing_handler_->Get(kRoot / second_directory_name));
+  CHECK_THROWS_AS(new_parent_directory.listing->GetChild(old_directory_name, recovered_meta_data),
+                  std::exception);
+  CHECK_THROWS_AS(new_parent_directory.listing->GetChild(new_directory_name, recovered_meta_data),
+                  std::exception);
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / first_directory_name /
+                  old_directory_name), std::exception);
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / first_directory_name /
+                                                  new_directory_name));
+  CHECK(directory.parent_id == old_parent_directory.listing->directory_id());
+  CHECK(directory.listing->directory_id() == *meta_data.directory_id);
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / second_directory_name /
+                  old_directory_name), std::exception);
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / second_directory_name /
+                  new_directory_name), std::exception);
+
+  CHECK_THROWS_AS(listing_handler_->Rename(kRoot / first_directory_name / old_directory_name, kRoot
+                  / second_directory_name / new_directory_name, meta_data), std::exception);
+  CHECK_NOTHROW(listing_handler_->Rename(kRoot / first_directory_name / new_directory_name, kRoot /
+                second_directory_name / new_directory_name, meta_data));
+
+  CHECK_NOTHROW(old_parent_directory = listing_handler_->Get(kRoot / first_directory_name));
+  CHECK_THROWS_AS(old_parent_directory.listing->GetChild(old_directory_name, recovered_meta_data),
+                  std::exception);
+  CHECK_THROWS_AS(old_parent_directory.listing->GetChild(new_directory_name, recovered_meta_data),
+                  std::exception);
+  CHECK_NOTHROW(new_parent_directory = listing_handler_->Get(kRoot / second_directory_name));
+  CHECK_THROWS_AS(new_parent_directory.listing->GetChild(old_directory_name, recovered_meta_data),
+                  std::exception);
+  CHECK_NOTHROW(new_parent_directory.listing->GetChild(new_directory_name, recovered_meta_data));
+  CHECK(new_directory_name == recovered_meta_data.name);
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / first_directory_name /
+                  old_directory_name), std::exception);
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / first_directory_name /
+                  new_directory_name), std::exception);
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / second_directory_name /
+                  old_directory_name), std::exception);
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / second_directory_name /
+                                                  new_directory_name));
+  CHECK(directory.parent_id == new_parent_directory.listing->directory_id());
+  CHECK(directory.listing->directory_id() == *meta_data.directory_id);
+}
+
+TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveFile", "[DirectoryHandler][behavioural]") {
+  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+      data_store_, unique_user_id_, root_parent_id_, true));
+  std::string first_directory_name("Directory1"), second_directory_name("Directory2"),
+              old_file_name("OldName"), new_file_name("NewName");
+  MetaData first_meta_data(first_directory_name, true),
+           second_meta_data(second_directory_name, true),
+           meta_data(old_file_name, false), recovered_meta_data;
+  Directory old_parent_directory, new_parent_directory, directory;
+
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / first_directory_name, first_meta_data,
+                                      unique_user_id_, root_parent_id_));
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / second_directory_name, second_meta_data,
+                                      unique_user_id_, root_parent_id_));
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / first_directory_name / old_file_name,
+                                      meta_data, root_parent_id_, *first_meta_data.directory_id));
+
+  CHECK_NOTHROW(old_parent_directory = listing_handler_->Get(kRoot / first_directory_name));
+  CHECK_NOTHROW(old_parent_directory.listing->GetChild(old_file_name, recovered_meta_data));
+  CHECK(old_file_name == recovered_meta_data.name);
+  CHECK_THROWS_AS(old_parent_directory.listing->GetChild(new_file_name, recovered_meta_data),
+                  std::exception);
+  CHECK_NOTHROW(new_parent_directory = listing_handler_->Get(kRoot / second_directory_name));
+  CHECK_THROWS_AS(new_parent_directory.listing->GetChild(old_file_name, recovered_meta_data),
+                  std::exception);
+  CHECK_THROWS_AS(new_parent_directory.listing->GetChild(new_file_name, recovered_meta_data),
+                  std::exception);
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / first_directory_name / old_file_name),
+                  std::exception);
+
+  CHECK_NOTHROW(listing_handler_->Rename(kRoot / first_directory_name / old_file_name,
+                                         kRoot / first_directory_name / new_file_name,
+                                         meta_data));
+
+  CHECK_NOTHROW(old_parent_directory = listing_handler_->Get(kRoot / first_directory_name));
+  CHECK_THROWS_AS(old_parent_directory.listing->GetChild(old_file_name, recovered_meta_data),
+                  std::exception);
+  CHECK_NOTHROW(old_parent_directory.listing->GetChild(new_file_name, recovered_meta_data));
+  CHECK(new_file_name == recovered_meta_data.name);
+  CHECK_NOTHROW(new_parent_directory = listing_handler_->Get(kRoot / second_directory_name));
+  CHECK_THROWS_AS(new_parent_directory.listing->GetChild(old_file_name, recovered_meta_data),
+                  std::exception);
+  CHECK_THROWS_AS(new_parent_directory.listing->GetChild(new_file_name, recovered_meta_data),
+                  std::exception);
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / first_directory_name / new_file_name),
+                  std::exception);
+
+  CHECK_NOTHROW(recovered_meta_data.name = old_file_name);
+  CHECK(recovered_meta_data.name == old_file_name);
+  CHECK_THROWS_AS(listing_handler_->Rename(kRoot / first_directory_name / old_file_name, kRoot /
+                  second_directory_name / new_file_name, recovered_meta_data), std::exception);
+  CHECK_NOTHROW(recovered_meta_data.name = new_file_name);
+  CHECK(recovered_meta_data.name == new_file_name);
+  CHECK_NOTHROW(listing_handler_->Rename(kRoot / first_directory_name / new_file_name, kRoot /
+                second_directory_name / new_file_name, recovered_meta_data));
+
+  CHECK_NOTHROW(old_parent_directory = listing_handler_->Get(kRoot / first_directory_name));
+  CHECK_THROWS_AS(old_parent_directory.listing->GetChild(old_file_name, recovered_meta_data),
+                  std::exception);
+  CHECK_THROWS_AS(old_parent_directory.listing->GetChild(new_file_name, recovered_meta_data),
+                  std::exception);
+  CHECK_NOTHROW(new_parent_directory = listing_handler_->Get(kRoot / second_directory_name));
+  CHECK_THROWS_AS(new_parent_directory.listing->GetChild(old_file_name, recovered_meta_data),
+                  std::exception);
+  CHECK_NOTHROW(new_parent_directory.listing->GetChild(new_file_name, recovered_meta_data));
+  CHECK(new_file_name == recovered_meta_data.name);
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / second_directory_name /
+                  new_file_name), std::exception);
+}
+
+TEST_CASE_METHOD(DirectoryHandlerTest, "UpdateParent", "[DirectoryHandler][behavioural]") {
+  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+      data_store_, unique_user_id_, root_parent_id_, true));
+  std::string file_name("File"), file_content;
+  MetaData meta_data(file_name, false), recovered_meta_data;
+  Directory directory;
+  encrypt::DataMap data_map;
+
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / file_name, meta_data, unique_user_id_,
+                root_parent_id_));
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / file_name), std::exception);
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
+  CHECK_NOTHROW(directory.listing->GetChild(file_name, recovered_meta_data));
+  CHECK(meta_data.name == recovered_meta_data.name);
+  CHECK(recovered_meta_data.data_map->content == file_content);
+
+  CHECK_NOTHROW(file_content = "A");
+  CHECK_NOTHROW(data_map.content = file_content);
+  CHECK_NOTHROW(*meta_data.data_map = data_map);
+  CHECK_NOTHROW(listing_handler_->UpdateParent(kRoot, meta_data));
+  CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
+  CHECK_NOTHROW(directory.listing->GetChild(file_name, recovered_meta_data));
+  CHECK(meta_data.name == recovered_meta_data.name);
+  CHECK(recovered_meta_data.data_map->content == file_content);
+}
 
 }  // namespace test
-
 }  // namespace detail
-
 }  // namespace drive
-
 }  // namespace maidsafe

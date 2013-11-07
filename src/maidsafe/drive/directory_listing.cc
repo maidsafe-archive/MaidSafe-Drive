@@ -129,9 +129,11 @@ bool DirectoryListing::GetChildAndIncrementItr(MetaData& meta_data) {
 }
 
 void DirectoryListing::AddChild(const MetaData& child) {
-  assert(!std::any_of(std::begin(children_), std::end(children_),
-                      [&child](const std::deque<MetaData>& entry) {
-                         return child.name == entry.back().name; }));
+  auto itr(std::find_if(std::begin(children_), std::end(children_),
+                        [&child](const std::deque<MetaData>& entry) {
+                           return child.name == entry.back().name; }));
+  if (itr != std::end(children_))
+    ThrowError(CommonErrors::invalid_parameter);
   std::deque<MetaData> meta_data_versions;
   meta_data_versions.push_back(child);
   children_.push_back(meta_data_versions);

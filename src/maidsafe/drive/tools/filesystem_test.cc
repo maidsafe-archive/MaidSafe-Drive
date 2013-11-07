@@ -47,12 +47,12 @@ namespace test {
 
 namespace {
 
-fs::path root_, temp_;
+fs::path g_root, g_temp;
 
 std::function<void()> clean_root([] {
   boost::system::error_code error_code;
   fs::directory_iterator end;
-  for (fs::directory_iterator directory_itr(root_); directory_itr != end; ++directory_itr)
+  for (fs::directory_iterator directory_itr(g_root); directory_itr != end; ++directory_itr)
     fs::remove_all(*directory_itr, error_code);
 });
 
@@ -160,8 +160,8 @@ fs::path CreateDirectoryContainingFiles(const fs::path& parent) {
 }  // unnamed namespace
 
 int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp) {
-  root_ = root;
-  temp_ = temp;
+  g_root = root;
+  g_temp = temp;
   Catch::Session session;
   auto command_line_result(
       session.applyCommandLine(argc, argv, Catch::Session::OnUnusedOptions::Ignore));
@@ -172,17 +172,17 @@ int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp) {
 
 TEST_CASE("Create empty file", "[Filesystem]") {
   on_scope_exit cleanup(clean_root);
-  CreateFile(root_, 0);
+  CreateFile(g_root, 0);
 }
 
 TEST_CASE("Create empty directory", "[Filesystem]") {
   on_scope_exit cleanup(clean_root);
-  CreateDirectory(root_);
+  CreateDirectory(g_root);
 }
 
 TEST_CASE("Append to file", "[Filesystem]") {
   on_scope_exit cleanup(clean_root);
-  auto filepath(CreateFile(root_, 0).first);
+  auto filepath(CreateFile(g_root, 0).first);
   int test_runs = 1000;
   WriteFile(filepath, "a");
   for (int i = 0; i < test_runs; ++i) {
@@ -196,25 +196,25 @@ TEST_CASE("Append to file", "[Filesystem]") {
 
 TEST_CASE("Copy empty directory", "[Filesystem]") {
   on_scope_exit cleanup(clean_root);
-  auto directory(CreateDirectory(temp_));
+  auto directory(CreateDirectory(g_temp));
 
-  // Copy 'temp_' directory to 'root_'
+  // Copy 'g_temp' directory to 'g_root'
   boost::system::error_code error_code;
-  fs::copy_directory(directory, root_ / directory.filename(), error_code);
+  fs::copy_directory(directory, g_root / directory.filename(), error_code);
   REQUIRE(error_code.value() == 0);
-  RequireExists(root_ / directory.filename());
+  RequireExists(g_root / directory.filename());
 }
 
 TEST_CASE("Copy directory then delete", "[Filesystem]") {
-  // Create a file and directory in a newly created directory in 'temp_'
+  // Create a file and directory in a newly created directory in 'g_temp'
   on_scope_exit cleanup(clean_root);
-  auto directory(CreateDirectory(temp_));
+  auto directory(CreateDirectory(g_temp));
   auto filepath(CreateFile(directory, RandomUint32() % 1024).first);
   auto nested_directory(CreateDirectory(directory));
 
-  // Copy directory to 'root_'
-  REQUIRE(CopyDirectory(directory, root_));
-  auto copied_directory(root_ / directory.filename());
+  // Copy directory to 'g_root'
+  REQUIRE(CopyDirectory(directory, g_root));
+  auto copied_directory(g_root / directory.filename());
   RequireExists(copied_directory);
   RequireDirectoriesEqual(directory, copied_directory, true);
 
@@ -226,20 +226,20 @@ TEST_CASE("Copy directory then delete", "[Filesystem]") {
   RequireDoesNotExist(copied_directory / filepath.filename());
   RequireDoesNotExist(copied_directory / nested_directory.filename());
 
-  // Try to clean up 'root_'
+  // Try to clean up 'g_root'
   fs::remove_all(copied_directory, error_code);
 }
 
 TEST_CASE("Copy directory, delete then re-copy", "[Filesystem]") {
-  // Create a file and directory in a newly created directory in 'temp_'
+  // Create a file and directory in a newly created directory in 'g_temp'
   on_scope_exit cleanup(clean_root);
-  auto directory(CreateDirectory(temp_));
+  auto directory(CreateDirectory(g_temp));
   auto filepath(CreateFile(directory, RandomUint32() % 1024).first);
   auto nested_directory(CreateDirectory(directory));
 
-  // Copy directory to 'root_'
-  REQUIRE(CopyDirectory(directory, root_));
-  auto copied_directory(root_ / directory.filename());
+  // Copy directory to 'g_root'
+  REQUIRE(CopyDirectory(directory, g_root));
+  auto copied_directory(g_root / directory.filename());
 
   // Delete the directory along with its contents
   boost::system::error_code error_code;
@@ -247,25 +247,25 @@ TEST_CASE("Copy directory, delete then re-copy", "[Filesystem]") {
   INFO(copied_directory << ": " << error_code.message());
   REQUIRE(error_code.value() == 0);
 
-  // Re-copy directory and file to 'root_'
-  REQUIRE(CopyDirectory(directory, root_));
+  // Re-copy directory and file to 'g_root'
+  REQUIRE(CopyDirectory(directory, g_root));
   RequireExists(copied_directory);
   RequireDirectoriesEqual(directory, copied_directory, true);
 }
 
 TEST_CASE("Copy directory then rename", "[Filesystem]") {
-  // Create a file and directory in a newly created directory in 'temp_'
+  // Create a file and directory in a newly created directory in 'g_temp'
   on_scope_exit cleanup(clean_root);
-  auto directory(CreateDirectory(temp_));
+  auto directory(CreateDirectory(g_temp));
   auto filepath(CreateFile(directory, RandomUint32() % 1024).first);
   auto nested_directory(CreateDirectory(directory));
 
-  // Copy directory to 'root_'
-  REQUIRE(CopyDirectory(directory, root_));
-  auto copied_directory(root_ / directory.filename());
+  // Copy directory to 'g_root'
+  REQUIRE(CopyDirectory(directory, g_root));
+  auto copied_directory(g_root / directory.filename());
 
   // Rename the directory
-  auto renamed_directory(root_ / maidsafe::RandomAlphaNumericString(5));
+  auto renamed_directory(g_root / maidsafe::RandomAlphaNumericString(5));
   boost::system::error_code error_code;
   fs::rename(copied_directory, renamed_directory, error_code);
   REQUIRE(error_code.value() == 0);
@@ -275,37 +275,37 @@ TEST_CASE("Copy directory then rename", "[Filesystem]") {
 }
 
 TEST_CASE("Copy directory, rename then re-copy", "[Filesystem]") {
-  // Create a file and directory in a newly created directory in 'temp_'
+  // Create a file and directory in a newly created directory in 'g_temp'
   on_scope_exit cleanup(clean_root);
-  auto directory(CreateDirectory(temp_));
+  auto directory(CreateDirectory(g_temp));
   auto filepath(CreateFile(directory, RandomUint32() % 1024).first);
   auto nested_directory(CreateDirectory(directory));
 
-  // Copy directory to 'root_'
-  REQUIRE(CopyDirectory(directory, root_));
-  auto copied_directory(root_ / directory.filename());
+  // Copy directory to 'g_root'
+  REQUIRE(CopyDirectory(directory, g_root));
+  auto copied_directory(g_root / directory.filename());
 
   // Rename the directory
-  auto renamed_directory(root_ / maidsafe::RandomAlphaNumericString(5));
+  auto renamed_directory(g_root / maidsafe::RandomAlphaNumericString(5));
   boost::system::error_code error_code;
   fs::rename(copied_directory, renamed_directory, error_code);
   REQUIRE(error_code.value() == 0);
   RequireDoesNotExist(copied_directory);
 
-  // Re-copy directory and file to 'root_'
-  REQUIRE(CopyDirectory(directory, root_));
+  // Re-copy directory and file to 'g_root'
+  REQUIRE(CopyDirectory(directory, g_root));
   RequireExists(copied_directory);
   RequireDirectoriesEqual(directory, copied_directory, false);
 }
 
 TEST_CASE("Copy directory containing multiple files", "[Filesystem]") {
-  // Create files in a newly created directory in 'temp_'
+  // Create files in a newly created directory in 'g_temp'
   on_scope_exit cleanup(clean_root);
-  auto directory(CreateDirectoryContainingFiles(temp_));
+  auto directory(CreateDirectoryContainingFiles(g_temp));
 
-  // Copy directory to 'root_'
-  REQUIRE(CopyDirectory(directory, root_));
-  auto copied_directory(root_ / directory.filename());
+  // Copy directory to 'g_root'
+  REQUIRE(CopyDirectory(directory, g_root));
+  auto copied_directory(g_root / directory.filename());
   RequireExists(copied_directory);
   boost::system::error_code error_code;
   REQUIRE(!fs::is_empty(copied_directory, error_code));
@@ -314,10 +314,10 @@ TEST_CASE("Copy directory containing multiple files", "[Filesystem]") {
 }
 
 TEST_CASE("Copy directory hierarchy", "[Filesystem]") {
-  // Create a new directory in 'temp_'
+  // Create a new directory in 'g_temp'
   on_scope_exit cleanup(clean_root);
   std::vector<fs::path> directories;
-  auto directory(CreateDirectory(temp_));
+  auto directory(CreateDirectory(g_temp));
   directories.push_back(directory);
 
   // Add further directories 3 levels deep
@@ -339,9 +339,9 @@ TEST_CASE("Copy directory hierarchy", "[Filesystem]") {
       CreateFile(dir, (RandomUint32() % 1024) + 1);
   }
 
-  // Copy hierarchy to 'root_'
-  REQUIRE(CopyDirectory(directory, root_));
-  auto copied_directory(root_ / directory.filename());
+  // Copy hierarchy to 'g_root'
+  REQUIRE(CopyDirectory(directory, g_root));
+  auto copied_directory(g_root / directory.filename());
   RequireExists(copied_directory);
   boost::system::error_code error_code;
   REQUIRE(!fs::is_empty(copied_directory, error_code));
@@ -350,19 +350,19 @@ TEST_CASE("Copy directory hierarchy", "[Filesystem]") {
 }
 
 TEST_CASE("Copy then copy copied file", "[Filesystem]") {
-  // Create a file in 'temp_'
+  // Create a file in 'g_temp'
   on_scope_exit cleanup(clean_root);
-  auto filepath(CreateFile(temp_, RandomUint32() % 1048577).first);
+  auto filepath(CreateFile(g_temp, RandomUint32() % 1048577).first);
 
-  // Copy file to 'root_'
-  auto copied_file(root_ / filepath.filename());
+  // Copy file to 'g_root'
+  auto copied_file(g_root / filepath.filename());
   boost::system::error_code error_code;
   fs::copy_file(filepath, copied_file, fs::copy_option::fail_if_exists, error_code);
   REQUIRE(error_code.value() == 0);
   RequireExists(copied_file);
   REQUIRE(ReadFile(filepath) == ReadFile(copied_file));
 
-  // Copy file to 'root_' again
+  // Copy file to 'g_root' again
   fs::copy_file(filepath, copied_file, fs::copy_option::overwrite_if_exists, error_code);
   REQUIRE(error_code.value() == 0);
   RequireExists(copied_file);
@@ -370,12 +370,12 @@ TEST_CASE("Copy then copy copied file", "[Filesystem]") {
 }
 
 TEST_CASE("Copy file, delete then re-copy", "[Filesystem]") {
-  // Create a file in 'temp_'
+  // Create a file in 'g_temp'
   on_scope_exit cleanup(clean_root);
-  auto filepath(CreateFile(temp_, RandomUint32() % 1048577).first);
+  auto filepath(CreateFile(g_temp, RandomUint32() % 1048577).first);
 
-  // Copy file to 'root_'
-  auto copied_file(root_ / filepath.filename());
+  // Copy file to 'g_root'
+  auto copied_file(g_root / filepath.filename());
   boost::system::error_code error_code;
   fs::copy_file(filepath, copied_file, fs::copy_option::fail_if_exists, error_code);
   REQUIRE(error_code.value() == 0);
@@ -385,7 +385,7 @@ TEST_CASE("Copy file, delete then re-copy", "[Filesystem]") {
   REQUIRE(error_code.value() == 0);
   RequireDoesNotExist(copied_file);
 
-  // Copy file to 'root_' again
+  // Copy file to 'g_root' again
   fs::copy_file(filepath, copied_file, fs::copy_option::fail_if_exists, error_code);
   REQUIRE(error_code.value() == 0);
   RequireExists(copied_file);
@@ -393,25 +393,25 @@ TEST_CASE("Copy file, delete then re-copy", "[Filesystem]") {
 }
 
 TEST_CASE("Copy file, rename then re-copy", "[Filesystem]") {
-  // Create a file in 'temp_'
+  // Create a file in 'g_temp'
   on_scope_exit cleanup(clean_root);
-  auto filepath(CreateFile(temp_, RandomUint32() % 1048577).first);
+  auto filepath(CreateFile(g_temp, RandomUint32() % 1048577).first);
 
-  // Copy file to 'root_'
-  auto copied_file(root_ / filepath.filename());
+  // Copy file to 'g_root'
+  auto copied_file(g_root / filepath.filename());
   boost::system::error_code error_code;
   fs::copy_file(filepath, copied_file, fs::copy_option::fail_if_exists, error_code);
   REQUIRE(error_code.value() == 0);
 
   // Rename the file
-  auto renamed_file(root_ / (RandomAlphaNumericString(5) + ".txt"));
+  auto renamed_file(g_root / (RandomAlphaNumericString(5) + ".txt"));
   fs::rename(copied_file, renamed_file, error_code);
   REQUIRE(error_code.value() == 0);
   RequireDoesNotExist(copied_file);
   RequireExists(renamed_file);
   REQUIRE(ReadFile(filepath) == ReadFile(renamed_file));
 
-  // Copy file to 'root_' again
+  // Copy file to 'g_root' again
   fs::copy_file(filepath, copied_file, fs::copy_option::fail_if_exists, error_code);
   REQUIRE(error_code.value() == 0);
   RequireExists(copied_file);
@@ -419,12 +419,12 @@ TEST_CASE("Copy file, rename then re-copy", "[Filesystem]") {
 }
 
 TEST_CASE("Copy file, delete then try to read", "[Filesystem]") {
-  // Create a file in 'temp_'
+  // Create a file in 'g_temp'
   on_scope_exit cleanup(clean_root);
-  auto filepath(CreateFile(temp_, RandomUint32() % 1048577).first);
+  auto filepath(CreateFile(g_temp, RandomUint32() % 1048577).first);
 
-  // Copy file to 'root_'
-  auto copied_file(root_ / filepath.filename());
+  // Copy file to 'g_root'
+  auto copied_file(g_root / filepath.filename());
   boost::system::error_code error_code;
   fs::copy_file(filepath, copied_file, fs::copy_option::fail_if_exists, error_code);
   REQUIRE(error_code.value() == 0);
@@ -434,24 +434,24 @@ TEST_CASE("Copy file, delete then try to read", "[Filesystem]") {
   REQUIRE(error_code.value() == 0);
   RequireDoesNotExist(copied_file);
 
-  // Try to copy 'root_' file back to a 'temp_' file
-  auto test_file(temp_ / (RandomAlphaNumericString(5) + ".txt"));
+  // Try to copy 'g_root' file back to a 'g_temp' file
+  auto test_file(g_temp / (RandomAlphaNumericString(5) + ".txt"));
   fs::copy_file(copied_file, test_file, fs::copy_option::overwrite_if_exists, error_code);
   REQUIRE(error_code.value() != 0);
   RequireDoesNotExist(test_file);
 }
 
 TEST_CASE("Create file", "[Filesystem]") {
-  // Create a file in 'root_' and read back its contents
+  // Create a file in 'g_root' and read back its contents
   on_scope_exit cleanup(clean_root);
-  auto filepath_and_contents(CreateFile(root_, RandomUint32() % 1048577));
+  auto filepath_and_contents(CreateFile(g_root, RandomUint32() % 1048577));
   REQUIRE(ReadFile(filepath_and_contents.first).string() == filepath_and_contents.second);
 }
 
 TEST_CASE("Create file, modify then read", "[Filesystem]") {
-  // Create a file in 'root_'
+  // Create a file in 'g_root'
   on_scope_exit cleanup(clean_root);
-  auto filepath_and_contents(CreateFile(root_, RandomUint32() % 1048577));
+  auto filepath_and_contents(CreateFile(g_root, RandomUint32() % 1048577));
 
   // Modify the file
   size_t offset(RandomUint32() % filepath_and_contents.second.size());
@@ -470,18 +470,18 @@ TEST_CASE("Create file, modify then read", "[Filesystem]") {
 }
 
 TEST_CASE("Rename file to different parent directory", "[Filesystem]") {
-  // Create a file in a newly created directory in 'temp_'
+  // Create a file in a newly created directory in 'g_temp'
   on_scope_exit cleanup(clean_root);
-  auto directory(CreateDirectory(temp_));
+  auto directory(CreateDirectory(g_temp));
   auto filepath_and_contents(CreateFile(directory, RandomUint32() % 1024));
 
-  // Copy directory to 'root_'
-  REQUIRE(CopyDirectory(directory, root_));
-  auto copied_directory(root_ / directory.filename());
+  // Copy directory to 'g_root'
+  REQUIRE(CopyDirectory(directory, g_root));
+  auto copied_directory(g_root / directory.filename());
 
   // Rename the file into its parent
   auto renamed_from_file(copied_directory / filepath_and_contents.first.filename());
-  auto renamed_to_file(root_ / filepath_and_contents.first.filename());
+  auto renamed_to_file(g_root / filepath_and_contents.first.filename());
   boost::system::error_code error_code;
   fs::rename(renamed_from_file, renamed_to_file, error_code);
   REQUIRE(error_code.value() == 0);
@@ -491,26 +491,26 @@ TEST_CASE("Rename file to different parent directory", "[Filesystem]") {
 }
 
 TEST_CASE("Check failures", "[Filesystem]") {
-  // Create a file in 'temp_'
+  // Create a file in 'g_temp'
   on_scope_exit cleanup(clean_root);
-  auto filepath0(CreateFile(temp_, RandomUint32() % 1048577).first);
+  auto filepath0(CreateFile(g_temp, RandomUint32() % 1048577).first);
 
-  // Copy file to 'root_'
-  auto copied_file0(root_ / filepath0.filename());
+  // Copy file to 'g_root'
+  auto copied_file0(g_root / filepath0.filename());
   boost::system::error_code error_code;
   fs::copy_file(filepath0, copied_file0, fs::copy_option::fail_if_exists, error_code);
   REQUIRE(error_code.value() == 0);
   RequireExists(copied_file0);
 
-  // Copy same file to 'root_' again
+  // Copy same file to 'g_root' again
   fs::copy_file(filepath0, copied_file0, fs::copy_option::fail_if_exists, error_code);
   REQUIRE(error_code.value() != 0);
   RequireExists(copied_file0);
   REQUIRE(ReadFile(filepath0) == ReadFile(copied_file0));
 
-  // Create another file in 'temp_' and copy it to 'root_'
-  auto filepath1(CreateFile(temp_, RandomUint32() % 1048577).first);
-  auto copied_file1(root_ / filepath1.filename());
+  // Create another file in 'g_temp' and copy it to 'g_root'
+  auto filepath1(CreateFile(g_temp, RandomUint32() % 1048577).first);
+  auto copied_file1(g_root / filepath1.filename());
   fs::copy_file(filepath1, copied_file1, fs::copy_option::fail_if_exists, error_code);
   REQUIRE(error_code.value() == 0);
   RequireExists(copied_file1);
@@ -539,46 +539,46 @@ TEST_CASE("Check failures", "[Filesystem]") {
   RequireDoesNotExist(copied_file0);
 
   // Repeat above for directories
-  // Create a file and directory in a newly created directory in 'temp_'
-  auto directory0(CreateDirectory(temp_));
+  // Create a file and directory in a newly created directory in 'g_temp'
+  auto directory0(CreateDirectory(g_temp));
   CreateFile(directory0, RandomUint32() % 1024);
   CreateDirectory(directory0);
 
-  // Copy directory to 'root_'
-  REQUIRE(CopyDirectory(directory0, root_));
-  auto copied_directory0(root_ / directory0.filename());
+  // Copy directory to 'g_root'
+  REQUIRE(CopyDirectory(directory0, g_root));
+  auto copied_directory0(g_root / directory0.filename());
 
-  // Copy same directory to 'root_' again
+  // Copy same directory to 'g_root' again
   fs::copy_directory(directory0, copied_directory0, error_code);
   REQUIRE(error_code.value() != 0);
   RequireExists(copied_directory0);
   RequireDirectoriesEqual(directory0, copied_directory0, true);
 
-  // Create a directory with the same name on the 'root_'
+  // Create a directory with the same name on the 'g_root'
   REQUIRE(!fs::create_directory(copied_directory0, error_code));
   REQUIRE(error_code.value() == 0);
   RequireExists(copied_directory0);
   RequireDirectoriesEqual(directory0, copied_directory0, false);
 
-  // Create another directory in 'temp_' containing a file and subdirectory
-  auto directory1(CreateDirectory(temp_));
+  // Create another directory in 'g_temp' containing a file and subdirectory
+  auto directory1(CreateDirectory(g_temp));
   CreateFile(directory1, RandomUint32() % 1024);
   CreateDirectory(directory1);
 
-  // Copy it to 'root_'
-  REQUIRE(CopyDirectory(directory1, root_));
-  auto copied_directory1(root_ / directory1.filename());
+  // Copy it to 'g_root'
+  REQUIRE(CopyDirectory(directory1, g_root));
+  auto copied_directory1(g_root / directory1.filename());
 
   // Rename to first directory name
   fs::rename(copied_directory1, copied_directory0, error_code);
-  REQUIRE(error_code.value() != 0);
+  REQUIRE((error_code.value()) != 0);
   RequireExists(copied_directory0);
   RequireExists(copied_directory1);
   RequireDirectoriesEqual(directory0, copied_directory0, false);
   RequireDirectoriesEqual(directory1, copied_directory1, false);
 
-  // Create an empty directory in 'root_'
-  auto directory2(CreateDirectory(temp_));
+  // Create an empty directory in 'g_root'
+  auto directory2(CreateDirectory(g_temp));
 
   // Rename copied directory to empty directory
   fs::rename(copied_directory1, directory2, error_code);

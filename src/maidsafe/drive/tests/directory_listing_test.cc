@@ -369,56 +369,68 @@ void DirectoriesMatch(const DirectoryListing& lhs, const DirectoryListing& rhs) 
   REQUIRE(lhs.children_.size() == rhs.children_.size());
   auto itr1(lhs.children_.begin()), itr2(rhs.children_.begin());
   for (; itr1 != lhs.children_.end(); ++itr1, ++itr2) {
-    REQUIRE((*itr1).name == (*itr2).name);
-    if (((*itr1).data_map && !(*itr2).data_map) || (!(*itr1).data_map && (*itr2).data_map))
+    REQUIRE((*itr1).back().name == (*itr2).back().name);
+    if (((*itr1).back().data_map && !(*itr2).back().data_map) ||
+        (!(*itr1).back().data_map && (*itr2).back().data_map))
       FAIL("Data map pointer mismatch");
-    if ((*itr1).data_map) {
-      REQUIRE(TotalSize((*itr1).data_map) == TotalSize((*itr2).data_map));
-      REQUIRE((*itr1).data_map->chunks.size() != (*itr2).data_map->chunks.size());
-      auto chunk_itr1((*itr1).data_map->chunks.begin());
-      auto chunk_itr2((*itr2).data_map->chunks.begin());
+    if ((*itr1).back().data_map) {
+      REQUIRE(TotalSize((*itr1).back().data_map) == TotalSize((*itr2).back().data_map));
+      REQUIRE((*itr1).back().data_map->chunks.size() == (*itr2).back().data_map->chunks.size());
+      auto chunk_itr1((*itr1).back().data_map->chunks.begin());
+      auto chunk_itr2((*itr2).back().data_map->chunks.begin());
       size_t chunk_no(0);
-      for (; chunk_itr1 != (*itr1).data_map->chunks.end(); ++chunk_itr1, ++chunk_itr2, ++chunk_no) {
+      for (; chunk_itr1 != (*itr1).back().data_map->chunks.end(); ++chunk_itr1, ++chunk_itr2, ++chunk_no) {
         if ((*chunk_itr1).hash != (*chunk_itr2).hash)
           FAIL("DataMap chunk " << chunk_no << " hash mismatch.");
         if ((*chunk_itr1).pre_hash != (*chunk_itr2).pre_hash)
           FAIL("DataMap chunk " << chunk_no << " pre_hash mismatch.");
         REQUIRE((*chunk_itr1).size == (*chunk_itr2).size);
       }
-      if ((*itr1).data_map->content != (*itr2).data_map->content)
+      if ((*itr1).back().data_map->content != (*itr2).back().data_map->content)
         FAIL("DataMap content mismatch.");
       //       if ((*itr1).data_map->self_encryption_type !=
       //           (*itr2).data_map->self_encryption_type)
       //         FAIL("DataMap SE type mismatch.");
     }
     //     if ((*itr1).end_of_file != (*itr2).end_of_file)
-    REQUIRE(GetSize(*itr1) == GetSize(*itr2));
+    REQUIRE(GetSize(itr1->back()) == GetSize(itr2->back()));
 #ifdef MAIDSAFE_WIN32
-    REQUIRE((*itr1).allocation_size == (*itr2).allocation_size);
-    REQUIRE((*itr1).attributes == (*itr2).attributes);
-    REQUIRE((*itr1).creation_time.dwHighDateTime == (*itr2).creation_time.dwHighDateTime);
-    if ((*itr1).creation_time.dwLowDateTime != (*itr2).creation_time.dwLowDateTime) {
+    REQUIRE((*itr1).back().allocation_size == (*itr2).back().allocation_size);
+    REQUIRE((*itr1).back().attributes == (*itr2).back().attributes);
+    REQUIRE((*itr1).back().creation_time.dwHighDateTime ==
+            (*itr2).back().creation_time.dwHighDateTime);
+    if ((*itr1).back().creation_time.dwLowDateTime != (*itr2).back().creation_time.dwLowDateTime) {
       uint32_t error = 0xA;
-      if ((*itr1).creation_time.dwLowDateTime > (*itr2).creation_time.dwLowDateTime + error ||
-          (*itr1).creation_time.dwLowDateTime < (*itr2).creation_time.dwLowDateTime - error)
-        FAIL("Creation times low: " << (*itr1).creation_time.dwLowDateTime << " != "
-             << (*itr2).creation_time.dwLowDateTime);
+      if ((*itr1).back().creation_time.dwLowDateTime >
+          (*itr2).back().creation_time.dwLowDateTime + error ||
+          (*itr1).back().creation_time.dwLowDateTime <
+          (*itr2).back().creation_time.dwLowDateTime - error)
+        FAIL("Creation times low: " << (*itr1).back().creation_time.dwLowDateTime << " != "
+             << (*itr2).back().creation_time.dwLowDateTime);
     }
-    REQUIRE((*itr1).last_access_time.dwHighDateTime == (*itr2).last_access_time.dwHighDateTime);
-    if ((*itr1).last_access_time.dwLowDateTime != (*itr2).last_access_time.dwLowDateTime) {
+    REQUIRE((*itr1).back().last_access_time.dwHighDateTime ==
+            (*itr2).back().last_access_time.dwHighDateTime);
+    if ((*itr1).back().last_access_time.dwLowDateTime !=
+        (*itr2).back().last_access_time.dwLowDateTime) {
       uint32_t error = 0xA;
-      if ((*itr1).last_access_time.dwLowDateTime > (*itr2).last_access_time.dwLowDateTime + error ||
-          (*itr1).last_access_time.dwLowDateTime < (*itr2).last_access_time.dwLowDateTime - error)
-        FAIL("Last access times low: " << (*itr1).last_access_time.dwLowDateTime << " != "
-             << (*itr2).last_access_time.dwLowDateTime);
+      if ((*itr1).back().last_access_time.dwLowDateTime >
+          (*itr2).back().last_access_time.dwLowDateTime + error ||
+          (*itr1).back().last_access_time.dwLowDateTime <
+          (*itr2).back().last_access_time.dwLowDateTime - error)
+        FAIL("Last access times low: " << (*itr1).back().last_access_time.dwLowDateTime << " != "
+             << (*itr2).back().last_access_time.dwLowDateTime);
     }
-    REQUIRE((*itr1).last_write_time.dwHighDateTime == (*itr2).last_write_time.dwHighDateTime);
-    if ((*itr1).last_write_time.dwLowDateTime != (*itr2).last_write_time.dwLowDateTime) {
+    REQUIRE((*itr1).back().last_write_time.dwHighDateTime ==
+            (*itr2).back().last_write_time.dwHighDateTime);
+    if ((*itr1).back().last_write_time.dwLowDateTime !=
+        (*itr2).back().last_write_time.dwLowDateTime) {
       uint32_t error = 0xA;
-      if ((*itr1).last_write_time.dwLowDateTime > (*itr2).last_write_time.dwLowDateTime + error ||
-          (*itr1).last_write_time.dwLowDateTime < (*itr2).last_write_time.dwLowDateTime - error)
-        FAIL("Last write times low: " << (*itr1).last_write_time.dwLowDateTime << " != "
-             << (*itr2).last_write_time.dwLowDateTime);
+      if ((*itr1).back().last_write_time.dwLowDateTime >
+          (*itr2).back().last_write_time.dwLowDateTime + error ||
+          (*itr1).back().last_write_time.dwLowDateTime <
+          (*itr2).back().last_write_time.dwLowDateTime - error)
+        FAIL("Last write times low: " << (*itr1).back().last_write_time.dwLowDateTime << " != "
+             << (*itr2).back().last_write_time.dwLowDateTime);
     }
 #else
     REQUIRE((*itr1).attributes.st_atime != (*itr2).attributes.st_atime);
@@ -508,7 +520,7 @@ TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][beh
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   CHECK("A" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  CHECK("[behavioural]" == meta_data.name);
+  CHECK("B" == meta_data.name);
 
   // Add another element and check iterator is reset
   ++c;
@@ -517,7 +529,7 @@ TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][beh
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   CHECK("A" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  CHECK("[behavioural]" == meta_data.name);
+  CHECK("B" == meta_data.name);
 
   // Remove an element and check iterator is reset
   meta_data.name = std::string(1, c);
@@ -526,7 +538,7 @@ TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][beh
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
   CHECK("A" == meta_data.name);
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  CHECK("[behavioural]" == meta_data.name);
+  CHECK("B" == meta_data.name);
 
   // Try to remove a non-existent element and check iterator is not reset
   meta_data.name = std::string(1, c);
@@ -551,7 +563,7 @@ TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][beh
   CHECK("A" == meta_data.name);
   CHECK(1U == GetSize(meta_data));
   CHECK(directory_listing_.GetChildAndIncrementItr(meta_data));
-  CHECK("[behavioural]" == meta_data.name);
+  CHECK("B" == meta_data.name);
 
   // Try to update a non-existent element and check iterator is not reset
   meta_data.name = std::string(1, c);
@@ -564,7 +576,7 @@ TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][beh
 
   // Check operator<
   DirectoryListing directory_listing1(Identity(crypto::Hash<crypto::SHA512>(std::string("A")))),
-      directory_listing2(Identity(crypto::Hash<crypto::SHA512>(std::string("[behavioural]"))));
+      directory_listing2(Identity(crypto::Hash<crypto::SHA512>(std::string("B"))));
   CHECK(directory_listing1 < directory_listing2);
 }
 
