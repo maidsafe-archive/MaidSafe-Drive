@@ -52,20 +52,21 @@ bool MetaDataHasName(const MetaData& meta_data, const fs::path& name) {
 }  // unnamed namespace
 
 DirectoryListing::DirectoryListing(DirectoryId directory_id)
-    : directory_id_(std::move(directory_id)), children_(), children_itr_position_(0) {}
+    : directory_id_(std::move(directory_id)), kMaxVersions_(kMaxFileVersions.data), children_(),
+      children_itr_position_(0) {}
 
 DirectoryListing::DirectoryListing(const DirectoryListing& other)
-    : directory_id_(other.directory_id_),
-      children_(other.children_),
-      children_itr_position_(other.children_itr_position_) {}
+    : directory_id_(other.directory_id_), kMaxVersions_(other.kMaxVersions_),
+      children_(other.children_), children_itr_position_(other.children_itr_position_) {}
 
 DirectoryListing::DirectoryListing(DirectoryListing&& other)
-    : directory_id_(std::move(other.directory_id())),
+    : directory_id_(std::move(other.directory_id())), kMaxVersions_(other.kMaxVersions_),
       children_(std::move(other.children_)),
       children_itr_position_(std::move(other.children_itr_position_)) {}
 
 DirectoryListing::DirectoryListing(const std::string& serialised_directory_listing)
-    : directory_id_(), children_(), children_itr_position_(0) {
+    : directory_id_(), kMaxVersions_(kMaxFileVersions.data), children_(),
+      children_itr_position_(0) {
   protobuf::DirectoryListing pb_directory;
   if (!pb_directory.ParseFromString(serialised_directory_listing))
     ThrowError(CommonErrors::parsing_error);
@@ -74,7 +75,15 @@ DirectoryListing::DirectoryListing(const std::string& serialised_directory_listi
 
   for (int i(0); i != pb_directory.children_size(); ++i) {
     if (pb_directory.children(i).IsInitialized()) {
-      children_.emplace_back(pb_directory.children(i).serialised_meta_data());
+      std::deque<MetaData> meta_data_versions;
+      protobuf::MetaDataVersions pb_meta_data_versions;
+      pb_meta_data_versions.ParseFromString(pb_directory.children(i).
+          serialised_meta_data_versions());
+      for (int j(0); j != pb_meta_data_versions.serialised_meta_data_size(); ++j) {
+        MetaData meta_data_version(pb_meta_data_versions.serialised_meta_data(j));
+        meta_data_versions.emplace_back(meta_data_version);
+      }
+      children_.emplace_back(meta_data_versions);
     } else {
       ThrowError(CommonErrors::uninitialised);
     }
@@ -89,17 +98,17 @@ DirectoryListing& DirectoryListing::operator=(DirectoryListing other) {
 }
 
 bool DirectoryListing::HasChild(const fs::path& name) const {
-  return std::any_of(
-      std::begin(children_), std::end(children_),
-      [&name](const MetaData & meta_data) { return MetaDataHasName(meta_data, name); });
+  return std::any_of(std::begin(children_), std::end(children_),
+      [&name](const std::deque<MetaData>& versions) {
+          return MetaDataHasName(versions.back(), name); });
 }
 
 void DirectoryListing::GetChild(const fs::path& name, MetaData& meta_data) const {
-  auto itr(std::find_if(
-      std::begin(children_), std::end(children_),
-      [&name](const MetaData & meta_data) { return MetaDataHasName(meta_data, name); }));
+  auto itr(std::find_if(std::begin(children_), std::end(children_),
+                        [&name](const std::deque<MetaData>& versions) {
+                          return MetaDataHasName(versions.back(), name); }));
   if (itr != std::end(children_)) {
-    meta_data = *itr;
+    meta_data = (*itr).back();
   } else {
     ThrowError(CommonErrors::invalid_parameter);
   }
@@ -107,12 +116,12 @@ void DirectoryListing::GetChild(const fs::path& name, MetaData& meta_data) const
 
 bool DirectoryListing::GetChildAndIncrementItr(MetaData& meta_data) {
   if (children_itr_position_ != children_.size()) {
-    while (children_[children_itr_position_].name.extension() == kMsHidden) {
+    while (children_[children_itr_position_].back().name.extension() == kMsHidden) {
       ++children_itr_position_;
       if (children_itr_position_ == children_.size())
         return false;
     }
-    meta_data = children_[children_itr_position_];
+    meta_data = children_[children_itr_position_].back();
     ++children_itr_position_;
     return true;
   }
@@ -121,16 +130,20 @@ bool DirectoryListing::GetChildAndIncrementItr(MetaData& meta_data) {
 
 void DirectoryListing::AddChild(const MetaData& child) {
   auto itr(std::find_if(std::begin(children_), std::end(children_),
-                        [&child](const MetaData & entry) { return child.name == entry.name; }));
+                        [&child](const std::deque<MetaData>& entry) {
+                           return child.name == entry.back().name; }));
   if (itr != std::end(children_))
     ThrowError(CommonErrors::invalid_parameter);
-  children_.push_back(child);
+  std::deque<MetaData> meta_data_versions;
+  meta_data_versions.push_back(child);
+  children_.push_back(meta_data_versions);
   SortAndResetChildrenIterator();
 }
 
 void DirectoryListing::RemoveChild(const MetaData& child) {
   auto itr(std::find_if(std::begin(children_), std::end(children_),
-                        [&child](const MetaData & entry) { return child.name == entry.name; }));
+                        [&child](const std::deque<MetaData>& entry) {
+                           return child.name == entry.back().name; }));
   if (itr == std::end(children_))
     ThrowError(CommonErrors::invalid_parameter);
   children_.erase(itr);
@@ -139,10 +152,13 @@ void DirectoryListing::RemoveChild(const MetaData& child) {
 
 void DirectoryListing::UpdateChild(const MetaData& child) {
   auto itr(std::find_if(std::begin(children_), std::end(children_),
-                        [&child](const MetaData & entry) { return child.name == entry.name; }));
+                        [&child](const std::deque<MetaData>& entry) {
+                            return child.name == entry.back().name; }));
   if (itr == std::end(children_))
     ThrowError(CommonErrors::invalid_parameter);
-  *itr = child;
+  if (itr->size() == kMaxVersions_)
+    itr->pop_front();
+  itr->push_back(child);
   SortAndResetChildrenIterator();
 }
 
@@ -156,8 +172,9 @@ void DirectoryListing::SortAndResetChildrenIterator() {
 bool DirectoryListing::empty() const {
   if (children_.empty())
     return true;
-  return std::any_of(std::begin(children_), std::end(children_), [](const MetaData & element) {
-    return element.name.extension() == kMsHidden;
+  return std::any_of(std::begin(children_), std::end(children_), [](
+      const std::deque<MetaData>& element) {
+        return element.back().name.extension() == kMsHidden;
   });
 }
 
@@ -165,17 +182,23 @@ std::string DirectoryListing::Serialise() const {
   protobuf::DirectoryListing pb_directory;
   pb_directory.set_directory_id(directory_id_.string());
 
-  for (const auto& child : children_)
-    pb_directory.add_children()->set_serialised_meta_data(child.Serialise());
+  for (const auto& child : children_) {
+    protobuf::MetaDataVersions pb_meta_data_versions;
+    for (const auto& version : child)
+      pb_meta_data_versions.add_serialised_meta_data(version.Serialise());
+    pb_directory.add_children()->set_serialised_meta_data_versions(
+        pb_meta_data_versions.SerializeAsString());
+  }
 
   return pb_directory.SerializeAsString();
 }
 
 std::vector<std::string> DirectoryListing::GetHiddenChildNames() const {
   std::vector<std::string> names;
-  std::for_each(std::begin(children_), std::end(children_), [&](const MetaData & child) {
-    if (child.name.extension() == kMsHidden)
-      names.push_back(child.name.string());
+  std::for_each(std::begin(children_), std::end(children_),
+      [&](const std::deque<MetaData>& child) {
+        if (child.back().name.extension() == kMsHidden)
+          names.push_back(child.back().name.string());
   });
   return names;
 }
