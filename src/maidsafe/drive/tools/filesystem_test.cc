@@ -571,7 +571,7 @@ TEST_CASE("Check failures", "[Filesystem]") {
 
   // Rename to first directory name
   fs::rename(copied_directory1, copied_directory0, error_code);
-  REQUIRE(error_code.value() != 0);
+  REQUIRE((error_code.value()) != 0);
   RequireExists(copied_directory0);
   RequireExists(copied_directory1);
   RequireDirectoriesEqual(directory0, copied_directory0, false);
