@@ -251,17 +251,17 @@ void FuseDrive<Storage>::Mount() {
   }
 
   fuse_args args = FUSE_ARGS_INIT(0, nullptr);
-  fuse_opt_add_arg(&args, (std::string("-oallow_others,fsname=") + drive_name_).c_str());
+  fuse_opt_add_arg(&args, (std::string("-odefault_permissions,fsname=") + drive_name_).c_str());
   fuse_opt_add_arg(&args, fuse_mountpoint_.c_str());
   // NB - If we remove -odefault_permissions, we must check in OpsOpen
   //      that the operation is permitted for the given flags.  We also need to
   //      implement OpsAccess.
   // fuse_opt_add_arg(&args, "-odefault_permissions,kernel_cache,direct_io");
 #ifndef NDEBUG
-  fuse_opt_add_arg(&args, "-d");  // print debug info
+ // fuse_opt_add_arg(&args, "-d");  // print debug info
 #endif
   fuse_opt_add_arg(&args, "-s");  // this is single threaded
-  // fuse_opt_add_arg(&args, "-f");  // run in foreground
+  fuse_opt_add_arg(&args, "-f");  // run in foreground
   //   if (read_only)
   //     fuse_opt_add_arg(&args, "-oro");
   LOG(kInfo) << "\ncalling fuse main \n";
@@ -393,6 +393,7 @@ int FuseDrive<Storage>::OpsCreate(const char* path, mode_t mode, struct fuse_fil
 template <typename Storage>
 void FuseDrive<Storage>::OpsDestroy(void* /*fuse*/) {
   LOG(kInfo) << "OpsDestroy";
+  exit(0);
   //   Global<Storage>::g_fuse_drive->SetMountState(false);
 }
 
