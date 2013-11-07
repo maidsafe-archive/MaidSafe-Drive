@@ -433,8 +433,8 @@ void DirectoriesMatch(const DirectoryListing& lhs, const DirectoryListing& rhs) 
              << (*itr2).back().last_write_time.dwLowDateTime);
     }
 #else
-    REQUIRE((*itr1).attributes.st_atime != (*itr2).attributes.st_atime);
-    REQUIRE((*itr1).attributes.st_mtime != (*itr2).attributes.st_mtime);
+    REQUIRE((*itr1).attributes.st_atime == (*itr2).attributes.st_atime);
+    REQUIRE((*itr1).attributes.st_mtime == (*itr2).attributes.st_mtime);
 #endif
   }
 }
