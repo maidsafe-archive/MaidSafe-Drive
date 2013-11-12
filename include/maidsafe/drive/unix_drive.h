@@ -30,13 +30,11 @@
 #include "boost/filesystem/path.hpp"
 
 #ifdef MAIDSAFE_APPLE
-#include "osxfuse/fuse/fuse.h"
 #include "sys/statvfs.h"
-#else
+#endif
 #include "fuse/fuse.h"
 #include "fuse/fuse_common.h"
 #include "fuse/fuse_opt.h"
-#endif
 
 #include "maidsafe/drive/drive.h"
 #include "maidsafe/drive/utils.h"

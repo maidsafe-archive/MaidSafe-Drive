@@ -109,7 +109,7 @@ if(MaidsafeTesting AND (Cbfs_FOUND OR NOT WIN32))
   ms_add_executable(FilesystemTest "Tests/Drive" ${DriveSourcesDir}/tests/filesystem_test.cc)
   ms_add_executable(TESTdrive "Tests/Drive" ${DriveTestsAllFiles})
   target_include_directories(TESTdrive PRIVATE ${PROJECT_SOURCE_DIR}/src $<$<BOOL:${Cbfs_FOUND}>:${Cbfs_INCLUDE_DIR}>)
-
+  target_include_directories(TESTdrive SYSTEM PRIVATE $<$<OR:$<BOOL:${UNIX}>,$<BOOL:${APPLE}>>:${Fuse_INCLUDE_DIR}>)
   target_link_libraries(filesystem_benchmark maidsafe_common)
   target_link_libraries(FilesystemTest maidsafe_common)
   add_dependencies(FilesystemTest catch)
@@ -124,7 +124,13 @@ rename_outdated_built_exes()
 #==================================================================================================#
 include(standard_flags)
 
-target_compile_definitions(maidsafe_drive PUBLIC $<$<BOOL:${Cbfs_FOUND}>:HAVE_CBFS> PRIVATE $<$<BOOL:${Cbfs_FOUND}>:CBFS_KEY=${Cbfs_KEY}>)
+target_compile_definitions(maidsafe_drive
+  PUBLIC
+    $<$<BOOL:${Cbfs_FOUND}>:HAVE_CBFS>
+    $<$<BOOL:${UNIX}>:FUSE_USE_VERSION=26>
+  PRIVATE
+    $<$<BOOL:${Cbfs_FOUND}>:CBFS_KEY=${Cbfs_KEY}>
+)
 if(Cbfs_FOUND)
   target_compile_definitions(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_DEFINITIONS>)
   target_compile_options(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_OPTIONS>)

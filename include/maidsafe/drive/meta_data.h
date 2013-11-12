@@ -33,15 +33,7 @@
 #include "boost/filesystem/path.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
 
-#ifndef MAIDSAFE_WIN32
-#ifdef MAIDSAFE_APPLE
-#undef FUSE_USE_VERSION
-#define FUSE_USE_VERSION 26
-#include "osxfuse/fuse/fuse.h"
-#else
 #include "fuse/fuse.h"
-#endif
-#endif
 #include "maidsafe/encrypt/data_map.h"
 #include "maidsafe/drive/config.h"
 
