@@ -125,9 +125,9 @@ rename_outdated_built_exes()
 include(standard_flags)
 
 target_compile_definitions(maidsafe_drive PUBLIC $<$<BOOL:${Cbfs_FOUND}>:HAVE_CBFS> PRIVATE $<$<BOOL:${Cbfs_FOUND}>:CBFS_KEY=${Cbfs_KEY}>)
-target_compile_definitions(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_DEFINITIONS>)
-target_compile_options(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_OPTIONS>)
 if(Cbfs_FOUND)
+  target_compile_definitions(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_DEFINITIONS>)
+  target_compile_options(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_OPTIONS>)
   set_target_properties(cbfs_driver PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")
 endif()
 
