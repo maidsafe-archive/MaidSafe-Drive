@@ -24,7 +24,7 @@ namespace drive {
 
 namespace detail {
 
-#ifdef __MSVC__
+#ifdef _MSC_VER
 const boost::filesystem::path kMsHidden(L".ms_hidden");
 #else
 const boost::filesystem::path kMsHidden(".ms_hidden");
