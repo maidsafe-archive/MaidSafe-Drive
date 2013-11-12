@@ -33,7 +33,9 @@
 #include "boost/filesystem/path.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
 
+#ifndef MAIDSAFE_WIN32
 #include "fuse/fuse.h"
+#endif
 #include "maidsafe/encrypt/data_map.h"
 #include "maidsafe/drive/config.h"
 
