@@ -32,15 +32,10 @@ include(../../cmake_modules/standard_setup.cmake)
 #==================================================================================================#
 # Callback File System / Fuse library search                                                       #
 #==================================================================================================#
-set(DriveThirdPartyIncludes PARENT_SCOPE)
 if(WIN32)
   include(maidsafe_find_cbfs)
-  set(DriveThirdPartyIncludes ${Cbfs_INCLUDE_DIR} PARENT_SCOPE)
 else()
   include(maidsafe_find_fuse)
-  if(APPLE)
-    set(DriveThirdPartyIncludes ${Fuse_INCLUDE_DIR} PARENT_SCOPE)
-  endif()
 endif()
 
 
@@ -84,21 +79,20 @@ endif()
 # Define MaidSafe libraries and executables                                                        #
 #==================================================================================================#
 ms_add_static_library(drive ${DriveAllFiles})
-target_include_directories(maidsafe_drive PUBLIC ${PROJECT_SOURCE_DIR}/include PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_include_directories(maidsafe_drive
+  PUBLIC ${PROJECT_SOURCE_DIR}/include ${Cbfs_INCLUDE_DIR} ${Fuse_INCLUDE_DIR}
+  PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(maidsafe_drive maidsafe_encrypt maidsafe_nfs_client ${BoostRegexLibs})
 if(WIN32)
   if(Cbfs_FOUND)
-    target_include_directories(maidsafe_drive SYSTEM PRIVATE ${Cbfs_INCLUDE_DIR})
     ms_add_executable(cbfs_driver "Production" ${InstallerAllFiles})
     target_include_directories(cbfs_driver PRIVATE ${BoostSourceDir} ${Cbfs_INCLUDE_DIR})
     target_link_libraries(maidsafe_drive ${Cbfs_LIBRARIES})
     target_link_libraries(cbfs_driver ${BoostFilesystemLibs} ${BoostSystemLibs} ${Cbfs_LIBRARIES} ${JustThread_LIBRARIES})
   endif()
 elseif(APPLE)
-  target_include_directories(maidsafe_drive SYSTEM PRIVATE ${Fuse_INCLUDE_DIR})
   target_link_libraries(maidsafe_drive ${Fuse_LIBRARY})
 else()
-  target_include_directories(maidsafe_drive SYSTEM PRIVATE ${Fuse_INCLUDE_DIR})
   target_link_libraries(maidsafe_drive ${Fuse_LIBRARY} rt dl)
 endif()
 
@@ -107,8 +101,7 @@ if(MaidsafeTesting AND (Cbfs_FOUND OR NOT WIN32))
   ms_add_executable(filesystem_benchmark "Tools/Drive" ${DriveSourcesDir}/tests/filesystem_benchmark.cc)
   ms_add_executable(FilesystemTest "Tests/Drive" ${DriveSourcesDir}/tests/filesystem_test.cc)
   ms_add_executable(TESTdrive "Tests/Drive" ${DriveTestsAllFiles})
-  target_include_directories(TESTdrive PRIVATE ${PROJECT_SOURCE_DIR}/src $<$<BOOL:${Cbfs_FOUND}>:${Cbfs_INCLUDE_DIR}>)
-  target_include_directories(TESTdrive SYSTEM PRIVATE $<$<OR:$<BOOL:${UNIX}>,$<BOOL:${APPLE}>>:${Fuse_INCLUDE_DIR}>)
+  target_include_directories(TESTdrive PRIVATE ${PROJECT_SOURCE_DIR}/src)
   target_link_libraries(filesystem_benchmark maidsafe_common)
   target_link_libraries(FilesystemTest maidsafe_common)
   add_dependencies(FilesystemTest catch)
