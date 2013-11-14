@@ -29,6 +29,9 @@
 
 #include "boost/filesystem/path.hpp"
 
+#ifdef MAIDSAFE_APPLE
+#include "sys/statvfs.h"
+#endif
 #include "fuse/fuse.h"
 #include "fuse/fuse_common.h"
 #include "fuse/fuse_opt.h"
