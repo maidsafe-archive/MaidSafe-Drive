@@ -273,7 +273,6 @@ MetaData::MetaData(const MetaData& meta_data)
 }
 
 std::string MetaData::Serialise() const {
-  std::string serialised_meta_data;
   protobuf::MetaData pb_meta_data;
 
   pb_meta_data.set_name(name.string());
@@ -324,12 +323,10 @@ std::string MetaData::Serialise() const {
     pb_meta_data.set_directory_id(directory_id->string());
   }
 
-  for (auto note : notes)
+  for (const auto& note : notes)
     pb_meta_data.add_notes(note);
 
-  if (!pb_meta_data.SerializeToString(&serialised_meta_data))
-    ThrowError(CommonErrors::serialisation_error);
-  return serialised_meta_data;
+  return pb_meta_data.SerializeAsString();
 }
 
 bptime::ptime MetaData::creation_posix_time() const {

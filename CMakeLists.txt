@@ -99,7 +99,6 @@ target_link_libraries(network_drive maidsafe_drive maidsafe_nfs_client)
 if(MaidsafeTesting AND (Cbfs_FOUND OR NOT WIN32))
   set(LocalDriveLocationFile ${CMAKE_CURRENT_BINARY_DIR}/filesystem_test/local_drive_location.h)
   set(NetworkDriveLocationFile ${CMAKE_CURRENT_BINARY_DIR}/filesystem_test/network_drive_location.h)
-  target_include_directories(TESTdrive PRIVATE ${PROJECT_SOURCE_DIR}/src)
   ms_add_executable(filesystem_benchmark "Tools/Drive"
                     ${DriveSourcesDir}/tools/filesystem_benchmark.cc
                     ${DriveSourcesDir}/tools/tool_main.cc
@@ -111,6 +110,7 @@ if(MaidsafeTesting AND (Cbfs_FOUND OR NOT WIN32))
                     ${LocalDriveLocationFile}
                     ${NetworkDriveLocationFile})
   ms_add_executable(test_drive "Tests/Drive" ${DriveTestsAllFiles})
+  target_include_directories(test_drive PRIVATE ${PROJECT_SOURCE_DIR}/src)
   set_target_properties(test_drive PROPERTIES COMPILE_DEFINITIONS "CBFS_GUID=713CC6CE-B3E2-4fd9-838D-E28F558F6866")
 
   add_process_location(local_drive "${LocalDriveLocationFile}")
