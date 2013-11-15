@@ -34,12 +34,7 @@ class DummyWinDrive : public Drive<Storage> {
   DummyWinDrive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
                 const boost::filesystem::path& mount_dir, const std::string& product_id,
                 const boost::filesystem::path& drive_name);
-  virtual bool Unmount();
-  virtual void NotifyRename(const fs::path& /*from_relative_path*/,
-                            const fs::path& /*to_relative_path*/) const;
-
-  virtual void SetNewAttributes(FileContext* /*file_context*/, bool /*is_directory*/,
-                                bool /*read_only*/);
+  virtual bool Unmount() { return true; }
 };
 
 }  // namespace drive

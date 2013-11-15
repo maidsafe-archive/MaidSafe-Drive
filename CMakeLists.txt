@@ -28,27 +28,14 @@ project(drive)
 
 include(../../cmake_modules/standard_setup.cmake)
 
-include_directories(${common_SOURCE_DIR}/include)
-include_directories(${private_SOURCE_DIR}/include)
-include_directories(${passport_SOURCE_DIR}/include)
-include_directories(${encrypt_SOURCE_DIR}/include)
-include_directories(${routing_SOURCE_DIR}/include)
-include_directories(${rudp_SOURCE_DIR}/include)
-include_directories(${nfs_SOURCE_DIR}/include)
-
 
 #==================================================================================================#
 # Callback File System / Fuse library search                                                       #
 #==================================================================================================#
-set(DriveThirdPartyIncludes PARENT_SCOPE)
 if(WIN32)
   include(maidsafe_find_cbfs)
-  set(DriveThirdPartyIncludes ${Cbfs_INCLUDE_DIR} PARENT_SCOPE)
 else()
   include(maidsafe_find_fuse)
-  if(APPLE)
-    set(DriveThirdPartyIncludes ${Fuse_INCLUDE_DIR} PARENT_SCOPE)
-  endif()
 endif()
 
 
@@ -63,7 +50,7 @@ set(NetworkDriveMain ${DriveSourcesDir}/network/network_drive.cc)
 set(WinServiceMain ${DriveSourcesDir}/win_service/win_service_main.cc)
 set(UnixFiles ${DriveApiDir}/unix_drive.h ${DriveSourcesDir}/unix_drive.cc)
 set(CbfsWinFiles ${DriveApiDir}/win_drive.h ${DriveSourcesDir}/win_drive.cc)
-set(DummyWinFiles ${DriveApiDir}/dummy_win_drive.h ${DriveSourcesDir}/dummy_win_drive.cc)
+set(DummyWinFiles ${DriveApiDir}/dummy_win_drive.h)
 
 if(WIN32)
   if(Cbfs_FOUND)
@@ -86,13 +73,16 @@ endif()
 # Define MaidSafe libraries and executables                                                        #
 #==================================================================================================#
 ms_add_static_library(drive ${DriveAllFiles})
+target_include_directories(maidsafe_drive
+  PUBLIC ${PROJECT_SOURCE_DIR}/include ${Cbfs_INCLUDE_DIR} ${Fuse_INCLUDE_DIR}
+  PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(maidsafe_drive maidsafe_encrypt ${BoostRegexLibs})
 if(WIN32)
   if(Cbfs_FOUND)
     ms_add_executable(cbfs_driver "Production" ${InstallerAllFiles})
+    target_include_directories(cbfs_driver PRIVATE ${BoostSourceDir} ${Cbfs_INCLUDE_DIR})
     target_link_libraries(maidsafe_drive ${Cbfs_LIBRARIES})
     target_link_libraries(cbfs_driver ${BoostFilesystemLibs} ${BoostSystemLibs} ${Cbfs_LIBRARIES} ${JustThread_LIBRARIES})
-    add_dependencies(cbfs_driver boost)
   endif()
 elseif(APPLE)
   target_link_libraries(maidsafe_drive ${Fuse_LIBRARY})
@@ -109,7 +99,7 @@ target_link_libraries(network_drive maidsafe_drive maidsafe_nfs_client)
 if(MaidsafeTesting AND (Cbfs_FOUND OR NOT WIN32))
   set(LocalDriveLocationFile ${CMAKE_CURRENT_BINARY_DIR}/filesystem_test/local_drive_location.h)
   set(NetworkDriveLocationFile ${CMAKE_CURRENT_BINARY_DIR}/filesystem_test/network_drive_location.h)
-
+  target_include_directories(TESTdrive PRIVATE ${PROJECT_SOURCE_DIR}/src)
   ms_add_executable(filesystem_benchmark "Tools/Drive"
                     ${DriveSourcesDir}/tools/filesystem_benchmark.cc
                     ${DriveSourcesDir}/tools/tool_main.cc
@@ -145,8 +135,17 @@ rename_outdated_built_exes()
 # Set compiler and linker flags                                                                    #
 #==================================================================================================#
 include(standard_flags)
+
+target_compile_definitions(maidsafe_drive
+  PUBLIC
+    $<$<BOOL:${Cbfs_FOUND}>:HAVE_CBFS>
+    $<$<BOOL:${UNIX}>:FUSE_USE_VERSION=26>
+  PRIVATE
+    $<$<BOOL:${Cbfs_FOUND}>:CBFS_KEY=${Cbfs_KEY}>
+)
 if(Cbfs_FOUND)
-  add_definitions(-DCBFS_KEY=${Cbfs_KEY} -DHAVE_CBFS)
+  target_compile_definitions(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_DEFINITIONS>)
+  target_compile_options(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_OPTIONS>)
   set_target_properties(cbfs_driver PROPERTIES LINK_FLAGS "/level='requireAdministrator' /uiAccess='false'")
   if(MaidsafeTesting)
     set_target_properties(local_drive network_drive PROPERTIES COMPILE_DEFINITIONS "CBFS_GUID=713CC6CE-B3E2-4fd9-838D-E28F558F6866")
