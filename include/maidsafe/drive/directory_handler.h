@@ -51,7 +51,9 @@
 
 
 namespace maidsafe {
+
 namespace drive {
+
 namespace detail {
 
 namespace test {
@@ -239,7 +241,7 @@ void DirectoryHandler<Storage>::Delete(const boost::filesystem::path& relative_p
       cache_.erase(relative_path);
     }
   } else {
-    SelfEncryptor(meta_data.data_map, *storage_).DeleteAllChunks();
+    //SelfEncryptor(meta_data.data_map, *storage_).DeleteAllChunks();
   }
 
   parent.listing->RemoveChild(meta_data);
@@ -516,7 +518,7 @@ template <typename Storage>
 void DirectoryHandler<Storage>::Delete(const Directory& directory) {
   DataMapPtr data_map(GetDataMap(directory.parent_id, directory.listing->directory_id()));
   SelfEncryptor self_encryptor(data_map, *storage_);
-  self_encryptor.DeleteAllChunks();
+  //self_encryptor.DeleteAllChunks();
   MutableData::Name name(directory.listing->directory_id());
   storage_->Delete(name);
 }
@@ -532,7 +534,9 @@ typename DirectoryHandler<Storage>::DataMapPtr DirectoryHandler<Storage>::GetDat
 }
 
 }  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_DIRECTORY_HANDLER_H_

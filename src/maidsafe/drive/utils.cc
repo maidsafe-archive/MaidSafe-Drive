@@ -18,15 +18,17 @@
 
 #include "maidsafe/drive/utils.h"
 
-#include <regex>
 #include <algorithm>
+#include <regex>
 
-#include "boost/filesystem/path.hpp"
+#include "boost/algorithm/string/replace.hpp"
 
 #include "maidsafe/common/log.h"
 
 namespace maidsafe {
+
 namespace drive {
+
 namespace detail {
 
 bool ExcludedFilename(const boost::filesystem::path& path) {
@@ -76,14 +78,12 @@ bool ExcludedFilename(const boost::filesystem::path& path) {
 }
 
 bool MatchesMask(std::wstring mask, const boost::filesystem::path& file_name) {
-#ifdef MAIDSAFE_WIN32
+#if defined MAIDSAFE_WIN32
   static const std::wstring kNeedEscaped(L".[]{}()+|^$");
-#else
-  #ifdef MAIDSAFE_APPLE
+#elif defined MAIDSAFE_APPLE
   static const std::wstring kNeedEscaped(L".]{}()+|^$");
-  #else
+#else
   static const std::wstring kNeedEscaped(L".{}()+|^$");
-  #endif
 #endif
   static const std::wstring kEscape(L"\\");
   try {
@@ -107,30 +107,8 @@ bool MatchesMask(std::wstring mask, const boost::filesystem::path& file_name) {
   }
 }
 
-bool SearchesMask(std::wstring mask, const boost::filesystem::path& file_name) {
-  static const std::wstring kNeedEscaped(L".[]{}()+|^$");
-  static const std::wstring kEscape(L"\\");
-  try {
-    // Apply escapes
-    std::for_each(kNeedEscaped.begin(), kNeedEscaped.end(), [&mask](wchar_t i) {
-      boost::replace_all(mask, std::wstring(1, i), kEscape + std::wstring(1, i));
-    });
-
-    // Apply wildcards
-    boost::replace_all(mask, L"*", L".*");
-    boost::replace_all(mask, L"?", L".");
-
-    // Check for match
-    std::wregex reg_ex(mask, std::regex_constants::icase);
-    return std::regex_search(file_name.wstring(), reg_ex);
-  }
-  catch(const std::exception& e) {
-    LOG(kError) << e.what() << " - file_name: " << file_name << ", mask: "
-                << std::string(mask.begin(), mask.end());
-    return false;
-  }
-}
-
 }  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe

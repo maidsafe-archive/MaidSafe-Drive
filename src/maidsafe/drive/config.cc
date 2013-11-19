@@ -18,21 +18,18 @@
 
 #include "maidsafe/drive/config.h"
 
-
 namespace maidsafe {
-namespace drive {
-namespace detail {
 
-#ifdef _MSC_VER
-const boost::filesystem::path kMsHidden(L".ms_hidden");
-#else
-const boost::filesystem::path kMsHidden(".ms_hidden");
-#endif
+namespace drive {
+
+namespace detail {
 
 const boost::filesystem::path kRoot(boost::filesystem::path("/").make_preferred());
 
-const TaggedValue<uint32_t, struct MaxVersionsTag> kMaxFileVersions(21);
+const MaxVersions kMaxVersions(21);
 
 }  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe

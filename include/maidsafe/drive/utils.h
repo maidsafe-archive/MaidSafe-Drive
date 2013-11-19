@@ -19,68 +19,23 @@
 #ifndef MAIDSAFE_DRIVE_UTILS_H_
 #define MAIDSAFE_DRIVE_UTILS_H_
 
-
-#include <memory>
 #include <string>
-#include <vector>
 
 #include "boost/filesystem/path.hpp"
 
-#include "maidsafe/encrypt/self_encryptor.h"
-#include "maidsafe/drive/config.h"
-#include "maidsafe/drive/meta_data.h"
-
-
 namespace maidsafe {
+
 namespace drive {
+
 namespace detail {
-
-template <typename Storage>
-struct FileContext {
-  typedef std::shared_ptr<MetaData> MetaDataPtr;
-  typedef std::shared_ptr<encrypt::SelfEncryptor<Storage>> SelfEncryptorPtr;
-
-  FileContext();
-  FileContext(const boost::filesystem::path& name, bool is_directory);
-  explicit FileContext(MetaDataPtr meta_data_in);
-
-  MetaDataPtr meta_data;
-  SelfEncryptorPtr self_encryptor;
-  bool content_changed;
-  DirectoryId grandparent_directory_id, parent_directory_id;
-};
-
-template <typename Storage>
-FileContext<Storage>::FileContext()
-    : meta_data(new MetaData),
-      self_encryptor(),
-      content_changed(false),
-      grandparent_directory_id(),
-      parent_directory_id() {}
-
-template <typename Storage>
-FileContext<Storage>::FileContext(const boost::filesystem::path& name, bool is_directory)
-    : meta_data(new MetaData(name, is_directory)),
-      self_encryptor(),
-      content_changed(!is_directory),
-      grandparent_directory_id(),
-      parent_directory_id() {}
-
-template <typename Storage>
-FileContext<Storage>::FileContext(MetaDataPtr meta_data_in)
-    : meta_data(meta_data_in),
-      self_encryptor(),
-      content_changed(false),
-      grandparent_directory_id(),
-      parent_directory_id() {}
-
 
 bool ExcludedFilename(const boost::filesystem::path& path);
 bool MatchesMask(std::wstring mask, const boost::filesystem::path& file_name);
-bool SearchesMask(std::wstring mask, const boost::filesystem::path& file_name);
 
 }  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_UTILS_H_

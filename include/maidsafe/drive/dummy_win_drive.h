@@ -26,6 +26,7 @@
 #include "maidsafe/drive/drive.h"
 
 namespace maidsafe {
+
 namespace drive {
 
 template <typename Storage>
@@ -34,10 +35,11 @@ class DummyWinDrive : public Drive<Storage> {
   DummyWinDrive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
                 const boost::filesystem::path& mount_dir, const std::string& product_id,
                 const boost::filesystem::path& drive_name);
-  virtual bool Unmount() { return true; }
+  bool Unmount() { return true; }
 };
 
 }  // namespace drive
+
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_DUMMY_WIN_DRIVE_H_

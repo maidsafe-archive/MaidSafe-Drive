@@ -32,6 +32,7 @@ namespace bptime = boost::posix_time;
 namespace fs = boost::filesystem;
 
 namespace maidsafe {
+
 namespace drive {
 
 const uint32_t kAttributesDir = 0x4000;
@@ -128,7 +129,7 @@ MetaData::MetaData(const fs::path& name, bool is_directory)
       last_access_time(),
       last_write_time(),
       data_map(is_directory ? nullptr : std::make_shared<encrypt::DataMap>()),
-      directory_id(is_directory ? std::make_shared<DirectoryId>(RandomString(64)) : nullptr),
+      directory_id(is_directory ? new DirectoryId(RandomString(64)) : nullptr),
       notes() {
     FILETIME file_time;
     GetSystemTimeAsFileTime(&file_time);
@@ -238,7 +239,7 @@ MetaData::MetaData(const std::string& serialised_meta_data)
   if (pb_meta_data.has_serialised_data_map()) {
     if (pb_meta_data.has_directory_id())
       ThrowError(CommonErrors::parsing_error);
-    data_map.reset(new DataMap);
+    data_map.reset(new encrypt::DataMap);
     encrypt::ParseDataMap(pb_meta_data.serialised_data_map(), *data_map);
   } else if (pb_meta_data.has_directory_id()) {
     directory_id.reset(new DirectoryId(pb_meta_data.directory_id()));
@@ -250,26 +251,43 @@ MetaData::MetaData(const std::string& serialised_meta_data)
     notes.push_back(pb_meta_data.notes(i));
 }
 
-MetaData::MetaData(const MetaData& meta_data)
-  : name(meta_data.name),
+MetaData::MetaData(const MetaData& other)
+    : name(other.name),
 #ifdef MAIDSAFE_WIN32
-    end_of_file(meta_data.end_of_file),
-    allocation_size(meta_data.allocation_size),
-    attributes(meta_data.attributes),
-    creation_time(meta_data.creation_time),
-    last_access_time(meta_data.last_access_time),
-    last_write_time(meta_data.last_write_time),
+      end_of_file(other.end_of_file),
+      allocation_size(other.allocation_size),
+      attributes(other.attributes),
+      creation_time(other.creation_time),
+      last_access_time(other.last_access_time),
+      last_write_time(other.last_write_time),
 #else
-    attributes(meta_data.attributes),
-    link_to(meta_data.link_to),
+      attributes(other.attributes),
+      link_to(other.link_to),
 #endif
-    data_map(nullptr),
-    directory_id(nullptr),
-    notes(meta_data.notes) {
-  if (meta_data.data_map)
-    data_map.reset(new encrypt::DataMap(*meta_data.data_map));
-  if (meta_data.directory_id)
-    directory_id.reset(new DirectoryId(*meta_data.directory_id));
+      data_map(other.data_map),
+      directory_id(other.directory_id ? new DirectoryId(*other.directory_id) : nullptr),
+      notes(other.notes) {}
+
+MetaData::MetaData(MetaData&& other)
+    : name(std::move(other.name)),
+#ifdef MAIDSAFE_WIN32
+      end_of_file(std::move(other.end_of_file)),
+      allocation_size(std::move(other.allocation_size)),
+      attributes(std::move(other.attributes)),
+      creation_time(std::move(other.creation_time)),
+      last_access_time(std::move(other.last_access_time)),
+      last_write_time(std::move(other.last_write_time)),
+#else
+      attributes(std::move(other.attributes)),
+      link_to(std::move(other.link_to)),
+#endif
+      data_map(std::move(other.data_map)),
+      directory_id(std::move(other.directory_id)),
+      notes(std::move(other.notes)) {}
+
+MetaData& MetaData::operator=(MetaData other) {
+  swap(*this, other);
+  return *this;
 }
 
 std::string MetaData::Serialise() const {
@@ -365,5 +383,25 @@ uint64_t MetaData::GetAllocatedSize() const {
 #endif
 }
 
+void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT {
+  using std::swap;
+  swap(lhs.name, rhs.name);
+#ifdef MAIDSAFE_WIN32
+  swap(lhs.end_of_file, rhs.end_of_file);
+  swap(lhs.allocation_size, rhs.allocation_size);
+  swap(lhs.attributes, rhs.attributes);
+  swap(lhs.creation_time, rhs.creation_time);
+  swap(lhs.last_access_time, rhs.last_access_time);
+  swap(lhs.last_write_time, rhs.last_write_time);
+#else
+  swap(lhs.attributes, rhs.attributes);
+  swap(lhs.link_to, rhs.link_to);
+#endif
+  swap(lhs.data_map, rhs.data_map);
+  swap(lhs.directory_id, rhs.directory_id);
+  swap(lhs.notes, rhs.notes);
+}
+
 }  // namespace drive
+
 }  // namespace maidsafe

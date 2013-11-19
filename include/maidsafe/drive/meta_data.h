@@ -22,6 +22,7 @@
 #ifdef MAIDSAFE_WIN32
 #include <windows.h>
 #else
+#include "fuse/fuse.h"  // NOLINT
 #include <sys/stat.h>
 #endif
 
@@ -32,26 +33,23 @@
 #include "boost/filesystem/path.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
 
-#ifndef MAIDSAFE_WIN32
-#include "fuse/fuse.h"
-#endif
+#include "maidsafe/common/config.h"
 #include "maidsafe/encrypt/data_map.h"
+
 #include "maidsafe/drive/config.h"
 
-
 namespace maidsafe {
+
 namespace drive {
 
 // Represents directory and file information
 struct MetaData {
-  typedef encrypt::DataMap DataMap;
-  typedef encrypt::DataMapPtr DataMapPtr;
-  typedef std::shared_ptr<DirectoryId> DirectoryIdPtr;
-
   MetaData();
   MetaData(const boost::filesystem::path& name, bool is_directory);
   explicit MetaData(const std::string& serialised_meta_data);
-  MetaData(const MetaData& meta_data);
+  MetaData(const MetaData& other);
+  MetaData(MetaData&& other);
+  MetaData& operator=(MetaData other);
 
   std::string Serialise() const;
 
@@ -73,12 +71,15 @@ struct MetaData {
   struct stat attributes;
   boost::filesystem::path link_to;
 #endif
-  DataMapPtr data_map;
-  DirectoryIdPtr directory_id;
+  encrypt::DataMapPtr data_map;
+  std::unique_ptr<DirectoryId> directory_id;
   std::vector<std::string> notes;
 };
 
+void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT;
+
 }  // namespace drive
+
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_META_DATA_H_

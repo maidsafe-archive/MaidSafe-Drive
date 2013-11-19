@@ -1,4 +1,4 @@
-/*  Copyright 2011 MaidSafe.net limited
+/*  Copyright 2013 MaidSafe.net limited
 
     This MaidSafe Software is licensed to you under (1) the MaidSafe.net Commercial License,
     version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
@@ -16,29 +16,36 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
-#ifndef MAIDSAFE_DRIVE_CONFIG_H_
-#define MAIDSAFE_DRIVE_CONFIG_H_
+#ifndef MAIDSAFE_DRIVE_FILE_CONTEXT_H_
+#define MAIDSAFE_DRIVE_FILE_CONTEXT_H_
 
-#include <cstdint>
+#include <deque>
+#include <memory>
 
 #include "boost/filesystem/path.hpp"
 
-#include "maidsafe/common/types.h"
+#include "maidsafe/encrypt/self_encryptor.h"
+
+#include "maidsafe/drive/meta_data.h"
 
 namespace maidsafe {
 
 namespace drive {
 
-typedef Identity DirectoryId;
-
-namespace detail { struct MaxVersionsTag; }
-
-typedef TaggedValue<uint32_t, detail::MaxVersionsTag> MaxVersions;
-
 namespace detail {
 
-extern const boost::filesystem::path kRoot;
-extern const MaxVersions kMaxVersions;
+struct FileContext {
+  FileContext() : meta_data(), self_encryptor() {}
+  FileContext(const boost::filesystem::path& name, bool is_directory)
+      : meta_data(name, is_directory), self_encryptor() {}
+
+  MetaData meta_data;
+  std::unique_ptr<encrypt::SelfEncryptor> self_encryptor;
+};
+
+inline bool operator<(const FileContext& lhs, const FileContext& rhs) {
+  return lhs.meta_data.name < rhs.meta_data.name;
+}
 
 }  // namespace detail
 
@@ -46,4 +53,4 @@ extern const MaxVersions kMaxVersions;
 
 }  // namespace maidsafe
 
-#endif  // MAIDSAFE_DRIVE_CONFIG_H_
+#endif  // MAIDSAFE_DRIVE_FILE_CONTEXT_H_

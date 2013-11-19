@@ -33,6 +33,7 @@
 #include "maidsafe/encrypt/data_map.h"
 #include "maidsafe/encrypt/self_encryptor.h"
 
+#include "maidsafe/drive/file_context.h"
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/proto_structs.pb.h"
 
@@ -44,7 +45,7 @@ namespace detail {
 
 namespace {
 
-bool MetaDataHasName(const MetaData& meta_data, const fs::path& name) {
+bool MetaDataHasName(const MetaData& meta_data, const boost::filesystem::path& name) {
   return (boost::algorithm::to_lower_copy(meta_data.name.wstring()) ==
           boost::algorithm::to_lower_copy(name.wstring()));
 }
@@ -52,20 +53,20 @@ bool MetaDataHasName(const MetaData& meta_data, const fs::path& name) {
 }  // unnamed namespace
 
 DirectoryListing::DirectoryListing(DirectoryId directory_id)
-    : directory_id_(std::move(directory_id)), kMaxVersions_(kMaxFileVersions.data), children_(),
+    : directory_id_(std::move(directory_id)), max_versions_(kMaxVersions), children_(),
       children_itr_position_(0) {}
 
 DirectoryListing::DirectoryListing(const DirectoryListing& other)
-    : directory_id_(other.directory_id_), kMaxVersions_(other.kMaxVersions_),
+    : directory_id_(other.directory_id_), max_versions_(other.max_versions_),
       children_(other.children_), children_itr_position_(other.children_itr_position_) {}
 
 DirectoryListing::DirectoryListing(DirectoryListing&& other)
-    : directory_id_(std::move(other.directory_id())), kMaxVersions_(other.kMaxVersions_),
+    : directory_id_(std::move(other.directory_id())), max_versions_(other.max_versions_),
       children_(std::move(other.children_)),
       children_itr_position_(std::move(other.children_itr_position_)) {}
 
 DirectoryListing::DirectoryListing(const std::string& serialised_directory_listing)
-    : directory_id_(), kMaxVersions_(kMaxFileVersions.data), children_(),
+    : directory_id_(), max_versions_(kMaxVersions), children_(),
       children_itr_position_(0) {
   protobuf::DirectoryListing pb_directory;
   if (!pb_directory.ParseFromString(serialised_directory_listing))
@@ -97,13 +98,13 @@ DirectoryListing& DirectoryListing::operator=(DirectoryListing other) {
   return *this;
 }
 
-bool DirectoryListing::HasChild(const fs::path& name) const {
+bool DirectoryListing::HasChild(const boost::filesystem::path& name) const {
   return std::any_of(std::begin(children_), std::end(children_),
       [&name](const std::deque<MetaData>& versions) {
           return MetaDataHasName(versions.back(), name); });
 }
 
-void DirectoryListing::GetChild(const fs::path& name, MetaData& meta_data) const {
+void DirectoryListing::GetChild(const boost::filesystem::path& name, MetaData& meta_data) const {
   auto itr(std::find_if(std::begin(children_), std::end(children_),
                         [&name](const std::deque<MetaData>& versions) {
                           return MetaDataHasName(versions.back(), name); }));
@@ -116,11 +117,6 @@ void DirectoryListing::GetChild(const fs::path& name, MetaData& meta_data) const
 
 bool DirectoryListing::GetChildAndIncrementItr(MetaData& meta_data) {
   if (children_itr_position_ != children_.size()) {
-    while (children_[children_itr_position_].back().name.extension() == kMsHidden) {
-      ++children_itr_position_;
-      if (children_itr_position_ == children_.size())
-        return false;
-    }
     meta_data = children_[children_itr_position_].back();
     ++children_itr_position_;
     return true;
@@ -156,26 +152,15 @@ void DirectoryListing::UpdateChild(const MetaData& child) {
                             return child.name == entry.back().name; }));
   if (itr == std::end(children_))
     ThrowError(CommonErrors::invalid_parameter);
-  if (itr->size() == kMaxVersions_)
+  if (itr->size() == max_versions_.data)
     itr->pop_front();
   itr->push_back(child);
   SortAndResetChildrenIterator();
 }
 
-void DirectoryListing::ResetChildrenIterator() { children_itr_position_ = 0; }
-
 void DirectoryListing::SortAndResetChildrenIterator() {
   std::sort(std::begin(children_), std::end(children_));
   ResetChildrenIterator();
-}
-
-bool DirectoryListing::empty() const {
-  if (children_.empty())
-    return true;
-  return std::any_of(std::begin(children_), std::end(children_), [](
-      const std::deque<MetaData>& element) {
-        return element.back().name.extension() == kMsHidden;
-  });
 }
 
 std::string DirectoryListing::Serialise() const {
@@ -191,16 +176,6 @@ std::string DirectoryListing::Serialise() const {
   }
 
   return pb_directory.SerializeAsString();
-}
-
-std::vector<std::string> DirectoryListing::GetHiddenChildNames() const {
-  std::vector<std::string> names;
-  std::for_each(std::begin(children_), std::end(children_),
-      [&](const std::deque<MetaData>& child) {
-        if (child.back().name.extension() == kMsHidden)
-          names.push_back(child.back().name.string());
-  });
-  return names;
 }
 
 bool operator<(const DirectoryListing& lhs, const DirectoryListing& rhs) {

@@ -31,9 +31,6 @@
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/meta_data.h"
 
-namespace fs = boost::filesystem;
-namespace bptime = boost::posix_time;
-
 namespace maidsafe {
 
 namespace drive {
@@ -41,6 +38,7 @@ namespace drive {
 namespace detail {
 
 class DirectoryListing;
+struct FileContext;
 
 namespace test {
 
@@ -59,18 +57,15 @@ class DirectoryListing {
 
   ~DirectoryListing() {}
 
-  bool HasChild(const fs::path& name) const;
-  void GetChild(const fs::path& name, MetaData& meta_data) const;
+  bool HasChild(const boost::filesystem::path& name) const;
+  void GetChild(const boost::filesystem::path& name, MetaData& meta_data) const;
   bool GetChildAndIncrementItr(MetaData& meta_data);
   void AddChild(const MetaData& child);
   void RemoveChild(const MetaData& child);
   void UpdateChild(const MetaData& child);
-  void ResetChildrenIterator();
-  bool empty() const;
+  void ResetChildrenIterator() { children_itr_position_ = 0; }
+  bool empty() const { return children_.empty(); }
   DirectoryId directory_id() const { return directory_id_; }
-
-  // This function is internal to drive, do not use for native filesystem operations.
-  std::vector<std::string> GetHiddenChildNames() const;
 
   std::string Serialise() const;
 
@@ -82,8 +77,8 @@ class DirectoryListing {
   void SortAndResetChildrenIterator();
 
   DirectoryId directory_id_;
-  const uint32_t kMaxVersions_;
-  std::vector<std::deque<MetaData>> children_;
+  MaxVersions max_versions_;
+  std::vector<FileContext> children_;
   size_t children_itr_position_;
 };
 

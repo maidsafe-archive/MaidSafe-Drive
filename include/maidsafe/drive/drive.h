@@ -31,42 +31,35 @@
 #include "boost/filesystem/path.hpp"
 
 #include "maidsafe/common/rsa.h"
+
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/directory_handler.h"
 #include "maidsafe/drive/utils.h"
 
-
 namespace maidsafe {
+
 namespace drive {
 
 template <typename Storage>
 class Drive {
  public:
-  typedef std::shared_ptr<Storage> StoragePtr;
-  typedef encrypt::SelfEncryptor<Storage> SelfEncryptor;
-  typedef detail::FileContext<Storage> FileContext;
-  typedef FileContext* FileContextPtr;
-  typedef detail::DirectoryHandler<Storage> DirectoryHandler;
-  typedef detail::Directory Directory;
-  typedef detail::OpType OpType;
+  //typedef std::shared_ptr<Storage> StoragePtr;
+  //typedef detail::FileContext<Storage> FileContext;
+  //typedef FileContext* FileContextPtr;
+  //typedef detail::DirectoryHandler<Storage> DirectoryHandler;
+  //typedef detail::Directory Directory;
 
   Drive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
         const boost::filesystem::path& mount_dir, bool create = false);
 
   virtual ~Drive() {}
-
-#ifdef MAIDSAFE_APPLE
-  boost::filesystem::path GetMountDir() const { return kMountDir_; }
-#endif
-
   Identity root_parent_id() const;
 
   // ********************* File / Folder Transfers ************************************************
-
+/*
   // Retrieve the serialised DataMap of the file at 'relative_path' (e.g. to send to another client)
   std::string GetDataMap(const boost::filesystem::path& relative_path);
-  std::string GetHiddenDataMap(const boost::filesystem::path& relative_path);
   // Insert a file at 'relative_path' derived from the serialised DataMap (e.g. if
   // receiving from another client).
   void InsertDataMap(const boost::filesystem::path& relative_path,
@@ -84,9 +77,9 @@ class Drive {
   // Rename/move the file associated with 'meta_data' located at 'old_relative_path' to that at
   // 'new_relative_path'.
   void Rename(const boost::filesystem::path& old_relative_path,
-              const boost::filesystem::path& new_relative_path, MetaData& meta_data);
+              const boost::filesystem::path& new_relative_path, MetaData& meta_data);  */
 
-   protected:
+ protected:
   // Recovers Directory for 'relative_path'.
   Directory GetDirectory(const boost::filesystem::path& relative_path);
   // Returns FileContext associated with 'relative_path'.
@@ -95,8 +88,6 @@ class Drive {
   void UpdateParent(FileContextPtr file_context, const boost::filesystem::path& parent_path);
   // Resizes the file.
   bool TruncateFile(FileContextPtr file_context, const uint64_t& size);
-  // virtual void NotifyRename(const boost::filesystem::path& from_relative_path,
-  //                           const boost::filesystem::path& to_relative_path) const = 0;
 
   DirectoryHandler directory_handler_;
   StoragePtr storage_;
@@ -138,7 +129,6 @@ template <typename Storage>
 Identity Drive<Storage>::root_parent_id() const {
   return directory_handler_.root_parent_id();
 }
-
 
 template <typename Storage>
 void Drive<Storage>::Add(const boost::filesystem::path& relative_path,
@@ -237,6 +227,7 @@ std::string Drive<Storage>::ReadDataMap(const boost::filesystem::path& relative_
 }
 
 }  // namespace drive
+
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_DRIVE_H_

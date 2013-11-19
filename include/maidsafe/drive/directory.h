@@ -35,18 +35,15 @@ namespace drive {
 namespace detail {
 
 struct Directory {
-  Directory(DirectoryId parent_id_in, std::shared_ptr<DirectoryListing> listing_in)
+  Directory(DirectoryId parent_id_in, DirectoryListing listing_in)
       : parent_id(std::move(parent_id_in)),
         listing(std::move(listing_in)),
         content_changed(false) {}
 
-  Directory()
-      : parent_id(),
-        listing(),
-        content_changed(false) {}
+  Directory() : parent_id(), listing(), content_changed(false) {}
 
   DirectoryId parent_id;
-  std::shared_ptr<DirectoryListing> listing;
+  DirectoryListing listing;
   bool content_changed;
 };
 

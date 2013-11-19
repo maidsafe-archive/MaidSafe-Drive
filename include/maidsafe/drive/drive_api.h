@@ -30,6 +30,7 @@
 #endif
 
 namespace maidsafe {
+
 namespace drive {
 
 template <typename Storage>
@@ -46,6 +47,7 @@ struct VirtualDrive {
 };
 
 }  // namespace drive
+
 }  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_DRIVE_API_H_

@@ -40,6 +40,7 @@
 
 #include "maidsafe/common/utils.h"
 #include "maidsafe/encrypt/self_encryptor.h"
+
 #include "maidsafe/drive/drive.h"
 #include "maidsafe/drive/directory_handler.h"
 #include "maidsafe/drive/utils.h"
@@ -84,7 +85,6 @@ class CbfsDrive : public Drive<Storage> {
   typedef detail::FileContext<Storage> FileContext;
   // typedef std::unique_ptr<FileContext> FileContextPtr;
   typedef FileContext* FileContextPtr;
-  typedef detail::OpType OpType;
 
   CbfsDrive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
             const boost::filesystem::path& mount_dir, const boost::filesystem::path& drive_name,
@@ -93,12 +93,9 @@ class CbfsDrive : public Drive<Storage> {
   virtual ~CbfsDrive();
 
   void Mount();
-  virtual bool Unmount();
+  bool Unmount();
   int Install();
-  void NotifyDirectoryChange(const boost::filesystem::path& relative_path, OpType op) const;
   uint32_t max_file_path_length();
-  virtual void NotifyRename(const boost::filesystem::path& from_relative_path,
-                            const boost::filesystem::path& to_relative_path) const;
 
  private:
   CbfsDrive(const CbfsDrive&);
@@ -281,38 +278,6 @@ bool CbfsDrive<Storage>::Unmount() {
     return false;
   }
   return true;
-}
-
-template <typename Storage>
-void CbfsDrive<Storage>::NotifyRename(const boost::filesystem::path& from_relative_path,
-                                      const boost::filesystem::path& to_relative_path) const {
-  NotifyDirectoryChange(from_relative_path, OpType::kRemoved);
-  NotifyDirectoryChange(to_relative_path, OpType::kAdded);
-}
-
-template <typename Storage>
-void CbfsDrive<Storage>::NotifyDirectoryChange(const boost::filesystem::path& relative_path,
-                                               OpType op) const {
-  BOOL success(FALSE);
-  switch (op) {
-    case OpType::kRemoved: {
-      success = callback_filesystem_.NotifyDirectoryChange(relative_path.wstring().c_str(),
-                                                           callback_filesystem_.fanRemoved, TRUE);
-      break;
-    }
-    case OpType::kAdded: {
-      success = callback_filesystem_.NotifyDirectoryChange(relative_path.wstring().c_str(),
-                                                           callback_filesystem_.fanAdded, TRUE);
-      break;
-    }
-    case OpType::kModified: {
-      success = callback_filesystem_.NotifyDirectoryChange(relative_path.wstring().c_str(),
-                                                           callback_filesystem_.fanModified, TRUE);
-      break;
-    }
-  }
-  if (!success)
-    LOG(kError) << "Failed to notify directory change";
 }
 
 template <typename Storage>
@@ -623,8 +588,6 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
   *file_exists = false;
   *file_attributes = 0xFFFFFFFF;
 
-  if (relative_path.extension() == detail::kMsHidden)
-    throw ECBFSError(ERROR_INVALID_NAME);
   std::unique_ptr<FileContext> file_context;
   auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
   try {
