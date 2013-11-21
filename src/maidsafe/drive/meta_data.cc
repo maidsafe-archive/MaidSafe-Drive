@@ -35,6 +35,8 @@ namespace maidsafe {
 
 namespace drive {
 
+namespace detail {
+
 const uint32_t kAttributesDir = 0x4000;
 
 #ifdef MAIDSAFE_WIN32
@@ -156,46 +158,36 @@ MetaData::MetaData(const fs::path& name, bool is_directory)
 }
 #endif
 
-MetaData::MetaData(const std::string& serialised_meta_data)
-    : name(),
+MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
+    : name(protobuf_meta_data.name()),
 #ifdef MAIDSAFE_WIN32
-      end_of_file(0),
-      allocation_size(0),
+      end_of_file(protobuf_meta_data.attributes_archive().st_size()),
+      allocation_size(protobuf_meta_data.attributes_archive().st_size()),
       attributes(0xFFFFFFFF),
-      creation_time(),
-      last_access_time(),
-      last_write_time(),
-      data_map(),
-      directory_id() {
+      creation_time(BptimeToFileTime(bptime::from_iso_string(
+          protobuf_meta_data.attributes_archive().creation_time()))),
+      last_access_time(BptimeToFileTime(bptime::from_iso_string(
+          protobuf_meta_data.attributes_archive().last_access_time()))),
+      last_write_time(BptimeToFileTime(bptime::from_iso_string(
+          protobuf_meta_data.attributes_archive().last_write_time()))),
 #else
       attributes(),
       link_to(),
-      data_map(),
-      directory_id(),
-      notes() {
 #endif
-  protobuf::MetaData pb_meta_data;
-  if (!pb_meta_data.ParseFromString(serialised_meta_data))
-    ThrowError(CommonErrors::parsing_error);
-
-  name = pb_meta_data.name();
+      data_map(protobuf_meta_data.has_serialised_data_map() ? new encrypt::DataMap : nullptr),
+      directory_id(protobuf_meta_data.has_directory_id() ?
+                   new DirectoryId(protobuf_meta_data.directory_id()) : nullptr),
+      notes() {
   if ((name == "\\") || (name == "/"))
     name = fs::path("/").make_preferred();
 
-  const protobuf::AttributesArchive& attributes_archive = pb_meta_data.attributes_archive();
+  const protobuf::AttributesArchive& attributes_archive = protobuf_meta_data.attributes_archive();
 
 #ifdef MAIDSAFE_WIN32
-  creation_time = BptimeToFileTime(bptime::from_iso_string(attributes_archive.creation_time()));
-  last_access_time =
-      BptimeToFileTime(bptime::from_iso_string(attributes_archive.last_access_time()));
-  last_write_time = BptimeToFileTime(bptime::from_iso_string(attributes_archive.last_write_time()));
-  end_of_file = attributes_archive.st_size();
-
   if ((attributes_archive.st_mode() & kAttributesDir) == kAttributesDir) {
     attributes |= FILE_ATTRIBUTE_DIRECTORY;
     end_of_file = 0;
   }
-  allocation_size = end_of_file;
 
   if (attributes_archive.has_win_attributes())
     attributes = static_cast<DWORD>(attributes_archive.win_attributes());
@@ -236,19 +228,16 @@ MetaData::MetaData(const std::string& serialised_meta_data)
     attributes.st_size = 4096;
 #endif
 
-  if (pb_meta_data.has_serialised_data_map()) {
-    if (pb_meta_data.has_directory_id())
+  if (data_map) {
+    if (directory_id)
       ThrowError(CommonErrors::parsing_error);
-    data_map.reset(new encrypt::DataMap);
-    encrypt::ParseDataMap(pb_meta_data.serialised_data_map(), *data_map);
-  } else if (pb_meta_data.has_directory_id()) {
-    directory_id.reset(new DirectoryId(pb_meta_data.directory_id()));
-  } else {
-    ThrowError(CommonErrors::invalid_parameter);
+    encrypt::ParseDataMap(protobuf_meta_data.serialised_data_map(), *data_map);
+  } else if (!directory_id) {
+    ThrowError(CommonErrors::parsing_error);
   }
 
-  for (int i(0); i != pb_meta_data.notes_size(); ++i)
-    notes.push_back(pb_meta_data.notes(i));
+  for (int i(0); i != protobuf_meta_data.notes_size(); ++i)
+    notes.push_back(protobuf_meta_data.notes(i));
 }
 
 MetaData::MetaData(const MetaData& other)
@@ -290,11 +279,9 @@ MetaData& MetaData::operator=(MetaData other) {
   return *this;
 }
 
-std::string MetaData::Serialise() const {
-  protobuf::MetaData pb_meta_data;
-
-  pb_meta_data.set_name(name.string());
-  protobuf::AttributesArchive* attributes_archive = pb_meta_data.mutable_attributes_archive();
+void MetaData::ToProtobuf(protobuf::MetaData& protobuf_meta_data) const {
+  protobuf_meta_data.set_name(name.string());
+  auto attributes_archive = protobuf_meta_data.mutable_attributes_archive();
 
 #ifdef MAIDSAFE_WIN32
   attributes_archive->set_creation_time(bptime::to_iso_string(FileTimeToBptime(creation_time)));
@@ -336,15 +323,13 @@ std::string MetaData::Serialise() const {
   if (data_map) {
     std::string serialised_data_map;
     encrypt::SerialiseDataMap(*data_map, serialised_data_map);
-    pb_meta_data.set_serialised_data_map(serialised_data_map);
+    protobuf_meta_data.set_serialised_data_map(serialised_data_map);
   } else {
-    pb_meta_data.set_directory_id(directory_id->string());
+    protobuf_meta_data.set_directory_id(directory_id->string());
   }
 
   for (const auto& note : notes)
-    pb_meta_data.add_notes(note);
-
-  return pb_meta_data.SerializeAsString();
+    protobuf_meta_data.add_notes(note);
 }
 
 bptime::ptime MetaData::creation_posix_time() const {
@@ -401,6 +386,8 @@ void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT {
   swap(lhs.directory_id, rhs.directory_id);
   swap(lhs.notes, rhs.notes);
 }
+
+}  // namespace detail
 
 }  // namespace drive
 

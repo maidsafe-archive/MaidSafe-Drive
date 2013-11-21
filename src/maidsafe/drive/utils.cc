@@ -19,7 +19,11 @@
 #include "maidsafe/drive/utils.h"
 
 #include <algorithm>
+#include <cassert>
+#include <iterator>
+#include <locale>
 #include <regex>
+#include <vector>
 
 #include "boost/algorithm/string/replace.hpp"
 
@@ -34,47 +38,29 @@ namespace detail {
 bool ExcludedFilename(const boost::filesystem::path& path) {
   std::string file_name(path.filename().stem().string());
   if (file_name.size() == 4 && isdigit(file_name[3])) {
-    if (file_name[3] != '0') {
-      std::string name(file_name.substr(0, 3));
-      std::transform(name.begin(), name.end(), name.begin(), tolower);
-      if (name.compare(0, 3, "com", 0, 3) == 0) {
-        return true;
-      }
-      if (name.compare(0, 3, "lpt", 0, 3) == 0) {
-        return true;
-      }
-    }
+    std::transform(std::begin(file_name), std::begin(file_name) + 3, std::begin(file_name),
+                   [](char c) { return std::tolower<char>(c, std::locale("")); });
+    if (file_name == "com" || file_name == "lpt")
+      return true;
   } else if (file_name.size() == 3) {
-    std::string name(file_name);
-    std::transform(name.begin(), name.end(), name.begin(), tolower);
-    if (name.compare(0, 3, "con", 0, 3) == 0) {
+    std::transform(std::begin(file_name), std::end(file_name), std::begin(file_name),
+                   [](char c) { return std::tolower<char>(c, std::locale("")); });
+    if (file_name == "con" || file_name == "prn" || file_name == "aux" || file_name == "nul")
       return true;
-    }
-    if (name.compare(0, 3, "prn", 0, 3) == 0) {
-      return true;
-    }
-    if (name.compare(0, 3, "aux", 0, 3) == 0) {
-      return true;
-    }
-    if (name.compare(0, 3, "nul", 0, 3) == 0) {
-      return true;
-    }
-  } else if (file_name.size() == 6) {
-    if (file_name[5] == '$') {
-      std::string name(file_name);
-      std::transform(name.begin(), name.end(), name.begin(), tolower);
-      if (name.compare(0, 5, "clock", 0, 5) == 0) {
-        return true;
-      }
-    }
-  }
-  static const std::string excluded = "\"\\/<>?:*|";
-  std::string::const_iterator first(file_name.begin()), last(file_name.end());
-  for (; first != last; ++first) {
-    if (find(excluded.begin(), excluded.end(), *first) != excluded.end())
+  } else if (file_name.size() == 6 && file_name[5] == '$') {
+    std::transform(std::begin(file_name), std::begin(file_name) + 5, std::begin(file_name),
+                   [](char c) { return std::tolower<char>(c, std::locale("")); });
+    if (file_name == "clock")
       return true;
   }
-  return false;
+  static const char kExcluded[] = { '"', '*', '/', ':', '<', '>', '?', '\\', '|' };
+  assert(std::is_sorted(std::begin(kExcluded), std::end(kExcluded)));
+  std::sort(std::begin(file_name), std::end(file_name));
+  std::vector<char> intersection;
+  std::set_intersection(std::begin(file_name), std::end(file_name),
+                        std::begin(kExcluded), std::end(kExcluded),
+                        std::back_inserter(intersection));
+  return !intersection.empty();
 }
 
 bool MatchesMask(std::wstring mask, const boost::filesystem::path& file_name) {

@@ -66,30 +66,16 @@ DirectoryListing::DirectoryListing(DirectoryListing&& other)
       children_itr_position_(std::move(other.children_itr_position_)) {}
 
 DirectoryListing::DirectoryListing(const std::string& serialised_directory_listing)
-    : directory_id_(), max_versions_(kMaxVersions), children_(),
-      children_itr_position_(0) {
+    : directory_id_(), max_versions_(kMaxVersions), children_(), children_itr_position_(0) {
   protobuf::DirectoryListing pb_directory;
   if (!pb_directory.ParseFromString(serialised_directory_listing))
     ThrowError(CommonErrors::parsing_error);
 
   directory_id_ = Identity(pb_directory.directory_id());
+  max_versions_ = MaxVersions(pb_directory.max_versions());
 
-  for (int i(0); i != pb_directory.children_size(); ++i) {
-    if (pb_directory.children(i).IsInitialized()) {
-      std::deque<MetaData> meta_data_versions;
-      protobuf::MetaDataVersions pb_meta_data_versions;
-      pb_meta_data_versions.ParseFromString(pb_directory.children(i).
-          serialised_meta_data_versions());
-      for (int j(0); j != pb_meta_data_versions.serialised_meta_data_size(); ++j) {
-        MetaData meta_data_version(pb_meta_data_versions.serialised_meta_data(j));
-        meta_data_versions.emplace_back(meta_data_version);
-      }
-      children_.emplace_back(meta_data_versions);
-    } else {
-      ThrowError(CommonErrors::uninitialised);
-    }
-  }
-
+  for (int i(0); i != pb_directory.children_size(); ++i)
+    children_.emplace_back(MetaData(pb_directory.children(i)));
   std::sort(std::begin(children_), std::end(children_));
 }
 

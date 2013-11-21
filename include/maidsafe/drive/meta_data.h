@@ -42,16 +42,20 @@ namespace maidsafe {
 
 namespace drive {
 
+namespace detail {
+
+namespace protobuf { class MetaData; }
+
 // Represents directory and file information
 struct MetaData {
   MetaData();
   MetaData(const boost::filesystem::path& name, bool is_directory);
-  explicit MetaData(const std::string& serialised_meta_data);
+  explicit MetaData(const protobuf::MetaData& protobuf_meta_data);
   MetaData(const MetaData& other);
   MetaData(MetaData&& other);
   MetaData& operator=(MetaData other);
 
-  std::string Serialise() const;
+  void ToProtobuf(protobuf::MetaData& protobuf_meta_data) const;
 
   boost::posix_time::ptime creation_posix_time() const;
   boost::posix_time::ptime last_write_posix_time() const;
@@ -77,6 +81,8 @@ struct MetaData {
 };
 
 void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT;
+
+}  // namespace detail
 
 }  // namespace drive
 

@@ -35,12 +35,15 @@ namespace drive {
 namespace detail {
 
 struct FileContext {
-  FileContext() : meta_data(), self_encryptor() {}
+  FileContext() : meta_data(), self_encryptor(), meta_data_changed(false) {}
+  explicit FileContext(MetaData meta_data_in)
+      : meta_data(std::move(meta_data_in)), self_encryptor(), meta_data_changed(false) {}
   FileContext(const boost::filesystem::path& name, bool is_directory)
-      : meta_data(name, is_directory), self_encryptor() {}
+      : meta_data(name, is_directory), self_encryptor(), meta_data_changed(false) {}
 
   MetaData meta_data;
   std::unique_ptr<encrypt::SelfEncryptor> self_encryptor;
+  bool meta_data_changed;
 };
 
 inline bool operator<(const FileContext& lhs, const FileContext& rhs) {

@@ -16,7 +16,7 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
-package maidsafe.drive.protobuf;
+package maidsafe.drive.detail.protobuf;
 
 message AttributesArchive {
   required uint64 st_size = 1;
@@ -44,14 +44,8 @@ message MetaData {
   repeated bytes notes = 5;
 }
 
-message MetaDataVersions {
-  repeated bytes serialised_meta_data = 1;
-}
-
 message DirectoryListing {
-  message Child {
-    required bytes serialised_meta_data_versions = 1;
-  }
   required bytes directory_id = 1;
-  repeated Child children = 2;
+  required uint32 max_versions = 2;
+  repeated MetaData children = 3;
 }

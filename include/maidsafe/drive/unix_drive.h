@@ -482,6 +482,10 @@ int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t rdev) {
 
   bool is_directory(S_ISDIR(mode));
   fs::path full_path(path);
+  if (detail::ExcludedFilename(full_path.filename().stem().string())) {
+    LOG(kError) << "OpsMknod: invalid name " << full_path.filename();
+    return -EINVAL;
+  }
   // TODO(Fraser#5#): 2011-05-18 - Cater for FIFO (and other?) modes in MetaData.
   detail::FileContext<Storage> file_context(full_path.filename(), is_directory);
 
