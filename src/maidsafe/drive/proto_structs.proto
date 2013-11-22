@@ -44,7 +44,7 @@ message MetaData {
   repeated bytes notes = 5;
 }
 
-message DirectoryListing {
+message Directory {
   required bytes directory_id = 1;
   required uint32 max_versions = 2;
   repeated MetaData children = 3;

@@ -35,21 +35,32 @@ namespace drive {
 
 namespace detail {
 
+void ConvertToLowerCase(std::string& input, size_t count) {
+  std::transform(std::begin(input), std::begin(input) + count, std::begin(input),
+                 [](char c) { return std::tolower<char>(c, std::locale("")); });
+}
+
+void ConvertToLowerCase(std::string& input) {
+  ConvertToLowerCase(input, input.size());
+}
+
+std::string GetLowerCase(std::string input) {
+  ConvertToLowerCase(input);
+  return input;
+}
+
 bool ExcludedFilename(const boost::filesystem::path& path) {
   std::string file_name(path.filename().stem().string());
   if (file_name.size() == 4 && isdigit(file_name[3])) {
-    std::transform(std::begin(file_name), std::begin(file_name) + 3, std::begin(file_name),
-                   [](char c) { return std::tolower<char>(c, std::locale("")); });
+    ConvertToLowerCase(file_name, 3);
     if (file_name == "com" || file_name == "lpt")
       return true;
   } else if (file_name.size() == 3) {
-    std::transform(std::begin(file_name), std::end(file_name), std::begin(file_name),
-                   [](char c) { return std::tolower<char>(c, std::locale("")); });
+    ConvertToLowerCase(file_name);
     if (file_name == "con" || file_name == "prn" || file_name == "aux" || file_name == "nul")
       return true;
   } else if (file_name.size() == 6 && file_name[5] == '$') {
-    std::transform(std::begin(file_name), std::begin(file_name) + 5, std::begin(file_name),
-                   [](char c) { return std::tolower<char>(c, std::locale("")); });
+    ConvertToLowerCase(file_name, 5);
     if (file_name == "clock")
       return true;
   }

@@ -16,17 +16,9 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
-#ifndef MAIDSAFE_DRIVE_FILE_CONTEXT_H_
-#define MAIDSAFE_DRIVE_FILE_CONTEXT_H_
+#include "maidsafe/drive/file_context.h"
 
-#include <memory>
-
-#include "boost/filesystem/path.hpp"
-
-#include "maidsafe/common/config.h"
-#include "maidsafe/encrypt/self_encryptor.h"
-
-#include "maidsafe/drive/meta_data.h"
+#include <utility>
 
 namespace maidsafe {
 
@@ -34,28 +26,36 @@ namespace drive {
 
 namespace detail {
 
-struct FileContext;
+FileContext::FileContext() : meta_data(), self_encryptor(), meta_data_changed(false) {}
 
-struct FileContext {
-  FileContext();
-  FileContext(FileContext&& other);
-  explicit FileContext(MetaData meta_data_in);
-  FileContext(const boost::filesystem::path& name, bool is_directory);
-  FileContext& operator=(FileContext other);
+FileContext::FileContext(FileContext&& other)
+    : meta_data(std::move(other.meta_data)), self_encryptor(std::move(other.self_encryptor)),
+      meta_data_changed(std::move(other.meta_data_changed)) {}
 
-  MetaData meta_data;
-  std::unique_ptr<encrypt::SelfEncryptor> self_encryptor;
-  bool meta_data_changed;
-};
+FileContext::FileContext(MetaData meta_data_in)
+    : meta_data(std::move(meta_data_in)), self_encryptor(), meta_data_changed(false) {}
 
-void swap(FileContext& lhs, FileContext& rhs) MAIDSAFE_NOEXCEPT;
+FileContext::FileContext(const boost::filesystem::path& name, bool is_directory)
+    : meta_data(name, is_directory), self_encryptor(), meta_data_changed(false) {}
 
-bool operator<(const FileContext& lhs, const FileContext& rhs);
+FileContext& FileContext::operator=(FileContext other) {
+  swap(*this, other);
+  return *this;
+}
+
+void swap(FileContext& lhs, FileContext& rhs) MAIDSAFE_NOEXCEPT {
+  using std::swap;
+  swap(lhs.meta_data, rhs.meta_data);
+  swap(lhs.self_encryptor, rhs.self_encryptor);
+  swap(lhs.meta_data_changed, rhs.meta_data_changed);
+}
+
+bool operator<(const FileContext& lhs, const FileContext& rhs) {
+  return lhs.meta_data.name < rhs.meta_data.name;
+}
 
 }  // namespace detail
 
 }  // namespace drive
 
 }  // namespace maidsafe
-
-#endif  // MAIDSAFE_DRIVE_FILE_CONTEXT_H_

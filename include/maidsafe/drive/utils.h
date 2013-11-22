@@ -29,6 +29,8 @@ namespace drive {
 
 namespace detail {
 
+void ConvertToLowerCase(std::string& input);
+std::string GetLowerCase(std::string input);
 bool ExcludedFilename(const boost::filesystem::path& path);
 bool MatchesMask(std::wstring mask, const boost::filesystem::path& file_name);
 

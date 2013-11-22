@@ -26,6 +26,7 @@
 #include <sys/stat.h>
 #endif
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -55,7 +56,7 @@ struct MetaData {
   MetaData(MetaData&& other);
   MetaData& operator=(MetaData other);
 
-  void ToProtobuf(protobuf::MetaData& protobuf_meta_data) const;
+  void ToProtobuf(protobuf::MetaData* protobuf_meta_data) const;
 
   boost::posix_time::ptime creation_posix_time() const;
   boost::posix_time::ptime last_write_posix_time() const;

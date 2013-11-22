@@ -56,18 +56,16 @@ namespace drive {
 
 namespace detail {
 
-namespace test {
-class DirectoryHandlerTest;
-}
+namespace test { class DirectoryHandlerTest; }
 
 template <typename Storage>
 class DirectoryHandler {
  public:
-  typedef std::shared_ptr<Storage> StoragePtr;
-  typedef std::shared_ptr<DirectoryListing> DirectoryListingPtr;
-  typedef encrypt::SelfEncryptor<Storage> SelfEncryptor;
-  typedef encrypt::DataMap DataMap;
-  typedef encrypt::DataMapPtr DataMapPtr;
+  //typedef std::shared_ptr<Storage> StoragePtr;
+  //typedef std::shared_ptr<DirectoryListing> DirectoryListingPtr;
+  //typedef encrypt::SelfEncryptor<Storage> SelfEncryptor;
+  //typedef encrypt::DataMap DataMap;
+  //typedef encrypt::DataMapPtr DataMapPtr;
 
   DirectoryHandler(StoragePtr storage, const Identity& unique_user_id,
                    const Identity& root_parent_id, bool create);

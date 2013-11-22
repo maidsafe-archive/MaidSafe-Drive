@@ -16,25 +16,26 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
-#include "maidsafe/drive/directory_listing.h"
+#include "maidsafe/drive/directory.h"
 
-#include <algorithm>
-#include <functional>
-#include <iterator>
-#include <utility>
-#include <vector>
-
+//#include <algorithm>
+//#include <functional>
+//#include <iterator>
+//#include <utility>
+//#include <vector>
+//
 #include "boost/algorithm/string/case_conv.hpp"
-#include "boost/bind.hpp"
-
-#include "maidsafe/common/rsa.h"
-#include "maidsafe/common/log.h"
-#include "maidsafe/common/utils.h"
-#include "maidsafe/encrypt/data_map.h"
-#include "maidsafe/encrypt/self_encryptor.h"
+//#include "boost/bind.hpp"
+//
+//#include "maidsafe/common/rsa.h"
+//#include "maidsafe/common/log.h"
+//#include "maidsafe/common/utils.h"
+//#include "maidsafe/encrypt/data_map.h"
+//#include "maidsafe/encrypt/self_encryptor.h"
 
 #include "maidsafe/drive/file_context.h"
 #include "maidsafe/drive/meta_data.h"
+#include "maidsafe/drive/utils.h"
 #include "maidsafe/drive/proto_structs.pb.h"
 
 namespace maidsafe {
@@ -46,51 +47,73 @@ namespace detail {
 namespace {
 
 bool MetaDataHasName(const MetaData& meta_data, const boost::filesystem::path& name) {
-  return (boost::algorithm::to_lower_copy(meta_data.name.wstring()) ==
-          boost::algorithm::to_lower_copy(name.wstring()));
+  return GetLowerCase(meta_data.name.string()) == GetLowerCase(name.string());
 }
 
 }  // unnamed namespace
 
-DirectoryListing::DirectoryListing(DirectoryId directory_id)
-    : directory_id_(std::move(directory_id)), max_versions_(kMaxVersions), children_(),
-      children_itr_position_(0) {}
+Directory::Directory() : parent_id_(), directory_id_(), max_versions_(kMaxVersions), children_(),
+                         children_itr_position_(0) {}
 
-DirectoryListing::DirectoryListing(const DirectoryListing& other)
-    : directory_id_(other.directory_id_), max_versions_(other.max_versions_),
-      children_(other.children_), children_itr_position_(other.children_itr_position_) {}
+Directory::Directory(ParentId parent_id, DirectoryId directory_id)
+    : parent_id_(std::move(parent_id)), directory_id_(std::move(directory_id)),
+      max_versions_(kMaxVersions), children_(), children_itr_position_(0) {}
 
-DirectoryListing::DirectoryListing(DirectoryListing&& other)
-    : directory_id_(std::move(other.directory_id())), max_versions_(other.max_versions_),
-      children_(std::move(other.children_)),
+Directory::Directory(Directory&& other)
+    : parent_id_(std::move(other.parent_id_)), directory_id_(std::move(other.directory_id_)),
+      max_versions_(std::move(other.max_versions_)), children_(std::move(other.children_)),
       children_itr_position_(std::move(other.children_itr_position_)) {}
 
-DirectoryListing::DirectoryListing(const std::string& serialised_directory_listing)
-    : directory_id_(), max_versions_(kMaxVersions), children_(), children_itr_position_(0) {
-  protobuf::DirectoryListing pb_directory;
-  if (!pb_directory.ParseFromString(serialised_directory_listing))
-    ThrowError(CommonErrors::parsing_error);
-
-  directory_id_ = Identity(pb_directory.directory_id());
-  max_versions_ = MaxVersions(pb_directory.max_versions());
-
-  for (int i(0); i != pb_directory.children_size(); ++i)
-    children_.emplace_back(MetaData(pb_directory.children(i)));
-  std::sort(std::begin(children_), std::end(children_));
-}
-
-DirectoryListing& DirectoryListing::operator=(DirectoryListing other) {
+Directory& Directory::operator=(Directory other) {
   swap(*this, other);
   return *this;
 }
 
-bool DirectoryListing::HasChild(const boost::filesystem::path& name) const {
+Directory::Directory(ParentId parent_id, const std::string& serialised_directory)
+    : parent_id_(std::move(parent_id)), directory_id_(), max_versions_(kMaxVersions), children_(),
+      children_itr_position_(0) {
+  protobuf::Directory proto_directory;
+  if (!proto_directory.ParseFromString(serialised_directory))
+    ThrowError(CommonErrors::parsing_error);
+
+  directory_id_ = Identity(proto_directory.directory_id());
+  max_versions_ = MaxVersions(proto_directory.max_versions());
+
+  for (int i(0); i != proto_directory.children_size(); ++i)
+    children_.emplace_back(MetaData(proto_directory.children(i)));
+  std::sort(std::begin(children_), std::end(children_));
+}
+
+std::string Directory::Serialise() const {
+  protobuf::Directory proto_directory;
+  proto_directory.set_directory_id(directory_id_.string());
+  proto_directory.set_max_versions(max_versions_.data);
+
+  for (const auto& child : children_)
+    child.meta_data.ToProtobuf(proto_directory.add_children());
+
+  return proto_directory.SerializeAsString();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+bool Directory::HasChild(const boost::filesystem::path& name) const {
   return std::any_of(std::begin(children_), std::end(children_),
       [&name](const std::deque<MetaData>& versions) {
           return MetaDataHasName(versions.back(), name); });
 }
 
-void DirectoryListing::GetChild(const boost::filesystem::path& name, MetaData& meta_data) const {
+void Directory::GetChild(const boost::filesystem::path& name, MetaData& meta_data) const {
   auto itr(std::find_if(std::begin(children_), std::end(children_),
                         [&name](const std::deque<MetaData>& versions) {
                           return MetaDataHasName(versions.back(), name); }));
@@ -101,7 +124,7 @@ void DirectoryListing::GetChild(const boost::filesystem::path& name, MetaData& m
   }
 }
 
-bool DirectoryListing::GetChildAndIncrementItr(MetaData& meta_data) {
+bool Directory::GetChildAndIncrementItr(MetaData& meta_data) {
   if (children_itr_position_ != children_.size()) {
     meta_data = children_[children_itr_position_].back();
     ++children_itr_position_;
@@ -110,7 +133,7 @@ bool DirectoryListing::GetChildAndIncrementItr(MetaData& meta_data) {
   return false;
 }
 
-void DirectoryListing::AddChild(const MetaData& child) {
+void Directory::AddChild(const MetaData& child) {
   auto itr(std::find_if(std::begin(children_), std::end(children_),
                         [&child](const std::deque<MetaData>& entry) {
                            return child.name == entry.back().name; }));
@@ -122,7 +145,7 @@ void DirectoryListing::AddChild(const MetaData& child) {
   SortAndResetChildrenIterator();
 }
 
-void DirectoryListing::RemoveChild(const MetaData& child) {
+void Directory::RemoveChild(const MetaData& child) {
   auto itr(std::find_if(std::begin(children_), std::end(children_),
                         [&child](const std::deque<MetaData>& entry) {
                            return child.name == entry.back().name; }));
@@ -132,7 +155,7 @@ void DirectoryListing::RemoveChild(const MetaData& child) {
   SortAndResetChildrenIterator();
 }
 
-void DirectoryListing::UpdateChild(const MetaData& child) {
+void Directory::UpdateChild(const MetaData& child) {
   auto itr(std::find_if(std::begin(children_), std::end(children_),
                         [&child](const std::deque<MetaData>& entry) {
                             return child.name == entry.back().name; }));
@@ -144,33 +167,24 @@ void DirectoryListing::UpdateChild(const MetaData& child) {
   SortAndResetChildrenIterator();
 }
 
-void DirectoryListing::SortAndResetChildrenIterator() {
+bool Directory::empty() const {
+  return children_.empty();
+}
+
+void Directory::SortAndResetChildrenIterator() {
   std::sort(std::begin(children_), std::end(children_));
   ResetChildrenIterator();
 }
 
-std::string DirectoryListing::Serialise() const {
-  protobuf::DirectoryListing pb_directory;
-  pb_directory.set_directory_id(directory_id_.string());
-
-  for (const auto& child : children_) {
-    protobuf::MetaDataVersions pb_meta_data_versions;
-    for (const auto& version : child)
-      pb_meta_data_versions.add_serialised_meta_data(version.Serialise());
-    pb_directory.add_children()->set_serialised_meta_data_versions(
-        pb_meta_data_versions.SerializeAsString());
-  }
-
-  return pb_directory.SerializeAsString();
-}
-
-bool operator<(const DirectoryListing& lhs, const DirectoryListing& rhs) {
+bool operator<(const Directory& lhs, const Directory& rhs) {
   return lhs.directory_id() < rhs.directory_id();
 }
 
-void swap(DirectoryListing& lhs, DirectoryListing& rhs) {
+void swap(Directory& lhs, Directory& rhs) {
   using std::swap;
+  swap(lhs.parent_id_, rhs.parent_id_);
   swap(lhs.directory_id_, rhs.directory_id_);
+  swap(lhs.max_versions_, rhs.max_versions_);
   swap(lhs.children_, rhs.children_);
   swap(lhs.children_itr_position_, rhs.children_itr_position_);
 }

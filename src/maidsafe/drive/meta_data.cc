@@ -279,9 +279,9 @@ MetaData& MetaData::operator=(MetaData other) {
   return *this;
 }
 
-void MetaData::ToProtobuf(protobuf::MetaData& protobuf_meta_data) const {
-  protobuf_meta_data.set_name(name.string());
-  auto attributes_archive = protobuf_meta_data.mutable_attributes_archive();
+void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
+  protobuf_meta_data->set_name(name.string());
+  auto attributes_archive = protobuf_meta_data->mutable_attributes_archive();
 
 #ifdef MAIDSAFE_WIN32
   attributes_archive->set_creation_time(bptime::to_iso_string(FileTimeToBptime(creation_time)));
@@ -323,13 +323,13 @@ void MetaData::ToProtobuf(protobuf::MetaData& protobuf_meta_data) const {
   if (data_map) {
     std::string serialised_data_map;
     encrypt::SerialiseDataMap(*data_map, serialised_data_map);
-    protobuf_meta_data.set_serialised_data_map(serialised_data_map);
+    protobuf_meta_data->set_serialised_data_map(serialised_data_map);
   } else {
-    protobuf_meta_data.set_directory_id(directory_id->string());
+    protobuf_meta_data->set_directory_id(directory_id->string());
   }
 
   for (const auto& note : notes)
-    protobuf_meta_data.add_notes(note);
+    protobuf_meta_data->add_notes(note);
 }
 
 bptime::ptime MetaData::creation_posix_time() const {

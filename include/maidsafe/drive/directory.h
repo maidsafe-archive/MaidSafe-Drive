@@ -1,4 +1,4 @@
-/*  Copyright 2011 MaidSafe.net limited
+/*  Copyright 2013 MaidSafe.net limited
 
     This MaidSafe Software is licensed to you under (1) the MaidSafe.net Commercial License,
     version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
@@ -19,14 +19,17 @@
 #ifndef MAIDSAFE_DRIVE_DIRECTORY_H_
 #define MAIDSAFE_DRIVE_DIRECTORY_H_
 
-#include <memory>
+#include <string>
+#include <vector>
 
-#include "maidsafe/data_types/data_type_values.h"
+#include "boost/filesystem/path.hpp"
 
-#include "maidsafe/encrypt/data_map.h"
+#include "maidsafe/common/config.h"
+#include "maidsafe/common/tagged_value.h"
+#include "maidsafe/common/types.h"
 
 #include "maidsafe/drive/config.h"
-#include "maidsafe/drive/directory_listing.h"
+#include "maidsafe/drive/file_context.h"
 
 namespace maidsafe {
 
@@ -34,18 +37,53 @@ namespace drive {
 
 namespace detail {
 
-struct Directory {
-  Directory(DirectoryId parent_id_in, DirectoryListing listing_in)
-      : parent_id(std::move(parent_id_in)),
-        listing(std::move(listing_in)),
-        content_changed(false) {}
+class Directory;
+struct MetaData;
+struct ParentIdTag;
 
-  Directory() : parent_id(), listing(), content_changed(false) {}
+namespace test {
 
-  DirectoryId parent_id;
-  DirectoryListing listing;
-  bool content_changed;
+void DirectoriesMatch(const Directory& lhs, const Directory& rhs);
+class DirectoryTest;
+
+}  // namespace test
+
+class Directory {
+ public:
+  typedef TaggedValue<Identity, ParentIdTag> ParentId;
+  Directory();
+  Directory(ParentId parent_id, DirectoryId directory_id);
+  Directory(Directory&& other);
+  Directory& operator=(Directory other);
+  ~Directory() {}
+
+  Directory(ParentId parent_id, const std::string& serialised_directory);
+  std::string Serialise() const;
+
+  bool HasChild(const boost::filesystem::path& name) const;
+  void GetChild(const boost::filesystem::path& name, MetaData& meta_data) const;
+  bool GetChildAndIncrementItr(MetaData& meta_data);
+  void AddChild(const MetaData& child);
+  void RemoveChild(const MetaData& child);
+  void UpdateChild(const MetaData& child);
+  void ResetChildrenIterator() { children_itr_position_ = 0; }
+  bool empty() const;
+  DirectoryId directory_id() const { return directory_id_; }
+
+
+  friend void swap(Directory& lhs, Directory& rhs) MAIDSAFE_NOEXCEPT;
+  friend void test::DirectoriesMatch(const Directory& lhs, const Directory& rhs);
+  friend class test::DirectoryTest;
+
+ private:
+  ParentId parent_id_;
+  DirectoryId directory_id_;
+  MaxVersions max_versions_;
+  std::vector<FileContext> children_;
+  size_t children_itr_position_;
 };
+
+bool operator<(const Directory& lhs, const Directory& rhs);
 
 }  // namespace detail
 
