@@ -18,10 +18,10 @@
 
 #include "maidsafe/drive/utils.h"
 
+#include <locale>
 #include <algorithm>
 #include <cassert>
 #include <iterator>
-#include <locale>
 #include <regex>
 #include <vector>
 

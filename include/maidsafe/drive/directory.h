@@ -70,12 +70,16 @@ class Directory {
   bool empty() const;
   DirectoryId directory_id() const { return directory_id_; }
 
-
   friend void swap(Directory& lhs, Directory& rhs) MAIDSAFE_NOEXCEPT;
   friend void test::DirectoriesMatch(const Directory& lhs, const Directory& rhs);
   friend class test::DirectoryTest;
 
  private:
+  Directory(const Directory& other);
+  std::vector<FileContext>::iterator Find(const boost::filesystem::path& name);
+  std::vector<FileContext>::const_iterator Find(const boost::filesystem::path& name) const;
+  void SortAndResetChildrenIterator();
+
   ParentId parent_id_;
   DirectoryId directory_id_;
   MaxVersions max_versions_;

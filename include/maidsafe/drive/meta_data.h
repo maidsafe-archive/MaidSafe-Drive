@@ -22,8 +22,8 @@
 #ifdef MAIDSAFE_WIN32
 #include <windows.h>
 #else
-#include "fuse/fuse.h"  // NOLINT
-#include <sys/stat.h>
+#include <fuse/fuse.h>  // NOLINT
+#include <sys/stat.h>  // NOLINT
 #endif
 
 #include <cstdint>

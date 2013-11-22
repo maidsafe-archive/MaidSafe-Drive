@@ -18,25 +18,16 @@
 
 #include "maidsafe/drive/directory.h"
 
-//#include <algorithm>
-//#include <functional>
-//#include <iterator>
-//#include <utility>
-//#include <vector>
-//
-#include "boost/algorithm/string/case_conv.hpp"
-//#include "boost/bind.hpp"
-//
-//#include "maidsafe/common/rsa.h"
-//#include "maidsafe/common/log.h"
-//#include "maidsafe/common/utils.h"
-//#include "maidsafe/encrypt/data_map.h"
-//#include "maidsafe/encrypt/self_encryptor.h"
+#include <algorithm>
+#include <iterator>
+#include <utility>
 
 #include "maidsafe/drive/file_context.h"
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/utils.h"
 #include "maidsafe/drive/proto_structs.pb.h"
+
+namespace fs = boost::filesystem;
 
 namespace maidsafe {
 
@@ -46,7 +37,7 @@ namespace detail {
 
 namespace {
 
-bool MetaDataHasName(const MetaData& meta_data, const boost::filesystem::path& name) {
+bool MetaDataHasName(const MetaData& meta_data, const fs::path& name) {
   return GetLowerCase(meta_data.name.string()) == GetLowerCase(name.string());
 }
 
@@ -95,38 +86,34 @@ std::string Directory::Serialise() const {
   return proto_directory.SerializeAsString();
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-bool Directory::HasChild(const boost::filesystem::path& name) const {
-  return std::any_of(std::begin(children_), std::end(children_),
-      [&name](const std::deque<MetaData>& versions) {
-          return MetaDataHasName(versions.back(), name); });
+std::vector<FileContext>::iterator Directory::Find(const fs::path& name) {
+  return std::find_if(std::begin(children_), std::end(children_),
+                      [&name](const FileContext& file_context) {
+                           return MetaDataHasName(file_context.meta_data, name); });
 }
 
-void Directory::GetChild(const boost::filesystem::path& name, MetaData& meta_data) const {
-  auto itr(std::find_if(std::begin(children_), std::end(children_),
-                        [&name](const std::deque<MetaData>& versions) {
-                          return MetaDataHasName(versions.back(), name); }));
-  if (itr != std::end(children_)) {
-    meta_data = (*itr).back();
-  } else {
+std::vector<FileContext>::const_iterator Directory::Find(const fs::path& name) const {
+  return std::find_if(std::begin(children_), std::end(children_),
+                      [&name](const FileContext& file_context) {
+                           return MetaDataHasName(file_context.meta_data, name); });
+}
+
+bool Directory::HasChild(const fs::path& name) const {
+  return std::any_of(std::begin(children_), std::end(children_),
+      [&name](const FileContext& file_context) {
+          return MetaDataHasName(file_context.meta_data, name); });
+}
+
+void Directory::GetChild(const fs::path& name, MetaData& meta_data) const {
+  auto itr(Find(name));
+  if (itr == std::end(children_))
     ThrowError(CommonErrors::invalid_parameter);
-  }
+  meta_data = itr->meta_data;
 }
 
 bool Directory::GetChildAndIncrementItr(MetaData& meta_data) {
   if (children_itr_position_ != children_.size()) {
-    meta_data = children_[children_itr_position_].back();
+    meta_data = children_[children_itr_position_].meta_data;
     ++children_itr_position_;
     return true;
   }
@@ -134,21 +121,15 @@ bool Directory::GetChildAndIncrementItr(MetaData& meta_data) {
 }
 
 void Directory::AddChild(const MetaData& child) {
-  auto itr(std::find_if(std::begin(children_), std::end(children_),
-                        [&child](const std::deque<MetaData>& entry) {
-                           return child.name == entry.back().name; }));
+  auto itr(Find(child.name));
   if (itr != std::end(children_))
     ThrowError(CommonErrors::invalid_parameter);
-  std::deque<MetaData> meta_data_versions;
-  meta_data_versions.push_back(child);
-  children_.push_back(meta_data_versions);
+  children_.emplace_back(child);
   SortAndResetChildrenIterator();
 }
 
 void Directory::RemoveChild(const MetaData& child) {
-  auto itr(std::find_if(std::begin(children_), std::end(children_),
-                        [&child](const std::deque<MetaData>& entry) {
-                           return child.name == entry.back().name; }));
+  auto itr(Find(child.name));
   if (itr == std::end(children_))
     ThrowError(CommonErrors::invalid_parameter);
   children_.erase(itr);
@@ -156,14 +137,10 @@ void Directory::RemoveChild(const MetaData& child) {
 }
 
 void Directory::UpdateChild(const MetaData& child) {
-  auto itr(std::find_if(std::begin(children_), std::end(children_),
-                        [&child](const std::deque<MetaData>& entry) {
-                            return child.name == entry.back().name; }));
+  auto itr(Find(child.name));
   if (itr == std::end(children_))
     ThrowError(CommonErrors::invalid_parameter);
-  if (itr->size() == max_versions_.data)
-    itr->pop_front();
-  itr->push_back(child);
+  itr->meta_data = child;
   SortAndResetChildrenIterator();
 }
 
