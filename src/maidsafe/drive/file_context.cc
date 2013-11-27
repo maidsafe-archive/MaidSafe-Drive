@@ -26,17 +26,20 @@ namespace drive {
 
 namespace detail {
 
-FileContext::FileContext() : meta_data(), self_encryptor(), meta_data_changed(false) {}
+FileContext::FileContext()
+    : meta_data(), data_buffer(), self_encryptor(), meta_data_changed(false) {}
 
 FileContext::FileContext(FileContext&& other)
-    : meta_data(std::move(other.meta_data)), self_encryptor(std::move(other.self_encryptor)),
+    : meta_data(std::move(other.meta_data)), data_buffer(std::move(other.data_buffer)),
+      self_encryptor(std::move(other.self_encryptor)),
       meta_data_changed(std::move(other.meta_data_changed)) {}
 
 FileContext::FileContext(MetaData meta_data_in)
-    : meta_data(std::move(meta_data_in)), self_encryptor(), meta_data_changed(false) {}
+    : meta_data(std::move(meta_data_in)), data_buffer(), self_encryptor(),
+      meta_data_changed(false) {}
 
 FileContext::FileContext(const boost::filesystem::path& name, bool is_directory)
-    : meta_data(name, is_directory), self_encryptor(), meta_data_changed(false) {}
+    : meta_data(name, is_directory), data_buffer(), self_encryptor(), meta_data_changed(false) {}
 
 FileContext& FileContext::operator=(FileContext other) {
   swap(*this, other);
@@ -46,6 +49,7 @@ FileContext& FileContext::operator=(FileContext other) {
 void swap(FileContext& lhs, FileContext& rhs) MAIDSAFE_NOEXCEPT {
   using std::swap;
   swap(lhs.meta_data, rhs.meta_data);
+  swap(lhs.data_buffer, rhs.data_buffer);
   swap(lhs.self_encryptor, rhs.self_encryptor);
   swap(lhs.meta_data_changed, rhs.meta_data_changed);
 }

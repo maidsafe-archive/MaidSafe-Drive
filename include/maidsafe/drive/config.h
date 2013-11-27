@@ -31,9 +31,15 @@ namespace drive {
 
 typedef Identity DirectoryId;
 
-namespace detail { struct MaxVersionsTag; }
+namespace detail {
+
+struct MaxVersionsTag;
+struct ParentIdTag;
+
+}  // namespace detail
 
 typedef TaggedValue<uint32_t, detail::MaxVersionsTag> MaxVersions;
+typedef TaggedValue<Identity, detail::ParentIdTag> ParentId;
 
 namespace detail {
 

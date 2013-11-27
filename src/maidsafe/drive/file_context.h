@@ -20,10 +20,12 @@
 #define MAIDSAFE_DRIVE_FILE_CONTEXT_H_
 
 #include <memory>
+#include <string>
 
 #include "boost/filesystem/path.hpp"
 
 #include "maidsafe/common/config.h"
+#include "maidsafe/data_store/data_buffer.h"
 #include "maidsafe/encrypt/self_encryptor.h"
 
 #include "maidsafe/drive/meta_data.h"
@@ -34,9 +36,9 @@ namespace drive {
 
 namespace detail {
 
-struct FileContext;
-
 struct FileContext {
+  typedef data_store::DataBuffer<std::string> Buffer;
+
   FileContext();
   FileContext(FileContext&& other);
   explicit FileContext(MetaData meta_data_in);
@@ -44,6 +46,7 @@ struct FileContext {
   FileContext& operator=(FileContext other);
 
   MetaData meta_data;
+  std::unique_ptr<Buffer> buffer;
   std::unique_ptr<encrypt::SelfEncryptor> self_encryptor;
   bool meta_data_changed;
 };

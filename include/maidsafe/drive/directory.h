@@ -38,8 +38,6 @@ namespace drive {
 namespace detail {
 
 class Directory;
-struct MetaData;
-struct ParentIdTag;
 
 namespace test {
 
@@ -50,7 +48,6 @@ class DirectoryTest;
 
 class Directory {
  public:
-  typedef TaggedValue<Identity, ParentIdTag> ParentId;
   Directory();
   Directory(ParentId parent_id, DirectoryId directory_id);
   Directory(Directory&& other);
@@ -61,10 +58,10 @@ class Directory {
   std::string Serialise() const;
 
   bool HasChild(const boost::filesystem::path& name) const;
-  void GetChild(const boost::filesystem::path& name, MetaData& meta_data) const;
-  bool GetChildAndIncrementItr(MetaData& meta_data);
-  void AddChild(const MetaData& child);
-  void RemoveChild(const MetaData& child);
+  const FileContext* GetChild(const boost::filesystem::path& name) const;
+  const FileContext* GetChildAndIncrementItr();
+  void AddChild(FileContext&& child);
+  void RemoveChild(const boost::filesystem::path& child_name);
   void UpdateChild(const MetaData& child);
   void ResetChildrenIterator() { children_itr_position_ = 0; }
   bool empty() const;

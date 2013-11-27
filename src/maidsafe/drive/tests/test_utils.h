@@ -71,7 +71,7 @@ fs::path CreateNamedDirectory(fs::path const& path, const std::string& name);
 bool ModifyFile(fs::path const& path, int64_t& file_size);
 bool SameFileContents(fs::path const& path1, fs::path const& path2);
 
-uint64_t TotalSize(encrypt::DataMapPtr data_map);
+uint64_t TotalSize(const encrypt::DataMap& data_map);
 
 void GenerateDirectoryListingEntryForFile(DirectoryListing& directory_listing, const fs::path& path,
                                           const uintmax_t& file_size);

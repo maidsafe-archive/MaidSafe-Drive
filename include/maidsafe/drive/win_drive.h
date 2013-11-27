@@ -45,7 +45,6 @@
 #include "maidsafe/drive/directory_handler.h"
 #include "maidsafe/drive/utils.h"
 
-
 namespace maidsafe {
 
 namespace drive {
@@ -78,17 +77,13 @@ void ErrorMessage(const std::string& method_name, ECBFSError error);
 template <typename Storage>
 class CbfsDrive : public Drive<Storage> {
  public:
-  typedef std::shared_ptr<Storage> StoragePtr;
-  typedef encrypt::SelfEncryptor<Storage> SelfEncryptor;
-  typedef encrypt::DataMap DataMap;
-  typedef encrypt::DataMapPtr DataMapPtr;
-  typedef detail::FileContext<Storage> FileContext;
-  // typedef std::unique_ptr<FileContext> FileContextPtr;
-  typedef FileContext* FileContextPtr;
-
-  CbfsDrive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
-            const boost::filesystem::path& mount_dir, const boost::filesystem::path& drive_name,
-            bool create);
+  //typedef encrypt::SelfEncryptor<Storage> SelfEncryptor;
+  //typedef detail::FileContext<Storage> FileContext;
+  //typedef std::unique_ptr<FileContext> FileContextPtr;
+  //typedef FileContext* FileContextPtr;
+  CbfsDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
+            const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
+            const boost::filesystem::path& drive_name, bool create);
 
   virtual ~CbfsDrive();
 
@@ -191,7 +186,7 @@ class CbfsDrive : public Drive<Storage> {
 };
 
 template <typename Storage>
-CbfsDrive<Storage>::CbfsDrive(StoragePtr storage, const Identity& unique_user_id,
+CbfsDrive<Storage>::CbfsDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
                               const Identity& root_parent_id,
                               const boost::filesystem::path& mount_dir,
                               const boost::filesystem::path& drive_name, bool create)
@@ -420,8 +415,7 @@ int CbfsDrive<Storage>::OnCallbackFsInstall() {
   }
 }
 
-// =============================== CALLBACKS ======================================================
-
+// =============================== Callbacks =======================================================
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsMount(CallbackFileSystem* /*sender*/) {
   LOG(kInfo) << "CbFsMount";
@@ -472,29 +466,17 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
   SCOPED_PROFILE
   boost::filesystem::path relative_path(file_name);
   LOG(kInfo) << "CbFsCreateFile - " << relative_path << " 0x" << std::hex << file_attributes;
-  file_info->set_UserContext(nullptr);
+
   bool is_directory((file_attributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY);
-  FileContextPtr file_context(new FileContext(relative_path.filename(), is_directory));
+  detail::FileContext file_context(relative_path.filename(), is_directory);
   file_context->meta_data->attributes = file_attributes;
   auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-
   try {
-    cbfs_drive->Add(relative_path, *file_context);
+    cbfs_drive->Add(relative_path, std::move(file_context));
   }
   catch (...) {
     throw ECBFSError(ERROR_ACCESS_DENIED);
   }
-
-  if (!is_directory) {
-    DataMapPtr data_map(new DataMap());
-    *data_map = *file_context->meta_data->data_map;
-    file_context->meta_data->data_map = data_map;
-    file_context->self_encryptor.reset(
-        new SelfEncryptor(file_context->meta_data->data_map, *cbfs_drive->storage_));
-  }
-
-  file_info->set_UserContext(file_context);
-  assert(file_info->get_UserContext());
 }
 
 template <typename Storage>
@@ -505,11 +487,8 @@ void CbfsDrive<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_n
                                       CbFsHandleInfo* /*handle_info*/) {
   SCOPED_PROFILE
   LOG(kInfo) << "CbFsOpenFile - " << boost::filesystem::path(file_name);
-  if (file_info->get_UserContext())
-    return;
 
   boost::filesystem::path relative_path(file_name);
-  std::unique_ptr<FileContext> file_context;
   auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
   try {
     file_context.reset(new FileContext(cbfs_drive->GetFileContext(relative_path)));
@@ -519,7 +498,7 @@ void CbfsDrive<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_n
   }
 
   if (!file_context->meta_data->directory_id) {
-    DataMapPtr data_map(new DataMap);
+    DataMap data_map;
     *data_map = *file_context->meta_data->data_map;
     file_context->meta_data->data_map = data_map;
     if (!file_context->self_encryptor) {

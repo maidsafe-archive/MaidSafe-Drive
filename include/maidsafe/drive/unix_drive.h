@@ -37,6 +37,7 @@
 #include "fuse/fuse_opt.h"
 
 #include "maidsafe/drive/drive.h"
+#include "maidsafe/drive/file_context.h"
 #include "maidsafe/drive/utils.h"
 
 namespace fs = boost::filesystem;
@@ -45,7 +46,60 @@ namespace maidsafe {
 
 namespace drive {
 
+template <typename Storage>
+class FuseDrive;
+
+template <typename Storage>
+struct Global {
+  static FuseDrive<Storage>* g_fuse_drive;
+};
+
+template <typename Storage>
+FuseDrive<Storage>* Global<Storage>::g_fuse_drive;
+
 namespace detail {
+
+inline std::string GetFileType(mode_t mode) {
+  if (S_ISFIFO(mode))
+    return "FIFO-special";
+  if (S_ISCHR(mode))
+    return "Character-special";
+  if (S_ISDIR(mode))
+    return "Directory";
+  if (S_ISBLK(mode))
+    return "Block-special";
+  if (S_ISREG(mode))
+    return "Regular";
+  return "";
+}
+
+inline int CreateNew(const fs::path& full_path, mode_t mode, dev_t rdev = 0) {
+  if (detail::ExcludedFilename(full_path.filename().stem().string())) {
+    LOG(kError) << "Invalid name: " << full_path;
+    return -EINVAL;
+  }
+  bool is_directory(S_ISDIR(mode));
+  FileContext file_context(full_path.filename(), is_directory);
+
+  time(&file_context.meta_data->attributes.st_atime);
+  file_context.meta_data->attributes.st_ctime = file_context.meta_data->attributes.st_mtime =
+      file_context.meta_data->attributes.st_atime;
+  file_context.meta_data->attributes.st_mode = mode;
+  file_context.meta_data->attributes.st_rdev = rdev;
+  file_context.meta_data->attributes.st_nlink = (is_directory ? 2 : 1);
+  file_context.meta_data->attributes.st_uid = fuse_get_context()->uid;
+  file_context.meta_data->attributes.st_gid = fuse_get_context()->gid;
+
+  try {
+    Global<Storage>::g_fuse_drive->Create(full_path, std::move(file_context));
+  }
+  catch (const std::exception& e) {
+    LOG(kError) << "CreateNew: " << full_path << ": " << e.what();
+    return -EIO;
+  }
+
+  return 0;
+}
 
 // template <typename Storage>
 // bool ForceFlush(RootHandler<Storage>& root_handler, FileContext<Storage>* file_context) {
@@ -62,42 +116,14 @@ namespace detail {
 //   return true;
 // }
 
-template <typename Storage>
-static inline struct FileContext<Storage>* RecoverFileContext(struct fuse_file_info* file_info) {
-  if (file_info->fh == 0) {
-    LOG(kWarning) << "Bad pointer.";
-    return nullptr;
-  }
-  return reinterpret_cast<FileContext<Storage>*>(file_info->fh);
-}
-
-template <typename Storage>
-static inline void SetFileContext(struct fuse_file_info* file_info,
-                                  struct FileContext<Storage>* file_context) {
-  file_info->fh = reinterpret_cast<uint64_t>(file_context);
-}
-
 }  // namespace detail
-
-template <typename Storage>
-class FuseDrive;
-
-template <typename Storage>
-struct Global {
-  static FuseDrive<Storage>* g_fuse_drive;
-};
-
-template <typename Storage>
-FuseDrive<Storage>* Global<Storage>::g_fuse_drive;
 
 template <typename Storage>
 class FuseDrive : public Drive<Storage> {
  public:
-  typedef std::shared_ptr<Storage> StoragePtr;
-
-  FuseDrive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
-            const boost::filesystem::path& mount_dir, const boost::filesystem::path& drive_name,
-            bool create);
+  FuseDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
+            const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
+            const boost::filesystem::path& drive_name, bool create);
 
   virtual ~FuseDrive();
   void Mount();
@@ -173,7 +199,7 @@ template <typename Storage>
 struct fuse_operations FuseDrive<Storage>::maidsafe_ops_;
 
 template <typename Storage>
-FuseDrive<Storage>::FuseDrive(StoragePtr storage, const Identity& unique_user_id,
+FuseDrive<Storage>::FuseDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
                               const Identity& root_parent_id,
                               const boost::filesystem::path& mount_dir,
                               const boost::filesystem::path& drive_name,
@@ -335,59 +361,12 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsAccess(const char* /*path*/, int /* mask */) {
   return 0;
 }
-  template <typename Storage>
+
+template <typename Storage>
 int FuseDrive<Storage>::OpsCreate(const char* path, mode_t mode, struct fuse_file_info* file_info) {
-  LOG(kInfo) << "OpsCreate: " << path << ", mode: " << std::oct << mode << ", " << std::boolalpha
-             << S_ISDIR(mode);
-
-  fs::path full_path(path);
-  if (detail::ExcludedFilename(full_path.filename().stem().string())) {
-    LOG(kError) << "OpsCreate: invalid name " << full_path.filename();
-    return -EINVAL;
-  }
-  bool is_directory(S_ISDIR(mode));
-  file_info->fh = 0;
-
-  detail::FileContext<Storage>* file_context(
-      new detail::FileContext<Storage>(full_path.filename(), is_directory));
-
-  time(&file_context->meta_data->attributes.st_atime);
-  file_context->meta_data->attributes.st_ctime = file_context->meta_data->attributes.st_mtime =
-      file_context->meta_data->attributes.st_atime;
-  file_context->meta_data->attributes.st_mode = mode;
-  file_context->meta_data->attributes.st_nlink = (is_directory ? 2 : 1);
-  file_context->meta_data->attributes.st_uid = fuse_get_context()->uid;
-  file_context->meta_data->attributes.st_gid = fuse_get_context()->gid;
-
-  try {
-    Global<Storage>::g_fuse_drive->Add(full_path, *file_context);
-  }
-  catch (...) {
-    LOG(kError) << "OpsCreate: " << path << ", failed to AddNewMetaData.  ";
-    return -EIO;
-  }
-
-  if (!is_directory) {
-    // create a copy of the datamap to avoid updates being made to the original
-    encrypt::DataMapPtr data_map(new encrypt::DataMap());
-    *data_map = *file_context->meta_data->data_map;
-    file_context->meta_data->data_map = data_map;
-    auto storage(Global<Storage>::g_fuse_drive->storage_);
-    assert(storage);
-    file_context->self_encryptor.reset(
-        new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map, *storage));
-  }
-
-  file_info->keep_cache = 1;
-  detail::SetFileContext(file_info, file_context);
-  //   UniqueLock lock(Global<Storage>::g_fuse_drive->shared_mutex_);
-  //  Global<Storage>::g_fuse_drive->open_files_.insert(std::make_pair(full_path, file_context));
-  // #ifdef DEBUG
-  //  for (auto i = Global<Storage>::g_fuse_drive->open_files_.begin();
-  //       i != Global<Storage>::g_fuse_drive->open_files_.end(); ++i)
-  //    LOG(kInfo) << "\t\t" << (*i).first;
-  // #endif
-  return 0;
+  LOG(kInfo) << "OpsCreate: " << path << " (" << GetFileType(mode) << "), mode: " << std::oct
+             << mode;
+  return CreateNew(path, mode);
 }
 
 template <typename Storage>
@@ -436,96 +415,32 @@ int FuseDrive<Storage>::OpsFtruncate(const char* path, off_t size,
 
 template <typename Storage>
 int FuseDrive<Storage>::OpsMkdir(const char* path, mode_t mode) {
-  LOG(kInfo) << "OpsMkdir: " << path << ", mode: " << std::oct << mode << ", " << std::boolalpha
-             << S_ISDIR(mode);
-
-  fs::path full_path(path);
-  if (detail::ExcludedFilename(full_path.filename().stem().string())) {
-    LOG(kError) << "OpsMkdir: invalid name " << full_path.filename();
-    return -EINVAL;
-  }
-  MetaData meta_data(full_path.filename(), true);
-  meta_data.attributes.st_nlink = 2;
-  meta_data.attributes.st_uid = fuse_get_context()->uid;
-  meta_data.attributes.st_gid = fuse_get_context()->gid;
-
-  try {
-    detail::FileContext<Storage> file_context(full_path.filename(), true);
-    Global<Storage>::g_fuse_drive->Add(full_path, file_context);
-  }
-  catch (const std::exception& e) {
-    LOG(kError) << "OpsMkdir: " << path << ", failed to Add: " << e.what();
-    return -EIO;
-  }
-
-  return 0;
+  LOG(kInfo) << "OpsMkdir: " << path << " (" << GetFileType(mode) << "), mode: " << std::oct
+             << mode;
+  return CreateNew(path, mode);
 }
 
 template <typename Storage>
 int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t rdev) {
-#ifdef DEBUG
-  std::string file_type;
-  if (S_ISFIFO(mode))
-    file_type = "FIFO-special";
-  if (S_ISCHR(mode))
-    file_type = "Character-special";
-  if (S_ISDIR(mode))
-    file_type = "Directory";
-  if (S_ISBLK(mode))
-    file_type = "Block-special";
-  if (S_ISREG(mode))
-    file_type = "Regular";
-  LOG(kInfo) << "OpsMknod: " << path << "(" << file_type << "), mode: " << std::oct << mode
-             << std::dec << ", rdev: " << rdev;
-  assert(!S_ISDIR(mode) && !file_type.empty());
-#endif
-
-  bool is_directory(S_ISDIR(mode));
-  fs::path full_path(path);
-  if (detail::ExcludedFilename(full_path.filename().stem().string())) {
-    LOG(kError) << "OpsMknod: invalid name " << full_path.filename();
-    return -EINVAL;
-  }
-  // TODO(Fraser#5#): 2011-05-18 - Cater for FIFO (and other?) modes in MetaData.
-  detail::FileContext<Storage> file_context(full_path.filename(), is_directory);
-
-  file_context.meta_data->attributes.st_rdev = rdev;
-  file_context.meta_data->attributes.st_mode = mode;
-  file_context.meta_data->attributes.st_nlink = (is_directory ? 2 : 1);
-  file_context.meta_data->attributes.st_uid = fuse_get_context()->uid;
-  file_context.meta_data->attributes.st_gid = fuse_get_context()->gid;
-
-  try {
-    Global<Storage>::g_fuse_drive->Add(full_path, file_context);
-  }
-  catch(...) {
-    LOG(kError) << "OpsMknod: " << path << ", failed to AddNewMetaData.  ";
-    return -EIO;
-  }
-
-  // meta_data.attributes.st_size = detail::kDirectorySize;
-  return 0;
+  LOG(kInfo) << "OpsMknod: " << path << " (" << GetFileType(mode) << "), mode: " << std::oct
+             << mode << std::dec << ", rdev: " << rdev;
+  assert(!S_ISDIR(mode) && !GetFileType(mode).empty());
+  return CreateNew(path, mode, rdev);
 }
 
 template <typename Storage>
 int FuseDrive<Storage>::OpsOpen(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsOpen: " << path << ", flags: " << file_info->flags << ", keep_cache: "
              << file_info->keep_cache << ", direct_io: " << file_info->direct_io;
-  std::unique_ptr<detail::FileContext<Storage>> file_context(
-      detail::RecoverFileContext<Storage>(file_info));
-  if (file_context) {
-    file_context.release();
-    return 0;
-  }
 
   if (file_info->flags & O_NOFOLLOW) {
     LOG(kError) << "OpsOpen: " << path << " is a symlink.";
     return -ELOOP;
   }
 
-  file_info->keep_cache = 1;
+  // TODO(Fraser#5#): 2013-11-26 - Investigate option to use direct IO for some/all files.
   fs::path full_path(path);
-  //  assert(!(file_info->flags & O_DIRECTORY));
+  assert(!(file_info->flags & O_DIRECTORY));
 
   try {
     file_context.reset(
@@ -537,11 +452,11 @@ int FuseDrive<Storage>::OpsOpen(const char* path, struct fuse_file_info* file_in
   }
 
   if (!file_context->meta_data->directory_id) {
-//    encrypt::DataMapPtr data_map(new encrypt::DataMap);
+//    encrypt::DataMap data_map;
 //    *data_map = *file_context->meta_data->data_map;
 //    file_context->meta_data->data_map = data_map;
     if (!file_context->self_encryptor) {
-//      encrypt::DataMapPtr data_map(new encrypt::DataMap);
+//      encrypt::DataMap data_map;
 //      *data_map = *file_context->meta_data->data_map;
 //      file_context->meta_data->data_map = data_map;
       auto storage(Global<Storage>::g_fuse_drive->storage_);

@@ -301,7 +301,7 @@ bool SameFileContents(fs::path const& path1, fs::path const& path2) {
   return true;
 }
 
-uint64_t TotalSize(encrypt::DataMapPtr data_map) {
+uint64_t TotalSize(const encrypt::DataMap& data_map) {
   uint64_t size(data_map->chunks.empty() ? data_map->content.size() : 0);
   std::for_each(data_map->chunks.begin(), data_map->chunks.end(),
                 [&size](encrypt::ChunkDetails chunk) { size += chunk.size; });

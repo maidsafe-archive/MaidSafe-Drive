@@ -22,7 +22,6 @@
 #include <iterator>
 #include <utility>
 
-#include "maidsafe/drive/file_context.h"
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/utils.h"
 #include "maidsafe/drive/proto_structs.pb.h"
@@ -37,8 +36,8 @@ namespace detail {
 
 namespace {
 
-bool MetaDataHasName(const MetaData& meta_data, const fs::path& name) {
-  return GetLowerCase(meta_data.name.string()) == GetLowerCase(name.string());
+bool FileContextHasName(const FileContext& file_context, const fs::path& name) {
+  return GetLowerCase(file_context.meta_data.name.string()) == GetLowerCase(name.string());
 }
 
 }  // unnamed namespace
@@ -89,47 +88,47 @@ std::string Directory::Serialise() const {
 std::vector<FileContext>::iterator Directory::Find(const fs::path& name) {
   return std::find_if(std::begin(children_), std::end(children_),
                       [&name](const FileContext& file_context) {
-                           return MetaDataHasName(file_context.meta_data, name); });
+                           return FileContextHasName(file_context, name); });
 }
 
 std::vector<FileContext>::const_iterator Directory::Find(const fs::path& name) const {
   return std::find_if(std::begin(children_), std::end(children_),
                       [&name](const FileContext& file_context) {
-                           return MetaDataHasName(file_context.meta_data, name); });
+                           return FileContextHasName(file_context, name); });
 }
 
 bool Directory::HasChild(const fs::path& name) const {
   return std::any_of(std::begin(children_), std::end(children_),
       [&name](const FileContext& file_context) {
-          return MetaDataHasName(file_context.meta_data, name); });
+          return FileContextHasName(file_context, name); });
 }
 
-void Directory::GetChild(const fs::path& name, MetaData& meta_data) const {
+const FileContext* Directory::GetChild(const fs::path& name) const {
   auto itr(Find(name));
   if (itr == std::end(children_))
     ThrowError(CommonErrors::invalid_parameter);
-  meta_data = itr->meta_data;
+  return &(*itr);
 }
 
-bool Directory::GetChildAndIncrementItr(MetaData& meta_data) {
+const FileContext* Directory::GetChildAndIncrementItr() {
   if (children_itr_position_ != children_.size()) {
-    meta_data = children_[children_itr_position_].meta_data;
+    const FileContext* file_context(&children_[children_itr_position_]);
     ++children_itr_position_;
-    return true;
+    return file_context;
   }
-  return false;
+  return nullptr;
 }
 
-void Directory::AddChild(const MetaData& child) {
-  auto itr(Find(child.name));
+void Directory::AddChild(FileContext&& child) {
+  auto itr(Find(child.meta_data.name));
   if (itr != std::end(children_))
     ThrowError(CommonErrors::invalid_parameter);
-  children_.emplace_back(child);
+  children_.emplace_back(std::move(child));
   SortAndResetChildrenIterator();
 }
 
-void Directory::RemoveChild(const MetaData& child) {
-  auto itr(Find(child.name));
+void Directory::RemoveChild(const fs::path& child_name) {
+  auto itr(Find(child_name));
   if (itr == std::end(children_))
     ThrowError(CommonErrors::invalid_parameter);
   children_.erase(itr);

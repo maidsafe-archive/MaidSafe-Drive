@@ -21,6 +21,7 @@
 
 #include <condition_variable>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <mutex>
 #include <string>
@@ -28,9 +29,12 @@
 #include <tuple>
 #include <vector>
 
+#include "boost/filesystem/operations.hpp"
 #include "boost/filesystem/path.hpp"
 
+#include "maidsafe/common/application_support_directories.h"
 #include "maidsafe/common/rsa.h"
+#include "maidsafe/common/utils.h"
 
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/meta_data.h"
@@ -44,13 +48,12 @@ namespace drive {
 template <typename Storage>
 class Drive {
  public:
-  //typedef std::shared_ptr<Storage> StoragePtr;
   //typedef detail::FileContext<Storage> FileContext;
   //typedef FileContext* FileContextPtr;
   //typedef detail::DirectoryHandler<Storage> DirectoryHandler;
   //typedef detail::Directory Directory;
 
-  Drive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
+  Drive(std::shared_ptr<Storage> storage, const Identity& unique_user_id, const Identity& root_parent_id,
         const boost::filesystem::path& mount_dir, bool create = false);
 
   virtual ~Drive() {}
@@ -80,23 +83,25 @@ class Drive {
               const boost::filesystem::path& new_relative_path, MetaData& meta_data);  */
 
  protected:
-  // Recovers Directory for 'relative_path'.
-  Directory GetDirectory(const boost::filesystem::path& relative_path);
-  // Returns FileContext associated with 'relative_path'.
-  FileContext GetFileContext(const boost::filesystem::path& relative_path);
-  // Updates parent directory at 'parent_path' with the values contained in the 'file_context'.
+  void Create(const boost::filesystem::path& relative_path, detail::FileContext&& file_context);
+  //detail::Directory& GetDirectory(const boost::filesystem::path& relative_path);
+  detail::FileContext& GetFileContext(const boost::filesystem::path& relative_path);
   void UpdateParent(FileContextPtr file_context, const boost::filesystem::path& parent_path);
-  // Resizes the file.
   bool TruncateFile(FileContextPtr file_context, const uint64_t& size);
 
   DirectoryHandler directory_handler_;
-  StoragePtr storage_;
+  std::shared_ptr<Storage> storage_;
   const boost::filesystem::path kMountDir_;
 
  private:
+  typedef detail::FileContext::Buffer Buffer;
   virtual void SetNewAttributes(FileContextPtr file_context, bool is_directory,
                                 bool read_only) = 0;
   std::string ReadDataMap(const boost::filesystem::path& relative_path);
+
+  std::function<NonEmptyString(const std::string&)> get_chunk_from_store_;
+  MemoryUsage default_max_buffer_memory_;
+  DiskUsage default_max_buffer_disk_;
 };
 
 #ifdef MAIDSAFE_WIN32
@@ -113,17 +118,28 @@ inline boost::filesystem::path GetNextAvailableDrivePath() {
 }
 #endif
 
-// ==================== Implementation ============================================================
+// ==================== Implementation =============================================================
 
 template <typename Storage>
-Drive<Storage>::Drive(StoragePtr storage,
+Drive<Storage>::Drive(std::shared_ptr<Storage> storage,
                       const Identity& unique_user_id,
                       const Identity& root_parent_id,
                       const boost::filesystem::path& mount_dir,
                       bool create)
     : directory_handler_(storage, unique_user_id, root_parent_id, create),
       storage_(storage),
-      kMountDir_(mount_dir) {}
+      kMountDir_(mount_dir),
+      get_chunk_from_store_(),
+      // TODO(Fraser#5#): 2013-11-27 - BEFORE_RELEASE - confirm following 2 variables.
+      default_max_buffer_memory_(Concurrency() * 1024 * 1024),  // cores * default chunk size
+      default_max_buffer_disk_(static_cast<uint64_t>(
+          boost::filesystem::space(GetUserAppDir()).available / 10)) {
+  // TODO(Fraser#5#): 2013-11-27 - BEFORE_RELEASE If default_max_buffer_disk_ < some limit, throw?
+  get_chunk_from_store_ = [this](const std::string& name)->NonEmptyString {
+    auto chunk(storage_->Get(ImmutableData::Name(Identity(name))).get());
+    return chunk.data();
+  };
+}
 
 template <typename Storage>
 Identity Drive<Storage>::root_parent_id() const {
@@ -131,10 +147,22 @@ Identity Drive<Storage>::root_parent_id() const {
 }
 
 template <typename Storage>
-void Drive<Storage>::Add(const boost::filesystem::path& relative_path,
-                         FileContext& file_context) {
-  directory_handler_.Add(relative_path, *file_context.meta_data,
-                         file_context.grandparent_directory_id, file_context.parent_directory_id);
+void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
+                            detail::FileContext&& file_context) {
+  // If this is a file and not a directory, initialise the self-encryptor.
+  if (!file_context.meta_data.directory_id) {
+    auto buffer_pop_functor([this, relative_path](const std::string& name,
+                                                  const NonEmptyString& content) {
+      directory_handler_.HandleDataPoppedFromBuffer(relative_path, name, content);
+    });
+    auto disk_buffer_path(boost::filesystem::unique_path(
+        GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%");
+    file_context->data_buffer.reset(new detail::FileContext::Buffer(default_max_buffer_memory_,
+        default_max_buffer_disk_, buffer_pop_functor, disk_buffer_path));
+    file_context->self_encryptor.reset(new encrypt::SelfEncryptor(file_context->meta_data.data_map,
+        *file_context->data_buffer, get_chunk_from_store_));
+  }
+  directory_handler_.Add(relative_path, std::move(file_context));
 }
 
 template <typename Storage>

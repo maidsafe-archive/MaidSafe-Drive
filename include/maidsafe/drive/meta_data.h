@@ -76,7 +76,7 @@ struct MetaData {
   struct stat attributes;
   boost::filesystem::path link_to;
 #endif
-  encrypt::DataMapPtr data_map;
+  encrypt::DataMap data_map;
   std::unique_ptr<DirectoryId> directory_id;
   std::vector<std::string> notes;
 };

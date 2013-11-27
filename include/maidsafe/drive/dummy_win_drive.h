@@ -19,6 +19,7 @@
 #ifndef MAIDSAFE_DRIVE_DUMMY_WIN_DRIVE_H_
 #define MAIDSAFE_DRIVE_DUMMY_WIN_DRIVE_H_
 
+#include <memory>
 #include <string>
 
 #include "boost/filesystem/path.hpp"
@@ -32,9 +33,9 @@ namespace drive {
 template <typename Storage>
 class DummyWinDrive : public Drive<Storage> {
  public:
-  DummyWinDrive(StoragePtr storage, const Identity& unique_user_id, const Identity& root_parent_id,
-                const boost::filesystem::path& mount_dir, const std::string& product_id,
-                const boost::filesystem::path& drive_name);
+  DummyWinDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
+                const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
+                const std::string& product_id, const boost::filesystem::path& drive_name);
   bool Unmount() { return true; }
 };
 
