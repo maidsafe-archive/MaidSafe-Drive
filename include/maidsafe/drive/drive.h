@@ -32,7 +32,6 @@
 #include "boost/filesystem/operations.hpp"
 #include "boost/filesystem/path.hpp"
 
-#include "maidsafe/common/application_support_directories.h"
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
 
@@ -53,8 +52,9 @@ class Drive {
   //typedef detail::DirectoryHandler<Storage> DirectoryHandler;
   //typedef detail::Directory Directory;
 
-  Drive(std::shared_ptr<Storage> storage, const Identity& unique_user_id, const Identity& root_parent_id,
-        const boost::filesystem::path& mount_dir, bool create = false);
+  Drive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
+        const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
+        const boost::filesystem::path& user_app_dir, bool create = false);
 
   virtual ~Drive() {}
   Identity root_parent_id() const;
@@ -84,17 +84,34 @@ class Drive {
 
  protected:
   void Create(const boost::filesystem::path& relative_path, detail::FileContext&& file_context);
+  void Open(const boost::filesystem::path& relative_path);
   //detail::Directory& GetDirectory(const boost::filesystem::path& relative_path);
   detail::FileContext& GetFileContext(const boost::filesystem::path& relative_path);
+
+
+
+
+
+
   void UpdateParent(FileContextPtr file_context, const boost::filesystem::path& parent_path);
   bool TruncateFile(FileContextPtr file_context, const uint64_t& size);
 
   DirectoryHandler directory_handler_;
   std::shared_ptr<Storage> storage_;
   const boost::filesystem::path kMountDir_;
+  const boost::filesystem::path kUserAppDir_;
 
  private:
   typedef detail::FileContext::Buffer Buffer;
+  void InitialiseEncryptor(const boost::filesystem::path& relative_path,
+                           detail::FileContext& file_context) const;
+
+
+
+
+
+
+
   virtual void SetNewAttributes(FileContextPtr file_context, bool is_directory,
                                 bool read_only) = 0;
   std::string ReadDataMap(const boost::filesystem::path& relative_path);
@@ -119,21 +136,19 @@ inline boost::filesystem::path GetNextAvailableDrivePath() {
 #endif
 
 // ==================== Implementation =============================================================
-
 template <typename Storage>
-Drive<Storage>::Drive(std::shared_ptr<Storage> storage,
-                      const Identity& unique_user_id,
-                      const Identity& root_parent_id,
-                      const boost::filesystem::path& mount_dir,
-                      bool create)
+Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
+                      const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
+                      const boost::filesystem::path& user_app_dir, bool create)
     : directory_handler_(storage, unique_user_id, root_parent_id, create),
       storage_(storage),
       kMountDir_(mount_dir),
+      kUserAppDir_(user_app_dir),
       get_chunk_from_store_(),
-      // TODO(Fraser#5#): 2013-11-27 - BEFORE_RELEASE - confirm following 2 variables.
+      // TODO(Fraser#5#): 2013-11-27 - BEFORE_RELEASE - confirm the following 2 variables.
       default_max_buffer_memory_(Concurrency() * 1024 * 1024),  // cores * default chunk size
       default_max_buffer_disk_(static_cast<uint64_t>(
-          boost::filesystem::space(GetUserAppDir()).available / 10)) {
+          boost::filesystem::space(kUserAppDir_).available / 10)) {
   // TODO(Fraser#5#): 2013-11-27 - BEFORE_RELEASE If default_max_buffer_disk_ < some limit, throw?
   get_chunk_from_store_ = [this](const std::string& name)->NonEmptyString {
     auto chunk(storage_->Get(ImmutableData::Name(Identity(name))).get());
@@ -147,22 +162,35 @@ Identity Drive<Storage>::root_parent_id() const {
 }
 
 template <typename Storage>
+void Drive<Storage>::InitialiseEncryptor(const boost::filesystem::path& relative_path,
+                                         detail::FileContext& file_context) const {
+  auto buffer_pop_functor([this, relative_path](const std::string& name,
+                                                const NonEmptyString& content) {
+    directory_handler_.HandleDataPoppedFromBuffer(relative_path, name, content);
+  });
+  auto disk_buffer_path(
+      boost::filesystem::unique_path(kUserAppDir_ / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%");
+  file_context.data_buffer.reset(new detail::FileContext::Buffer(default_max_buffer_memory_,
+      default_max_buffer_disk_, buffer_pop_functor, disk_buffer_path));
+  file_context.self_encryptor.reset(new encrypt::SelfEncryptor(file_context->meta_data.data_map,
+      *file_context->data_buffer, get_chunk_from_store_));
+}
+
+
+template <typename Storage>
 void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
                             detail::FileContext&& file_context) {
-  // If this is a file and not a directory, initialise the self-encryptor.
-  if (!file_context.meta_data.directory_id) {
-    auto buffer_pop_functor([this, relative_path](const std::string& name,
-                                                  const NonEmptyString& content) {
-      directory_handler_.HandleDataPoppedFromBuffer(relative_path, name, content);
-    });
-    auto disk_buffer_path(boost::filesystem::unique_path(
-        GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%");
-    file_context->data_buffer.reset(new detail::FileContext::Buffer(default_max_buffer_memory_,
-        default_max_buffer_disk_, buffer_pop_functor, disk_buffer_path));
-    file_context->self_encryptor.reset(new encrypt::SelfEncryptor(file_context->meta_data.data_map,
-        *file_context->data_buffer, get_chunk_from_store_));
-  }
+  if (!file_context.meta_data.directory_id)
+    InitialiseEncryptor(relative_path, file_context);
   directory_handler_.Add(relative_path, std::move(file_context));
+}
+
+template <typename Storage>
+void Drive<Storage>::Open(const boost::filesystem::path& relative_path) {
+  Directory* parent(directory_handler_.Get(relative_path.parent_path()));
+  FileContext* file_context(parent->GetChild(relative_path.filename()));
+  if (!file_context->meta_data.directory_id && !file_context->self_encryptor)
+    InitialiseEncryptor(relative_path, *file_context);
 }
 
 template <typename Storage>

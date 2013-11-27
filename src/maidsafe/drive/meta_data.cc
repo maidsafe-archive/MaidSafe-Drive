@@ -130,7 +130,7 @@ MetaData::MetaData(const fs::path& name, bool is_directory)
       creation_time(),
       last_access_time(),
       last_write_time(),
-      data_map(is_directory ? nullptr : std::make_shared<encrypt::DataMap>()),
+      data_map(),
       directory_id(is_directory ? new DirectoryId(RandomString(64)) : nullptr),
       notes() {
     FILETIME file_time;
@@ -142,7 +142,7 @@ MetaData::MetaData(const fs::path& name, bool is_directory)
 #else
       attributes(),
       link_to(),
-      data_map(is_directory ? nullptr : std::make_shared<encrypt::DataMap>()),
+      data_map(),
       directory_id(is_directory ? std::make_shared<DirectoryId>(RandomString(64)) : nullptr),
       notes() {
   attributes.st_gid = getgid();
@@ -174,7 +174,7 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
       attributes(),
       link_to(),
 #endif
-      data_map(protobuf_meta_data.has_serialised_data_map() ? new encrypt::DataMap : nullptr),
+      data_map(),
       directory_id(protobuf_meta_data.has_directory_id() ?
                    new DirectoryId(protobuf_meta_data.directory_id()) : nullptr),
       notes() {
@@ -228,10 +228,10 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
     attributes.st_size = 4096;
 #endif
 
-  if (data_map) {
+  if (protobuf_meta_data.has_serialised_data_map()) {
     if (directory_id)
       ThrowError(CommonErrors::parsing_error);
-    encrypt::ParseDataMap(protobuf_meta_data.serialised_data_map(), *data_map);
+    encrypt::ParseDataMap(protobuf_meta_data.serialised_data_map(), data_map);
   } else if (!directory_id) {
     ThrowError(CommonErrors::parsing_error);
   }
@@ -320,9 +320,9 @@ void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
   attributes_archive->set_st_blocks(attributes.st_blocks);
 #endif
 
-  if (data_map) {
+  if (!data_map.empty()) {
     std::string serialised_data_map;
-    encrypt::SerialiseDataMap(*data_map, serialised_data_map);
+    encrypt::SerialiseDataMap(data_map, serialised_data_map);
     protobuf_meta_data->set_serialised_data_map(serialised_data_map);
   } else {
     protobuf_meta_data->set_directory_id(directory_id->string());

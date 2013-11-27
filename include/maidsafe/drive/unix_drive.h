@@ -123,7 +123,8 @@ class FuseDrive : public Drive<Storage> {
  public:
   FuseDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
             const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
-            const boost::filesystem::path& drive_name, bool create);
+            const boost::filesystem::path& user_app_dir, const boost::filesystem::path& drive_name,
+            bool create);
 
   virtual ~FuseDrive();
   void Mount();
@@ -202,9 +203,10 @@ template <typename Storage>
 FuseDrive<Storage>::FuseDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
                               const Identity& root_parent_id,
                               const boost::filesystem::path& mount_dir,
+                              const boost::filesystem::path& user_app_dir,
                               const boost::filesystem::path& drive_name,
                               bool create)
-    : Drive<Storage>::Drive(storage, unique_user_id, root_parent_id, mount_dir, create),
+    : Drive<Storage>(storage, unique_user_id, root_parent_id, mount_dir, user_app_dir, create),
       fuse_(nullptr),
       fuse_mountpoint_(mount_dir),
       drive_name_(drive_name.string()) {
@@ -439,34 +441,16 @@ int FuseDrive<Storage>::OpsOpen(const char* path, struct fuse_file_info* file_in
   }
 
   // TODO(Fraser#5#): 2013-11-26 - Investigate option to use direct IO for some/all files.
-  fs::path full_path(path);
-  assert(!(file_info->flags & O_DIRECTORY));
 
+  assert(!(file_info->flags & O_DIRECTORY));
   try {
-    file_context.reset(
-        new detail::FileContext<Storage>(Global<Storage>::g_fuse_drive->GetFileContext(full_path)));
+    Global<Storage>::g_fuse_drive->Open(path);
   }
-  catch (...) {
-    LOG(kError) << "OpsOpen: " << path << ", failed to GetMetaData.";
+  catch (const std::exception& e) {
+    LOG(kError) << "OpsOpen: " << fs::path(path) << ": " << e.what();
     return -ENOENT;
   }
 
-  if (!file_context->meta_data->directory_id) {
-//    encrypt::DataMap data_map;
-//    *data_map = *file_context->meta_data->data_map;
-//    file_context->meta_data->data_map = data_map;
-    if (!file_context->self_encryptor) {
-//      encrypt::DataMap data_map;
-//      *data_map = *file_context->meta_data->data_map;
-//      file_context->meta_data->data_map = data_map;
-      auto storage(Global<Storage>::g_fuse_drive->storage_);
-      file_context->self_encryptor.reset(
-          new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map, *storage));
-    }
-  }
-  // Transfer ownership of the pointer to fuse's file_info.
-  detail::SetFileContext(file_info, file_context.get());
-  file_context.release();
   return 0;
 }
 

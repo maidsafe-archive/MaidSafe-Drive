@@ -83,7 +83,8 @@ class CbfsDrive : public Drive<Storage> {
   //typedef FileContext* FileContextPtr;
   CbfsDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
             const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
-            const boost::filesystem::path& drive_name, bool create);
+            const boost::filesystem::path& user_app_dir, const boost::filesystem::path& drive_name,
+            bool create);
 
   virtual ~CbfsDrive();
 
@@ -189,8 +190,9 @@ template <typename Storage>
 CbfsDrive<Storage>::CbfsDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
                               const Identity& root_parent_id,
                               const boost::filesystem::path& mount_dir,
+                              const boost::filesystem::path& user_app_dir,
                               const boost::filesystem::path& drive_name, bool create)
-    : Drive<Storage>(storage, unique_user_id, root_parent_id, mount_dir, create),
+    : Drive(storage, unique_user_id, root_parent_id, mount_dir, user_app_dir, create),
       callback_filesystem_(),
       guid_(BOOST_PP_STRINGIZE(CBFS_GUID)),
       icon_id_(L"MaidSafeDriveIcon"),
@@ -472,7 +474,7 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
   file_context->meta_data->attributes = file_attributes;
   auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
   try {
-    cbfs_drive->Add(relative_path, std::move(file_context));
+    cbfs_drive->Create(relative_path, std::move(file_context));
   }
   catch (...) {
     throw ECBFSError(ERROR_ACCESS_DENIED);
@@ -483,32 +485,18 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_name,
                                       ACCESS_MASK /*desired_access*/,
                                       DWORD /*file_attributes*/, DWORD /*share_mode*/,
-                                      CbFsFileInfo* file_info,
+                                      CbFsFileInfo* /*file_info*/,
                                       CbFsHandleInfo* /*handle_info*/) {
   SCOPED_PROFILE
   LOG(kInfo) << "CbFsOpenFile - " << boost::filesystem::path(file_name);
-
-  boost::filesystem::path relative_path(file_name);
   auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
   try {
-    file_context.reset(new FileContext(cbfs_drive->GetFileContext(relative_path)));
+    cbfs_drive->Open(file_name);
   }
-  catch (...) {
+  catch (const std::exception& e) {
+    LOG(kError) << "CbFsOpenFile: " << boost::filesystem::path(file_name) << ": " << e.what();
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
-
-  if (!file_context->meta_data->directory_id) {
-    DataMap data_map;
-    *data_map = *file_context->meta_data->data_map;
-    file_context->meta_data->data_map = data_map;
-    if (!file_context->self_encryptor) {
-      file_context->self_encryptor.reset(
-         new SelfEncryptor(file_context->meta_data->data_map, *cbfs_drive->storage_));
-    }
-  }
-  // Transfer ownership of the pointer to CBFS' file_info.
-  file_info->set_UserContext(file_context.get());
-  file_context.release();
 }
 
 template <typename Storage>
