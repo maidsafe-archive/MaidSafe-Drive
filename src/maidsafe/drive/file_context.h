@@ -48,7 +48,6 @@ struct FileContext {
   MetaData meta_data;
   std::unique_ptr<Buffer> buffer;
   std::unique_ptr<encrypt::SelfEncryptor> self_encryptor;
-  bool meta_data_changed;
 };
 
 void swap(FileContext& lhs, FileContext& rhs) MAIDSAFE_NOEXCEPT;

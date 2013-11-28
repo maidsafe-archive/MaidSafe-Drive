@@ -43,16 +43,18 @@ bool FileContextHasName(const FileContext& file_context, const fs::path& name) {
 }  // unnamed namespace
 
 Directory::Directory() : parent_id_(), directory_id_(), max_versions_(kMaxVersions), children_(),
-                         children_itr_position_(0) {}
+                         children_itr_position_(0), contents_changed_(false) {}
 
 Directory::Directory(ParentId parent_id, DirectoryId directory_id)
     : parent_id_(std::move(parent_id)), directory_id_(std::move(directory_id)),
-      max_versions_(kMaxVersions), children_(), children_itr_position_(0) {}
+      max_versions_(kMaxVersions), children_(), children_itr_position_(0),
+      contents_changed_(false) {}
 
 Directory::Directory(Directory&& other)
     : parent_id_(std::move(other.parent_id_)), directory_id_(std::move(other.directory_id_)),
       max_versions_(std::move(other.max_versions_)), children_(std::move(other.children_)),
-      children_itr_position_(std::move(other.children_itr_position_)) {}
+      children_itr_position_(std::move(other.children_itr_position_)),
+      contents_changed_(std::move(other.contents_changed_)) {}
 
 Directory& Directory::operator=(Directory other) {
   swap(*this, other);
@@ -74,7 +76,7 @@ Directory::Directory(ParentId parent_id, const std::string& serialised_directory
   std::sort(std::begin(children_), std::end(children_));
 }
 
-std::string Directory::Serialise() const {
+std::string Directory::Serialise() {
   protobuf::Directory proto_directory;
   proto_directory.set_directory_id(directory_id_.string());
   proto_directory.set_max_versions(max_versions_.data);
@@ -82,6 +84,7 @@ std::string Directory::Serialise() const {
   for (const auto& child : children_)
     child.meta_data.ToProtobuf(proto_directory.add_children());
 
+  contents_changed_ = false;
   return proto_directory.SerializeAsString();
 }
 
@@ -106,7 +109,7 @@ bool Directory::HasChild(const fs::path& name) const {
 const FileContext* Directory::GetChild(const fs::path& name) const {
   auto itr(Find(name));
   if (itr == std::end(children_))
-    ThrowError(CommonErrors::invalid_parameter);
+    ThrowError(DriveErrors::no_such_file);
   return &(*itr);
 }
 
@@ -122,25 +125,28 @@ const FileContext* Directory::GetChildAndIncrementItr() {
 void Directory::AddChild(FileContext&& child) {
   auto itr(Find(child.meta_data.name));
   if (itr != std::end(children_))
-    ThrowError(CommonErrors::invalid_parameter);
+    ThrowError(DriveErrors::file_exists);
   children_.emplace_back(std::move(child));
   SortAndResetChildrenIterator();
+  contents_changed_ = true;
 }
 
 void Directory::RemoveChild(const fs::path& child_name) {
   auto itr(Find(child_name));
   if (itr == std::end(children_))
-    ThrowError(CommonErrors::invalid_parameter);
+    ThrowError(DriveErrors::no_such_file);
   children_.erase(itr);
   SortAndResetChildrenIterator();
+  contents_changed_ = true;
 }
 
 void Directory::UpdateChild(const MetaData& child) {
   auto itr(Find(child.name));
   if (itr == std::end(children_))
-    ThrowError(CommonErrors::invalid_parameter);
+    ThrowError(DriveErrors::no_such_file);
   itr->meta_data = child;
   SortAndResetChildrenIterator();
+  contents_changed_ = true;
 }
 
 bool Directory::empty() const {
@@ -163,6 +169,7 @@ void swap(Directory& lhs, Directory& rhs) {
   swap(lhs.max_versions_, rhs.max_versions_);
   swap(lhs.children_, rhs.children_);
   swap(lhs.children_itr_position_, rhs.children_itr_position_);
+  swap(lhs.contents_changed_, rhs.contents_changed_);
 }
 
 }  // namespace detail

@@ -34,9 +34,10 @@
 #include "boost/filesystem/fstream.hpp"
 #include "boost/filesystem/path.hpp"
 
-#include "maidsafe/common/rsa.h"
+#include "maidsafe/common/error.h"
 #include "maidsafe/common/log.h"
 #include "maidsafe/common/profiler.h"
+#include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
 
 #include "maidsafe/data_types/data_type_values.h"
@@ -69,16 +70,19 @@ class DirectoryHandler {
   virtual ~DirectoryHandler() {}
 
   void Add(const boost::filesystem::path& relative_path, FileContext&& file_context);
-
-
-
-
-
-
-
-
-
   Directory* Get(const boost::filesystem::path& relative_path);
+  // Puts a new version of 'relative_path' (which must be a directory) to storage.
+  void PutVersion(const boost::filesystem::path& relative_path);
+  void FlushAll();
+
+
+
+
+
+
+
+
+
   void Delete(const boost::filesystem::path& relative_path);
   void Rename(const boost::filesystem::path& old_relative_path,
               const boost::filesystem::path& new_relative_path, MetaData& meta_data);
@@ -109,8 +113,8 @@ class DirectoryHandler {
   void RenameDifferentParent(const boost::filesystem::path& old_relative_path,
                              const boost::filesystem::path& new_relative_path,
                              MetaData& meta_data);
-  void Put(const Directory& directory, const boost::filesystem::path& relative_path);
   Directory Get(const ParentId& parent_id, const DirectoryId& directory_id) const;
+  void Put(const Directory& directory, const boost::filesystem::path& relative_path);
   void Delete(const Directory& directory);
   encrypt::DataMap GetDataMap(const ParentId& parent_id, const DirectoryId& directory_id) const;
 
@@ -171,6 +175,7 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
     ++parent.second->attributes.st_nlink;
 #endif
 
+  // TODO(Fraser#5#): 2013-11-28 - Use on_scope_exit or similar to undo changes if AddChild throws.
   parent.first->AddChild(std::move(file_context));
   Put(parent, relative_path.parent_path());
 }
@@ -208,6 +213,51 @@ Directory* DirectoryHandler<Storage>::Get(const boost::filesystem::path& relativ
   assert(insertion_result.second);
   return &(insertion_result.first->second);
 }
+
+template <typename Storage>
+void DirectoryHandler<Storage>::PutVersion(const boost::filesystem::path& relative_path) {
+  auto directory(Get(relative_path));
+  assert(directory);
+  Put(*directory, relative_path);
+}
+
+template <typename Storage>
+void DirectoryHandler<Storage>::FlushAll() {
+  SCOPED_PROFILE
+  bool error(false);
+  std::lock_guard<std::mutex> lock(cache_mutex_);
+  for (const auto& dir : cache_) {
+    dir.second.ResetChildrenIterator();
+    auto child(dir.second.GetChildAndIncrementItr());
+    while (child) {
+      if (child->self_encryptor && !child->self_encryptor->Flush()) {
+        error = true;
+        LOG(kError) << "Failed to flush " << (dir.first / child->meta_data.name);
+      }
+      child = dir.second.GetChildAndIncrementItr();
+    }
+    Put(dir.second, dir.first);
+  }
+  if (error)
+    ThrowError(CommonErrors::unknown);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 template <typename Storage>
 void DirectoryHandler<Storage>::Delete(const boost::filesystem::path& relative_path) {
@@ -450,6 +500,9 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
 template <typename Storage>
 void DirectoryHandler<Storage>::Put(const Directory& directory,
                                     const boost::filesystem::path& relative_path) {
+  if (!directory.contents_changed())
+    return;
+
   std::string serialised_directory_listing(directory.listing->Serialise());
 
   try {

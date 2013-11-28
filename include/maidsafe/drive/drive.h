@@ -85,8 +85,8 @@ class Drive {
  protected:
   void Create(const boost::filesystem::path& relative_path, detail::FileContext&& file_context);
   void Open(const boost::filesystem::path& relative_path);
-  //detail::Directory& GetDirectory(const boost::filesystem::path& relative_path);
-  detail::FileContext& GetFileContext(const boost::filesystem::path& relative_path);
+  void Flush(const boost::filesystem::path& relative_path);
+
 
 
 
@@ -105,7 +105,7 @@ class Drive {
   typedef detail::FileContext::Buffer Buffer;
   void InitialiseEncryptor(const boost::filesystem::path& relative_path,
                            detail::FileContext& file_context) const;
-
+  FileContext* GetContext(const boost::filesystem::path& relative_path) const;
 
 
 
@@ -176,6 +176,11 @@ void Drive<Storage>::InitialiseEncryptor(const boost::filesystem::path& relative
       *file_context->data_buffer, get_chunk_from_store_));
 }
 
+template <typename Storage>
+FileContext* Drive<Storage>::GetContext(const boost::filesystem::path& relative_path) const {
+  Directory* parent(directory_handler_.Get(relative_path.parent_path()));
+  return parent->GetChild(relative_path.filename());
+}
 
 template <typename Storage>
 void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
@@ -187,11 +192,35 @@ void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
 
 template <typename Storage>
 void Drive<Storage>::Open(const boost::filesystem::path& relative_path) {
-  Directory* parent(directory_handler_.Get(relative_path.parent_path()));
-  FileContext* file_context(parent->GetChild(relative_path.filename()));
+  auto file_context(GetContext(relative_path));
   if (!file_context->meta_data.directory_id && !file_context->self_encryptor)
     InitialiseEncryptor(relative_path, *file_context);
 }
+
+template <typename Storage>
+void Drive<Storage>::Flush(const boost::filesystem::path& relative_path) {
+  auto file_context(GetContext(relative_path));
+  if (file_context->self_encryptor && !file_context->self_encryptor->Flush()) {
+    LOG(kError) << "Failed to flush " << relative_path;
+    ThrowError(CommonErrors::unknown);
+  }
+  directory_handler_.PutVersion(relative_path.parent_path());
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 template <typename Storage>
 void Drive<Storage>::Delete(const boost::filesystem::path& relative_path) {

@@ -63,6 +63,11 @@ struct DirectoryEnumerationContext {
 };
 
 template <typename Storage>
+CbfsDrive<Storage>* GetDrive(CallbackFileSystem* sender) {
+  return static_cast<CbfsDrive<Storage>*>(sender->GetTag());
+}
+
+template <typename Storage>
 boost::filesystem::path GetRelativePath(CbfsDrive<Storage>* cbfs_drive, CbFsFileInfo* file_info) {
   assert(file_info);
   std::unique_ptr<WCHAR[]> file_name(new WCHAR[cbfs_drive->max_file_path_length()]);
@@ -77,10 +82,6 @@ void ErrorMessage(const std::string& method_name, ECBFSError error);
 template <typename Storage>
 class CbfsDrive : public Drive<Storage> {
  public:
-  //typedef encrypt::SelfEncryptor<Storage> SelfEncryptor;
-  //typedef detail::FileContext<Storage> FileContext;
-  //typedef std::unique_ptr<FileContext> FileContextPtr;
-  //typedef FileContext* FileContextPtr;
   CbfsDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
             const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
             const boost::filesystem::path& user_app_dir, const boost::filesystem::path& drive_name,
@@ -101,6 +102,7 @@ class CbfsDrive : public Drive<Storage> {
   void UnmountDrive(const std::chrono::steady_clock::duration& timeout_before_force);
   std::wstring drive_name() const;
 
+  void FlushAll();
   void UpdateDriverStatus();
   void UpdateMountingPoints();
   void OnCallbackFsInit();
@@ -288,6 +290,11 @@ std::wstring CbfsDrive<Storage>::drive_name() const {
 }
 
 template <typename Storage>
+void CbfsDrive<Storage>::FlushAll() {
+  directory_handler_.FlushAll();
+}
+
+template <typename Storage>
 void CbfsDrive<Storage>::UpdateDriverStatus() {
   BOOL installed = false;
   INT version_high = 0, version_low = 0;
@@ -418,47 +425,90 @@ int CbfsDrive<Storage>::OnCallbackFsInstall() {
 }
 
 // =============================== Callbacks =======================================================
+
+// This event is fired after Callback File System mounts the storage and makes it available. The
+// event is optional - you don't have to handle it.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsMount(CallbackFileSystem* /*sender*/) {
   LOG(kInfo) << "CbFsMount";
 }
 
+// This event is fired after Callback File System unmounts the storage and it becomes unavailable
+// for the system. The event is optional - you don't have to handle it.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsUnmount(CallbackFileSystem* /*sender*/) {
   LOG(kInfo) << "CbFsUnmount";
 }
 
+// This event is fired when the OS wants to obtain information about the size and available space on
+// the disk. Minimal size of the volume accepted by Windows is 6144 bytes (based on 3072-byte sector
+// and 2 sectors per cluster), however CBFS adjusts the size to be at least 16 sectors to ensure
+// compatibility with possible changes in future versions of Windows.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsGetVolumeSize(CallbackFileSystem* sender,
                                            int64_t* total_number_of_sectors,
                                            int64_t* number_of_free_sectors) {
   LOG(kInfo) << "CbFsGetVolumeSize";
-
   WORD sector_size(sender->GetSectorSize());
   *total_number_of_sectors = (std::numeric_limits<int64_t>::max() - 10000) / sector_size;
   *number_of_free_sectors = (std::numeric_limits<int64_t>::max() - 10000) / sector_size;
 }
 
+// This event is fired when the OS wants to obtain the volume label.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsGetVolumeLabel(CallbackFileSystem* sender, LPTSTR volume_label) {
   LOG(kInfo) << "CbFsGetVolumeLabel";
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
+  auto cbfs_drive(GetDrive(sender));
   wcsncpy_s(volume_label, cbfs_drive->drive_name().size() + 1, &cbfs_drive->drive_name()[0],
             cbfs_drive->drive_name().size() + 1);
 }
 
+// This event is fired when the OS wants to change the volume label.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsSetVolumeLabel(CallbackFileSystem* /*sender*/,
                                             LPCTSTR /*volume_label*/) {
   LOG(kInfo) << "CbFsSetVolumeLabel";
 }
 
+// This event is fired when Callback File System wants to obtain the volume Id. The volume Id is
+// unique user defined value (within Callback File System volumes).
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsGetVolumeId(CallbackFileSystem* /*sender*/, PDWORD volume_id) {
   LOG(kInfo) << "CbFsGetVolumeId";
   *volume_id = 0x68451321;
 }
 
+// This event is fired when the OS wants to create a file or directory with given name and
+// attributes. The directories are created with this call.
+//
+// To check, what should be created (file or directory), check FileAttributes as follows
+// (C++ / C# notation):
+// Directory = FileAttributes & FILE_ATTRIBUTE_DIRECTORY == FILE_ATTRIBUTE_DIRECTORY;
+//
+// If the file name contains semicolon (":"), this means that the request is made to create a named
+// stream in a file. The part before the semicolon is the name of the file itself and the name after
+// the semicolon is the name of the named stream. If you don't want to deal with named streams,
+// don't implement the handler for OnEnumerateNamedStreams event. In this case CBFS API will tell
+// the OS that the named streams are not supported by the file system.
+//
+// DesiredAccess, ShareMode and Attributes are passed as they were specified in the call to
+// CreateFile() Windows API function.
+//
+// The application can use FileInfo's and HandleInfo's UserContext property to store the reference
+// to some information, identifying the file or directory (such as file/directory handle or database
+// record ID or reference to the stream class etc). The value, set in the event handler, is later
+// passed to all operations, related to this file, together with file/directory name and attributes.
+//
+// Note, that if CallAllOpenCloseCallbacks property is set to false (default value), then this event
+// is fired only when the first handle to the file is opened.
+//
+// Sometimes it can happen that OnCreateFile is fired for a file which already exists. Normally such
+// situation will not happen, as the OS knows which files exist before creating or opening files
+// (this information is requested via OnGetFileInfo and OnEnumerateDirectory). However, if your
+// files come from outside, a race condition can happen and the file will exist externally but will
+// not be known to the OS and to CBFS yet. In this case you need to decide based on your application
+// logic - you can either truncate an existing file or report the error. ERROR_ALREADY_EXISTS is a
+// proper error code in this situation.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file_name,
                                         ACCESS_MASK /*desired_access*/,
@@ -470,17 +520,48 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
   LOG(kInfo) << "CbFsCreateFile - " << relative_path << " 0x" << std::hex << file_attributes;
 
   bool is_directory((file_attributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY);
-  detail::FileContext file_context(relative_path.filename(), is_directory);
-  file_context->meta_data->attributes = file_attributes;
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
   try {
-    cbfs_drive->Create(relative_path, std::move(file_context));
+    detail::FileContext file_context(relative_path.filename(), is_directory);
+    file_context->meta_data->attributes = file_attributes;
+    GetDrive(sender)->Create(relative_path, std::move(file_context));
   }
-  catch (...) {
+  catch (const drive_error& error) {
+    LOG(kWarning) << "CbfsCreateFile: " << relative_path << ": " << error.what();
+    if (error.code() == make_error_code(DriveErrors::file_exists))
+      throw ECBFSError(ERROR_ALREADY_EXISTS);
+    else
+      throw ECBFSError(ERROR_ACCESS_DENIED);
+  }
+  catch (const std::exception& e) {
+    LOG(kError) << "CbfsCreateFile: " << relative_path << ": " << e.what();
     throw ECBFSError(ERROR_ACCESS_DENIED);
   }
 }
 
+// This event is fired when the OS wants to open an existing file or directory with given name and
+// attributes. The directory can be opened, for example, in order to change it's attributes or to
+// enumerate it's contents.
+//
+// If the file name contains semicolon (":"), this means that the request is made to open a named
+// stream in a file. The part before the semicolon is the name of the file itself and the name after
+// the semicolon is the name of the named stream. If you don't want to deal with named streams,
+// don't implement the handler for OnEnumerateNamedStreams event. In this case CBFS API will tell
+// the OS that the named streams are not supported by the file system.
+//
+// The application can use FileInfo's and HandleInfo's UserContext property to store the reference
+// to some information, identifying the file or directory (such as file/directory handle or database
+// record ID or reference to the stream class etc). The value, set in the event handler, is later
+// passed to all operations, related to this file, together with file/directory name and attributes.
+//
+// Note, that if CallAllOpenCloseCallbacks property is set to false (default value), then this event
+// is fired only when the first handle to the file is opened.
+//
+// Sometimes it can happen that OnOpenFile is fired for a file which doesn't already exist. Normally
+// such situation will not happen, as the OS knows which files exist before creating or opening
+// files (this information is requested via OnGetFileInfo and OnEnumerateDirectory). However, if
+// your files are created and deleted from outside, a race condition can happen and the file will
+// disappear but will still be known to the OS and to CBFS. In this case you need to report
+// ERROR_FILE_NOT_FOUND error.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_name,
                                       ACCESS_MASK /*desired_access*/,
@@ -489,13 +570,19 @@ void CbfsDrive<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_n
                                       CbFsHandleInfo* /*handle_info*/) {
   SCOPED_PROFILE
   LOG(kInfo) << "CbFsOpenFile - " << boost::filesystem::path(file_name);
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
   try {
-    cbfs_drive->Open(file_name);
+    GetDrive(sender)->Open(file_name);
+  }
+  catch (const drive_error& error) {
+    LOG(kWarning) << "CbFsOpenFile: " << boost::filesystem::path(file_name) << ": " << e.what();
+    if (error.code() == make_error_code(DriveErrors::no_such_file))
+      throw ECBFSError(ERROR_FILE_NOT_FOUND);
+    else
+      throw ECBFSError(ERROR_ERRORS_ENCOUNTERED);
   }
   catch (const std::exception& e) {
     LOG(kError) << "CbFsOpenFile: " << boost::filesystem::path(file_name) << ": " << e.what();
-    throw ECBFSError(ERROR_FILE_NOT_FOUND);
+    throw ECBFSError(ERROR_ERRORS_ENCOUNTERED);
   }
 }
 
@@ -503,8 +590,8 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsCloseFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                        CbFsHandleInfo* /*handle_info*/) {
   SCOPED_PROFILE
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
+  auto cbfs_drive(GetDrive(sender));
+  auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsCloseFile - " << relative_path;
   if (!file_info->get_UserContext())
     return;
@@ -556,7 +643,7 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
   *file_attributes = 0xFFFFFFFF;
 
   std::unique_ptr<FileContext> file_context;
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
+  auto cbfs_drive(GetDrive(sender));
   try {
     file_context.reset(new FileContext(cbfs_drive->GetFileContext(relative_path)));
   }
@@ -587,9 +674,8 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     PFILETIME creation_time, PFILETIME last_access_time, PFILETIME last_write_time,
     __int64* end_of_file, __int64* allocation_size, __int64* file_id, PDWORD file_attributes) {
   SCOPED_PROFILE
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive,
-                                                                         directory_info));
+  auto cbfs_drive(GetDrive(sender));
+  auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, directory_info));
   detail::DirectoryEnumerationContext* enum_context = nullptr;
   std::wstring mask_str(mask);
   LOG(kInfo) << "CbFsEnumerateDirectory - " << relative_path << " index: " << index
@@ -612,7 +698,7 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
       directory = cbfs_drive->GetDirectory(relative_path);
     }
     catch (...) {
-      throw ECBFSError(ERROR_PATH_NOT_FOUND);
+      throw ECBFSError(ERROR_FILE_NOT_FOUND);
     }
     enum_context = new detail::DirectoryEnumerationContext(directory);
     enum_context->directory.listing->ResetChildrenIterator();
@@ -657,9 +743,8 @@ void CbfsDrive<Storage>::CbFsCloseDirectoryEnumeration(
     CallbackFileSystem* sender, CbFsFileInfo* directory_info,
     CbFsDirectoryEnumerationInfo* directory_enumeration_info) {
   SCOPED_PROFILE
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive,
-                                                                         directory_info));
+  auto cbfs_drive(GetDrive(sender));
+  auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, directory_info));
   LOG(kInfo) << "CbFsCloseEnumeration - " << relative_path;
   if (directory_enumeration_info) {
     auto enum_context = static_cast<detail::DirectoryEnumerationContext*>(
@@ -674,8 +759,8 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsSetAllocationSize(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                                int64_t allocation_size) {
   SCOPED_PROFILE
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
+  auto cbfs_drive(GetDrive(sender));
+  auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsSetAllocationSize - " << relative_path << " to " << allocation_size
              << " bytes.";
   if (!file_info->get_UserContext())
@@ -698,8 +783,8 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                           int64_t end_of_file) {
   SCOPED_PROFILE
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
+  auto cbfs_drive(GetDrive(sender));
+  auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsSetEndOfFile - " << relative_path << " to " << end_of_file << " bytes.";
   if (!file_info->get_UserContext())
     return;
@@ -727,8 +812,8 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
     PFILETIME creation_time, PFILETIME last_access_time, PFILETIME last_write_time,
     DWORD file_attributes) {
   SCOPED_PROFILE
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
+  auto cbfs_drive(GetDrive(sender));
+  auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsSetFileAttributes- " << relative_path << " 0x" << std::hex << file_attributes;
   if (!file_info->get_UserContext())
     return;
@@ -752,8 +837,8 @@ void CbfsDrive<Storage>::CbFsCanFileBeDeleted(CallbackFileSystem* /*sender*/,
                                               CbFsHandleInfo* /*handle_info*/,
                                               LPBOOL can_be_deleted) {
   SCOPED_PROFILE
-  // auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  // boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
+  // auto cbfs_drive(GetDrive(sender));
+  // auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsCanFileBeDeleted - ";  //  << relative_path;
   *can_be_deleted = true;
 }
@@ -761,8 +846,8 @@ void CbfsDrive<Storage>::CbFsCanFileBeDeleted(CallbackFileSystem* /*sender*/,
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsDeleteFile(CallbackFileSystem* sender, CbFsFileInfo* file_info) {
   SCOPED_PROFILE
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
+  auto cbfs_drive(GetDrive(sender));
+  auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsDeleteFile - " << relative_path;
   try {
     cbfs_drive->Delete(relative_path);
@@ -776,9 +861,8 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsRenameOrMoveFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                               LPCTSTR new_file_name) {
   SCOPED_PROFILE
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  boost::filesystem::path old_relative_path(detail::GetRelativePath<Storage>(cbfs_drive,
-                                                                             file_info));
+  auto cbfs_drive(GetDrive(sender));
+  auto old_relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   boost::filesystem::path new_relative_path(new_file_name);
   LOG(kInfo) << "CbFsRenameOrMoveFile - " << old_relative_path << " to " << new_relative_path;
   FileContext file_context;
@@ -801,8 +885,8 @@ void CbfsDrive<Storage>::CbFsReadFile(CallbackFileSystem* sender, CbFsFileInfo* 
                                       int64_t position, PVOID buffer, DWORD bytes_to_read,
                                       PDWORD bytes_read) {
   SCOPED_PROFILE
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
+  auto cbfs_drive(GetDrive(sender));
+  auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   if (!file_info->get_UserContext())
     return;
 
@@ -830,8 +914,8 @@ void CbfsDrive<Storage>::CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo*
                                        int64_t position, PVOID buffer, DWORD bytes_to_write,
                                        PDWORD bytes_written) {
   SCOPED_PROFILE
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
+  auto cbfs_drive(GetDrive(sender));
+  auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsWriteFile- " << relative_path << " writing " << bytes_to_write
              << " bytes at position " << position;
 
@@ -854,49 +938,54 @@ void CbfsDrive<Storage>::CbFsIsDirectoryEmpty(CallbackFileSystem* sender,
   SCOPED_PROFILE
   LOG(kInfo) << "CbFsIsDirectoryEmpty - " << boost::filesystem::path(file_name);
   try {
-    auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
+    auto cbfs_drive(GetDrive(sender));
     *is_empty = cbfs_drive->GetDirectory(boost::filesystem::path(file_name)).listing->empty();
   }
   catch (...) {
-    throw ECBFSError(ERROR_PATH_NOT_FOUND);
+    throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
 }
 
+// This event is fired when the OS tells the file system, that file buffers (incuding all possible
+// metadata) must be flushed and written to the backend storage. FileInfo contains information about
+// the file to be flushed. If FileInfo is empty, your code should attempt to flush everything
+// related to the disk.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo* file_info) {
   SCOPED_PROFILE
-  if (!file_info)
-    //  flush everything related to the disk
-    return;
-
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
-  boost::filesystem::path relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
-  FileContext* file_context(static_cast<FileContext*>(file_info->get_UserContext()));
-  if (!file_context) {
-    LOG(kInfo) << "CbFsFlushFile: file_context for " << relative_path << " is null.";
-    return;
-  }
-
-  LOG(kInfo) << "CbFsFlushFile - " << relative_path;
-  if (!file_context->self_encryptor->Flush()) {
-    LOG(kError) << "CbFsFlushFile: " << relative_path << ", failed to flush";
-    return;
-  }
-
-  if (file_context->content_changed) {
+  auto cbfs_drive(GetDrive(sender));
+  if (!file_info) {
     try {
-      cbfs_drive->UpdateParent(file_context, relative_path);
+      cbfs_drive->FlushAll();
     }
-    catch (...) {
+    catch (const std::exception& e) {
+      LOG(kError) << "CbFsFlushFile for all files: " << e.what();
       throw ECBFSError(ERROR_ERRORS_ENCOUNTERED);
     }
+  }
+
+  auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
+  LOG(kInfo) << "CbFsFlushFile - " << relative_path;
+  try {
+    cbfs_drive->Flush(path);
+  }
+  catch (const drive_error& error) {
+    LOG(kError) << "CbFsFlushFile: " << relative_path << ": " << error.what();
+    if (error.code() == make_error_code(DriveErrors::no_such_file)
+      throw ECBFSError(ERROR_FILE_NOT_FOUND);
+    else
+      throw ECBFSError(ERROR_ERRORS_ENCOUNTERED);
+  }
+  catch (const std::exception& e) {
+    LOG(kError) << "CbFsFlushFile: " << relative_path << ": " << e.what();
+    throw ECBFSError(ERROR_ERRORS_ENCOUNTERED);
   }
 }
 
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsOnEjectStorage(CallbackFileSystem* sender) {
   LOG(kInfo) << "CbFsOnEjectStorage";
-  auto cbfs_drive(static_cast<CbfsDrive<Storage>*>(sender->GetTag()));
+  auto cbfs_drive(GetDrive(sender));
   boost::async(boost::launch::async, [cbfs_drive] { cbfs_drive->Unmount(); });
 }
 

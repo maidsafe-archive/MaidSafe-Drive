@@ -224,7 +224,7 @@ void FuseDrive<Storage>::Init() {
   Global<Storage>::g_fuse_drive = this;
   maidsafe_ops_.create = OpsCreate;
   maidsafe_ops_.destroy = OpsDestroy;
-//  maidsafe_ops_.flush = OpsFlush;
+  maidsafe_ops_.flush = OpsFlush;
   maidsafe_ops_.ftruncate = OpsFtruncate;
   maidsafe_ops_.mkdir = OpsMkdir;
   maidsafe_ops_.mknod = OpsMknod;
@@ -358,12 +358,18 @@ void FuseDrive<Storage>::Mount() {
   // //  }
 }
 
-/********************************* content ************************************/
+// =============================== Callbacks =======================================================
+
 template <typename Storage>
 int FuseDrive<Storage>::OpsAccess(const char* /*path*/, int /* mask */) {
   return 0;
 }
 
+// Create and open a file.  If the file does not exist, first create it with the specified mode, and
+// then open it.
+//
+// If this method is not implemented or under Linux kernel versions earlier than 2.6.15, the mknod()
+// and open() methods will be called instead.
 template <typename Storage>
 int FuseDrive<Storage>::OpsCreate(const char* path, mode_t mode, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsCreate: " << path << " (" << GetFileType(mode) << "), mode: " << std::oct
@@ -376,20 +382,34 @@ void FuseDrive<Storage>::OpsDestroy(void* /*fuse*/) {
   LOG(kInfo) << "OpsDestroy";
 }
 
+// Possibly flush cached data.
+//
+// BIG NOTE: This is not equivalent to fsync(). It's not a request to sync dirty data.
+//
+// Flush is called on each close() of a file descriptor. So if a filesystem wants to return write
+// errors in close() and the file has cached dirty data, this is a good place to write back data and
+// return any errors. Since many applications ignore close() errors this is not always useful.
+//
+// NOTE: The flush() method may be called more than once for each open(). This happens if more than
+// one file descriptor refers to an opened file due to dup(), dup2() or fork() calls. It is not
+// possible to determine if a flush is final, so each flush should be treated equally. Multiple
+// write-flush sequences are relatively rare, so this shouldn't be a problem.
+//
+// Filesystems shouldn't assume that flush will always be called after some writes, or that if will
+// be called at all.
 template <typename Storage>
 int FuseDrive<Storage>::OpsFlush(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsFlush: " << path << ", flags: " << file_info->flags;
-  detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
-  if (!file_context) {
-    LOG(kError) << "OpsFlush: " << path << ", failed find filecontext for " << path;
-    return -EINVAL;
+  try {
+    Global<Storage>::g_fuse_drive->Flush(path);
   }
-
-  if (file_context->self_encryptor) {
-    if (!file_context->self_encryptor->Flush()) {
-      LOG(kError) << "OpsFlush: " << path << ", failed to update";
-      return -EBADF;
-    }
+  catch (const drive_error& error) {
+    LOG(kError) << "OpsFlush: " << fs::path(path) << ": " << error.what();
+    return (error.code() == make_error_code(DriveErrors::no_such_file)) ? -EINVAL : -EBADF;
+  }
+  catch (const std::exception& e) {
+    LOG(kError) << "OpsFlush: " << fs::path(path) << ": " << e.what();
+    return -EBADF;
   }
   return 0;
 }
@@ -415,6 +435,10 @@ int FuseDrive<Storage>::OpsFtruncate(const char* path, off_t size,
   return 0;
 }
 
+// Create a directory.
+//
+// Note that the mode argument may not have the type specification bits set, i.e. S_ISDIR(mode) can
+// be false. To obtain the correct directory type bits use mode|S_IFDIR
 template <typename Storage>
 int FuseDrive<Storage>::OpsMkdir(const char* path, mode_t mode) {
   LOG(kInfo) << "OpsMkdir: " << path << " (" << GetFileType(mode) << "), mode: " << std::oct
@@ -422,6 +446,10 @@ int FuseDrive<Storage>::OpsMkdir(const char* path, mode_t mode) {
   return CreateNew(path, mode);
 }
 
+// Create a file node.
+//
+// This is called for creation of all non-directory, non-symlink  nodes. If the filesystem defines a
+// create() method, then for regular files that will be called instead.
 template <typename Storage>
 int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t rdev) {
   LOG(kInfo) << "OpsMknod: " << path << " (" << GetFileType(mode) << "), mode: " << std::oct
@@ -430,6 +458,16 @@ int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t rdev) {
   return CreateNew(path, mode, rdev);
 }
 
+// File open operation.
+//
+// No creation (O_CREAT, O_EXCL) and by default also no truncation (O_TRUNC) flags will be passed to
+// open(). If an application specifies O_TRUNC, fuse first calls truncate() and then open(). Only if
+// 'atomic_o_trunc' has been specified and kernel version is 2.6.24 or later, O_TRUNC is passed on
+// to open.
+//
+// Unless the 'default_permissions' mount option is given, open should check if the operation is
+// permitted for the given flags. Optionally open may also return an arbitrary filehandle in the
+// fuse_file_info structure, which will be passed to all file operations.
 template <typename Storage>
 int FuseDrive<Storage>::OpsOpen(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsOpen: " << path << ", flags: " << file_info->flags << ", keep_cache: "
@@ -515,7 +553,7 @@ int FuseDrive<Storage>::OpsRead(const char* path, char* buf, size_t size, off_t 
   if (file_context->meta_data->attributes.st_size == 0)
     return 0;
 
-  BOOST_ASSERT(file_context->self_encryptor);
+  assert(file_context->self_encryptor);
   //     if (!file_context->self_encryptor) {
   //       file_context->self_encryptor.reset(new encrypt::SE(
   //           file_context->meta_data->data_map, Global<Storage>::g_fuse_drive->chunk_store()));
@@ -683,7 +721,6 @@ int FuseDrive<Storage>::OpsWrite(const char* path, const char* buf, size_t size,
   return size;
 }
 
-/********************************** metadata **********************************/
 template <typename Storage>
 int FuseDrive<Storage>::OpsChmod(const char* path, mode_t mode) {
   LOG(kInfo) << "OpsChmod: " << path << ", to " << std::oct << mode;
