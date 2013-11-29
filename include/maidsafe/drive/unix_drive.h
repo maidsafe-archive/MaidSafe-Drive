@@ -136,52 +136,53 @@ class FuseDrive : public Drive<Storage> {
 
   void Init();
 
+  static int OpsAccess(const char* path, int mask);
+  static int OpsChmod(const char* path, mode_t mode);
+  static int OpsChown(const char* path, uid_t uid, gid_t gid);
   static int OpsCreate(const char* path, mode_t mode, struct fuse_file_info* file_info);
   static void OpsDestroy(void* fuse);
-
+  static int OpsFgetattr(const char* path, struct stat* stbuf, struct fuse_file_info* file_info);
   static int OpsFlush(const char* path, struct fuse_file_info* file_info);
+  static int OpsFsync(const char* path, int isdatasync, struct fuse_file_info* file_info);
+  static int OpsFsyncDir(const char* path, int isdatasync, struct fuse_file_info* file_info);
   static int OpsFtruncate(const char* path, off_t size, struct fuse_file_info* file_info);
+  static int OpsGetattr(const char* path, struct stat* stbuf);
+//  static int OpsLink(const char* to, const char* from);
+//  static int OpsLock(const char* path, struct fuse_file_info* file_info, int cmd,
+//                     struct flock* lock);
   static int OpsMkdir(const char* path, mode_t mode);
   static int OpsMknod(const char* path, mode_t mode, dev_t rdev);
   static int OpsOpen(const char* path, struct fuse_file_info* file_info);
   static int OpsOpendir(const char* path, struct fuse_file_info* file_info);
   static int OpsRead(const char* path, char* buf, size_t size, off_t offset,
                      struct fuse_file_info* file_info);
-  static int OpsRelease(const char* path, struct fuse_file_info* file_info);
-  static int OpsReleasedir(const char* path, struct fuse_file_info* file_info);
-  static int OpsRmdir(const char* path);
-  static int OpsTruncate(const char* path, off_t size);
-  static int OpsUnlink(const char* path);
-  static int OpsWrite(const char* path, const char* buf, size_t size, off_t offset,
-                      struct fuse_file_info* file_info);
-
-  static int OpsAccess(const char* path, int mask);
-  static int OpsChmod(const char* path, mode_t mode);
-  static int OpsChown(const char* path, uid_t uid, gid_t gid);
-  static int OpsFgetattr(const char* path, struct stat* stbuf, struct fuse_file_info* file_info);
-  static int OpsFsync(const char* path, int isdatasync, struct fuse_file_info* file_info);
-  static int OpsFsyncDir(const char* path, int isdatasync, struct fuse_file_info* file_info);
-  static int OpsGetattr(const char* path, struct stat* stbuf);
-//  static int OpsLink(const char* to, const char* from);
-//  static int OpsLock(const char* path, struct fuse_file_info* file_info, int cmd,
-//                     struct flock* lock);
   static int OpsReaddir(const char* path, void* buf, fuse_fill_dir_t filler, off_t offset,
                         struct fuse_file_info* file_info);
   static int OpsReadlink(const char* path, char* buf, size_t size);
+  static int OpsRelease(const char* path, struct fuse_file_info* file_info);
+  static int OpsReleasedir(const char* path, struct fuse_file_info* file_info);
   static int OpsRename(const char* old_name, const char* new_name);
+  static int OpsRmdir(const char* path);
   static int OpsStatfs(const char* path, struct statvfs* stbuf);
   static int OpsSymlink(const char* to, const char* from);
+  static int OpsTruncate(const char* path, off_t size);
+  static int OpsUnlink(const char* path);
   static int OpsUtimens(const char* path, const struct timespec ts[2]);
+  static int OpsWrite(const char* path, const char* buf, size_t size, off_t offset,
+                      struct fuse_file_info* file_info);
+
 
 // We can set extended attribute for our own purposes, i.e. if we wanted to store extra info
 // (revisions for instance) then we can do it here.
 #ifdef HAVE_SETXATTR
-//  static int OpsSetxattr(const char* path, const char* name, const char* value, size_t size,
-//                         int flags);
 //  static int OpsGetxattr(const char* path, const char* name, char* value, size_t size);
 //  static int OpsListxattr(const char* path, char* list, size_t size);
 //  static int OpsRemovexattr(const char* path, const char* name);
+//  static int OpsSetxattr(const char* path, const char* name, const char* value, size_t size,
+//                         int flags);
 #endif  // HAVE_SETXATTR
+
+  static int GetAttributes(const char* path, struct stat* stbuf);
   static int Release(const char* path, struct fuse_file_info* file_info);
   virtual void SetNewAttributes(detail::FileContext<Storage>* file_context, bool is_directory,
                                 bool read_only);
@@ -230,7 +231,7 @@ void FuseDrive<Storage>::Init() {
   maidsafe_ops_.destroy = OpsDestroy;
   maidsafe_ops_.fgetattr = OpsFgetattr;
   maidsafe_ops_.flush = OpsFlush;
-//   maidsafe_ops_.fsync = OpsFsync;
+//  maidsafe_ops_.fsync = OpsFsync;
   maidsafe_ops_.fsyncdir = OpsFsyncDir;
   maidsafe_ops_.ftruncate = OpsFtruncate;
   maidsafe_ops_.getattr = OpsGetattr;
@@ -427,6 +428,8 @@ int FuseDrive<Storage>::OpsChown(const char* path, uid_t uid, gid_t gid) {
   return 0;
 }
 
+// Quote from FUSE documentation:
+//
 // Create and open a file.  If the file does not exist, first create it with the specified mode, and
 // then open it.
 //
@@ -444,26 +447,23 @@ void FuseDrive<Storage>::OpsDestroy(void* /*fuse*/) {
   LOG(kInfo) << "OpsDestroy";
 }
 
+// Quote from FUSE documentation:
+//
+// Get attributes from an open file.
+//
+// This method is called instead of the getattr() method if the file information is available.
+//
+// Currently this is only called after the create() method if that is implemented (see above). Later
+// it may be called for invocations of fstat() too.
 template <typename Storage>
 int FuseDrive<Storage>::OpsFgetattr(const char* path, struct stat* stbuf,
-                                    struct fuse_file_info* file_info) {
+                                    struct fuse_file_info* /*file_info*/) {
   LOG(kInfo) << "OpsFgetattr: " << path;
-  detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
-  if (!file_context)
-    return -ENOENT;
-
-  *stbuf = file_context->meta_data->attributes;
-
-  // TODO(Dan): Verify that the following code is not needed. I think that the
-  //            fuse_file_info should contain already the correct info since it
-  //            should have been populated correctly in Getattr. That's what I
-  //            think.
-  //  if (ReadOnlyShare(file_context->parent_share_data))
-  //    stbuf->st_mode = (0444 | S_IFREG);
-
-  return 0;
+  return GetAttributes(path, stbuf);
 }
 
+// Quote from FUSE documentation:
+//
 // Possibly flush cached data.
 //
 // BIG NOTE: This is not equivalent to fsync(). It's not a request to sync dirty data.
@@ -559,39 +559,16 @@ int FuseDrive<Storage>::OpsFtruncate(const char* path, off_t size,
   return 0;
 }
 
+// Quote from FUSE documentation:
+//
+// Get file attributes.
+//
+// Similar to stat(). The 'st_dev' and 'st_blksize' fields are ignored. The 'st_ino' field is
+// ignored except if the 'use_ino' mount option is given.
 template <typename Storage>
 int FuseDrive<Storage>::OpsGetattr(const char* path, struct stat* stbuf) {
   LOG(kInfo) << "OpsGetattr: " << path;
-  int result(0);
-  fs::path full_path(path);
-  try {
-    auto file_context(Global<Storage>::g_fuse_drive->GetFileContext(full_path));
-    *stbuf = file_context.meta_data->attributes;
-    //    LOG(kInfo) << " meta_data info  = ";
-    //    LOG(kInfo) << "     name =  " << file_context.meta_data->name.c_str();
-    //    LOG(kInfo) << "     st_dev = " << file_context.meta_data->attributes.st_dev;
-    //    LOG(kInfo) << "     st_ino = " << file_context.meta_data->attributes.st_ino;
-    LOG(kInfo) << "     st_mode = " << file_context.meta_data->attributes.st_mode;
-//    LOG(kInfo) << "     st_nlink = " << file_context.meta_data->attributes.st_nlink;
-//    LOG(kInfo) << "     st_uid = " << file_context.meta_data->attributes.st_uid;
-//    LOG(kInfo) << "     st_gid = " << file_context.meta_data->attributes.st_gid;
-//    LOG(kInfo) << "     st_rdev = " << file_context.meta_data->attributes.st_rdev;
-//    LOG(kInfo) << "     st_size = " << file_context.meta_data->attributes.st_size;
-//    LOG(kInfo) << "     st_blksize = " << file_context.meta_data->attributes.st_blksize;
-//    LOG(kInfo) << "     st_blocks = " << file_context.meta_data->attributes.st_blocks;
-//    LOG(kInfo) << "     st_atim = " << file_context.meta_data->attributes.st_atime;
-//    LOG(kInfo) << "     st_mtim = " << file_context.meta_data->attributes.st_mtime;
-//    LOG(kInfo) << "     st_ctim = " << file_context.meta_data->attributes.st_ctime;
-  }
-  catch (...) {
-    if (full_path.filename().string().size() > 255) {
-      LOG(kError) << "OpsGetattr: " << full_path.filename() << " too long.";
-      return -ENAMETOOLONG;
-    }
-    LOG(kWarning) << "OpsGetattr: " << full_path << ", can't get meta data.";
-    return -ENOENT;
-  }
-  return result;
+  return GetAttributes(path, stbuf);
 }
 
 /*
@@ -632,6 +609,8 @@ int FuseDrive<Storage>::OpsLink(const char* to, const char* from) {
 }
 */
 
+// Quote from FUSE documentation:
+//
 // Create a directory.
 //
 // Note that the mode argument may not have the type specification bits set, i.e. S_ISDIR(mode) can
@@ -643,6 +622,8 @@ int FuseDrive<Storage>::OpsMkdir(const char* path, mode_t mode) {
   return CreateNew(path, mode);
 }
 
+// Quote from FUSE documentation:
+//
 // Create a file node.
 //
 // This is called for creation of all non-directory, non-symlink  nodes. If the filesystem defines a
@@ -655,6 +636,8 @@ int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t rdev) {
   return CreateNew(path, mode, rdev);
 }
 
+// Quote from FUSE documentation:
+//
 // File open operation.
 //
 // No creation (O_CREAT, O_EXCL) and by default also no truncation (O_TRUNC) flags will be passed to
@@ -845,6 +828,8 @@ int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t /*size*/
   return 0;
 }
 
+// Quote from FUSE documentation:
+//
 // Release an open file.
 //
 // Release is called when there are no more references to an open file: all file descriptors are
@@ -860,6 +845,8 @@ int FuseDrive<Storage>::OpsRelease(const char* path, struct fuse_file_info* file
   return Release(path, file_info);
 }
 
+// Quote from FUSE documentation:
+//
 // Release directory.
 template <typename Storage>
 int FuseDrive<Storage>::OpsReleasedir(const char* path, struct fuse_file_info* file_info) {
@@ -1192,6 +1179,38 @@ int FuseDrive<Storage>::OpsSetxattr(const char* path, const char* name, const ch
   return 0;
 }
 #endif  // HAVE_SETXATTR
+
+template <typename Storage>
+int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
+  try {
+    auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
+    *stbuf = file_context->meta_data->attributes;
+    LOG(kVerbose) << " meta_data info  = ";
+    LOG(kVerbose) << "     name =  " << file_context->meta_data->name.c_str();
+    LOG(kVerbose) << "     st_dev = " << file_context->meta_data->attributes.st_dev;
+    LOG(kVerbose) << "     st_ino = " << file_context->meta_data->attributes.st_ino;
+    LOG(kVerbose) << "     st_mode = " << file_context->meta_data->attributes.st_mode;
+    LOG(kVerbose) << "     st_nlink = " << file_context->meta_data->attributes.st_nlink;
+    LOG(kVerbose) << "     st_uid = " << file_context->meta_data->attributes.st_uid;
+    LOG(kVerbose) << "     st_gid = " << file_context->meta_data->attributes.st_gid;
+    LOG(kVerbose) << "     st_rdev = " << file_context->meta_data->attributes.st_rdev;
+    LOG(kVerbose) << "     st_size = " << file_context->meta_data->attributes.st_size;
+    LOG(kVerbose) << "     st_blksize = " << file_context->meta_data->attributes.st_blksize;
+    LOG(kVerbose) << "     st_blocks = " << file_context->meta_data->attributes.st_blocks;
+    LOG(kVerbose) << "     st_atim = " << file_context->meta_data->attributes.st_atime;
+    LOG(kVerbose) << "     st_mtim = " << file_context->meta_data->attributes.st_mtime;
+    LOG(kVerbose) << "     st_ctim = " << file_context->meta_data->attributes.st_ctime;
+  }
+  catch (const std::exception& e) {
+//    if (full_path.filename().string().size() > 255) {
+//      LOG(kError) << "OpsGetattr: " << full_path.filename() << " too long.";
+//      return -ENAMETOOLONG;
+//    }
+    LOG(kWarning) << "OpsGetattr: " << path << " - " << e.what();
+    return -ENOENT;
+  }
+  return 0;
+}
 
 template <typename Storage>
 int FuseDrive<Storage>::Release(const char* path, struct fuse_file_info* file_info) {

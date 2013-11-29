@@ -78,6 +78,7 @@ class Drive {
               const boost::filesystem::path& new_relative_path, MetaData& meta_data);  */
 
  protected:
+  detail::FileContext* GetContext(const boost::filesystem::path& relative_path) const;
   void Create(const boost::filesystem::path& relative_path, detail::FileContext&& file_context);
   void Open(const boost::filesystem::path& relative_path);
   void Flush(const boost::filesystem::path& relative_path);
@@ -102,7 +103,6 @@ class Drive {
   void InitialiseEncryptor(const boost::filesystem::path& relative_path,
                            detail::FileContext& file_context) const;
   bool FlushEncryptor(detail::FileContext* file_context);
-  detail::FileContext* GetContext(const boost::filesystem::path& relative_path) const;
 
 
 

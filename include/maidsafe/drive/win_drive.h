@@ -426,6 +426,8 @@ int CbfsDrive<Storage>::OnCallbackFsInstall() {
 
 // =============================== Callbacks =======================================================
 
+// Quote from CBFS documentation:
+//
 // This event is fired after Callback File System mounts the storage and makes it available. The
 // event is optional - you don't have to handle it.
 template <typename Storage>
@@ -433,6 +435,8 @@ void CbfsDrive<Storage>::CbFsMount(CallbackFileSystem* /*sender*/) {
   LOG(kInfo) << "CbFsMount";
 }
 
+// Quote from CBFS documentation:
+//
 // This event is fired after Callback File System unmounts the storage and it becomes unavailable
 // for the system. The event is optional - you don't have to handle it.
 template <typename Storage>
@@ -440,6 +444,8 @@ void CbfsDrive<Storage>::CbFsUnmount(CallbackFileSystem* /*sender*/) {
   LOG(kInfo) << "CbFsUnmount";
 }
 
+// Quote from CBFS documentation:
+//
 // This event is fired when the OS wants to obtain information about the size and available space on
 // the disk. Minimal size of the volume accepted by Windows is 6144 bytes (based on 3072-byte sector
 // and 2 sectors per cluster), however CBFS adjusts the size to be at least 16 sectors to ensure
@@ -454,6 +460,8 @@ void CbfsDrive<Storage>::CbFsGetVolumeSize(CallbackFileSystem* sender,
   *number_of_free_sectors = (std::numeric_limits<int64_t>::max() - 10000) / sector_size;
 }
 
+// Quote from CBFS documentation:
+//
 // This event is fired when the OS wants to obtain the volume label.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsGetVolumeLabel(CallbackFileSystem* sender, LPTSTR volume_label) {
@@ -463,6 +471,8 @@ void CbfsDrive<Storage>::CbFsGetVolumeLabel(CallbackFileSystem* sender, LPTSTR v
             cbfs_drive->drive_name().size() + 1);
 }
 
+// Quote from CBFS documentation:
+//
 // This event is fired when the OS wants to change the volume label.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsSetVolumeLabel(CallbackFileSystem* /*sender*/,
@@ -470,6 +480,8 @@ void CbfsDrive<Storage>::CbFsSetVolumeLabel(CallbackFileSystem* /*sender*/,
   LOG(kInfo) << "CbFsSetVolumeLabel";
 }
 
+// Quote from CBFS documentation:
+//
 // This event is fired when Callback File System wants to obtain the volume Id. The volume Id is
 // unique user defined value (within Callback File System volumes).
 template <typename Storage>
@@ -478,6 +490,8 @@ void CbfsDrive<Storage>::CbFsGetVolumeId(CallbackFileSystem* /*sender*/, PDWORD 
   *volume_id = 0x68451321;
 }
 
+// Quote from CBFS documentation:
+//
 // This event is fired when the OS wants to create a file or directory with given name and
 // attributes. The directories are created with this call.
 //
@@ -522,7 +536,7 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
   bool is_directory((file_attributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY);
   try {
     detail::FileContext file_context(relative_path.filename(), is_directory);
-    file_context->meta_data->attributes = file_attributes;
+    file_context->meta_data.attributes = file_attributes;
     GetDrive(sender)->Create(relative_path, std::move(file_context));
   }
   catch (const drive_error& error) {
@@ -538,6 +552,8 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
   }
 }
 
+// Quote from CBFS documentation:
+//
 // This event is fired when the OS wants to open an existing file or directory with given name and
 // attributes. The directory can be opened, for example, in order to change it's attributes or to
 // enumerate it's contents.
@@ -586,6 +602,8 @@ void CbfsDrive<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_n
   }
 }
 
+// Quote from CBFS documentation:
+//
 // This event is fired when the OS needs to close the previously created or opened file. Use
 // FileInfo and HandleInfo to identify the file that needs to be closed.
 //
@@ -614,40 +632,61 @@ void CbfsDrive<Storage>::CbFsCloseFile(CallbackFileSystem* sender, CbFsFileInfo*
   }
 }
 
+// Quote from CBFS documentation:
+//
+// The event is fired when the OS needs to get information about the file or directory. If the file
+// exists, FileExists parameter must be set to true and all information (besides optional
+// parameters) must be set. If the file doesn't exist, then FileExists must be set to false. In this
+// case no parameters are read back.
+//
+// If you have enabled short file name support, your callback should return short name (which must
+// not exceed 12 characters in 8.3 format) via ShortFileName parameter. Note, that it is possible
+// that the OS sends you short filename in FileName parameter, in which case you still need to
+// provide the same short name in ShortFileName parameter.
+//
+// If you have enabled case-sensitive file name support, the driver might need to ask your code for
+// "normalized" filename. This means that if the driver gets a request for "QWERTY.txt", but only
+// "qwErTy.TxT" file exists on the filesystem, your code can return the existing file name using
+// RealFileName parameter.
+//
+// To speed-up operations (save one string length measurement per name) the driver doesn't measure
+// the length of the passed short and real file names, so your code must put the length of the
+// passed file names into ShortFileNameLength and RealFileNameLength parameters.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsGetFileInfo(
     CallbackFileSystem* sender, LPCTSTR file_name, LPBOOL file_exists, PFILETIME creation_time,
     PFILETIME last_access_time, PFILETIME last_write_time, int64_t* end_of_file,
-    int64_t* allocation_size, int64_t* file_id, PDWORD file_attributes,
+    int64_t* allocation_size, int64_t* file_id OPTIONAL, PDWORD file_attributes,
     LPWSTR /*short_file_name*/ OPTIONAL, PWORD /*short_file_name_length*/ OPTIONAL,
-    LPWSTR /*real_file_name*/ OPTIONAL, LPWORD /*real_file_name_length*/ OPTIONAL) {
+    LPWSTR real_file_name OPTIONAL, LPWORD real_file_name_length OPTIONAL) {
   SCOPED_PROFILE
   boost::filesystem::path relative_path(file_name);
   LOG(kInfo) << "CbFsGetFileInfo - " << relative_path;
-  *file_exists = false;
-  *file_attributes = 0xFFFFFFFF;
-
-  std::unique_ptr<FileContext> file_context;
-  auto cbfs_drive(GetDrive(sender));
+  detail::FileContext* file_context(nullptr);
   try {
-    file_context.reset(new FileContext(cbfs_drive->GetFileContext(relative_path)));
+    auto cbfs_drive(GetDrive(sender));
+    file_context = cbfs_drive->GetContext(relative_path);
   }
-  catch (...) {
+  catch (const std::exception& e) {
+    *file_exists = false;
+    *file_attributes = 0xFFFFFFFF;
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
+
   *file_exists = true;
-  *creation_time = file_context->meta_data->creation_time;
-  *last_access_time = file_context->meta_data->last_access_time;
-  *last_write_time = file_context->meta_data->last_write_time;
-  if (file_context->meta_data->end_of_file < file_context->meta_data->allocation_size) {
-    file_context->meta_data->end_of_file = file_context->meta_data->allocation_size;
-  } else if (file_context->meta_data->allocation_size < file_context->meta_data->end_of_file) {
-    file_context->meta_data->allocation_size = file_context->meta_data->end_of_file;
-  }
-  *end_of_file = file_context->meta_data->end_of_file;
-  *allocation_size = file_context->meta_data->allocation_size;
-  *file_id = 0;
-  *file_attributes = file_context->meta_data->attributes;
+  *creation_time = file_context->meta_data.creation_time;
+  *last_access_time = file_context->meta_data.last_access_time;
+  *last_write_time = file_context->meta_data.last_write_time;
+  //if (file_context->meta_data.end_of_file < file_context->meta_data.allocation_size)
+  //  file_context->meta_data.end_of_file = file_context->meta_data.allocation_size;
+  //else if (file_context->meta_data.allocation_size < file_context->meta_data.end_of_file)
+  //  file_context->meta_data.allocation_size = file_context->meta_data.end_of_file;
+  *end_of_file = file_context->meta_data.end_of_file;
+  *allocation_size = file_context->meta_data.allocation_size;
+  //*file_id = 0;
+  *file_attributes = file_context->meta_data.attributes;
+  *real_file_name = file_context->meta_data.name.wstring();
+  *real_file_name_length = file_context->meta_data.name.wstring().size();
 }
 
 template <typename Storage>
@@ -752,11 +791,11 @@ void CbfsDrive<Storage>::CbFsSetAllocationSize(CallbackFileSystem* sender, CbFsF
     return;
 
   FileContextPtr file_context(static_cast<FileContextPtr>(file_info->get_UserContext()));
-  if (file_context->meta_data->allocation_size == file_context->meta_data->end_of_file)
+  if (file_context->meta_data.allocation_size == file_context->meta_data.end_of_file)
     return;
 
   if (cbfs_drive->TruncateFile(file_context, allocation_size)) {
-    file_context->meta_data->allocation_size = allocation_size;
+    file_context->meta_data.allocation_size = allocation_size;
     if (!file_context->self_encryptor->Flush()) {
       LOG(kError) << "CbFsSetAllocationSize: " << relative_path << ", failed to flush";
     }
@@ -776,18 +815,18 @@ void CbfsDrive<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileIn
 
   FileContextPtr file_context(static_cast<FileContextPtr>(file_info->get_UserContext()));
   if (cbfs_drive->TruncateFile(file_context, end_of_file)) {
-    file_context->meta_data->end_of_file = end_of_file;
+    file_context->meta_data.end_of_file = end_of_file;
     if (!file_context->self_encryptor->Flush()) {
       LOG(kError) << "CbFsSetEndOfFile: " << relative_path << ", failed to flush";
     }
   } else {
-    LOG(kError) << "Truncate failed for " << file_context->meta_data->name;
+    LOG(kError) << "Truncate failed for " << file_context->meta_data.name;
   }
 
-  if (file_context->meta_data->allocation_size == static_cast<uint64_t>(end_of_file))
+  if (file_context->meta_data.allocation_size == static_cast<uint64_t>(end_of_file))
     return;
 
-  file_context->meta_data->allocation_size = end_of_file;
+  file_context->meta_data.allocation_size = end_of_file;
   file_context->content_changed = true;
 }
 
@@ -805,13 +844,13 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
 
   FileContextPtr file_context(static_cast<FileContextPtr>(file_info->get_UserContext()));
   if (file_attributes != 0)
-    file_context->meta_data->attributes = file_attributes;
+    file_context->meta_data.attributes = file_attributes;
   if (creation_time)
-    file_context->meta_data->creation_time = *creation_time;
+    file_context->meta_data.creation_time = *creation_time;
   if (last_access_time)
-    file_context->meta_data->last_access_time = *last_access_time;
+    file_context->meta_data.last_access_time = *last_access_time;
   if (last_write_time)
-    file_context->meta_data->last_write_time = *last_write_time;
+    file_context->meta_data.last_write_time = *last_write_time;
 
   file_context->content_changed = true;
 }
@@ -877,7 +916,7 @@ void CbfsDrive<Storage>::CbFsReadFile(CallbackFileSystem* sender, CbFsFileInfo* 
 
   FileContextPtr file_context(static_cast<FileContextPtr>(file_info->get_UserContext()));
   LOG(kInfo) << "CbFsReadFile- " << relative_path << " reading " << bytes_to_read << " of "
-              << file_context->meta_data->end_of_file << " at position " << position;
+              << file_context->meta_data.end_of_file << " at position " << position;
   assert(file_context->self_encryptor);
   *bytes_read = 0;
 
@@ -890,7 +929,7 @@ void CbfsDrive<Storage>::CbFsReadFile(CallbackFileSystem* sender, CbFsFileInfo* 
     *bytes_read = static_cast<DWORD>(file_context->self_encryptor->size() - position);
   else
     *bytes_read = bytes_to_read;
-  GetSystemTimeAsFileTime(&file_context->meta_data->last_access_time);
+  GetSystemTimeAsFileTime(&file_context->meta_data.last_access_time);
   file_context->content_changed = true;
 }
 
@@ -912,7 +951,7 @@ void CbfsDrive<Storage>::CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo*
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
 
   *bytes_written = bytes_to_write;
-  GetSystemTimeAsFileTime(&file_context->meta_data->last_write_time);
+  GetSystemTimeAsFileTime(&file_context->meta_data.last_write_time);
   file_context->content_changed = true;
 }
 
@@ -980,20 +1019,20 @@ void CbfsDrive<Storage>::SetNewAttributes(FileContextPtr file_context, bool is_d
   SCOPED_PROFILE
   FILETIME file_time;
   GetSystemTimeAsFileTime(&file_time);
-  file_context->meta_data->creation_time = file_context->meta_data->last_access_time =
-      file_context->meta_data->last_write_time = file_time;
+  file_context->meta_data.creation_time = file_context->meta_data.last_access_time =
+      file_context->meta_data.last_write_time = file_time;
 
   if (is_directory) {
-    file_context->meta_data->attributes = FILE_ATTRIBUTE_DIRECTORY;
+    file_context->meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
   } else {
     if (read_only)
-      file_context->meta_data->attributes = FILE_ATTRIBUTE_READONLY;
+      file_context->meta_data.attributes = FILE_ATTRIBUTE_READONLY;
     else
-      file_context->meta_data->attributes = FILE_ATTRIBUTE_NORMAL;
+      file_context->meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
 
     file_context->self_encryptor.reset(new SelfEncryptor(
-        file_context->meta_data->data_map, *storage_));
-    file_context->meta_data->end_of_file = file_context->meta_data->allocation_size =
+        file_context->meta_data.data_map, *storage_));
+    file_context->meta_data.end_of_file = file_context->meta_data.allocation_size =
         file_context->self_encryptor->size();
   }
 }
