@@ -48,6 +48,7 @@ struct FileContext {
   MetaData meta_data;
   std::unique_ptr<Buffer> buffer;
   std::unique_ptr<encrypt::SelfEncryptor> self_encryptor;
+  int open_count;
 };
 
 void swap(FileContext& lhs, FileContext& rhs) MAIDSAFE_NOEXCEPT;

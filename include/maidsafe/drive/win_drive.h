@@ -574,7 +574,7 @@ void CbfsDrive<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_n
     GetDrive(sender)->Open(file_name);
   }
   catch (const drive_error& error) {
-    LOG(kWarning) << "CbFsOpenFile: " << boost::filesystem::path(file_name) << ": " << e.what();
+    LOG(kWarning) << "CbFsOpenFile: " << boost::filesystem::path(file_name) << ": " << error.what();
     if (error.code() == make_error_code(DriveErrors::no_such_file))
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
     else
@@ -586,6 +586,11 @@ void CbfsDrive<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_n
   }
 }
 
+// This event is fired when the OS needs to close the previously created or opened file. Use
+// FileInfo and HandleInfo to identify the file that needs to be closed.
+//
+// Note, that if CallAllOpenCloseCallbacks property is set to false (default value), then this event
+// is fired only after the last handle to the file is closed.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsCloseFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                        CbFsHandleInfo* /*handle_info*/) {
@@ -593,39 +598,19 @@ void CbfsDrive<Storage>::CbFsCloseFile(CallbackFileSystem* sender, CbFsFileInfo*
   auto cbfs_drive(GetDrive(sender));
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsCloseFile - " << relative_path;
-  if (!file_info->get_UserContext())
-    return;
-
-  // Transfer ownership of the pointer from CBFS' file_info.
-  auto deleter([&](FileContextPtr ptr) {
-    delete ptr;
-    file_info->set_UserContext(nullptr);
-  });
-  std::unique_ptr<FileContext, decltype(deleter)> file_context(
-      static_cast<FileContextPtr>(file_info->get_UserContext()), deleter);
-  if ((file_context->meta_data->attributes & FILE_ATTRIBUTE_DIRECTORY))
-    return;
-
-  if (file_context->meta_data->end_of_file < file_context->meta_data->allocation_size) {
-    file_context->meta_data->end_of_file = file_context->meta_data->allocation_size;
-  } else if (file_context->meta_data->allocation_size < file_context->meta_data->end_of_file) {
-    file_context->meta_data->allocation_size = file_context->meta_data->end_of_file;
+  try {
+    cbfs_drive->Release(file_name);
   }
-
-  if (!file_context->self_encryptor)
-    return;
-
-  if (file_context->self_encryptor->Flush()) {
-    if (file_context->content_changed) {
-      try {
-        cbfs_drive->UpdateParent(file_context.get(), relative_path.parent_path());
-      }
-      catch (...) {
-        throw ECBFSError(ERROR_ERRORS_ENCOUNTERED);
-      }
-    }
-  } else {
-    LOG(kError) << "CbFsCloseFile: failed to flush " << relative_path;
+  catch (const drive_error& error) {
+    LOG(kError) << "CbFsCloseFile: " << relative_path << ": " << error.what();
+    if (error.code() == make_error_code(DriveErrors::no_such_file))
+      throw ECBFSError(ERROR_FILE_NOT_FOUND);
+    else
+      throw ECBFSError(ERROR_ERRORS_ENCOUNTERED);
+  }
+  catch (const std::exception& e) {
+    LOG(kError) << "CbFsCloseFile: " << relative_path << ": " << e.what();
+    throw ECBFSError(ERROR_ERRORS_ENCOUNTERED);
   }
 }
 

@@ -26,17 +26,17 @@ namespace drive {
 
 namespace detail {
 
-FileContext::FileContext() : meta_data(), buffer(), self_encryptor() {}
+FileContext::FileContext() : meta_data(), buffer(), self_encryptor(), open_count(0) {}
 
 FileContext::FileContext(FileContext&& other)
     : meta_data(std::move(other.meta_data)), buffer(std::move(other.buffer)),
-      self_encryptor(std::move(other.self_encryptor)) {}
+      self_encryptor(std::move(other.self_encryptor)), open_count(std::move(other.open_count)) {}
 
 FileContext::FileContext(MetaData meta_data_in)
-    : meta_data(std::move(meta_data_in)), buffer(), self_encryptor() {}
+    : meta_data(std::move(meta_data_in)), buffer(), self_encryptor(), open_count(0) {}
 
 FileContext::FileContext(const boost::filesystem::path& name, bool is_directory)
-    : meta_data(name, is_directory), buffer(), self_encryptor() {}
+    : meta_data(name, is_directory), buffer(), self_encryptor(), open_count(0) {}
 
 FileContext& FileContext::operator=(FileContext other) {
   swap(*this, other);
@@ -48,6 +48,7 @@ void swap(FileContext& lhs, FileContext& rhs) MAIDSAFE_NOEXCEPT {
   swap(lhs.meta_data, rhs.meta_data);
   swap(lhs.buffer, rhs.buffer);
   swap(lhs.self_encryptor, rhs.self_encryptor);
+  swap(lhs.open_count, rhs.open_count);
 }
 
 bool operator<(const FileContext& lhs, const FileContext& rhs) {

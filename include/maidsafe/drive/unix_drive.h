@@ -590,15 +590,24 @@ int FuseDrive<Storage>::OpsRead(const char* path, char* buf, size_t size, off_t 
   return bytes_read;
 }
 
+// Release an open file.
+//
+// Release is called when there are no more references to an open file: all file descriptors are
+// closed and all memory mappings are unmapped.
+//
+// For every open() call there will be exactly one release() call with the same flags and file
+// descriptor. It is possible to have a file opened more than once, in which case only the last
+// release will mean, that no more reads/writes will happen on the file. The return value of release
+// is ignored.
 template <typename Storage>
 int FuseDrive<Storage>::OpsRelease(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsRelease: " << path << ", flags: " << file_info->flags;
   return Release(path, file_info);
 }
 
+// Release directory.
 template <typename Storage>
-int FuseDrive<Storage>::OpsReleasedir(const char* path,
-                                                 struct fuse_file_info* file_info) {
+int FuseDrive<Storage>::OpsReleasedir(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsReleasedir: " << path << ", flags: " << file_info->flags;
   return Release(path, file_info);
 }
@@ -1195,39 +1204,13 @@ int FuseDrive<Storage>::OpsRemovexattr(const char* path, const char* name) {
 template <typename Storage>
 int FuseDrive<Storage>::Release(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "Release - " << path;
-
-  // Transfer ownership of the pointer from Fuse file_info.
-  auto deleter([&](detail::FileContext<Storage>* ptr) {
-    delete ptr;
-    file_info->fh = 0;
-  });
-  LOG(kInfo) << "About to get file context";
-  std::unique_ptr<detail::FileContext<Storage>, decltype(deleter)> file_context(
-      static_cast<detail::FileContext<Storage>*>(detail::RecoverFileContext<Storage>(file_info)),
-      deleter);
-  assert(file_context);
-
-  if (!file_context->self_encryptor)
-    return 0;
-
-  if (file_context->self_encryptor->Flush()) {
-    if (file_context->content_changed) {
-      try {
-        fs::path full_path(path);
-        LOG(kInfo) << "About to Update Parent - ";
-        Global<Storage>::g_fuse_drive->UpdateParent(file_context.get(), full_path.parent_path());
-        LOG(kInfo) << "After Update Parent - ";
-      }
-      catch (const std::exception& e) {
-        LOG(kError) << "Release: " << path << ", failed to update.  " << e.what();
-        return -EBADF;
-      }
-      catch (...) {
-        assert(false);  // Should only be throwing std::exceptions.
-      }
-    }
+  try {
+    Global<Storage>::g_fuse_drive->Release(path);
   }
-
+  catch (const std::exception& e) {
+    LOG(kError) << "Release: " << path << ": " << e.what();
+    return -EBADF;
+  }
   return 0;
 }
 

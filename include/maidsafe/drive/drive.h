@@ -47,11 +47,6 @@ namespace drive {
 template <typename Storage>
 class Drive {
  public:
-  //typedef detail::FileContext<Storage> FileContext;
-  //typedef FileContext* FileContextPtr;
-  //typedef detail::DirectoryHandler<Storage> DirectoryHandler;
-  //typedef detail::Directory Directory;
-
   Drive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
         const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
         const boost::filesystem::path& user_app_dir, bool create = false);
@@ -86,6 +81,7 @@ class Drive {
   void Create(const boost::filesystem::path& relative_path, detail::FileContext&& file_context);
   void Open(const boost::filesystem::path& relative_path);
   void Flush(const boost::filesystem::path& relative_path);
+  void Release(const boost::filesystem::path& relative_path);
 
 
 
@@ -105,7 +101,8 @@ class Drive {
   typedef detail::FileContext::Buffer Buffer;
   void InitialiseEncryptor(const boost::filesystem::path& relative_path,
                            detail::FileContext& file_context) const;
-  FileContext* GetContext(const boost::filesystem::path& relative_path) const;
+  bool FlushEncryptor(detail::FileContext* file_context);
+  detail::FileContext* GetContext(const boost::filesystem::path& relative_path) const;
 
 
 
@@ -177,9 +174,31 @@ void Drive<Storage>::InitialiseEncryptor(const boost::filesystem::path& relative
 }
 
 template <typename Storage>
-FileContext* Drive<Storage>::GetContext(const boost::filesystem::path& relative_path) const {
+bool Drive<Storage>::FlushEncryptor(detail::FileContext* file_context) {
+  assert(file_context->self_encryptor);
+  if (!file_context->self_encryptor->Flush())
+    return false;
+  for (const auto& chunk : file_context->meta_data.data_map.chunks) {
+    auto content(file_context->buffer->Get(chunk.hash));
+    storage_->Put(ImmutableData(content));
+  }
+  if (file_context->open_count == 0) {
+    file_context->self_encryptor.reset();
+    file_context->buffer.reset();
+  }
+}
+
+template <typename Storage>
+detail::FileContext* Drive<Storage>::GetContext(
+    const boost::filesystem::path& relative_path) const {
   Directory* parent(directory_handler_.Get(relative_path.parent_path()));
-  return parent->GetChild(relative_path.filename());
+  auto file_context(parent->GetChild(relative_path.filename()));
+  // The open_count must be >=0.  If 0, the buffer and encryptor should be null.  If > 0 and the
+  // context doesn't represent a directory, the buffer and encryptor should be non-null.
+  assert(file_context->open_count == 0 ? (!file_context->buffer && !file_context->self_encryptor) :
+         (file_context->open_count > 0 && (file_context.meta_data.directory_id ||
+             (file_context->buffer && file_context->self_encryptor))));
+  return file_context;
 }
 
 template <typename Storage>
@@ -187,12 +206,14 @@ void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
                             detail::FileContext&& file_context) {
   if (!file_context.meta_data.directory_id)
     InitialiseEncryptor(relative_path, file_context);
+  file_context.open_count = 1;
   directory_handler_.Add(relative_path, std::move(file_context));
 }
 
 template <typename Storage>
 void Drive<Storage>::Open(const boost::filesystem::path& relative_path) {
   auto file_context(GetContext(relative_path));
+  ++file_context->open_count;
   if (!file_context->meta_data.directory_id && !file_context->self_encryptor)
     InitialiseEncryptor(relative_path, *file_context);
 }
@@ -200,13 +221,21 @@ void Drive<Storage>::Open(const boost::filesystem::path& relative_path) {
 template <typename Storage>
 void Drive<Storage>::Flush(const boost::filesystem::path& relative_path) {
   auto file_context(GetContext(relative_path));
-  if (file_context->self_encryptor && !file_context->self_encryptor->Flush()) {
+  if (file_context->self_encryptor && !FlushEncryptor(file_context)) {
     LOG(kError) << "Failed to flush " << relative_path;
     ThrowError(CommonErrors::unknown);
   }
   directory_handler_.PutVersion(relative_path.parent_path());
 }
 
+template <typename Storage>
+void Drive<Storage>::Release(const boost::filesystem::path& relative_path) {
+  auto file_context(GetContext(relative_path));
+  --file_context->open_count;
+  if (file_context->self_encryptor && !FlushEncryptor(file_context))
+    LOG(kError) << "Failed to flush " << relative_path << " during Release";
+  directory_handler_.PutVersion(relative_path.parent_path());
+}
 
 
 
@@ -247,7 +276,7 @@ void Drive<Storage>::InsertDataMap(const boost::filesystem::path& relative_path,
   if (relative_path.empty())
     ThrowError(CommonErrors::invalid_parameter);
 
-  FileContext file_context(relative_path.filename(), false);
+  detail::FileContext file_context(relative_path.filename(), false);
   encrypt::ParseDataMap(serialised_data_map, *file_context.meta_data->data_map);
   SetNewAttributes(&file_context, false, false);
   Add(relative_path, file_context);
@@ -259,17 +288,6 @@ template <typename Storage>
 typename Drive<Storage>::Directory Drive<Storage>::GetDirectory(
     const boost::filesystem::path& relative_path) {
   return directory_handler_.Get(relative_path);
-}
-
-template <typename Storage>
-typename Drive<Storage>::FileContext Drive<Storage>::GetFileContext(
-    const boost::filesystem::path& relative_path) {
-  FileContext file_context;
-  Directory parent(directory_handler_.Get(relative_path.parent_path()));
-  parent.listing->GetChild(relative_path.filename(), *file_context.meta_data);
-  file_context.grandparent_directory_id = parent.parent_id;
-  file_context.parent_directory_id = parent.listing->directory_id();
-  return file_context;
 }
 
 template <typename Storage>
@@ -297,7 +315,7 @@ std::string Drive<Storage>::ReadDataMap(const boost::filesystem::path& relative_
   if (relative_path.empty())
     ThrowError(CommonErrors::invalid_parameter);
 
-  FileContext file_context(GetFileContext(relative_path));
+  detail::FileContext file_context(GetFileContext(relative_path));
 
   if (!file_context.meta_data->data_map)
     ThrowError(CommonErrors::invalid_parameter);

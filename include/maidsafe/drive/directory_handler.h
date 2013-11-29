@@ -573,12 +573,14 @@ void DirectoryHandler<Storage>::HandleDataPoppedFromBuffer(
     const NonEmptyString& content) const {
   // NOTE, This will be executed on a different thread to the one writing to the encryptor which has
   // triggered this call.  We therefore can't safely access any non-threadsafe class members here.
-  LOG(kWarning) << "Data has been popped from the buffer for " << relative_path;
+  LOG(kWarning) << "Chunk " << HexSubstr(name) << " has been popped from the buffer for "
+                << relative_path;
   // TODO(Fraser#5#): 2013-11-27 - Handle mutex-protecting the file_contexts, so we can log that
   // we're storing this chunk to the network.  If it's only a temporary chunk (i.e. it's not still
   // listed in the datamap when we get the next flush/close call), we should delete it from the
   // network again.
-  ImmutableData data(ImmutableData::Name(Identity(name)), ImmutableData::serialised_type(content));
+  ImmutableData data(content);
+  assert(data.name().value().string() == name);
   storage_->Put(data);
 }
 
