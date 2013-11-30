@@ -500,7 +500,7 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
 template <typename Storage>
 void DirectoryHandler<Storage>::Put(const Directory& directory,
                                     const boost::filesystem::path& relative_path) {
-  if (!directory.contents_changed())
+  if (!directory.contents_changed_)
     return;
 
   std::string serialised_directory_listing(directory.listing->Serialise());

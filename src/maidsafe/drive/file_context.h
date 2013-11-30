@@ -36,12 +36,14 @@ namespace drive {
 
 namespace detail {
 
+class Directory;
+
 struct FileContext {
   typedef data_store::DataBuffer<std::string> Buffer;
 
   FileContext();
   FileContext(FileContext&& other);
-  explicit FileContext(MetaData meta_data_in);
+  FileContext(MetaData meta_data_in, Directory* parent_in);
   FileContext(const boost::filesystem::path& name, bool is_directory);
   FileContext& operator=(FileContext other);
 
@@ -49,6 +51,7 @@ struct FileContext {
   std::unique_ptr<Buffer> buffer;
   std::unique_ptr<encrypt::SelfEncryptor> self_encryptor;
   int open_count;
+  Directory* parent;
 };
 
 void swap(FileContext& lhs, FileContext& rhs) MAIDSAFE_NOEXCEPT;

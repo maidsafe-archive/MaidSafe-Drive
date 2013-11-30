@@ -133,8 +133,8 @@ class CbfsDrive : public Drive<Storage> {
   static void CbFsGetFileInfo(CallbackFileSystem* sender, LPCTSTR file_name, LPBOOL file_exists,
                               PFILETIME creation_time, PFILETIME last_access_time,
                               PFILETIME last_write_time, __int64* end_of_file,
-                              __int64* allocation_size, __int64* file_id, PDWORD file_attributes,
-                              LPWSTR short_file_name OPTIONAL,
+                              __int64* allocation_size, __int64* file_id OPTIONAL,
+                              PDWORD file_attributes, LPWSTR short_file_name OPTIONAL,
                               PWORD short_file_name_length OPTIONAL,
                               LPWSTR real_file_name OPTIONAL,
                               LPWORD real_file_name_length OPTIONAL);
@@ -144,7 +144,8 @@ class CbfsDrive : public Drive<Storage> {
       BOOL restart, LPBOOL file_found, LPWSTR file_name, PDWORD file_name_length,
       LPWSTR short_file_name OPTIONAL, PUCHAR short_file_name_length OPTIONAL,
       PFILETIME creation_time, PFILETIME last_access_time, PFILETIME last_write_time,
-      __int64* end_of_file, __int64* allocation_size, __int64* file_id, PDWORD file_attributes);
+      __int64* end_of_file, __int64* allocation_size, __int64* file_id OPTIONAL,
+      PDWORD file_attributes);
   static void CbFsCloseDirectoryEnumeration(CallbackFileSystem* sender,
                                             CbFsFileInfo* directory_info,
                                             CbFsDirectoryEnumerationInfo* enumeration_info);
@@ -667,7 +668,7 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
     auto cbfs_drive(GetDrive(sender));
     file_context = cbfs_drive->GetContext(relative_path);
   }
-  catch (const std::exception& e) {
+  catch (const std::exception&) {
     *file_exists = false;
     *file_attributes = 0xFFFFFFFF;
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -689,6 +690,41 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
   *real_file_name_length = file_context->meta_data.name.wstring().size();
 }
 
+// Quote from CBFS documentation:
+//
+// This event is fired when the OS wants to enumerate the directory entries by mask.
+//
+// The mask can (but not necessarily does) include wildcard characters ("*" and "?") and any
+// characters, allowed in file names, in any combination. Eg. you can recieve masks like
+// "smth?*.abc?e?*" and other complex combinations.
+//
+// The application must report information about the entry (file, directory, link) in the directory
+// specified by DirectoryInfo. If the entry is present, FileFound must be set to true and the
+// information about the entry must be included. If the entry is not present, FileFound must be set
+// to false.
+//
+// Time-related parameters (CreationTime, LastAccessTime, LastWriteTime) are in UTC timezone.
+//
+// This event can be fired in some other cases, such as when the application uses FindFirstFile with
+// file name (i.e. no wildcards in Mask) to get information provided about the file during
+// enumeration or even before opening the file. So you must be ready to handle any mask (and just a
+// file name without wildcard characters), and not just "*" or "*.*".
+//
+// Context in EnumerationInfo can be used to store information, which speeds up subsequent
+// enumeration calls. The application can use this context to store the reference to some
+// information, identifying the search (such as directory handle or database record ID etc). The
+// value, set in the event handler, is later passed to all operations, related to this enumeration,
+// i.e. subsequent calls to OnEnumerateDirectory and OnCloseEnumeration event handlers.
+//
+// The entry to be reported is identified by the data that the application stores in Enumeration
+// Context. It is the application's job to track what entry it needs to report next.
+//
+// If you have enabled short file name support, your callback can receive a short directory name in
+// DirectoryInfo. Also if you support short file names, you should provide the short file name via
+// ShortFileName parameter. To speed-up operations (save one string length measurement) CBFS doesn't
+// measure the length of the passed short file name (you will know it when putting it to
+// ShortFileName) so your code must put the length of the passed short file name into
+// ShortFileNameLength.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     CallbackFileSystem* sender, CbFsFileInfo* directory_info, CbFsHandleInfo* /*handle_info*/,
@@ -696,7 +732,8 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     BOOL restart, LPBOOL file_found, LPWSTR file_name, PDWORD file_name_length,
     LPWSTR /*short_file_name*/ OPTIONAL, PUCHAR /*short_file_name_length*/ OPTIONAL,
     PFILETIME creation_time, PFILETIME last_access_time, PFILETIME last_write_time,
-    __int64* end_of_file, __int64* allocation_size, __int64* file_id, PDWORD file_attributes) {
+    __int64* end_of_file, __int64* allocation_size, __int64* file_id OPTIONAL,
+    PDWORD file_attributes) {
   SCOPED_PROFILE
   auto cbfs_drive(GetDrive(sender));
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, directory_info));
@@ -756,12 +793,15 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     *last_write_time = meta_data.last_write_time;
     *end_of_file = meta_data.end_of_file;
     *allocation_size = meta_data.allocation_size;
-    *file_id = 0;
     *file_attributes = meta_data.attributes;
   }
   enum_context->exact_match = exact_match;
 }
 
+// Quote from CBFS documentation:
+//
+// This event is fired when the OS has finished enumerating the directory contents and requests the
+// resources, allocated for enumeration, to be released.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsCloseDirectoryEnumeration(
     CallbackFileSystem* sender, CbFsFileInfo* directory_info,
@@ -779,6 +819,14 @@ void CbfsDrive<Storage>::CbFsCloseDirectoryEnumeration(
   }
 }
 
+// Quote from CBFS documentation:
+//
+// This event is fired when the OS or the application needs to set the allocation size of the file.
+//
+// AllocationSize is usually larger (and much larger) than the size of the file data. This happens
+// because some file operations first reserve space for the file, then start writing actual data to
+// this file. The application should track such situations and avoid re-allocating file space where
+// possible to improve speed.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsSetAllocationSize(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                                int64_t allocation_size) {
@@ -787,22 +835,29 @@ void CbfsDrive<Storage>::CbFsSetAllocationSize(CallbackFileSystem* sender, CbFsF
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsSetAllocationSize - " << relative_path << " to " << allocation_size
              << " bytes.";
-  if (!file_info->get_UserContext())
-    return;
-
-  FileContextPtr file_context(static_cast<FileContextPtr>(file_info->get_UserContext()));
-  if (file_context->meta_data.allocation_size == file_context->meta_data.end_of_file)
-    return;
-
-  if (cbfs_drive->TruncateFile(file_context, allocation_size)) {
+  try {
+    auto file_context(cbfs_drive->GetContext(relative_path));
     file_context->meta_data.allocation_size = allocation_size;
-    if (!file_context->self_encryptor->Flush()) {
-      LOG(kError) << "CbFsSetAllocationSize: " << relative_path << ", failed to flush";
-    }
+    file_context->parent->contents_changed_ = true;
   }
-  file_context->content_changed = true;
+  catch (const std::exception&) {
+    throw ECBFSError(ERROR_FILE_NOT_FOUND);
+  }
+  //if (file_context->meta_data.allocation_size == file_context->meta_data.end_of_file)
+  //  return;
+
+  //if (cbfs_drive->TruncateFile(file_context, allocation_size)) {
+  //  file_context->meta_data.allocation_size = allocation_size;
+  //  if (!file_context->self_encryptor->Flush()) {
+  //    LOG(kError) << "CbFsSetAllocationSize: " << relative_path << ", failed to flush";
+  //  }
+  //}
+  //file_context->content_changed = true;
 }
 
+// Quote from CBFS documentation:
+//
+// This event is fired when the OS or the application needs to change the size of the open file.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                           int64_t end_of_file) {
@@ -810,24 +865,30 @@ void CbfsDrive<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileIn
   auto cbfs_drive(GetDrive(sender));
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsSetEndOfFile - " << relative_path << " to " << end_of_file << " bytes.";
-  if (!file_info->get_UserContext())
-    return;
-
-  FileContextPtr file_context(static_cast<FileContextPtr>(file_info->get_UserContext()));
-  if (cbfs_drive->TruncateFile(file_context, end_of_file)) {
+  try {
+    auto file_context(cbfs_drive->GetContext(relative_path));
+    assert(file_context->self_encryptor);
+    file_context->self_encryptor->Truncate(end_of_file);
     file_context->meta_data.end_of_file = end_of_file;
-    if (!file_context->self_encryptor->Flush()) {
-      LOG(kError) << "CbFsSetEndOfFile: " << relative_path << ", failed to flush";
-    }
-  } else {
-    LOG(kError) << "Truncate failed for " << file_context->meta_data.name;
+    file_context->parent->contents_changed_ = true;
   }
+  catch (const std::exception&) {
+    throw ECBFSError(ERROR_FILE_NOT_FOUND);
+  }
+  //if (cbfs_drive->TruncateFile(file_context, end_of_file)) {
+  //  file_context->meta_data.end_of_file = end_of_file;
+  //  if (!file_context->self_encryptor->Flush()) {
+  //    LOG(kError) << "CbFsSetEndOfFile: " << relative_path << ", failed to flush";
+  //  }
+  //} else {
+  //  LOG(kError) << "Truncate failed for " << file_context->meta_data.name;
+  //}
 
-  if (file_context->meta_data.allocation_size == static_cast<uint64_t>(end_of_file))
-    return;
+  //if (file_context->meta_data.allocation_size == static_cast<uint64_t>(end_of_file))
+  //  return;
 
-  file_context->meta_data.allocation_size = end_of_file;
-  file_context->content_changed = true;
+  //file_context->meta_data.allocation_size = end_of_file;
+  //file_context->content_changed = true;
 }
 
 template <typename Storage>
@@ -970,6 +1031,8 @@ void CbfsDrive<Storage>::CbFsIsDirectoryEmpty(CallbackFileSystem* sender,
   }
 }
 
+// Quote from CBFS documentation:
+//
 // This event is fired when the OS tells the file system, that file buffers (incuding all possible
 // metadata) must be flushed and written to the backend storage. FileInfo contains information about
 // the file to be flushed. If FileInfo is empty, your code should attempt to flush everything

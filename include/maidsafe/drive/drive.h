@@ -91,7 +91,6 @@ class Drive {
 
 
   void UpdateParent(FileContextPtr file_context, const boost::filesystem::path& parent_path);
-  bool TruncateFile(FileContextPtr file_context, const uint64_t& size);
 
   DirectoryHandler directory_handler_;
   std::shared_ptr<Storage> storage_;
@@ -204,18 +203,21 @@ detail::FileContext* Drive<Storage>::GetContext(
 template <typename Storage>
 void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
                             detail::FileContext&& file_context) {
-  if (!file_context.meta_data.directory_id)
+  if (!file_context.meta_data.directory_id) {
     InitialiseEncryptor(relative_path, file_context);
-  file_context.open_count = 1;
+    file_context.open_count = 1;
+  }
   directory_handler_.Add(relative_path, std::move(file_context));
 }
 
 template <typename Storage>
 void Drive<Storage>::Open(const boost::filesystem::path& relative_path) {
   auto file_context(GetContext(relative_path));
-  ++file_context->open_count;
-  if (!file_context->meta_data.directory_id && !file_context->self_encryptor)
-    InitialiseEncryptor(relative_path, *file_context);
+  if (!file_context->meta_data.directory_id) {
+    ++file_context->open_count;
+    if (!file_context->self_encryptor)
+      InitialiseEncryptor(relative_path, *file_context);
+  }
 }
 
 template <typename Storage>
@@ -294,19 +296,6 @@ template <typename Storage>
 void Drive<Storage>::UpdateParent(FileContextPtr file_context,
                                   const boost::filesystem::path& parent_path) {
   directory_handler_.UpdateParent(parent_path, *file_context->meta_data);
-}
-
-template <typename Storage>
-bool Drive<Storage>::TruncateFile(FileContextPtr file_context, const uint64_t& size) {
-  if (!file_context->self_encryptor) {
-    file_context->self_encryptor.reset(
-        new SelfEncryptor(file_context->meta_data->data_map, *storage_));
-  }
-  bool result = file_context->self_encryptor->Truncate(size);
-  if (result) {
-    file_context->content_changed = true;
-  }
-  return result;
 }
 
 template <typename Storage>

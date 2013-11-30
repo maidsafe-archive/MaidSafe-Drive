@@ -68,7 +68,7 @@ class Directory {
   DirectoryId directory_id() const { return directory_id_; }
   // This is true if any child has been added, removed or had its metadata changed.  It is false on
   // construction and is set false by a call to Serialise().
-  bool contents_changed() const { return contents_changed_; }
+  bool contents_changed_;
 
   friend void swap(Directory& lhs, Directory& rhs) MAIDSAFE_NOEXCEPT;
   friend void test::DirectoriesMatch(const Directory& lhs, const Directory& rhs);
@@ -85,7 +85,6 @@ class Directory {
   MaxVersions max_versions_;
   std::vector<FileContext> children_;
   size_t children_itr_position_;
-  bool contents_changed_;
 };
 
 bool operator<(const Directory& lhs, const Directory& rhs);

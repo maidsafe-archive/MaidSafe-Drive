@@ -72,7 +72,7 @@ Directory::Directory(ParentId parent_id, const std::string& serialised_directory
   max_versions_ = MaxVersions(proto_directory.max_versions());
 
   for (int i(0); i != proto_directory.children_size(); ++i)
-    children_.emplace_back(MetaData(proto_directory.children(i)));
+    children_.emplace_back(MetaData(proto_directory.children(i)), this);
   std::sort(std::begin(children_), std::end(children_));
 }
 
@@ -126,6 +126,7 @@ void Directory::AddChild(FileContext&& child) {
   auto itr(Find(child.meta_data.name));
   if (itr != std::end(children_))
     ThrowError(DriveErrors::file_exists);
+  child.parent = this;
   children_.emplace_back(std::move(child));
   SortAndResetChildrenIterator();
   contents_changed_ = true;

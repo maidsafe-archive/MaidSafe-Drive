@@ -184,6 +184,7 @@ class FuseDrive : public Drive<Storage> {
 
   static int GetAttributes(const char* path, struct stat* stbuf);
   static int Release(const char* path, struct fuse_file_info* file_info);
+  static int Truncate(const char* path, off_t size);
   virtual void SetNewAttributes(detail::FileContext<Storage>* file_context, bool is_directory,
                                 bool read_only);
 
@@ -224,7 +225,7 @@ FuseDrive<Storage>::~FuseDrive() {
 template <typename Storage>
 void FuseDrive<Storage>::Init() {
   Global<Storage>::g_fuse_drive = this;
-  maidsafe_ops_.access = OpsAccess;
+//  maidsafe_ops_.access = OpsAccess;
   maidsafe_ops_.chmod = OpsChmod;
   maidsafe_ops_.chown = OpsChown;
   maidsafe_ops_.create = OpsCreate;
@@ -284,7 +285,7 @@ void FuseDrive<Storage>::Mount() {
   // NB - If we remove -odefault_permissions, we must check in OpsOpen
   //      that the operation is permitted for the given flags.  We also need to
   //      implement OpsAccess.
-  // fuse_opt_add_arg(&args, "-odefault_permissions,kernel_cache,direct_io");
+  fuse_opt_add_arg(&args, "-odefault_permissions,kernel_cache,direct_io");
 #ifndef NDEBUG
   // fuse_opt_add_arg(&args, "-d");  // print debug info
   // fuse_opt_add_arg(&args, "-f");  // run in foreground
@@ -362,6 +363,13 @@ void FuseDrive<Storage>::Mount() {
 }
 
 // =============================== Callbacks =======================================================
+
+// Quote from FUSE documentation:
+//
+// Check file access permissions.
+//
+// This will be called for the access() system call.  If the 'default_permissions' mount option is
+// given, this method is not called.
 template <typename Storage>
 int FuseDrive<Storage>::OpsAccess(const char* /*path*/, int /* mask */) {
   return 0;
@@ -442,6 +450,11 @@ int FuseDrive<Storage>::OpsCreate(const char* path, mode_t mode, struct fuse_fil
   return CreateNew(path, mode);
 }
 
+// Quote from FUSE documentation:
+//
+// Clean up filesystem.
+//
+// Called on filesystem exit.
 template <typename Storage>
 void FuseDrive<Storage>::OpsDestroy(void* /*fuse*/) {
   LOG(kInfo) << "OpsDestroy";
@@ -518,6 +531,12 @@ int FuseDrive<Storage>::OpsFsync(const char* path, int /*isdatasync*/,
   return 0;
 }
 
+// Quote from FUSE documentation:
+//
+// Synchronize directory contents.
+//
+// If the datasync parameter is non-zero, then only the user data should be flushed, not the meta
+// data
 template <typename Storage>
 int FuseDrive<Storage>::OpsFsyncDir(const char* path, int /*isdatasync*/,
                                     struct fuse_file_info* file_info) {
@@ -538,25 +557,20 @@ int FuseDrive<Storage>::OpsFsyncDir(const char* path, int /*isdatasync*/,
   return 0;
 }
 
+// Quote from FUSE documentation:
+//
+// Change the size of an open file.
+//
+// This method is called instead of the truncate() method if the truncation was invoked from an
+// ftruncate() system call.
+//
+// If this method is not implemented or under Linux kernel versions earlier than 2.6.15, the
+// truncate() method will be called instead.
 template <typename Storage>
 int FuseDrive<Storage>::OpsFtruncate(const char* path, off_t size,
-                                     struct fuse_file_info* file_info) {
+                                     struct fuse_file_info* /*file_info*/) {
   LOG(kInfo) << "OpsFtruncate: " << path << ", size: " << size;
-  detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
-  if (!file_context)
-    return -EINVAL;
-
-  if (Global<Storage>::g_fuse_drive->TruncateFile(file_context, size)) {
-    file_context->meta_data->attributes.st_size = size;
-    time(&file_context->meta_data->attributes.st_mtime);
-    file_context->meta_data->attributes.st_ctime = file_context->meta_data->attributes.st_atime =
-        file_context->meta_data->attributes.st_mtime;
-    //    Update(Global<Storage>::g_fuse_drive->directory_handler_, file_context, false, false);
-    if (!file_context->self_encryptor->Flush()) {
-      LOG(kInfo) << "OpsFtruncate: " << path << ", failed to flush";
-    }
-  }
-  return 0;
+  return Truncate(path, size);
 }
 
 // Quote from FUSE documentation:
@@ -669,41 +683,39 @@ int FuseDrive<Storage>::OpsOpen(const char* path, struct fuse_file_info* file_in
     return -ENOENT;
   }
 
+  // Safe to allow the kernel to cache the file assuming it doesn't change "spontaneously".  For us,
+  // that presumably can happen on files which are part of a share, or if a user has >1 client
+  // instance, each with this file open.  To handle this, we need to either avoid allowing the
+  // kernel caching (set 'file_info->keep_cache' to 0), or preferrably use the low-level FUSE
+  // interface and if a file changes in the background, call fuse_lowlevel_notify_inval_inode().
+  // See http://fuse.996288.n3.nabble.com/fuse-file-info-keep-cache-usage-guidelines-td5130.html
+  file_info->keep_cache = 1;
+
   return 0;
 }
 
+// Quote from FUSE documentation:
+//
+// Open directory.
+//
+// Unless the 'default_permissions' mount option is given, this method should check if opendir is
+// permitted for this directory. Optionally opendir may also return an arbitrary filehandle in the
+// fuse_file_info structure, which will be passed to readdir, closedir and fsyncdir.
 template <typename Storage>
 int FuseDrive<Storage>::OpsOpendir(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsOpendir: " << path << ", flags: " << file_info->flags << ", keep_cache: "
              << file_info->keep_cache << ", direct_io: " << file_info->direct_io;
-
-  std::unique_ptr<detail::FileContext<Storage>> file_context(
-      detail::RecoverFileContext<Storage>(file_info));
-  if (file_context) {
-    file_context.release();
-    return 0;
-  }
-
-  file_info->keep_cache = 1;
-  fs::path full_path(path);
-  //  assert(file_info->flags & O_DIRECTORY);
   if (file_info->flags & O_NOFOLLOW) {
     LOG(kError) << "OpsOpendir: " << path << " is a symlink.";
     return -ELOOP;
   }
-
   try {
-    file_context.reset(
-        new detail::FileContext<Storage>(Global<Storage>::g_fuse_drive->GetFileContext(full_path)));
+    Global<Storage>::g_fuse_drive->Open(path);
   }
-  catch (...) {
-    LOG(kError) << "OpsOpendir: " << path << ", failed to GetMetaData.";
+  catch (const std::exception& e) {
+    LOG(kError) << "OpsOpen: " << fs::path(path) << ": " << e.what();
     return -ENOENT;
   }
-
-  // Transfer ownership of the pointer to fuse's file_info.
-  detail::SetFileContext(file_info, file_context.get());
-  file_context.release();
   return 0;
 }
 
@@ -770,6 +782,18 @@ int FuseDrive<Storage>::OpsRead(const char* path, char* buf, size_t size, off_t 
   return bytes_read;
 }
 
+// Quote from FUSE documentation:
+//
+// Read directory.
+// The filesystem may choose between two modes of operation:
+//
+// 1) The readdir implementation ignores the offset parameter, and passes zero to the filler
+// function's offset.  The filler function will not return '1' (unless an error happens), so the
+// whole directory is read in a single readdir operation.
+//
+// 2) The readdir implementation keeps track of the offsets of the directory entries.  It uses the
+// offset parameter and always passes non-zero offset to the filler function.  When the buffer is
+// full (or an error happens) the filler function will return '1'.
 template <typename Storage>
 int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t filler,
                                    off_t offset, struct fuse_file_info* file_info) {
@@ -986,28 +1010,13 @@ int FuseDrive<Storage>::OpsSymlink(const char* to, const char* from) {
 }
 */
 
+// Quote from FUSE documentation:
+//
+// Change the size of a file.
 template <typename Storage>
 int FuseDrive<Storage>::OpsTruncate(const char* path, off_t size) {
   LOG(kInfo) << "OpsTruncate: " << path << ", size: " << size;
-  try {
-    fs::path full_path(path);
-    auto file_context(Global<Storage>::g_fuse_drive->GetFileContext(full_path));
-    if (Global<Storage>::g_fuse_drive->TruncateFile(&file_context, size)) {
-      file_context.meta_data->attributes.st_size = size;
-      time(&file_context.meta_data->attributes.st_mtime);
-      file_context.meta_data->attributes.st_ctime = file_context.meta_data->attributes.st_atime =
-          file_context.meta_data->attributes.st_mtime;
-      Global<Storage>::g_fuse_drive->UpdateParent(&file_context, full_path.parent_path());
-    } else {
-      ThrowError(CommonErrors::invalid_parameter);
-    }
-  }
-  catch (...) {
-    LOG(kWarning) << "OpsTruncate: " << path << ", failed to locate file.";
-    return -ENOENT;
-  }
-
-  return 0;
+  return Truncate(path, size);
 }
 
 template <typename Storage>
@@ -1221,6 +1230,25 @@ int FuseDrive<Storage>::Release(const char* path, struct fuse_file_info* file_in
   catch (const std::exception& e) {
     LOG(kError) << "Release: " << path << ": " << e.what();
     return -EBADF;
+  }
+  return 0;
+}
+
+template <typename Storage>
+int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
+  try {
+    auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
+    assert(file_context->self_encryptor);
+    file_context->self_encryptor->Truncate(size);
+    file_context.meta_data->attributes.st_size = size;
+    time(&file_context.meta_data->attributes.st_mtime);
+    file_context.meta_data->attributes.st_ctime = file_context.meta_data->attributes.st_atime =
+        file_context.meta_data->attributes.st_mtime;
+    file_context->parent->contents_changed_ = true;
+  }
+  catch (const std::exception& e) {
+    LOG(kWarning) << "Failed to truncate " << path << ": " << e.what();
+    return -ENOENT;
   }
   return 0;
 }
