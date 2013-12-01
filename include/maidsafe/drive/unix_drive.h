@@ -185,8 +185,6 @@ class FuseDrive : public Drive<Storage> {
   static int GetAttributes(const char* path, struct stat* stbuf);
   static int Release(const char* path, struct fuse_file_info* file_info);
   static int Truncate(const char* path, off_t size);
-  virtual void SetNewAttributes(detail::FileContext<Storage>* file_context, bool is_directory,
-                                bool read_only);
 
   static struct fuse_operations maidsafe_ops_;
   struct fuse* fuse_;
@@ -375,63 +373,47 @@ int FuseDrive<Storage>::OpsAccess(const char* /*path*/, int /* mask */) {
   return 0;
 }
 
+// Quote from FUSE documentation:
+//
+// Change the permission bits of a file.
 template <typename Storage>
 int FuseDrive<Storage>::OpsChmod(const char* path, mode_t mode) {
   LOG(kInfo) << "OpsChmod: " << path << ", to " << std::oct << mode;
-  detail::FileContext<Storage> file_context;
   try {
-    file_context =
-        detail::FileContext<Storage>(Global<Storage>::g_fuse_drive->GetFileContext(path));
+    auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
+    file_context->meta_data->attributes.st_mode = mode;
+    time(&file_context->meta_data->attributes.st_ctime);
+    file_context->parent->contents_changed_ = true;
   }
-  catch (...) {
-    LOG(kError) << "OpsChmod: " << path << ", can't get meta data.";
+  catch (const std::exception& e) {
+    LOG(kWarning) << "Failed to chmod " << path << ": " << e.what();
     return -ENOENT;
   }
-
-  file_context.meta_data->attributes.st_mode = mode;
-  time(&file_context.meta_data->attributes.st_ctime);
-  file_context.content_changed = true;
-  //  int result(Update(Global<Storage>::g_fuse_drive->directory_handler_, &file_context,
-  //                    false, true));
-  //  if (result != kSuccess) {
-  //    LOG(kError) << "OpsChmod: " << path << ", fail to update parent "
-  //                << "dir.  Result: " << result;
-  //    return -EBADF;
-  //  }
   return 0;
 }
 
+// Quote from FUSE documentation:
+//
+// Change the owner and group of a file.
 template <typename Storage>
 int FuseDrive<Storage>::OpsChown(const char* path, uid_t uid, gid_t gid) {
   LOG(kInfo) << "OpsChown: " << path;
-  detail::FileContext<Storage> file_context;
+  bool change_uid(uid != static_cast<uid_t>(-1));
+  bool change_gid(gid != static_cast<gid_t>(-1));
+  if (!change_uid && !change_gid)
+    return 0;
   try {
-    file_context = Global<Storage>::g_fuse_drive->GetFileContext(path);
+    auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
+    if (change_uid)
+      file_context->meta_data->attributes.st_uid = uid;
+    if (change_gid)
+      file_context->meta_data->attributes.st_gid = gid;
+    time(&file_context->meta_data->attributes.st_ctime);
+    file_context->parent->contents_changed_ = true;
   }
-  catch (...) {
-    LOG(kError) << "OpsChown: " << path << ", can't get meta data.";
+  catch (const std::exception& e) {
+    LOG(kWarning) << "Failed to chown " << path << ": " << e.what();
     return -ENOENT;
-  }
-
-  bool changed(false);
-  if (uid != static_cast<uid_t>(-1)) {
-    file_context.meta_data->attributes.st_uid = uid;
-    changed = true;
-  }
-  if (gid != static_cast<gid_t>(-1)) {
-    file_context.meta_data->attributes.st_gid = gid;
-    changed = true;
-  }
-  if (changed) {
-    time(&file_context.meta_data->attributes.st_ctime);
-    file_context.content_changed = true;
-    //    int result(Update(Global<Storage>::g_fuse_drive->directory_handler_, &file_context,
-    //                      false, true));
-    //    if (result != kSuccess) {
-    //      LOG(kError) << "OpsChown: " << path << ", failed to update parent " << "dir: " <<
-    // result;
-    //      return -EIO;
-    //    }
   }
   return 0;
 }
@@ -586,6 +568,9 @@ int FuseDrive<Storage>::OpsGetattr(const char* path, struct stat* stbuf) {
 }
 
 /*
+// Quote from FUSE documentation:
+//
+// Create a hard link to a file.
 template <typename Storage>
 int FuseDrive<Storage>::OpsLink(const char* to, const char* from) {
   LOG(kInfo) << "OpsLink: " << from << " --> " << to;
@@ -837,9 +822,9 @@ int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t /*size*/
   LOG(kInfo) << "OpsReadlink: " << path;
   try {
     auto file_context(Global<Storage>::g_fuse_drive->GetFileContext(path));
-    if (S_ISLNK(file_context.meta_data->attributes.st_mode)) {
-      snprintf(buf, file_context.meta_data->link_to.string().size() + 1, "%s",
-               file_context.meta_data->link_to.string().c_str());
+    if (S_ISLNK(file_context->meta_data->attributes.st_mode)) {
+      snprintf(buf, file_context->meta_data->link_to.string().size() + 1, "%s",
+               file_context->meta_data->link_to.string().c_str());
     } else {
       LOG(kError) << "OpsReadlink " << path << ", no link returned.";
       return -EINVAL;
@@ -917,24 +902,16 @@ int FuseDrive<Storage>::OpsRename(const char* old_name, const char* new_name) {
   return 0;
 }
 
+// Quote from FUSE documentation:
+//
+// Remove a directory.
 template <typename Storage>
 int FuseDrive<Storage>::OpsRmdir(const char* path) {
   LOG(kInfo) << "OpsRmdir: " << path;
-
-  // try {
-  //  fs::path full_path(path);
-  //  Global<Storage>::g_fuse_drive->GetFileContext(full_path);
-  // } catch(...) {
-  //  LOG(kError) << "OpsRmdir " << full_path << ", failed to get data for the item.";
-  //  return -ENOENT;
-  // }
-
   try {
     Global<Storage>::g_fuse_drive->Delete(path);
   }
-  catch (...) {
-    LOG(kError) << "OpsRmdir: " << path << ", failed MaidSafeDelete.  ";
-    //     return -ENOTEMPTY;
+  catch (const std::exception&) {
     return -EIO;
   }
   return 0;
@@ -1019,73 +996,66 @@ int FuseDrive<Storage>::OpsTruncate(const char* path, off_t size) {
   return Truncate(path, size);
 }
 
+// Quote from FUSE documentation:
+//
+// Remove a file.
 template <typename Storage>
 int FuseDrive<Storage>::OpsUnlink(const char* path) {
   LOG(kInfo) << "OpsUnlink: " << path;
-  // try {
-  //  fs::path full_path(path);
-  //  Global<Storage>::g_fuse_drive->GetFileContext(full_path);
-  // } catch(...) {
-  //  LOG(kError) << "OpsUnlink " << full_path << ", failed to get parent data for the item.";
-  //  return -ENOENT;
-  // }
-
   try {
     Global<Storage>::g_fuse_drive->Delete(path);
   }
-  catch (...) {
-    LOG(kError) << "OpsUnlink: " << path << ", failed MaidSafeDelete.  ";
+  catch (const std::exception&) {
     return -EIO;
   }
-
   return 0;
 }
 
+// Quote from FUSE documentation:
+//
+// Change the access and modification times of a file with nanosecond resolution
+//
+// This supersedes the old utime() interface.  New applications should use this.  See the
+// utimensat(2) man page for details.
 template <typename Storage>
 int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]) {
   LOG(kInfo) << "OpsUtimens: " << path;
-  detail::FileContext<Storage> file_context;
+  detail::FileContext* file_context(nullptr);
   try {
-    file_context = Global<Storage>::g_fuse_drive->GetFileContext(path);
+    file_context = Global<Storage>::g_fuse_drive->GetContext(path);
   }
-  catch (...) {
-    LOG(kError) << "OpsUtimens: " << path << ", can't get meta data.";
+  catch (const std::exception& e) {
+    LOG(kWarning) << "Failed to change times for " << path << ": " << e.what();
     return -ENOENT;
   }
 
 #if defined __USE_MISC || defined __USE_XOPEN2K8 || defined MAIDSAFE_APPLE
-  time(&file_context.meta_data->attributes.st_ctime);
+  time(&file_context->meta_data->attributes.st_ctime);
   if (ts) {
-    file_context.meta_data->attributes.st_atime = ts[0].tv_sec;
-    file_context.meta_data->attributes.st_mtime = ts[1].tv_sec;
+    file_context->meta_data->attributes.st_atime = ts[0].tv_sec;
+    file_context->meta_data->attributes.st_mtime = ts[1].tv_sec;
   } else {
-    file_context.meta_data->attributes.st_mtime = file_context.meta_data->attributes.st_atime =
-        file_context.meta_data->attributes.st_ctime;
+    file_context->meta_data->attributes.st_mtime = file_context->meta_data->attributes.st_atime =
+        file_context->meta_data->attributes.st_ctime;
   }
 #else
   timespec tspec;
   clock_gettime(CLOCK_MONOTONIC, &tspec);
-  file_context.meta_data->attributes.st_ctime = tspec.tv_sec;
-  file_context.meta_data->attributes.st_ctimensec = tspec.tv_nsec;
+  file_context->meta_data->attributes.st_ctime = tspec.tv_sec;
+  file_context->meta_data->attributes.st_ctimensec = tspec.tv_nsec;
   if (ts) {
-    file_context.meta_data->attributes.st_atime = ts[0].tv_sec;
-    file_context.meta_data->attributes.st_atimensec = ts[0].tv_nsec;
-    file_context.meta_data->attributes.st_mtime = ts[1].tv_sec;
-    file_context.meta_data->attributes.st_mtimensec = ts[1].tv_nsec;
+    file_context->meta_data->attributes.st_atime = ts[0].tv_sec;
+    file_context->meta_data->attributes.st_atimensec = ts[0].tv_nsec;
+    file_context->meta_data->attributes.st_mtime = ts[1].tv_sec;
+    file_context->meta_data->attributes.st_mtimensec = ts[1].tv_nsec;
   } else {
-    file_context.meta_data->attributes.st_atime = tspec.tv_sec;
-    file_context.meta_data->attributes.st_atimensec = tspec.tv_nsec;
-    file_context.meta_data->attributes.st_mtime = tspec.tv_sec;
-    file_context.meta_data->attributes.st_mtimensec = tspec.tv_nsec;
+    file_context->meta_data->attributes.st_atime = tspec.tv_sec;
+    file_context->meta_data->attributes.st_atimensec = tspec.tv_nsec;
+    file_context->meta_data->attributes.st_mtime = tspec.tv_sec;
+    file_context->meta_data->attributes.st_mtimensec = tspec.tv_nsec;
   }
 #endif
-  file_context.content_changed = true;
-  //  int result(Update(Global<Storage>::g_fuse_drive->directory_handler_, &file_context,
-  //                    false, true));
-  //  if (result != kSuccess) {
-  //    LOG(kError) << "OpsUtimens: " << path << ", failed to update.  " << "Result: " << result;
-  //    return -EBADF;
-  //  }
+  file_context->parent->contents_changed_ = true;
   return 0;
 }
 
@@ -1240,10 +1210,10 @@ int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
     auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
     assert(file_context->self_encryptor);
     file_context->self_encryptor->Truncate(size);
-    file_context.meta_data->attributes.st_size = size;
-    time(&file_context.meta_data->attributes.st_mtime);
-    file_context.meta_data->attributes.st_ctime = file_context.meta_data->attributes.st_atime =
-        file_context.meta_data->attributes.st_mtime;
+    file_context->meta_data->attributes.st_size = size;
+    time(&file_context->meta_data->attributes.st_mtime);
+    file_context->meta_data->attributes.st_ctime = file_context->meta_data->attributes.st_atime =
+        file_context->meta_data->attributes.st_mtime;
     file_context->parent->contents_changed_ = true;
   }
   catch (const std::exception& e) {
@@ -1251,37 +1221,6 @@ int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
     return -ENOENT;
   }
   return 0;
-}
-
-template <typename Storage>
-void FuseDrive<Storage>::SetNewAttributes(detail::FileContext<Storage>* file_context,
-                                          bool is_directory, bool read_only) {
-  LOG(kError) << "SetNewAttributes - name: " << file_context->meta_data->name
-              << ", read_only: " << std::boolalpha << read_only;
-  time(&file_context->meta_data->attributes.st_atime);
-  file_context->meta_data->attributes.st_ctime = file_context->meta_data->attributes.st_mtime =
-      file_context->meta_data->attributes.st_atime;
-  file_context->meta_data->attributes.st_uid = fuse_get_context()->uid;
-  file_context->meta_data->attributes.st_gid = fuse_get_context()->gid;
-
-  // TODO(Fraser#5#): 2011-12-04 - Check these modes are OK
-  if (is_directory) {
-    if (read_only)
-      file_context->meta_data->attributes.st_mode = (0555 | S_IFDIR);
-    else
-      file_context->meta_data->attributes.st_mode = (0755 | S_IFDIR);
-    file_context->meta_data->attributes.st_nlink = 2;
-  } else {
-    if (read_only)
-      file_context->meta_data->attributes.st_mode = (0444 | S_IFREG);
-    else
-      file_context->meta_data->attributes.st_mode = (0644 | S_IFREG);
-    file_context->meta_data->attributes.st_nlink = 1;
-    assert(file_context->self_encryptor);
-    file_context->meta_data->attributes.st_size = file_context->self_encryptor->size();
-    file_context->meta_data->attributes.st_blocks =
-        file_context->meta_data->attributes.st_size / 512;
-  }
 }
 
 }  // namespace drive

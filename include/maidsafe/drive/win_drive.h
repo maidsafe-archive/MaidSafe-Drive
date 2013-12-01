@@ -113,7 +113,6 @@ class CbfsDrive : public Drive<Storage> {
   void OnCallbackFsUnmount();
   void OnCallbackFsAddPoint(const boost::filesystem::path&);
   void OnCallbackFsDeletePoint();
-  virtual void SetNewAttributes(FileContextPtr file_context, bool is_directory, bool read_only);
 
   static void CbFsMount(CallbackFileSystem* sender);
   static void CbFsUnmount(CallbackFileSystem* sender);
@@ -891,6 +890,10 @@ void CbfsDrive<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileIn
   //file_context->content_changed = true;
 }
 
+// Quote from CBFS documentation:
+//
+// This event is fired when the OS or the application needs to change the times and/or the
+// attributes of the open file.  If times are nullptrs or if attributes is 0, they aren't set.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsSetFileAttributes(
     CallbackFileSystem* sender, CbFsFileInfo* file_info, CbFsHandleInfo* /*handle_info*/,
@@ -900,22 +903,27 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
   auto cbfs_drive(GetDrive(sender));
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsSetFileAttributes- " << relative_path << " 0x" << std::hex << file_attributes;
-  if (!file_info->get_UserContext())
-    return;
-
-  FileContextPtr file_context(static_cast<FileContextPtr>(file_info->get_UserContext()));
-  if (file_attributes != 0)
-    file_context->meta_data.attributes = file_attributes;
-  if (creation_time)
-    file_context->meta_data.creation_time = *creation_time;
-  if (last_access_time)
-    file_context->meta_data.last_access_time = *last_access_time;
-  if (last_write_time)
-    file_context->meta_data.last_write_time = *last_write_time;
-
-  file_context->content_changed = true;
+  try {
+    auto file_context(cbfs_drive->GetContext(relative_path));
+    if (file_attributes != 0)
+      file_context->meta_data.attributes = file_attributes;
+    if (creation_time)
+      file_context->meta_data.creation_time = *creation_time;
+    if (last_access_time)
+      file_context->meta_data.last_access_time = *last_access_time;
+    if (last_write_time)
+      file_context->meta_data.last_write_time = *last_write_time;
+    file_context->parent->contents_changed_ = true;
+  }
+  catch (const std::exception&) {
+    throw ECBFSError(ERROR_FILE_NOT_FOUND);
+  }
 }
 
+// Quote from CBFS documentation:
+//
+// This event is fired when the OS needs to check if the file or directory can be deleted. Firing of
+// this event doesn't necessarily means, that the entry will be deleted even if CanBeDeleted was set to true.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsCanFileBeDeleted(CallbackFileSystem* /*sender*/,
                                               CbFsFileInfo* /*file_info*/,
@@ -928,6 +936,11 @@ void CbfsDrive<Storage>::CbFsCanFileBeDeleted(CallbackFileSystem* /*sender*/,
   *can_be_deleted = true;
 }
 
+// Quote from CBFS documentation:
+//
+// This event is fired when the OS needs to delete the file or directory. There's no way to cancel
+// deletion of the file or directory from this event. If your application needs to prevent deletion,
+// you need to do this in OnCanFileBeDeleted callback/event handler.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsDeleteFile(CallbackFileSystem* sender, CbFsFileInfo* file_info) {
   SCOPED_PROFILE
@@ -937,7 +950,7 @@ void CbfsDrive<Storage>::CbFsDeleteFile(CallbackFileSystem* sender, CbFsFileInfo
   try {
     cbfs_drive->Delete(relative_path);
   }
-  catch (...) {
+  catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
 }
@@ -1074,30 +1087,6 @@ void CbfsDrive<Storage>::CbFsOnEjectStorage(CallbackFileSystem* sender) {
   LOG(kInfo) << "CbFsOnEjectStorage";
   auto cbfs_drive(GetDrive(sender));
   boost::async(boost::launch::async, [cbfs_drive] { cbfs_drive->Unmount(); });
-}
-
-template <typename Storage>
-void CbfsDrive<Storage>::SetNewAttributes(FileContextPtr file_context, bool is_directory,
-                                          bool read_only) {
-  SCOPED_PROFILE
-  FILETIME file_time;
-  GetSystemTimeAsFileTime(&file_time);
-  file_context->meta_data.creation_time = file_context->meta_data.last_access_time =
-      file_context->meta_data.last_write_time = file_time;
-
-  if (is_directory) {
-    file_context->meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
-  } else {
-    if (read_only)
-      file_context->meta_data.attributes = FILE_ATTRIBUTE_READONLY;
-    else
-      file_context->meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
-
-    file_context->self_encryptor.reset(new SelfEncryptor(
-        file_context->meta_data.data_map, *storage_));
-    file_context->meta_data.end_of_file = file_context->meta_data.allocation_size =
-        file_context->self_encryptor->size();
-  }
 }
 
 }  // namespace drive

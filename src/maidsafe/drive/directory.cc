@@ -42,19 +42,25 @@ bool FileContextHasName(const FileContext& file_context, const fs::path& name) {
 
 }  // unnamed namespace
 
-Directory::Directory() : parent_id_(), directory_id_(), max_versions_(kMaxVersions), children_(),
-                         children_itr_position_(0), contents_changed_(false) {}
+Directory::Directory() : contents_changed_(false), parent_id_(), directory_id_(),
+                         max_versions_(kMaxVersions), children_(), children_itr_position_(0) {}
 
 Directory::Directory(ParentId parent_id, DirectoryId directory_id)
-    : parent_id_(std::move(parent_id)), directory_id_(std::move(directory_id)),
-      max_versions_(kMaxVersions), children_(), children_itr_position_(0),
-      contents_changed_(false) {}
+    : contents_changed_(false), parent_id_(std::move(parent_id)),
+      directory_id_(std::move(directory_id)), max_versions_(kMaxVersions), children_(),
+      children_itr_position_(0) {}
 
 Directory::Directory(Directory&& other)
-    : parent_id_(std::move(other.parent_id_)), directory_id_(std::move(other.directory_id_)),
+    : contents_changed_(std::move(other.contents_changed_)),
+      parent_id_(std::move(other.parent_id_)), directory_id_(std::move(other.directory_id_)),
       max_versions_(std::move(other.max_versions_)), children_(std::move(other.children_)),
-      children_itr_position_(std::move(other.children_itr_position_)),
-      contents_changed_(std::move(other.contents_changed_)) {}
+      children_itr_position_(std::move(other.children_itr_position_)) {}
+
+Directory::Directory(ParentId parent_id, Directory&& other)
+    : contents_changed_(std::move(other.contents_changed_)),
+      parent_id_(std::move(parent_id)), directory_id_(std::move(other.directory_id_)),
+      max_versions_(std::move(other.max_versions_)), children_(std::move(other.children_)),
+      children_itr_position_(std::move(other.children_itr_position_)) {}
 
 Directory& Directory::operator=(Directory other) {
   swap(*this, other);
@@ -62,8 +68,8 @@ Directory& Directory::operator=(Directory other) {
 }
 
 Directory::Directory(ParentId parent_id, const std::string& serialised_directory)
-    : parent_id_(std::move(parent_id)), directory_id_(), max_versions_(kMaxVersions), children_(),
-      children_itr_position_(0) {
+    : contents_changed_(false), parent_id_(std::move(parent_id)), directory_id_(),
+      max_versions_(kMaxVersions), children_(), children_itr_position_(0) {
   protobuf::Directory proto_directory;
   if (!proto_directory.ParseFromString(serialised_directory))
     ThrowError(CommonErrors::parsing_error);
@@ -165,12 +171,12 @@ bool operator<(const Directory& lhs, const Directory& rhs) {
 
 void swap(Directory& lhs, Directory& rhs) {
   using std::swap;
+  swap(lhs.contents_changed_, rhs.contents_changed_);
   swap(lhs.parent_id_, rhs.parent_id_);
   swap(lhs.directory_id_, rhs.directory_id_);
   swap(lhs.max_versions_, rhs.max_versions_);
   swap(lhs.children_, rhs.children_);
   swap(lhs.children_itr_position_, rhs.children_itr_position_);
-  swap(lhs.contents_changed_, rhs.contents_changed_);
 }
 
 }  // namespace detail

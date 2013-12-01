@@ -74,16 +74,16 @@ class DirectoryHandler {
   // Puts a new version of 'relative_path' (which must be a directory) to storage.
   void PutVersion(const boost::filesystem::path& relative_path);
   void FlushAll();
-
-
-
-
-
-
-
-
-
   void Delete(const boost::filesystem::path& relative_path);
+
+
+
+
+
+
+
+
+
   void Rename(const boost::filesystem::path& old_relative_path,
               const boost::filesystem::path& new_relative_path, MetaData& meta_data);
   void UpdateParent(const boost::filesystem::path& parent_path, const MetaData& meta_data);
@@ -102,20 +102,15 @@ class DirectoryHandler {
 
   bool IsDirectory(const FileContext& file_context) const;
   std::pair<Directory*, FileContext*> GetParent(const boost::filesystem::path& relative_path);
-
-
-
-
-
-
   void RenameSameParent(const boost::filesystem::path& old_relative_path,
                         const boost::filesystem::path& new_relative_path, MetaData& meta_data);
   void RenameDifferentParent(const boost::filesystem::path& old_relative_path,
                              const boost::filesystem::path& new_relative_path,
                              MetaData& meta_data);
   Directory Get(const ParentId& parent_id, const DirectoryId& directory_id) const;
-  void Put(const Directory& directory, const boost::filesystem::path& relative_path);
-  void Delete(const Directory& directory);
+  void Put(Directory* directory, const boost::filesystem::path& relative_path);
+  void DeleteOldestVersion(Directory* directory);
+  void DeleteAllVersions(Directory* directory);
   encrypt::DataMap GetDataMap(const ParentId& parent_id, const DirectoryId& directory_id) const;
 
   std::shared_ptr<Storage> storage_;
@@ -218,7 +213,7 @@ template <typename Storage>
 void DirectoryHandler<Storage>::PutVersion(const boost::filesystem::path& relative_path) {
   auto directory(Get(relative_path));
   assert(directory);
-  Put(*directory, relative_path);
+  Put(directory, relative_path);
 }
 
 template <typename Storage>
@@ -236,28 +231,11 @@ void DirectoryHandler<Storage>::FlushAll() {
       }
       child = dir.second.GetChildAndIncrementItr();
     }
-    Put(dir.second, dir.first);
+    Put(&dir.second, dir.first);
   }
   if (error)
     ThrowError(CommonErrors::unknown);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 template <typename Storage>
 void DirectoryHandler<Storage>::Delete(const boost::filesystem::path& relative_path) {
@@ -269,36 +247,41 @@ void DirectoryHandler<Storage>::Delete(const boost::filesystem::path& relative_p
 
   if (IsDirectory(*file_context)) {
     auto directory(Get(relative_path));
-    Delete(directory);here!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    DeleteAllVersions(directory);
     {  // NOLINT
       std::lock_guard<std::mutex> lock(cache_mutex_);
       cache_.erase(relative_path);
     }
-  } else {
-    //SelfEncryptor(meta_data.data_map, *storage_).DeleteAllChunks();
   }
 
-  parent.first->RemoveChild(meta_data);
-  parent.second->UpdateLastModifiedTime();
+  parent.first->RemoveChild(relative_path.filename());
+  parent.second->meta_data.UpdateLastModifiedTime();
 
 #ifndef MAIDSAFE_WIN32
-  parent.second->attributes.st_ctime = parent.second->attributes.st_mtime;
-  if (IsDirectory(file_context))
-    --parent.second->attributes.st_nlink;
+  parent.second->meta_data.attributes.st_ctime = parent.second->meta_data.attributes.st_mtime;
+  if (IsDirectory(*file_context))
+    --parent.second->meta_data.attributes.st_nlink;
 #endif
 
-  try {
-    if (grandparent.listing)
-      grandparent.listing->UpdateChild(parent_meta_data);
-  }
-  catch (...) {/*Non-critical*/
-  }
-
-#ifndef MAIDSAFE_WIN32
-  Put(grandparent, relative_path.parent_path().parent_path());
-#endif
-  Put(parent, relative_path.parent_path());
+  Put(parent.first, relative_path.parent_path());
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 template <typename Storage>
 void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relative_path,
@@ -442,7 +425,7 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
 
   if (IsDirectory(file_context)) {
     Directory directory(Get(old_relative_path));
-    Delete(directory);
+    DeleteAllVersions(directory);
     directory.parent_id = new_parent.listing->directory_id();
     Put(directory, new_relative_path);
   }
@@ -498,17 +481,20 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
 }
 
 template <typename Storage>
-void DirectoryHandler<Storage>::Put(const Directory& directory,
+void DirectoryHandler<Storage>::Put(Directory* directory,
                                     const boost::filesystem::path& relative_path) {
-  if (!directory.contents_changed_)
+  if (!directory->contents_changed_)
     return;
 
-  std::string serialised_directory_listing(directory.listing->Serialise());
+  std::string serialised_directory_listing(directory->Serialise());
 
   try {
-    Delete(directory);
+    DeleteOldestVersion(directory);
   }
-  catch(...) {}
+  catch(const std::exception& e) {
+    LOG(kError) << "Failed deleting oldest version of " << relative_path << ": " << e.what();
+    assert(false);  // Should never fail.
+  }
 
   DataMap data_map;
   {
@@ -526,7 +512,7 @@ void DirectoryHandler<Storage>::Put(const Directory& directory,
 
   MutableData::Name name = MutableData::Name(directory.listing->directory_id());
   MutableData mutable_data(name, encrypted_data_map);
-  storage_->template Put<MutableData>(mutable_data);
+  storage_->Put(mutable_data);
 
   {  // NOLINT
     std::lock_guard<std::mutex> lock(cache_mutex_);
@@ -551,12 +537,19 @@ Directory DirectoryHandler<Storage>::Get(const ParentId& parent_id,
 }
 
 template <typename Storage>
-void DirectoryHandler<Storage>::Delete(const Directory* directory) {
-  auto data_map(GetDataMap(directory.parent_id, directory.listing->directory_id()));
-  SelfEncryptor self_encryptor(data_map, *storage_);
-  //self_encryptor.DeleteAllChunks();
-  MutableData::Name name(directory.listing->directory_id());
-  storage_->Delete(name);
+void DirectoryHandler<Storage>::DeleteOldestVersion(Directory* directory) {
+  // storage_->GetBranch
+  // if versions > directory->max_versions_ {
+  //   dir_data = storage_->Get(ImmutableData::Name(oldest_version))
+  //   data_map = encrypt::DecryptDataMap(parent_id, directory_id, dir_data);
+  //   use SelfEncryptor to decrypt data_map into a new temp directory
+  //   iterate all children, deleting all chunks from all data_maps
+  //   delete all chunks from dir data_map
+  // }
+}
+
+template <typename Storage>
+void DirectoryHandler<Storage>::DeleteAllVersions(Directory* directory) {
 }
 
 template <typename Storage>

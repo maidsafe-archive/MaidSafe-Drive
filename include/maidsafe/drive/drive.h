@@ -108,8 +108,6 @@ class Drive {
 
 
 
-  virtual void SetNewAttributes(FileContextPtr file_context, bool is_directory,
-                                bool read_only) = 0;
   std::string ReadDataMap(const boost::filesystem::path& relative_path);
 
   std::function<NonEmptyString(const std::string&)> get_chunk_from_store_;
@@ -239,49 +237,27 @@ void Drive<Storage>::Release(const boost::filesystem::path& relative_path) {
   directory_handler_.PutVersion(relative_path.parent_path());
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 template <typename Storage>
 void Drive<Storage>::Delete(const boost::filesystem::path& relative_path) {
   directory_handler_.Delete(relative_path);
 }
+
+
+
+
+
+
+
+
+
+
+
 
 template <typename Storage>
 void Drive<Storage>::Rename(const boost::filesystem::path& old_relative_path,
                             const boost::filesystem::path& new_relative_path,
                             MetaData& meta_data) {
   directory_handler_.Rename(old_relative_path, new_relative_path, meta_data);
-}
-
-// ********************** File / Folder Transfers *************************************************
-
-template <typename Storage>
-std::string Drive<Storage>::GetDataMap(const boost::filesystem::path& relative_path) {
-  return ReadDataMap(relative_path);
-}
-
-template <typename Storage>
-void Drive<Storage>::InsertDataMap(const boost::filesystem::path& relative_path,
-                                   const std::string& serialised_data_map) {
-  if (relative_path.empty())
-    ThrowError(CommonErrors::invalid_parameter);
-
-  detail::FileContext file_context(relative_path.filename(), false);
-  encrypt::ParseDataMap(serialised_data_map, *file_context.meta_data->data_map);
-  SetNewAttributes(&file_context, false, false);
-  Add(relative_path, file_context);
 }
 
 // **************************** Miscellaneous *****************************************************

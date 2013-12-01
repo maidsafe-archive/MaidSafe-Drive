@@ -50,6 +50,7 @@ class Directory {
  public:
   Directory();
   Directory(ParentId parent_id, DirectoryId directory_id);
+  Directory(ParentId parent_id, Directory&& other);
   Directory(Directory&& other);
   Directory& operator=(Directory other);
   ~Directory() {}
@@ -66,6 +67,7 @@ class Directory {
   void ResetChildrenIterator() { children_itr_position_ = 0; }
   bool empty() const;
   DirectoryId directory_id() const { return directory_id_; }
+  ParentId parent_id() const { return parent_id_; }
   // This is true if any child has been added, removed or had its metadata changed.  It is false on
   // construction and is set false by a call to Serialise().
   bool contents_changed_;
