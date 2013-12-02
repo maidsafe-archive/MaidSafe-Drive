@@ -68,14 +68,8 @@ class Drive {
   // and stored. The parent directory's ID is returned in 'parent_id' and its parent directory's ID
   // is returned in 'grandparent_id'.
   void Add(const boost::filesystem::path& relative_path, FileContext& file_context);
-  // Deletes the file at 'relative_path' from the appropriate parent directory listing as well as
-  // the listing associated with that path if it represents a directory.
-  void Delete(const boost::filesystem::path& relative_path);
   bool CanDelete(const boost::filesystem::path& relative_path);
-  // Rename/move the file associated with 'meta_data' located at 'old_relative_path' to that at
-  // 'new_relative_path'.
-  void Rename(const boost::filesystem::path& old_relative_path,
-              const boost::filesystem::path& new_relative_path, MetaData& meta_data);  */
+*/
 
  protected:
   detail::FileContext* GetContext(const boost::filesystem::path& relative_path) const;
@@ -83,6 +77,9 @@ class Drive {
   void Open(const boost::filesystem::path& relative_path);
   void Flush(const boost::filesystem::path& relative_path);
   void Release(const boost::filesystem::path& relative_path);
+  void Delete(const boost::filesystem::path& relative_path);
+  void Rename(const boost::filesystem::path& old_relative_path,
+              const boost::filesystem::path& new_relative_path);
 
 
 
@@ -242,25 +239,23 @@ void Drive<Storage>::Delete(const boost::filesystem::path& relative_path) {
   directory_handler_.Delete(relative_path);
 }
 
-
-
-
-
-
-
-
-
-
-
-
 template <typename Storage>
 void Drive<Storage>::Rename(const boost::filesystem::path& old_relative_path,
-                            const boost::filesystem::path& new_relative_path,
-                            MetaData& meta_data) {
-  directory_handler_.Rename(old_relative_path, new_relative_path, meta_data);
+                            const boost::filesystem::path& new_relative_path) {
+  directory_handler_.Rename(old_relative_path, new_relative_path);
 }
 
-// **************************** Miscellaneous *****************************************************
+
+
+
+
+
+
+
+
+
+
+
 
 template <typename Storage>
 typename Drive<Storage>::Directory Drive<Storage>::GetDirectory(

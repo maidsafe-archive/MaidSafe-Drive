@@ -56,7 +56,7 @@ Directory::Directory(Directory&& other)
       max_versions_(std::move(other.max_versions_)), children_(std::move(other.children_)),
       children_itr_position_(std::move(other.children_itr_position_)) {}
 
-Directory::Directory(ParentId parent_id, Directory&& other)
+Directory::Directory(ParentId parent_id, Directory other)
     : contents_changed_(std::move(other.contents_changed_)),
       parent_id_(std::move(parent_id)), directory_id_(std::move(other.directory_id_)),
       max_versions_(std::move(other.max_versions_)), children_(std::move(other.children_)),
@@ -138,20 +138,25 @@ void Directory::AddChild(FileContext&& child) {
   contents_changed_ = true;
 }
 
-void Directory::RemoveChild(const fs::path& child_name) {
+FileContext Directory::RemoveChild(const fs::path& child_name) {
   auto itr(Find(child_name));
   if (itr == std::end(children_))
     ThrowError(DriveErrors::no_such_file);
+  FileContext file_context(std::move(*itr));
   children_.erase(itr);
   SortAndResetChildrenIterator();
   contents_changed_ = true;
+  return file_context;
 }
 
-void Directory::UpdateChild(const MetaData& child) {
-  auto itr(Find(child.name));
+void Directory::RenameChild(const fs::path& old_name, const fs::path& new_name) {
+  auto itr(Find(new_name));
+  if (itr != std::end(children_))
+    ThrowError(DriveErrors::file_exists);
+  itr = Find(old_name);
   if (itr == std::end(children_))
     ThrowError(DriveErrors::no_such_file);
-  itr->meta_data = child;
+  itr->meta_data.name = new_name;
   SortAndResetChildrenIterator();
   contents_changed_ = true;
 }

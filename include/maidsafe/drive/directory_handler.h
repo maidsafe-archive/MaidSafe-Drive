@@ -75,17 +75,17 @@ class DirectoryHandler {
   void PutVersion(const boost::filesystem::path& relative_path);
   void FlushAll();
   void Delete(const boost::filesystem::path& relative_path);
-
-
-
-
-
-
-
-
-
   void Rename(const boost::filesystem::path& old_relative_path,
-              const boost::filesystem::path& new_relative_path, MetaData& meta_data);
+              const boost::filesystem::path& new_relative_path);
+
+
+
+
+
+
+
+
+
   void UpdateParent(const boost::filesystem::path& parent_path, const MetaData& meta_data);
   void HandleDataPoppedFromBuffer(const boost::filesystem::path& relative_path,
                                   const std::string& name, const NonEmptyString& content) const;
@@ -103,10 +103,9 @@ class DirectoryHandler {
   bool IsDirectory(const FileContext& file_context) const;
   std::pair<Directory*, FileContext*> GetParent(const boost::filesystem::path& relative_path);
   void RenameSameParent(const boost::filesystem::path& old_relative_path,
-                        const boost::filesystem::path& new_relative_path, MetaData& meta_data);
+                        const boost::filesystem::path& new_relative_path);
   void RenameDifferentParent(const boost::filesystem::path& old_relative_path,
-                             const boost::filesystem::path& new_relative_path,
-                             MetaData& meta_data);
+                             const boost::filesystem::path& new_relative_path);
   Directory Get(const ParentId& parent_id, const DirectoryId& directory_id) const;
   void Put(Directory* directory, const boost::filesystem::path& relative_path);
   void DeleteOldestVersion(Directory* directory);
@@ -166,8 +165,10 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
 
 #ifndef MAIDSAFE_WIN32
   parent.second->attributes.st_ctime = parent.second->attributes.st_mtime;
-  if (IsDirectory(file_context))
+  if (IsDirectory(file_context)) {
     ++parent.second->attributes.st_nlink;
+    parent.second->parent->contents_changed_ = true;
+  }
 #endif
 
   // TODO(Fraser#5#): 2013-11-28 - Use on_scope_exit or similar to undo changes if AddChild throws.
@@ -266,54 +267,52 @@ void DirectoryHandler<Storage>::Delete(const boost::filesystem::path& relative_p
   Put(parent.first, relative_path.parent_path());
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 template <typename Storage>
 void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relative_path,
-                                       const boost::filesystem::path& new_relative_path,
-                                       MetaData& meta_data) {
+                                       const boost::filesystem::path& new_relative_path) {
   SCOPED_PROFILE
-  if (old_relative_path == new_relative_path)
-    return;
+  assert(old_relative_path != new_relative_path)
 
   if (old_relative_path.parent_path() == new_relative_path.parent_path()) {
-    RenameSameParent(old_relative_path, new_relative_path, meta_data);
-    std::lock_guard<std::mutex> lock(cache_mutex_);
-    auto itr(cache_.find(old_relative_path.parent_path()));
-    if (itr != std::end(cache_))
-      cache_.erase(old_relative_path.parent_path());
+    RenameSameParent(old_relative_path, new_relative_path);
+    //std::lock_guard<std::mutex> lock(cache_mutex_);
+    //auto itr(cache_.find(old_relative_path.parent_path()));
+    //if (itr != std::end(cache_))
+    //  cache_.erase(old_relative_path.parent_path());
   } else {
     RenameDifferentParent(old_relative_path, new_relative_path, meta_data);
-    std::lock_guard<std::mutex> lock(cache_mutex_);
-    auto itr1(cache_.find(old_relative_path.parent_path()));
-    if (itr1 != std::end(cache_))
-      cache_.erase(old_relative_path.parent_path());
-    auto itr2(cache_.find(new_relative_path.parent_path()));
-    if (itr2 != std::end(cache_))
-      cache_.erase(new_relative_path.parent_path());
+    //std::lock_guard<std::mutex> lock(cache_mutex_);
+    //auto itr1(cache_.find(old_relative_path.parent_path()));
+    //if (itr1 != std::end(cache_))
+    //  cache_.erase(old_relative_path.parent_path());
+    //auto itr2(cache_.find(new_relative_path.parent_path()));
+    //if (itr2 != std::end(cache_))
+    //  cache_.erase(new_relative_path.parent_path());
   }
-  if (IsDirectory(file_context)) {
-    std::lock_guard<std::mutex> lock(cache_mutex_);
-    auto itr(cache_.find(old_relative_path));
-    if (itr != std::end(cache_))
-      cache_.erase(old_relative_path);
-  }
+  //if (IsDirectory(file_context)) {
+  //  std::lock_guard<std::mutex> lock(cache_mutex_);
+  //  auto itr(cache_.find(old_relative_path));
+  //  if (itr != std::end(cache_))
+  //    cache_.erase(old_relative_path);
+  //}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 template <typename Storage>
 void DirectoryHandler<Storage>::UpdateParent(const boost::filesystem::path& parent_path,
@@ -341,142 +340,121 @@ std::pair<Directory*, FileContext*> DirectoryHandler<Storage>::GetParent(
 
 template <typename Storage>
 void DirectoryHandler<Storage>::RenameSameParent(const boost::filesystem::path& old_relative_path,
-                                                 const boost::filesystem::path& new_relative_path,
-                                                 MetaData& meta_data) {
-  Directory parent;
-  MetaData parent_meta_data;
-  GetParent(old_relative_path, parent, parent_meta_data);
+                                                 const boost::filesystem::path& new_relative_path) {
+  auto parent(GetParent(old_relative_path));
+  assert(parent.first && parent.second);
+  parent.first->RenameChild(old_relative_path.filename(), new_relative_path.filename());
 
-#ifndef MAIDSAFE_WIN32
-  struct stat old;
-  old.st_ctime = meta_data.attributes.st_ctime;
-  old.st_mtime = meta_data.attributes.st_mtime;
-  time(&meta_data.attributes.st_mtime);
-  meta_data.attributes.st_ctime = meta_data.attributes.st_mtime;
-#endif
-
-  assert(parent.listing);
-  if (!parent.first->HasChild(new_relative_path.filename())) {
-    parent.first->RemoveChild(meta_data);
-    meta_data.name = new_relative_path.filename();
-    parent.first->AddChild(meta_data);
-  } else {
-    MetaData old_meta_data;
-    try {
-      parent.first->GetChild(new_relative_path.filename(), old_meta_data);
-    }
-    catch (const std::exception& exception) {
-#ifndef MAIDSAFE_WIN32
-      meta_data.attributes.st_ctime = old.st_ctime;
-      meta_data.attributes.st_mtime = old.st_mtime;
-#endif
-      boost::throw_exception(exception);
-    }
-    parent.first->RemoveChild(old_meta_data);
-    parent.first->RemoveChild(meta_data);
-    meta_data.name = new_relative_path.filename();
-    parent.first->AddChild(meta_data);
-  }
+//#ifndef MAIDSAFE_WIN32
+//  struct stat old;
+//  old.st_ctime = meta_data.attributes.st_ctime;
+//  old.st_mtime = meta_data.attributes.st_mtime;
+//  time(&meta_data.attributes.st_mtime);
+//  meta_data.attributes.st_ctime = meta_data.attributes.st_mtime;
+//#endif
+//
+//  if (!parent.first->HasChild(new_relative_path.filename())) {
+//    parent.first->RemoveChild(meta_data);
+//    meta_data.name = new_relative_path.filename();
+//    parent.first->AddChild(meta_data);
+//  } else {
+//    MetaData old_meta_data;
+//    try {
+//      parent.first->GetChild(new_relative_path.filename(), old_meta_data);
+//    }
+//    catch (const std::exception& exception) {
+//#ifndef MAIDSAFE_WIN32
+//      meta_data.attributes.st_ctime = old.st_ctime;
+//      meta_data.attributes.st_mtime = old.st_mtime;
+//#endif
+//      boost::throw_exception(exception);
+//    }
+//    parent.first->RemoveChild(old_meta_data);
+//    parent.first->RemoveChild(meta_data);
+//    meta_data.name = new_relative_path.filename();
+//    parent.first->AddChild(meta_data);
+//  }
 
 #ifdef MAIDSAFE_WIN32
   GetSystemTimeAsFileTime(&parent.second->last_write_time);
+  parent.second->parent->contents_changed_ = true;
 #else
-  parent.second->attributes.st_ctime = parent.second->attributes.st_mtime =
-      meta_data.attributes.st_mtime;
-//   if (!same_parent && IsDirectory(file_context)) {
-//     --parent.second->attributes.st_nlink;
-//     ++new_parent_meta_data.attributes.st_nlink;
-//     new_parent_meta_data.attributes.st_ctime =
-//         new_parent_meta_data.attributes.st_mtime =
-//         parent.second->attributes.st_mtime;
-//   }
+  //parent.second->attributes.st_ctime = parent.second->attributes.st_mtime =
+  //    meta_data.attributes.st_mtime;
 #endif
-  Put(parent, old_relative_path.parent_path());
-
-// #ifndef MAIDSAFE_WIN32
-//   try {
-//     assert(grandparent.listing);
-//     grandparent.listing->UpdateChild(parent_meta_data, true);
-//   }
-//   catch(...) { /*Non-critical*/ }
-//   Put(grandparent, old_relative_path.parent_path().parent_path());
-// #endif
+  Put(parent.first, old_relative_path.parent_path());
 }
 
 template <typename Storage>
 void DirectoryHandler<Storage>::RenameDifferentParent(
     const boost::filesystem::path& old_relative_path,
-    const boost::filesystem::path& new_relative_path,
-    MetaData& meta_data) {
-  Directory old_parent, new_parent;
-  MetaData old_parent_meta_data, new_parent_meta_data;
+    const boost::filesystem::path& new_relative_path) {
+  auto old_parent(GetParent(old_relative_path));
+  auto new_parent(GetParent(new_relative_path));
+  assert(old_parent.first && old_parent.second && new_parent.first && new_parent.second);
+  auto file_context(old_parent.first->RemoveChild(old_relative_path.filename()));
 
-  GetParent(old_relative_path, old_parent, old_parent_meta_data);
-  GetParent(new_relative_path, new_parent, new_parent_meta_data);
-#ifndef MAIDSAFE_WIN32
-  struct stat old;
-  old.st_ctime = meta_data.attributes.st_ctime;
-  old.st_mtime = meta_data.attributes.st_mtime;
-  time(&meta_data.attributes.st_mtime);
-  meta_data.attributes.st_ctime = meta_data.attributes.st_mtime;
-#endif
-  assert(old_parent.listing);
-  assert(new_parent.listing);
-
+//#ifndef MAIDSAFE_WIN32
+//  struct stat old;
+//  old.st_ctime = meta_data.attributes.st_ctime;
+//  old.st_mtime = meta_data.attributes.st_mtime;
+//  time(&meta_data.attributes.st_mtime);
+//  meta_data.attributes.st_ctime = meta_data.attributes.st_mtime;
+//#endif
   if (IsDirectory(file_context)) {
-    Directory directory(Get(old_relative_path));
-    DeleteAllVersions(directory);
-    directory.parent_id = new_parent.listing->directory_id();
-    Put(directory, new_relative_path);
+    auto old_directory(Get(old_relative_path));
+    Directory new_directory(new_parent.first->directory_id(), *old_directory);
+    DeleteAllVersions(old_directory);
+    Put(&new_directory, new_relative_path);
   }
 
-  old_parent.listing->RemoveChild(meta_data);
+  new_parent.first->AddChild(std::move(file_context));
 
-  if (!new_parent.listing->HasChild(new_relative_path.filename())) {
-    meta_data.name = new_relative_path.filename();
-    new_parent.listing->AddChild(meta_data);
-  } else {
-    MetaData old_meta_data;
-    try {
-      new_parent.listing->GetChild(new_relative_path.filename(), old_meta_data);
-    }
-    catch(const std::exception& exception) {
-#ifndef MAIDSAFE_WIN32
-      meta_data.attributes.st_ctime = old.st_ctime;
-      meta_data.attributes.st_mtime = old.st_mtime;
-#endif
-      boost::throw_exception(exception);
-    }
-    new_parent.listing->RemoveChild(old_meta_data);
-    meta_data.name = new_relative_path.filename();
-    new_parent.listing->AddChild(meta_data);
-  }
+//  if (!new_parent.listing->HasChild(new_relative_path.filename())) {
+//    meta_data.name = new_relative_path.filename();
+//    new_parent.listing->AddChild(meta_data);
+//  } else {
+//    MetaData old_meta_data;
+//    try {
+//      new_parent.listing->GetChild(new_relative_path.filename(), old_meta_data);
+//    }
+//    catch(const std::exception& exception) {
+//#ifndef MAIDSAFE_WIN32
+//      meta_data.attributes.st_ctime = old.st_ctime;
+//      meta_data.attributes.st_mtime = old.st_mtime;
+//#endif
+//      boost::throw_exception(exception);
+//    }
+//    new_parent.listing->RemoveChild(old_meta_data);
+//    meta_data.name = new_relative_path.filename();
+//    new_parent.listing->AddChild(meta_data);
+//  }
 
 #ifdef MAIDSAFE_WIN32
   GetSystemTimeAsFileTime(&old_parent_meta_data.last_write_time);
 #else
-  old_parent_meta_data.attributes.st_ctime = old_parent_meta_data.attributes.st_mtime =
-      meta_data.attributes.st_mtime;
-  if (IsDirectory(file_context)) {
-    --old_parent_meta_data.attributes.st_nlink;
-    ++new_parent_meta_data.attributes.st_nlink;
-    new_parent_meta_data.attributes.st_ctime = new_parent_meta_data.attributes.st_mtime =
-        old_parent_meta_data.attributes.st_mtime;
-  }
+  //old_parent_meta_data.attributes.st_ctime = old_parent_meta_data.attributes.st_mtime =
+  //    meta_data.attributes.st_mtime;
+  //if (IsDirectory(file_context)) {
+  //  --old_parent_meta_data.attributes.st_nlink;
+  //  ++new_parent_meta_data.attributes.st_nlink;
+  //  new_parent_meta_data.attributes.st_ctime = new_parent_meta_data.attributes.st_mtime =
+  //      old_parent_meta_data.attributes.st_mtime;
+  //}
 #endif
   Put(old_parent, old_relative_path.parent_path());
   Put(new_parent, new_relative_path.parent_path());
 
 #ifndef MAIDSAFE_WIN32
-  if (new_relative_path.parent_path() != old_relative_path.parent_path().parent_path()) {
-    try {
-      if (old_grandparent.listing)
-        old_grandparent.listing->UpdateChild(old_parent_meta_data);
-    }
-    catch (...) {/*Non-critical*/
-    }
-    Put(old_grandparent, old_relative_path.parent_path().parent_path());
-  }
+  //if (new_relative_path.parent_path() != old_relative_path.parent_path().parent_path()) {
+  //  try {
+  //    if (old_grandparent.listing)
+  //      old_grandparent.listing->UpdateChild(old_parent_meta_data);
+  //  }
+  //  catch (...) {/*Non-critical*/
+  //  }
+  //  Put(old_grandparent, old_relative_path.parent_path().parent_path());
+  //}
 #endif
 }
 
@@ -507,16 +485,16 @@ void DirectoryHandler<Storage>::Put(Directory* directory,
     }
   }
 
-  auto encrypted_data_map = encrypt::EncryptDataMap(
-      directory.parent_id, directory.listing->directory_id(), data_map);
+  auto encrypted_data_map(encrypt::EncryptDataMap(directory->parent_id(),
+                                                  directory->directory_id(), data_map));
 
-  MutableData::Name name = MutableData::Name(directory.listing->directory_id());
+  MutableData::Name name(MutableData::Name(directory->directory_id()));
   MutableData mutable_data(name, encrypted_data_map);
   storage_->Put(mutable_data);
 
   {  // NOLINT
     std::lock_guard<std::mutex> lock(cache_mutex_);
-    cache_[relative_path] = directory;
+    cache_[relative_path] = *directory;
   }
 }
 

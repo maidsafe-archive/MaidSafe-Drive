@@ -955,6 +955,9 @@ void CbfsDrive<Storage>::CbFsDeleteFile(CallbackFileSystem* sender, CbFsFileInfo
   }
 }
 
+// Quote from CBFS documentation:
+//
+// This event is fired when the OS needs to rename or move the file within a file system.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsRenameOrMoveFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                               LPCTSTR new_file_name) {
@@ -963,18 +966,11 @@ void CbfsDrive<Storage>::CbFsRenameOrMoveFile(CallbackFileSystem* sender, CbFsFi
   auto old_relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   boost::filesystem::path new_relative_path(new_file_name);
   LOG(kInfo) << "CbFsRenameOrMoveFile - " << old_relative_path << " to " << new_relative_path;
-  FileContext file_context;
   try {
-    file_context = cbfs_drive->GetFileContext(old_relative_path);
+    cbfs_drive->Rename(old_relative_path, new_relative_path);
   }
-  catch (...) {
+  catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
-  }
-  try {
-    cbfs_drive->Rename(old_relative_path, new_relative_path, *file_context.meta_data);
-  }
-  catch (...) {
-    throw ECBFSError(ERROR_ACCESS_DENIED);
   }
 }
 

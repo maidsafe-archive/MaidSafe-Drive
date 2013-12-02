@@ -50,7 +50,7 @@ class Directory {
  public:
   Directory();
   Directory(ParentId parent_id, DirectoryId directory_id);
-  Directory(ParentId parent_id, Directory&& other);
+  Directory(ParentId parent_id, Directory other);
   Directory(Directory&& other);
   Directory& operator=(Directory other);
   ~Directory() {}
@@ -62,8 +62,9 @@ class Directory {
   const FileContext* GetChild(const boost::filesystem::path& name) const;
   const FileContext* GetChildAndIncrementItr();
   void AddChild(FileContext&& child);
-  void RemoveChild(const boost::filesystem::path& child_name);
-  void UpdateChild(const MetaData& child);
+  FileContext RemoveChild(const boost::filesystem::path& child_name);
+  void RenameChild(const boost::filesystem::path& old_name,
+                   const boost::filesystem::path& new_name);
   void ResetChildrenIterator() { children_itr_position_ = 0; }
   bool empty() const;
   DirectoryId directory_id() const { return directory_id_; }

@@ -863,29 +863,17 @@ int FuseDrive<Storage>::OpsReleasedir(const char* path, struct fuse_file_info* f
   return Release(path, file_info);
 }
 
+// Quote from FUSE documentation:
+//
+// Rename a file.
 template <typename Storage>
 int FuseDrive<Storage>::OpsRename(const char* old_name, const char* new_name) {
-  LOG(kInfo) << "OpsRename: " << old_name << " --> " << new_name;
-
-  fs::path old_path(old_name), new_path(new_name);
-  detail::FileContext<Storage> old_file_context;
+  LOG(kInfo) << "OpsRename: " << old_name << " to " << new_name;
   try {
-    old_file_context = Global<Storage>::g_fuse_drive->GetFileContext(old_path);
+    Global<Storage>::g_fuse_drive->Rename(old_name, new_name);
   }
-  catch (...) {
-    LOG(kError) << "OpsRename " << old_path << " --> " << new_path << ", failed to get meta data.";
-    return -ENOENT;
-  }
-
-  // TODO(JLB): 2011-06-01 - look into value of LINK_MAX for potentially
-  // exceeding, requiring a return of EMLINK
-
-  try {
-    Global<Storage>::g_fuse_drive->Rename(old_path, new_path, *old_file_context.meta_data);
-  }
-  catch (...) {
-    LOG(kError) << "OpsRename " << old_path << " --> " << new_path
-                << ", failed to rename meta data.";
+  catch (const std::exception& e) {
+    LOG(kError) << "Failed to rename " << old_name << " to " << new_name << ": " << e.what();
     //     switch (result) {
     //       case kChildAlreadyExists:
     //       case kFailedToAddChild:
