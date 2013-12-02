@@ -1157,10 +1157,10 @@ int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
     auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
     assert(file_context->self_encryptor);
     file_context->self_encryptor->Truncate(size);
-    file_context->meta_data->attributes.st_size = size;
-    time(&file_context->meta_data->attributes.st_mtime);
-    file_context->meta_data->attributes.st_ctime = file_context->meta_data->attributes.st_atime =
-        file_context->meta_data->attributes.st_mtime;
+    file_context->meta_data.attributes.st_size = size;
+    time(&file_context->meta_data.attributes.st_mtime);
+    file_context->meta_data.attributes.st_ctime = file_context->meta_data.attributes.st_atime =
+        file_context->meta_data.attributes.st_mtime;
     file_context->parent->contents_changed_ = true;
   }
   catch (const std::exception& e) {

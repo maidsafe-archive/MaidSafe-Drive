@@ -265,8 +265,8 @@ uint32_t Drive<Storage>::Write(const boost::filesystem::path& relative_path, con
 #ifndef MAIDSAFE_WIN32
   int64_t max_size(
       std::max(static_cast<off_t>(offset + size), file_context->meta_data.attributes.st_size));
-  file_context->meta_data->attributes.st_size = max_size;
-  file_context->meta_data->attributes.st_blocks = file_context->meta_data->attributes.st_size / 512;
+  file_context->meta_data.attributes.st_size = max_size;
+  file_context->meta_data.attributes.st_blocks = file_context->meta_data.attributes.st_size / 512;
 #endif
   return size;
 }
