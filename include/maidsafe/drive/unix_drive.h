@@ -231,7 +231,7 @@ void FuseDrive<Storage>::Init() {
   maidsafe_ops_.fgetattr = OpsFgetattr;
   maidsafe_ops_.flush = OpsFlush;
 //  maidsafe_ops_.fsync = OpsFsync;
-  maidsafe_ops_.fsyncdir = OpsFsyncDir;
+//  maidsafe_ops_.fsyncdir = OpsFsyncDir;
   maidsafe_ops_.ftruncate = OpsFtruncate;
   maidsafe_ops_.getattr = OpsGetattr;
 //  maidsafe_ops_.link = OpsLink;
@@ -242,7 +242,7 @@ void FuseDrive<Storage>::Init() {
   maidsafe_ops_.opendir = OpsOpendir;
   maidsafe_ops_.read = OpsRead;
   maidsafe_ops_.readdir = OpsReaddir;
-  maidsafe_ops_.readlink = OpsReadlink;
+//  maidsafe_ops_.readlink = OpsReadlink;
   maidsafe_ops_.release = OpsRelease;
   maidsafe_ops_.releasedir = OpsReleasedir;
   maidsafe_ops_.rename = OpsRename;
@@ -280,10 +280,9 @@ void FuseDrive<Storage>::Mount() {
   fuse_args args = FUSE_ARGS_INIT(0, nullptr);
   fuse_opt_add_arg(&args, (drive_name_.c_str()));
   fuse_opt_add_arg(&args, (fuse_mountpoint_.c_str()));
-  // NB - If we remove -odefault_permissions, we must check in OpsOpen
-  //      that the operation is permitted for the given flags.  We also need to
-  //      implement OpsAccess.
-  fuse_opt_add_arg(&args, "-odefault_permissions,kernel_cache,direct_io");
+  // NB - If we remove -odefault_permissions, we must check in OpsOpen, etc. that the operation is
+  //      permitted for the given flags.  We also need to implement OpsAccess.
+  fuse_opt_add_arg(&args, "-odefault_permissions,kernel_cache");  // ,direct_io");
 #ifndef NDEBUG
   // fuse_opt_add_arg(&args, "-d");  // print debug info
   // fuse_opt_add_arg(&args, "-f");  // run in foreground
@@ -491,8 +490,15 @@ int FuseDrive<Storage>::OpsFlush(const char* path, struct fuse_file_info* file_i
   return 0;
 }
 
+/*
+// Quote from FUSE documentation:
+//
+// Synchronize file contents
+//
+// If the datasync parameter is non-zero, then only the user data should be flushed, not the meta
+// data.
 template <typename Storage>
-int FuseDrive<Storage>::OpsFsync(const char* path, int /*isdatasync*/,
+int FuseDrive<Storage>::OpsFsync(const char* path, int isdatasync,
                                  struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsFsync: " << path;
   detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
@@ -512,7 +518,9 @@ int FuseDrive<Storage>::OpsFsync(const char* path, int /*isdatasync*/,
   // }
   return 0;
 }
+*/
 
+/*
 // Quote from FUSE documentation:
 //
 // Synchronize directory contents.
@@ -520,7 +528,7 @@ int FuseDrive<Storage>::OpsFsync(const char* path, int /*isdatasync*/,
 // If the datasync parameter is non-zero, then only the user data should be flushed, not the meta
 // data
 template <typename Storage>
-int FuseDrive<Storage>::OpsFsyncDir(const char* path, int /*isdatasync*/,
+int FuseDrive<Storage>::OpsFsyncDir(const char* path, int isdatasync,
                                     struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsFsyncDir: " << path;
   detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
@@ -538,6 +546,7 @@ int FuseDrive<Storage>::OpsFsyncDir(const char* path, int /*isdatasync*/,
   //  }
   return 0;
 }
+*/
 
 // Quote from FUSE documentation:
 //
@@ -704,72 +713,32 @@ int FuseDrive<Storage>::OpsOpendir(const char* path, struct fuse_file_info* file
   return 0;
 }
 
+// Quote from FUSE documentation:
+//
+// Read data from an open file.
+//
+// Read should return exactly the number of bytes requested except on EOF or error, otherwise the
+// rest of the data will be substituted with zeroes.  An exception to this is when the 'direct_io'
+// mount option is specified, in which case the return value of the read system call will reflect
+// the return value of this operation.
 template <typename Storage>
 int FuseDrive<Storage>::OpsRead(const char* path, char* buf, size_t size, off_t offset,
                                 struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsRead: " << path << ", flags: 0x" << std::hex << file_info->flags << std::dec
              << " Size : " << size << " Offset : " << offset;
-
-  detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
-  if (!file_context)
-    return -EINVAL;
-
-  //   // Update in case this follows a write (to force a flush on the
-  //   // encrypted stream)
-  //   int result(kSuccess);
-  //   if (file_context->file_content_changed) {
-  //     result = Global<Storage>::g_fuse_drive->Update(file_context, false);
-  //     if (result != kSuccess) {
-  //       LOG(kError) << "OpsRead: " << path << ", failed to update.  Result: "
-  //                   << result;
-  //       return -EIO;
-  //     }
-  //   }
-
-  // TODO(Fraser#5#): 2011-05-18 - Check this is right.
-  if (file_context->meta_data->attributes.st_size == 0)
-    return 0;
-
-  assert(file_context->self_encryptor);
-  //     if (!file_context->self_encryptor) {
-  //       file_context->self_encryptor.reset(new encrypt::SE(
-  //           file_context->meta_data->data_map, Global<Storage>::g_fuse_drive->chunk_store()));
-  //     }
-
-  bool msrf_result(file_context->self_encryptor->Read(buf, size, offset));
-  if (!msrf_result) {
-    return -EINVAL;
-    // unsuccessful read -> invalid encrypted stream, error already logged
-    // return (msrf_result == kInvalidSeek) ? -EINVAL : -EBADF;
+  try {
+    return static_cast<int>(Global<Storage>::g_fuse_drive->Read(path, buf, size, offset));
   }
-  size_t bytes_read(0);
-
-  if (static_cast<uint64_t>(size + offset) > file_context->self_encryptor->size()) {
-    if (static_cast<uint64_t>(offset) > file_context->self_encryptor->size())
-      bytes_read = 0;
-    else
-      bytes_read = file_context->self_encryptor->size() - offset;
-  } else {
-    bytes_read = size;
+  catch (const std::exception& e) {
+    LOG(kWarning) << "Failed to read " << path << ": " << e.what();
+    return -EINVAL;
   }
-
-  LOG(kInfo) << "OpsRead: " << path << ", bytes read: " << bytes_read
-             << " from the file with size of: " << file_context->self_encryptor->size();
-  time(&file_context->meta_data->attributes.st_atime);
-  file_context->content_changed = true;
-
-  //    result = Global<Storage>::g_fuse_drive->Update(file_context, false);
-  //    if (result != kSuccess) {
-  //      LOG(kError) << "OpsRead: " << path << ", failed to update.  Result: "
-  //                  << result;
-  //      // Non-critical error - don't return here.
-  //    }
-  return bytes_read;
 }
 
 // Quote from FUSE documentation:
 //
 // Read directory.
+//
 // The filesystem may choose between two modes of operation:
 //
 // 1) The readdir implementation ignores the offset parameter, and passes zero to the filler
@@ -817,8 +786,16 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
   return 0;
 }
 
+/*
+// Quote from FUSE documentation:
+//
+// Read the target of a symbolic link.
+//
+// The buffer should be filled with a null terminated string.  The buffer size argument includes the
+// space for the terminating null character.	If the linkname is too long to fit in the buffer, it
+// should be truncated.	The return value should be 0 for success.
 template <typename Storage>
-int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t /*size*/) {
+int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t size) {
   LOG(kInfo) << "OpsReadlink: " << path;
   try {
     auto file_context(Global<Storage>::g_fuse_drive->GetFileContext(path));
@@ -830,12 +807,13 @@ int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t /*size*/
       return -EINVAL;
     }
   }
-  catch (...) {
-    LOG(kWarning) << "OpsReadlink: " << path << ", can't get meta data.";
+  catch (const std::exception& e) {
+    LOG(kWarning) << "OpsReadlink: " << path << ": " << e.what();
     return -ENOENT;
   }
   return 0;
 }
+*/
 
 // Quote from FUSE documentation:
 //
@@ -949,6 +927,9 @@ int FuseDrive<Storage>::OpsStatfs(const char* path, struct statvfs* stbuf) {
 }
 
 /*
+// Quote from FUSE documentation:
+//
+// Create a symbolic link.
 template <typename Storage>
 int FuseDrive<Storage>::OpsSymlink(const char* to, const char* from) {
   LOG(kInfo) << "OpsSymlink: " << from << " --> " << to;

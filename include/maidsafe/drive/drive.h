@@ -54,23 +54,6 @@ class Drive {
   virtual ~Drive() {}
   Identity root_parent_id() const;
 
-  // ********************* File / Folder Transfers ************************************************
-/*
-  // Retrieve the serialised DataMap of the file at 'relative_path' (e.g. to send to another client)
-  std::string GetDataMap(const boost::filesystem::path& relative_path);
-  // Insert a file at 'relative_path' derived from the serialised DataMap (e.g. if
-  // receiving from another client).
-  void InsertDataMap(const boost::filesystem::path& relative_path,
-                     const std::string& serialised_data_map);
-
-  // Adds a directory or file represented by 'meta_data' and 'relative_path' to the appropriate
-  // parent directory listing. If the element is a directory, a new directory listing is created
-  // and stored. The parent directory's ID is returned in 'parent_id' and its parent directory's ID
-  // is returned in 'grandparent_id'.
-  void Add(const boost::filesystem::path& relative_path, FileContext& file_context);
-  bool CanDelete(const boost::filesystem::path& relative_path);
-*/
-
  protected:
   detail::FileContext* GetContext(const boost::filesystem::path& relative_path) const;
   void Create(const boost::filesystem::path& relative_path, detail::FileContext&& file_context);
@@ -80,7 +63,8 @@ class Drive {
   void Delete(const boost::filesystem::path& relative_path);
   void Rename(const boost::filesystem::path& old_relative_path,
               const boost::filesystem::path& new_relative_path);
-
+  uint32_t Read(const boost::filesystem::path& relative_path, char* data, uint32_t size,
+                uint64_t offset);
 
 
 
@@ -99,13 +83,6 @@ class Drive {
   void InitialiseEncryptor(const boost::filesystem::path& relative_path,
                            detail::FileContext& file_context) const;
   bool FlushEncryptor(detail::FileContext* file_context);
-
-
-
-
-
-
-  std::string ReadDataMap(const boost::filesystem::path& relative_path);
 
   std::function<NonEmptyString(const std::string&)> get_chunk_from_store_;
   MemoryUsage default_max_buffer_memory_;
@@ -245,6 +222,25 @@ void Drive<Storage>::Rename(const boost::filesystem::path& old_relative_path,
   directory_handler_.Rename(old_relative_path, new_relative_path);
 }
 
+template <typename Storage>
+uint32_t Drive<Storage>::Read(const boost::filesystem::path& relative_path, char* data,
+                              uint32_t size, uint64_t offset) {
+  auto file_context(GetContext(relative_path));
+  assert(file_context->self_encryptor);
+  LOG(kInfo) << "For "  << relative_path << ", reading " << size << " of "
+             << file_context->self_encryptor->size() << " bytes at offset " << offset;
+  if (!file_context->self_encryptor->Read(data, size, offset)) {
+    LOG(kError) << "Failed to read " << relative_path;
+    ThrowError(CommonErrors::unknown);
+  }
+  // TODO(Fraser#5#): 2013-12-02 - Update last access time?
+  if (offset + size > file_context->self_encryptor->size()) {
+    return offset > file_context->self_encryptor->size() ? 0 :
+           static_cast<uint32_t>(file_context->self_encryptor->size() - offset);
+  } else {
+    return size;
+  }
+}
 
 
 
@@ -267,26 +263,6 @@ template <typename Storage>
 void Drive<Storage>::UpdateParent(FileContextPtr file_context,
                                   const boost::filesystem::path& parent_path) {
   directory_handler_.UpdateParent(parent_path, *file_context->meta_data);
-}
-
-template <typename Storage>
-std::string Drive<Storage>::ReadDataMap(const boost::filesystem::path& relative_path) {
-  std::string serialised_data_map;
-  if (relative_path.empty())
-    ThrowError(CommonErrors::invalid_parameter);
-
-  detail::FileContext file_context(GetFileContext(relative_path));
-
-  if (!file_context.meta_data->data_map)
-    ThrowError(CommonErrors::invalid_parameter);
-
-  try {
-    encrypt::SerialiseDataMap(*file_context.meta_data->data_map, serialised_data_map);
-  }
-  catch(const std::exception& exception) {
-    boost::throw_exception(exception);
-  }
-  return serialised_data_map;
 }
 
 }  // namespace drive

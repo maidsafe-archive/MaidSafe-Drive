@@ -974,6 +974,14 @@ void CbfsDrive<Storage>::CbFsRenameOrMoveFile(CallbackFileSystem* sender, CbFsFi
   }
 }
 
+// Quote from CBFS documentation:
+//
+// This event is fired when the OS needs to read the data from the open file or volume. Write the
+// data (no more than BytesToRead bytes) to the povided Buffer. Put the actual number of read bytes
+// to BytesRead. Note, that unless you create the virtual disk for some specific application, your
+// callback handler should be able to provide exactly BytesToRead bytes of data. Reading less data
+// than expected is an unexpected situation for many applications, and they will fail if you provide
+// less bytes than requested.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsReadFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                       int64_t position, PVOID buffer, DWORD bytes_to_read,
@@ -981,26 +989,15 @@ void CbfsDrive<Storage>::CbFsReadFile(CallbackFileSystem* sender, CbFsFileInfo* 
   SCOPED_PROFILE
   auto cbfs_drive(GetDrive(sender));
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
-  if (!file_info->get_UserContext())
-    return;
-
-  FileContextPtr file_context(static_cast<FileContextPtr>(file_info->get_UserContext()));
-  LOG(kInfo) << "CbFsReadFile- " << relative_path << " reading " << bytes_to_read << " of "
-              << file_context->meta_data.end_of_file << " at position " << position;
-  assert(file_context->self_encryptor);
-  *bytes_read = 0;
-
-  if (!file_context->self_encryptor)
-    throw ECBFSError(ERROR_INVALID_PARAMETER);
-  if (!file_context->self_encryptor->Read(static_cast<char*>(buffer), bytes_to_read, position))
+  try {
+    *bytes_read = static_cast<DWORD>(cbfs_drive->Read(relative_path, static_cast<char*>(buffer),
+                                                      bytes_to_read, position));
+  }
+  catch (const std::exception& e) {
+    *bytes_read = 0;
+    LOG(kWarning) << "Failed to read " << relative_path << ": " << e.what();
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
-
-  if (static_cast<uint64_t>(position + bytes_to_read) > file_context->self_encryptor->size())
-    *bytes_read = static_cast<DWORD>(file_context->self_encryptor->size() - position);
-  else
-    *bytes_read = bytes_to_read;
-  GetSystemTimeAsFileTime(&file_context->meta_data.last_access_time);
-  file_context->content_changed = true;
+  }
 }
 
 template <typename Storage>
