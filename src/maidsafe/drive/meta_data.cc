@@ -320,12 +320,12 @@ void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
   attributes_archive->set_st_blocks(attributes.st_blocks);
 #endif
 
-  if (!data_map.empty()) {
+  if (directory_id) {
+    protobuf_meta_data->set_directory_id(directory_id->string());
+  } else {
     std::string serialised_data_map;
     encrypt::SerialiseDataMap(data_map, serialised_data_map);
     protobuf_meta_data->set_serialised_data_map(serialised_data_map);
-  } else {
-    protobuf_meta_data->set_directory_id(directory_id->string());
   }
 
   for (const auto& note : notes)

@@ -137,10 +137,9 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
   if (create) {
     FileContext root_file_context(kRoot, true);
     Directory root_parent(ParentId(unique_user_id_), root_parent_id);
-    Directory root(ParentId(root_parent_id), RandomString(64));
+    Directory root(ParentId(root_parent_id), DirectoryId(RandomString(64)));
     root_parent.AddChild(std::move(root_file_context));
-    Put(std::move(root_parent), kRoot.parent_path());
-    Put(std::move(root), kRoot);
+    cache_[kRoot] = std::move(root);
   }
 }
 

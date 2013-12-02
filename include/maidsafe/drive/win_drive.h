@@ -370,6 +370,7 @@ void CbfsDrive<Storage>::OnCallbackFsInit() {
     callback_filesystem_.SetSerializeCallbacks(true);
     callback_filesystem_.SetFileCacheEnabled(false);
     callback_filesystem_.SetMetaDataCacheEnabled(false);
+    callback_filesystem_.SetCaseSensitiveFileNames(true);
 //    callback_filesystem_.SetStorageCharacteristics(
 //        CallbackFileSystem::CbFsStorageCharacteristics(
 //            CallbackFileSystem::scRemovableMedia |
@@ -677,8 +678,10 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
   *allocation_size = file_context->meta_data.allocation_size;
   //*file_id = 0;
   *file_attributes = file_context->meta_data.attributes;
-  wcscpy(real_file_name, file_context->meta_data.name.wstring().c_str());
-  *real_file_name_length = static_cast<WORD>(file_context->meta_data.name.wstring().size());
+  if (real_file_name) {
+    wcscpy(real_file_name, file_context->meta_data.name.wstring().c_str());
+    *real_file_name_length = static_cast<WORD>(file_context->meta_data.name.wstring().size());
+  }
 }
 
 // Quote from CBFS documentation:
@@ -1027,6 +1030,7 @@ void CbfsDrive<Storage>::CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo*
   if (!file_info) {
     try {
       cbfs_drive->FlushAll();
+      return;
     }
     catch (const std::exception& e) {
       LOG(kError) << "CbFsFlushFile for all files: " << e.what();

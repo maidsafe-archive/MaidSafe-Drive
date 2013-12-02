@@ -142,15 +142,15 @@ target_compile_definitions(maidsafe_drive
     $<$<BOOL:${Cbfs_FOUND}>:CBFS_KEY=${Cbfs_KEY}>
 )
 if(Cbfs_FOUND)
-  target_compile_definitions(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_DEFINITIONS>)
+  target_compile_definitions(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_DEFINITIONS> "CBFS_KEY=${Cbfs_KEY}")
   target_compile_options(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_OPTIONS>)
   set_property(TARGET cbfs_driver APPEND_STRING PROPERTY LINK_FLAGS " /level='requireAdministrator' /uiAccess='false' ")
   if(MaidsafeTesting)
-    set_property(TARGET local_drive network_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=713CC6CE-B3E2-4fd9-838D-E28F558F6866")
+    set_property(TARGET local_drive network_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=713CC6CE-B3E2-4fd9-838D-E28F558F6866" "CBFS_KEY=${Cbfs_KEY}")
   else()
     # TODO(Brian) BEFORE_RELEASE - Set these UIDs appropriately
-    set_property(TARGET local_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=MAIDSAFE-SUREFILE")
-    set_property(TARGET network_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=MAIDSAFE-LIFESTUFF")
+    set_property(TARGET local_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=MAIDSAFE-SUREFILE" "CBFS_KEY=${Cbfs_KEY}")
+    set_property(TARGET network_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=MAIDSAFE-LIFESTUFF" "CBFS_KEY=${Cbfs_KEY}")
   endif()
 endif()
 

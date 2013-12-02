@@ -105,7 +105,7 @@ Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_u
                       const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
                       const boost::filesystem::path& user_app_dir, bool create)
     : directory_handler_(storage, unique_user_id, root_parent_id,
-                         boost::filesystem::unique_path(kUserAppDir_ / "Buffers" /
+                         boost::filesystem::unique_path(user_app_dir / "Buffers" /
                                                         "%%%%%-%%%%%-%%%%%-%%%%%"), create),
       storage_(storage),
       kMountDir_(mount_dir),
@@ -217,7 +217,8 @@ void Drive<Storage>::Flush(const boost::filesystem::path& relative_path) {
 template <typename Storage>
 void Drive<Storage>::Release(const boost::filesystem::path& relative_path) {
   auto file_context(GetMutableContext(relative_path));
-  --file_context->open_count;
+  if (!file_context->meta_data.directory_id)
+    --file_context->open_count;
   if (file_context->self_encryptor && !FlushEncryptor(file_context))
     LOG(kError) << "Failed to flush " << relative_path << " during Release";
   directory_handler_.PutVersion(relative_path.parent_path());
