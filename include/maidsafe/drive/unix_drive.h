@@ -883,6 +883,11 @@ int FuseDrive<Storage>::OpsRmdir(const char* path) {
   return 0;
 }
 
+// Quote from FUSE documentation:
+//
+// Get file system statistics.
+//
+// The 'f_frsize', 'f_favail', 'f_fsid' and 'f_flag' fields are ignored.
 template <typename Storage>
 int FuseDrive<Storage>::OpsStatfs(const char* path, struct statvfs* stbuf) {
   LOG(kInfo) << "OpsStatfs: " << path;

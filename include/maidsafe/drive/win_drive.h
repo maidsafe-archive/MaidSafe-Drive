@@ -54,14 +54,6 @@ class CbfsDrive;
 
 namespace detail {
 
-struct DirectoryEnumerationContext {
-  explicit DirectoryEnumerationContext(const Directory& directory_in)
-      : exact_match(false), directory(directory_in) {}
-  DirectoryEnumerationContext() : exact_match(false), directory() {}
-  bool exact_match;
-  detail::Directory directory;
-};
-
 template <typename Storage>
 CbfsDrive<Storage>* GetDrive(CallbackFileSystem* sender) {
   return static_cast<CbfsDrive<Storage>*>(sender->GetTag());
@@ -177,7 +169,7 @@ class CbfsDrive : public Drive<Storage> {
                                   PSECURITY_DESCRIPTOR security_descriptor, DWORD length,
                                   PDWORD length_needed);
   static void CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo* file_info);
-  static void CbFsOnEjectStorage(CallbackFileSystem* sender);
+  static void CbFsStorageEjected(CallbackFileSystem* sender);
 
   mutable CallbackFileSystem callback_filesystem_;
   std::string guid_;
@@ -352,7 +344,7 @@ template <typename Storage>
 void CbfsDrive<Storage>::OnCallbackFsInit() {
   try {
     callback_filesystem_.SetRegistrationKey(registration_key_);
-    callback_filesystem_.SetOnStorageEjected(CbFsOnEjectStorage);
+    callback_filesystem_.SetOnStorageEjected(CbFsStorageEjected);
     callback_filesystem_.SetOnMount(CbFsMount);
     callback_filesystem_.SetOnUnmount(CbFsUnmount);
     callback_filesystem_.SetOnGetVolumeSize(CbFsGetVolumeSize);
@@ -727,7 +719,7 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     CallbackFileSystem* sender, CbFsFileInfo* directory_info, CbFsHandleInfo* /*handle_info*/,
-    CbFsDirectoryEnumerationInfo* directory_enumeration_info, LPCWSTR mask, INT index,
+    CbFsDirectoryEnumerationInfo* /*directory_enumeration_info*/, LPCWSTR mask, INT index,
     BOOL restart, LPBOOL file_found, LPWSTR file_name, PDWORD file_name_length,
     LPWSTR /*short_file_name*/ OPTIONAL, PUCHAR /*short_file_name_length*/ OPTIONAL,
     PFILETIME creation_time, PFILETIME last_access_time, PFILETIME last_write_time,
@@ -736,65 +728,48 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
   SCOPED_PROFILE
   auto cbfs_drive(GetDrive(sender));
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, directory_info));
-  detail::DirectoryEnumerationContext* enum_context = nullptr;
   std::wstring mask_str(mask);
-  LOG(kInfo) << "CbFsEnumerateDirectory - " << relative_path << " index: " << index
-             << std::boolalpha << " nullptr context: " << (directory_enumeration_info == nullptr)
-             << " mask: " << WstringToString(mask_str) << " restart: " << restart;
+  LOG(kInfo) << "CbFsEnumerateDirectory - " << relative_path << " mask: "
+             << WstringToString(mask_str) << " restart: " << restart;
   bool exact_match(mask_str != L"*");
   *file_found = false;
 
-  if (restart && directory_enumeration_info->get_UserContext()) {
-    enum_context = static_cast<detail::DirectoryEnumerationContext*>(
-        directory_enumeration_info->get_UserContext());
-    delete enum_context;
-    enum_context = nullptr;
-    directory_enumeration_info->set_UserContext(nullptr);
-  }
-
-  Directory directory;
-  if (!directory_enumeration_info->get_UserContext()) {
-    try {
-      directory = cbfs_drive->GetDirectory(relative_path);
-    }
-    catch (...) {
-      throw ECBFSError(ERROR_FILE_NOT_FOUND);
-    }
-    enum_context = new detail::DirectoryEnumerationContext(directory);
-    enum_context->directory.listing->ResetChildrenIterator();
-    directory_enumeration_info->set_UserContext(enum_context);
-  } else {
-    enum_context = static_cast<detail::DirectoryEnumerationContext*>(
-        directory_enumeration_info->get_UserContext());
+  try {
+    auto directory(cbfs_drive->directory_handler_.Get(relative_path));
     if (restart)
-      enum_context->directory.listing->ResetChildrenIterator();
+      directory->ResetChildrenIterator();
+  }
+  catch (const std::exception& e) {
+    LOG(kError) << "Failed enumerating " << relative_path << ": " << e.what();
+    throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
 
-  MetaData meta_data;
+  detail::FileContext* file_context;
   if (exact_match) {
     while (!(*file_found)) {
-      if (!enum_context->directory.listing->GetChildAndIncrementItr(meta_data))
+      file_context = directory->GetChildAndIncrementItr();
+      if (!file_context)
         break;
-      *file_found = detail::MatchesMask(mask_str, meta_data.name);
+      *file_found = detail::MatchesMask(mask_str, file_context->meta_data.name);
     }
   } else {
-    *file_found = enum_context->directory.listing->GetChildAndIncrementItr(meta_data);
+    file_context = directory->GetChildAndIncrementItr();
+    *file_found = static_cast<bool>(file_context);
   }
 
   if (*file_found) {
     // Need to use wcscpy rather than the secure wcsncpy_s as file_name has a size of 0 in some
     // cases.  CBFS docs specify that callers must assign MAX_PATH chars to file_name, so we assume
     // this is done.
-    wcscpy(file_name, meta_data.name.wstring().c_str());
-    *file_name_length = static_cast<DWORD>(meta_data.name.wstring().size());
-    *creation_time = meta_data.creation_time;
-    *last_access_time = meta_data.last_access_time;
-    *last_write_time = meta_data.last_write_time;
-    *end_of_file = meta_data.end_of_file;
-    *allocation_size = meta_data.allocation_size;
-    *file_attributes = meta_data.attributes;
+    wcscpy(file_name, file_context->meta_data.name.wstring().c_str());
+    *file_name_length = static_cast<DWORD>(file_context->meta_data.name.wstring().size());
+    *creation_time = file_context->meta_data.creation_time;
+    *last_access_time = file_context->meta_data.last_access_time;
+    *last_write_time = file_context->meta_data.last_write_time;
+    *end_of_file = file_context->meta_data.end_of_file;
+    *allocation_size = file_context->meta_data.allocation_size;
+    *file_attributes = file_context->meta_data.attributes;
   }
-  enum_context->exact_match = exact_match;
 }
 
 // Quote from CBFS documentation:
@@ -804,18 +779,9 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsCloseDirectoryEnumeration(
     CallbackFileSystem* sender, CbFsFileInfo* directory_info,
-    CbFsDirectoryEnumerationInfo* directory_enumeration_info) {
-  SCOPED_PROFILE
-  auto cbfs_drive(GetDrive(sender));
-  auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, directory_info));
-  LOG(kInfo) << "CbFsCloseEnumeration - " << relative_path;
-  if (directory_enumeration_info) {
-    auto enum_context = static_cast<detail::DirectoryEnumerationContext*>(
-        directory_enumeration_info->get_UserContext());
-    delete enum_context;
-    enum_context = nullptr;
-    directory_enumeration_info->set_UserContext(nullptr);
-  }
+    CbFsDirectoryEnumerationInfo* /*directory_enumeration_info*/) {
+  LOG(kInfo) << "CbFsCloseEnumeration - " << detail::GetRelativePath<Storage>(GetDrive(sender),
+                                                                              directory_info);
 }
 
 // Quote from CBFS documentation:
@@ -1027,6 +993,10 @@ void CbfsDrive<Storage>::CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo*
   }
 }
 
+// Quote from CBFS documentation:
+//
+// This event is fired when the OS wants to check whether the directory is empty or contains some
+// files.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsIsDirectoryEmpty(CallbackFileSystem* sender,
                                               CbFsFileInfo* /*directory_info*/, LPWSTR file_name,
@@ -1035,9 +1005,9 @@ void CbfsDrive<Storage>::CbFsIsDirectoryEmpty(CallbackFileSystem* sender,
   LOG(kInfo) << "CbFsIsDirectoryEmpty - " << boost::filesystem::path(file_name);
   try {
     auto cbfs_drive(GetDrive(sender));
-    *is_empty = cbfs_drive->GetDirectory(boost::filesystem::path(file_name)).listing->empty();
+    *is_empty = cbfs_drive->directory_handler_.Get(file_name)->empty();
   }
-  catch (...) {
+  catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
 }
@@ -1069,7 +1039,7 @@ void CbfsDrive<Storage>::CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo*
   }
   catch (const drive_error& error) {
     LOG(kError) << "CbFsFlushFile: " << relative_path << ": " << error.what();
-    if (error.code() == make_error_code(DriveErrors::no_such_file)
+    if (error.code() == make_error_code(DriveErrors::no_such_file))
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
     else
       throw ECBFSError(ERROR_ERRORS_ENCOUNTERED);
@@ -1080,9 +1050,14 @@ void CbfsDrive<Storage>::CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo*
   }
 }
 
+// Quote from CBFS documentation:
+//
+// This event is fired when the storage is removed by the user using Eject command in Explorer. When
+// the event is fired, the storage has been completely destroyed. You don't need to call
+// UnmountMedia() or DeleteStorage() methods.
 template <typename Storage>
-void CbfsDrive<Storage>::CbFsOnEjectStorage(CallbackFileSystem* sender) {
-  LOG(kInfo) << "CbFsOnEjectStorage";
+void CbfsDrive<Storage>::CbFsStorageEjected(CallbackFileSystem* sender) {
+  LOG(kInfo) << "CbFsStorageEjected";
   auto cbfs_drive(GetDrive(sender));
   boost::async(boost::launch::async, [cbfs_drive] { cbfs_drive->Unmount(); });
 }

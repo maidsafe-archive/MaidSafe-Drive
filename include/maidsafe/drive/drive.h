@@ -68,14 +68,7 @@ class Drive {
   uint32_t Write(const boost::filesystem::path& relative_path, const char* data, uint32_t size,
                  uint64_t offset);
 
-
-
-
-
-
-  void UpdateParent(FileContextPtr file_context, const boost::filesystem::path& parent_path);
-
-  DirectoryHandler directory_handler_;
+  detail::DirectoryHandler directory_handler_;
   std::shared_ptr<Storage> storage_;
   const boost::filesystem::path kMountDir_;
   const boost::filesystem::path kUserAppDir_;
@@ -139,7 +132,7 @@ void Drive<Storage>::InitialiseEncryptor(const boost::filesystem::path& relative
     directory_handler_.HandleDataPoppedFromBuffer(relative_path, name, content);
   });
   auto disk_buffer_path(
-      boost::filesystem::unique_path(kUserAppDir_ / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%");
+      boost::filesystem::unique_path(kUserAppDir_ / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"));
   file_context.data_buffer.reset(new detail::FileContext::Buffer(default_max_buffer_memory_,
       default_max_buffer_disk_, buffer_pop_functor, disk_buffer_path));
   file_context.self_encryptor.reset(new encrypt::SelfEncryptor(file_context->meta_data.data_map,
@@ -258,29 +251,6 @@ uint32_t Drive<Storage>::Write(const boost::filesystem::path& relative_path, con
   file_context->meta_data->attributes.st_blocks = file_context->meta_data->attributes.st_size / 512;
 #endif
   return size;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-template <typename Storage>
-typename Drive<Storage>::Directory Drive<Storage>::GetDirectory(
-    const boost::filesystem::path& relative_path) {
-  return directory_handler_.Get(relative_path);
-}
-
-template <typename Storage>
-void Drive<Storage>::UpdateParent(FileContextPtr file_context,
-                                  const boost::filesystem::path& parent_path) {
-  directory_handler_.UpdateParent(parent_path, *file_context->meta_data);
 }
 
 }  // namespace drive

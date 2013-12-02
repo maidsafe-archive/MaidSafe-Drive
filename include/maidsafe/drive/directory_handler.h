@@ -61,10 +61,6 @@ namespace test { class DirectoryHandlerTest; }
 template <typename Storage>
 class DirectoryHandler {
  public:
-  //typedef std::shared_ptr<DirectoryListing> DirectoryListingPtr;
-  //typedef encrypt::SelfEncryptor<Storage> SelfEncryptor;
-  //typedef encrypt::DataMap DataMap;
-
   DirectoryHandler(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
                    const Identity& root_parent_id, bool create);
   virtual ~DirectoryHandler() {}
@@ -77,16 +73,6 @@ class DirectoryHandler {
   void Delete(const boost::filesystem::path& relative_path);
   void Rename(const boost::filesystem::path& old_relative_path,
               const boost::filesystem::path& new_relative_path);
-
-
-
-
-
-
-
-
-
-  void UpdateParent(const boost::filesystem::path& parent_path, const MetaData& meta_data);
   void HandleDataPoppedFromBuffer(const boost::filesystem::path& relative_path,
                                   const std::string& name, const NonEmptyString& content) const;
 
@@ -295,32 +281,6 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
   //  if (itr != std::end(cache_))
   //    cache_.erase(old_relative_path);
   //}
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-template <typename Storage>
-void DirectoryHandler<Storage>::UpdateParent(const boost::filesystem::path& parent_path,
-                                             const MetaData& meta_data) {
-  SCOPED_PROFILE
-  Directory parent = Get(parent_path);
-  parent.first->UpdateChild(meta_data);
-  Put(parent, parent_path);
 }
 
 template <typename Storage>
