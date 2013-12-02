@@ -174,7 +174,7 @@ bool operator<(const Directory& lhs, const Directory& rhs) {
   return lhs.directory_id() < rhs.directory_id();
 }
 
-void swap(Directory& lhs, Directory& rhs) {
+void swap(Directory& lhs, Directory& rhs) MAIDSAFE_NOEXCEPT {
   using std::swap;
   swap(lhs.contents_changed_, rhs.contents_changed_);
   swap(lhs.parent_id_, rhs.parent_id_);

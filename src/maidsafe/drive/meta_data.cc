@@ -143,7 +143,7 @@ MetaData::MetaData(const fs::path& name, bool is_directory)
       attributes(),
       link_to(),
       data_map(),
-      directory_id(is_directory ? std::make_shared<DirectoryId>(RandomString(64)) : nullptr),
+      directory_id(is_directory ? new DirectoryId(RandomString(64)) : nullptr),
       notes() {
   attributes.st_gid = getgid();
   attributes.st_uid = getuid();
