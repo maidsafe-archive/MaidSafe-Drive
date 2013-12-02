@@ -1028,53 +1028,25 @@ int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]
   return 0;
 }
 
+// Quote from FUSE documentation:
+//
+// Write data to an open file.
+//
+// Write should return exactly the number of bytes requested except on error.  An exception to this
+// is when the 'direct_io' mount option is specified (see read operation).
 template <typename Storage>
 int FuseDrive<Storage>::OpsWrite(const char* path, const char* buf, size_t size, off_t offset,
                                  struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsWrite: " << path << ", flags: 0x" << std::hex << file_info->flags << std::dec
              << " Size : " << size << " Offset : " << offset;
 
-  detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
-  if (!file_context)
+  try {
+    return static_cast<int>(Global<Storage>::g_fuse_drive->Write(path, buf, size, offset));
+  }
+  catch (const std::exception& e) {
+    LOG(kWarning) << "Failed to write " << path << ": " << e.what();
     return -EINVAL;
-
-  assert(file_context->self_encryptor);
-  if (!file_context->self_encryptor) {
-    LOG(kInfo) << "Resetting the encryption stream";
-    file_context->self_encryptor.reset(
-          new encrypt::SelfEncryptor<Storage>(file_context->meta_data->data_map,
-              *Global<Storage>::g_fuse_drive->storage_));
   }
-
-  // TODO(JLB): 2011-06-02 - look into SSIZE_MAX?
-
-  bool mswf_result(file_context->self_encryptor->Write(buf, size, offset));
-  if (!mswf_result) {
-    // unsuccessful write -> invalid enc. stream, error already logged
-    LOG(kError) << "Error writing file: " << mswf_result;
-    return -EBADF;
-  }
-
-  int64_t max_size(
-      std::max(static_cast<off_t>(offset + size), file_context->meta_data->attributes.st_size));
-  file_context->meta_data->attributes.st_size = max_size;
-
-  file_context->meta_data->attributes.st_blocks = file_context->meta_data->attributes.st_size / 512;
-  LOG(kInfo) << "OpsWrite: " << path << ", bytes written: " << size
-             << ", file size: " << file_context->meta_data->attributes.st_size
-             << ", mswf_result: " << mswf_result;
-
-  time(&file_context->meta_data->attributes.st_mtime);
-  file_context->meta_data->attributes.st_ctime = file_context->meta_data->attributes.st_mtime;
-  file_context->content_changed = true;
-
-  //    int result(Global<Storage>::g_fuse_drive->Update(file_context, false));
-  //    if (result != kSuccess) {
-  //      LOG(kError) << "OpsWrite: " << path << ", failed to update parent "
-  //                  << "dir.  Result: " << result;
-  //      // Non-critical error - don't return here.
-  //    }
-  return size;
 }
 
 #ifdef HAVE_SETXATTR

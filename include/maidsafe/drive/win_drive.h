@@ -1000,6 +1000,13 @@ void CbfsDrive<Storage>::CbFsReadFile(CallbackFileSystem* sender, CbFsFileInfo* 
   }
 }
 
+// Quote from CBFS documentation:
+//
+// This event is fired when the OS needs to write the data to the open file or volume. Note, that
+// unless you create the virtual disk for some specific application, your callback handler should be
+// able to write exactly BytesToWrite bytes of data. Writing less data than expected is an
+// unexpected situation for many applications, and they will fail if you write less bytes than
+// requested.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                        int64_t position, PVOID buffer, DWORD bytes_to_write,
@@ -1009,17 +1016,15 @@ void CbfsDrive<Storage>::CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo*
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsWriteFile- " << relative_path << " writing " << bytes_to_write
              << " bytes at position " << position;
-
-  FileContext* file_context(static_cast<FileContext*>(file_info->get_UserContext()));
-  assert(file_context);
-  assert(file_context->self_encryptor);
-  *bytes_written = 0;
-  if (!file_context->self_encryptor->Write(static_cast<char*>(buffer), bytes_to_write, position))
+  try {
+    *bytes_written = static_cast<DWORD>(cbfs_drive->Write(relative_path, static_cast<char*>(buffer),
+                                                          bytes_to_write, position));
+  }
+  catch (const std::exception& e) {
+    *bytes_written = 0;
+    LOG(kWarning) << "Failed to read " << relative_path << ": " << e.what();
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
-
-  *bytes_written = bytes_to_write;
-  GetSystemTimeAsFileTime(&file_context->meta_data.last_write_time);
-  file_context->content_changed = true;
+  }
 }
 
 template <typename Storage>

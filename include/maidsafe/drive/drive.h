@@ -65,6 +65,8 @@ class Drive {
               const boost::filesystem::path& new_relative_path);
   uint32_t Read(const boost::filesystem::path& relative_path, char* data, uint32_t size,
                 uint64_t offset);
+  uint32_t Write(const boost::filesystem::path& relative_path, const char* data, uint32_t size,
+                 uint64_t offset);
 
 
 
@@ -229,10 +231,8 @@ uint32_t Drive<Storage>::Read(const boost::filesystem::path& relative_path, char
   assert(file_context->self_encryptor);
   LOG(kInfo) << "For "  << relative_path << ", reading " << size << " of "
              << file_context->self_encryptor->size() << " bytes at offset " << offset;
-  if (!file_context->self_encryptor->Read(data, size, offset)) {
-    LOG(kError) << "Failed to read " << relative_path;
+  if (!file_context->self_encryptor->Read(data, size, offset))
     ThrowError(CommonErrors::unknown);
-  }
   // TODO(Fraser#5#): 2013-12-02 - Update last access time?
   if (offset + size > file_context->self_encryptor->size()) {
     return offset > file_context->self_encryptor->size() ? 0 :
@@ -240,6 +240,24 @@ uint32_t Drive<Storage>::Read(const boost::filesystem::path& relative_path, char
   } else {
     return size;
   }
+}
+
+template <typename Storage>
+uint32_t Drive<Storage>::Write(const boost::filesystem::path& relative_path, const char* data,
+                               uint32_t size, uint64_t offset) {
+  auto file_context(GetContext(relative_path));
+  assert(file_context->self_encryptor);
+  LOG(kInfo) << "For "  << relative_path << ", writing " << size << " bytes at offset " << offset;
+  if (!file_context->self_encryptor->Write(data, size, offset))
+    ThrowError(CommonErrors::unknown);
+  // TODO(Fraser#5#): 2013-12-02 - Update last write time?
+#ifndef MAIDSAFE_WIN32
+  int64_t max_size(
+      std::max(static_cast<off_t>(offset + size), file_context->meta_data.attributes.st_size));
+  file_context->meta_data->attributes.st_size = max_size;
+  file_context->meta_data->attributes.st_blocks = file_context->meta_data->attributes.st_size / 512;
+#endif
+  return size;
 }
 
 
