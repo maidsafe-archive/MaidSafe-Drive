@@ -110,7 +110,7 @@ inline int CreateNew(const fs::path& full_path, mode_t mode, dev_t rdev = 0) {
 //     root_handler.UpdateParentDirectoryListing(file_context->meta_data->name.parent_path(),
 //                                               *file_context->meta_data.get());
 //   }
-//   catch (...) {
+//   catch (const std::exception&) {
 //     return false;
 //   }
 //   return true;
@@ -760,7 +760,7 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
     detail::Directory directory(Global<Storage>::g_fuse_drive->GetDirectory(fs::path(path)));
     dir_listing = directory.listing;
   }
-  catch (...) {
+  catch (const std::exception&) {
   }
 
   if (!dir_listing) {

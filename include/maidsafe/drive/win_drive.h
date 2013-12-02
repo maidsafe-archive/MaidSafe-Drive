@@ -108,8 +108,8 @@ class CbfsDrive : public Drive<Storage> {
 
   static void CbFsMount(CallbackFileSystem* sender);
   static void CbFsUnmount(CallbackFileSystem* sender);
-  static void CbFsGetVolumeSize(CallbackFileSystem* sender, __int64* total_number_of_sectors,
-                                __int64* number_of_free_sectors);
+  static void CbFsGetVolumeSize(CallbackFileSystem* sender, int64_t* total_number_of_sectors,
+                                int64_t* number_of_free_sectors);
   static void CbFsGetVolumeLabel(CallbackFileSystem* sender, LPTSTR volume_label);
   static void CbFsSetVolumeLabel(CallbackFileSystem* sender, LPCTSTR volume_label);
   static void CbFsGetVolumeId(CallbackFileSystem* sender, PDWORD volume_id);
@@ -123,27 +123,27 @@ class CbfsDrive : public Drive<Storage> {
                             CbFsHandleInfo* handle_info);
   static void CbFsGetFileInfo(CallbackFileSystem* sender, LPCTSTR file_name, LPBOOL file_exists,
                               PFILETIME creation_time, PFILETIME last_access_time,
-                              PFILETIME last_write_time, __int64* end_of_file,
-                              __int64* allocation_size, __int64* file_id OPTIONAL,
+                              PFILETIME last_write_time, int64_t* end_of_file,
+                              int64_t* allocation_size, int64_t* file_id OPTIONAL,
                               PDWORD file_attributes, LPWSTR short_file_name OPTIONAL,
                               PWORD short_file_name_length OPTIONAL,
                               LPWSTR real_file_name OPTIONAL,
                               LPWORD real_file_name_length OPTIONAL);
   static void CbFsEnumerateDirectory(
       CallbackFileSystem* sender, CbFsFileInfo* directory_info, CbFsHandleInfo* handle_info,
-      CbFsDirectoryEnumerationInfo* directory_enumeration_info, LPCWSTR mask, INT index,
+      CbFsDirectoryEnumerationInfo* directory_enumeration_info, LPCWSTR mask, int index,
       BOOL restart, LPBOOL file_found, LPWSTR file_name, PDWORD file_name_length,
       LPWSTR short_file_name OPTIONAL, PUCHAR short_file_name_length OPTIONAL,
       PFILETIME creation_time, PFILETIME last_access_time, PFILETIME last_write_time,
-      __int64* end_of_file, __int64* allocation_size, __int64* file_id OPTIONAL,
+      int64_t* end_of_file, int64_t* allocation_size, int64_t* file_id OPTIONAL,
       PDWORD file_attributes);
   static void CbFsCloseDirectoryEnumeration(CallbackFileSystem* sender,
                                             CbFsFileInfo* directory_info,
                                             CbFsDirectoryEnumerationInfo* enumeration_info);
   static void CbFsSetAllocationSize(CallbackFileSystem* sender, CbFsFileInfo* file_info,
-                                    __int64 allocation_size);
+                                    int64_t allocation_size);
   static void CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
-                               __int64 end_of_file);
+                               int64_t end_of_file);
   static void CbFsSetFileAttributes(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                     CbFsHandleInfo* handle_info, PFILETIME creation_time,
                                     PFILETIME last_access_time, PFILETIME last_write_time,
@@ -153,9 +153,9 @@ class CbfsDrive : public Drive<Storage> {
   static void CbFsDeleteFile(CallbackFileSystem* sender, CbFsFileInfo* file_info);
   static void CbFsRenameOrMoveFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                    LPCTSTR new_file_name);
-  static void CbFsReadFile(CallbackFileSystem* sender, CbFsFileInfo* file_info, __int64 position,
+  static void CbFsReadFile(CallbackFileSystem* sender, CbFsFileInfo* file_info, int64_t position,
                            PVOID buffer, DWORD bytes_to_read, PDWORD bytes_read);
-  static void CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo* file_info, __int64 position,
+  static void CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo* file_info, int64_t position,
                             PVOID buffer, DWORD bytes_to_write, PDWORD bytes_written);
   static void CbFsIsDirectoryEmpty(CallbackFileSystem* sender, CbFsFileInfo* directory_info,
                                    LPWSTR file_name, LPBOOL is_empty);
@@ -289,7 +289,7 @@ void CbfsDrive<Storage>::FlushAll() {
 template <typename Storage>
 void CbfsDrive<Storage>::UpdateDriverStatus() {
   BOOL installed = false;
-  INT version_high = 0, version_low = 0;
+  int version_high = 0, version_low = 0;
   SERVICE_STATUS status;
   CallbackFileSystem::GetModuleStatus(guid_.data(), CBFS_MODULE_DRIVER, &installed, &version_high,
                                       &version_low, &status);
@@ -458,7 +458,7 @@ void CbfsDrive<Storage>::CbFsGetVolumeSize(CallbackFileSystem* sender,
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsGetVolumeLabel(CallbackFileSystem* sender, LPTSTR volume_label) {
   LOG(kInfo) << "CbFsGetVolumeLabel";
-  auto cbfs_drive(GetDrive(sender));
+  auto cbfs_drive(detail::GetDrive<Storage>(sender));
   wcsncpy_s(volume_label, cbfs_drive->drive_name().size() + 1, &cbfs_drive->drive_name()[0],
             cbfs_drive->drive_name().size() + 1);
 }
@@ -519,7 +519,7 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file_name,
                                         ACCESS_MASK /*desired_access*/,
                                         DWORD file_attributes, DWORD /*share_mode*/,
-                                        CbFsFileInfo* file_info,
+                                        CbFsFileInfo* /*file_info*/,
                                         CbFsHandleInfo* /*handle_info*/) {
   SCOPED_PROFILE
   boost::filesystem::path relative_path(file_name);
@@ -528,8 +528,8 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
   bool is_directory((file_attributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY);
   try {
     detail::FileContext file_context(relative_path.filename(), is_directory);
-    file_context->meta_data.attributes = file_attributes;
-    GetDrive(sender)->Create(relative_path, std::move(file_context));
+    file_context.meta_data.attributes = file_attributes;
+    detail::GetDrive<Storage>(sender)->Create(relative_path, std::move(file_context));
   }
   catch (const drive_error& error) {
     LOG(kWarning) << "CbfsCreateFile: " << relative_path << ": " << error.what();
@@ -579,7 +579,7 @@ void CbfsDrive<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_n
   SCOPED_PROFILE
   LOG(kInfo) << "CbFsOpenFile - " << boost::filesystem::path(file_name);
   try {
-    GetDrive(sender)->Open(file_name);
+    detail::GetDrive<Storage>(sender)->Open(file_name);
   }
   catch (const drive_error& error) {
     LOG(kWarning) << "CbFsOpenFile: " << boost::filesystem::path(file_name) << ": " << error.what();
@@ -605,11 +605,11 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsCloseFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                        CbFsHandleInfo* /*handle_info*/) {
   SCOPED_PROFILE
-  auto cbfs_drive(GetDrive(sender));
+  auto cbfs_drive(detail::GetDrive<Storage>(sender));
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsCloseFile - " << relative_path;
   try {
-    cbfs_drive->Release(file_name);
+    cbfs_drive->Release(relative_path);
   }
   catch (const drive_error& error) {
     LOG(kError) << "CbFsCloseFile: " << relative_path << ": " << error.what();
@@ -648,15 +648,15 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsGetFileInfo(
     CallbackFileSystem* sender, LPCTSTR file_name, LPBOOL file_exists, PFILETIME creation_time,
     PFILETIME last_access_time, PFILETIME last_write_time, int64_t* end_of_file,
-    int64_t* allocation_size, int64_t* file_id OPTIONAL, PDWORD file_attributes,
+    int64_t* allocation_size, int64_t* /*file_id*/ OPTIONAL, PDWORD file_attributes,
     LPWSTR /*short_file_name*/ OPTIONAL, PWORD /*short_file_name_length*/ OPTIONAL,
     LPWSTR real_file_name OPTIONAL, LPWORD real_file_name_length OPTIONAL) {
   SCOPED_PROFILE
   boost::filesystem::path relative_path(file_name);
   LOG(kInfo) << "CbFsGetFileInfo - " << relative_path;
-  detail::FileContext* file_context(nullptr);
+  const detail::FileContext* file_context(nullptr);
   try {
-    auto cbfs_drive(GetDrive(sender));
+    auto cbfs_drive(detail::GetDrive<Storage>(sender));
     file_context = cbfs_drive->GetContext(relative_path);
   }
   catch (const std::exception&) {
@@ -677,8 +677,8 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
   *allocation_size = file_context->meta_data.allocation_size;
   //*file_id = 0;
   *file_attributes = file_context->meta_data.attributes;
-  *real_file_name = file_context->meta_data.name.wstring();
-  *real_file_name_length = file_context->meta_data.name.wstring().size();
+  wcscpy(real_file_name, file_context->meta_data.name.wstring().c_str());
+  *real_file_name_length = static_cast<WORD>(file_context->meta_data.name.wstring().size());
 }
 
 // Quote from CBFS documentation:
@@ -719,14 +719,14 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     CallbackFileSystem* sender, CbFsFileInfo* directory_info, CbFsHandleInfo* /*handle_info*/,
-    CbFsDirectoryEnumerationInfo* /*directory_enumeration_info*/, LPCWSTR mask, INT index,
+    CbFsDirectoryEnumerationInfo* /*directory_enumeration_info*/, LPCWSTR mask, int /*index*/,
     BOOL restart, LPBOOL file_found, LPWSTR file_name, PDWORD file_name_length,
     LPWSTR /*short_file_name*/ OPTIONAL, PUCHAR /*short_file_name_length*/ OPTIONAL,
     PFILETIME creation_time, PFILETIME last_access_time, PFILETIME last_write_time,
-    __int64* end_of_file, __int64* allocation_size, __int64* file_id OPTIONAL,
+    int64_t* end_of_file, int64_t* allocation_size, int64_t* /*file_id*/ OPTIONAL,
     PDWORD file_attributes) {
   SCOPED_PROFILE
-  auto cbfs_drive(GetDrive(sender));
+  auto cbfs_drive(detail::GetDrive<Storage>(sender));
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, directory_info));
   std::wstring mask_str(mask);
   LOG(kInfo) << "CbFsEnumerateDirectory - " << relative_path << " mask: "
@@ -734,8 +734,9 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
   bool exact_match(mask_str != L"*");
   *file_found = false;
 
+  detail::Directory* directory(nullptr);
   try {
-    auto directory(cbfs_drive->directory_handler_.Get(relative_path));
+    directory = cbfs_drive->directory_handler_.Get(relative_path);
     if (restart)
       directory->ResetChildrenIterator();
   }
@@ -744,7 +745,7 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
 
-  detail::FileContext* file_context;
+  const detail::FileContext* file_context(nullptr);
   if (exact_match) {
     while (!(*file_found)) {
       file_context = directory->GetChildAndIncrementItr();
@@ -754,7 +755,7 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     }
   } else {
     file_context = directory->GetChildAndIncrementItr();
-    *file_found = static_cast<bool>(file_context);
+    *file_found = (file_context != nullptr);
   }
 
   if (*file_found) {
@@ -780,8 +781,8 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsCloseDirectoryEnumeration(
     CallbackFileSystem* sender, CbFsFileInfo* directory_info,
     CbFsDirectoryEnumerationInfo* /*directory_enumeration_info*/) {
-  LOG(kInfo) << "CbFsCloseEnumeration - " << detail::GetRelativePath<Storage>(GetDrive(sender),
-                                                                              directory_info);
+  LOG(kInfo) << "CbFsCloseEnumeration - "
+             << detail::GetRelativePath<Storage>(detail::GetDrive<Storage>(sender), directory_info);
 }
 
 // Quote from CBFS documentation:
@@ -796,12 +797,12 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsSetAllocationSize(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                                int64_t allocation_size) {
   SCOPED_PROFILE
-  auto cbfs_drive(GetDrive(sender));
+  auto cbfs_drive(detail::GetDrive<Storage>(sender));
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsSetAllocationSize - " << relative_path << " to " << allocation_size
              << " bytes.";
   try {
-    auto file_context(cbfs_drive->GetContext(relative_path));
+    auto file_context(cbfs_drive->GetMutableContext(relative_path));
     file_context->meta_data.allocation_size = allocation_size;
     file_context->parent->contents_changed_ = true;
   }
@@ -827,11 +828,11 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                           int64_t end_of_file) {
   SCOPED_PROFILE
-  auto cbfs_drive(GetDrive(sender));
+  auto cbfs_drive(detail::GetDrive<Storage>(sender));
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsSetEndOfFile - " << relative_path << " to " << end_of_file << " bytes.";
   try {
-    auto file_context(cbfs_drive->GetContext(relative_path));
+    auto file_context(cbfs_drive->GetMutableContext(relative_path));
     assert(file_context->self_encryptor);
     file_context->self_encryptor->Truncate(end_of_file);
     file_context->meta_data.end_of_file = end_of_file;
@@ -866,11 +867,11 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
     PFILETIME creation_time, PFILETIME last_access_time, PFILETIME last_write_time,
     DWORD file_attributes) {
   SCOPED_PROFILE
-  auto cbfs_drive(GetDrive(sender));
+  auto cbfs_drive(detail::GetDrive<Storage>(sender));
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsSetFileAttributes- " << relative_path << " 0x" << std::hex << file_attributes;
   try {
-    auto file_context(cbfs_drive->GetContext(relative_path));
+    auto file_context(cbfs_drive->GetMutableContext(relative_path));
     if (file_attributes != 0)
       file_context->meta_data.attributes = file_attributes;
     if (creation_time)
@@ -889,14 +890,15 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
 // Quote from CBFS documentation:
 //
 // This event is fired when the OS needs to check if the file or directory can be deleted. Firing of
-// this event doesn't necessarily means, that the entry will be deleted even if CanBeDeleted was set to true.
+// this event doesn't necessarily means, that the entry will be deleted even if CanBeDeleted was set
+// to true.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsCanFileBeDeleted(CallbackFileSystem* /*sender*/,
                                               CbFsFileInfo* /*file_info*/,
                                               CbFsHandleInfo* /*handle_info*/,
                                               LPBOOL can_be_deleted) {
   SCOPED_PROFILE
-  // auto cbfs_drive(GetDrive(sender));
+  // auto cbfs_drive(detail::GetDrive<Storage>(sender));
   // auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsCanFileBeDeleted - ";  //  << relative_path;
   *can_be_deleted = true;
@@ -910,7 +912,7 @@ void CbfsDrive<Storage>::CbFsCanFileBeDeleted(CallbackFileSystem* /*sender*/,
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsDeleteFile(CallbackFileSystem* sender, CbFsFileInfo* file_info) {
   SCOPED_PROFILE
-  auto cbfs_drive(GetDrive(sender));
+  auto cbfs_drive(detail::GetDrive<Storage>(sender));
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsDeleteFile - " << relative_path;
   try {
@@ -928,7 +930,7 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsRenameOrMoveFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                               LPCTSTR new_file_name) {
   SCOPED_PROFILE
-  auto cbfs_drive(GetDrive(sender));
+  auto cbfs_drive(detail::GetDrive<Storage>(sender));
   auto old_relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   boost::filesystem::path new_relative_path(new_file_name);
   LOG(kInfo) << "CbFsRenameOrMoveFile - " << old_relative_path << " to " << new_relative_path;
@@ -953,7 +955,7 @@ void CbfsDrive<Storage>::CbFsReadFile(CallbackFileSystem* sender, CbFsFileInfo* 
                                       int64_t position, PVOID buffer, DWORD bytes_to_read,
                                       PDWORD bytes_read) {
   SCOPED_PROFILE
-  auto cbfs_drive(GetDrive(sender));
+  auto cbfs_drive(detail::GetDrive<Storage>(sender));
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   try {
     *bytes_read = static_cast<DWORD>(cbfs_drive->Read(relative_path, static_cast<char*>(buffer),
@@ -978,7 +980,7 @@ void CbfsDrive<Storage>::CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo*
                                        int64_t position, PVOID buffer, DWORD bytes_to_write,
                                        PDWORD bytes_written) {
   SCOPED_PROFILE
-  auto cbfs_drive(GetDrive(sender));
+  auto cbfs_drive(detail::GetDrive<Storage>(sender));
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsWriteFile- " << relative_path << " writing " << bytes_to_write
              << " bytes at position " << position;
@@ -1004,7 +1006,7 @@ void CbfsDrive<Storage>::CbFsIsDirectoryEmpty(CallbackFileSystem* sender,
   SCOPED_PROFILE
   LOG(kInfo) << "CbFsIsDirectoryEmpty - " << boost::filesystem::path(file_name);
   try {
-    auto cbfs_drive(GetDrive(sender));
+    auto cbfs_drive(detail::GetDrive<Storage>(sender));
     *is_empty = cbfs_drive->directory_handler_.Get(file_name)->empty();
   }
   catch (const std::exception&) {
@@ -1021,7 +1023,7 @@ void CbfsDrive<Storage>::CbFsIsDirectoryEmpty(CallbackFileSystem* sender,
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo* file_info) {
   SCOPED_PROFILE
-  auto cbfs_drive(GetDrive(sender));
+  auto cbfs_drive(detail::GetDrive<Storage>(sender));
   if (!file_info) {
     try {
       cbfs_drive->FlushAll();
@@ -1035,7 +1037,7 @@ void CbfsDrive<Storage>::CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo*
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsFlushFile - " << relative_path;
   try {
-    cbfs_drive->Flush(path);
+    cbfs_drive->Flush(relative_path);
   }
   catch (const drive_error& error) {
     LOG(kError) << "CbFsFlushFile: " << relative_path << ": " << error.what();
@@ -1058,7 +1060,7 @@ void CbfsDrive<Storage>::CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo*
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsStorageEjected(CallbackFileSystem* sender) {
   LOG(kInfo) << "CbFsStorageEjected";
-  auto cbfs_drive(GetDrive(sender));
+  auto cbfs_drive(detail::GetDrive<Storage>(sender));
   boost::async(boost::launch::async, [cbfs_drive] { cbfs_drive->Unmount(); });
 }
 

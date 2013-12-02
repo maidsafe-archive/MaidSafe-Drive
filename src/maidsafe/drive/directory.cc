@@ -119,6 +119,13 @@ const FileContext* Directory::GetChild(const fs::path& name) const {
   return &(*itr);
 }
 
+FileContext* Directory::GetMutableChild(const fs::path& name) {
+  auto itr(Find(name));
+  if (itr == std::end(children_))
+    ThrowError(DriveErrors::no_such_file);
+  return &(*itr);
+}
+
 const FileContext* Directory::GetChildAndIncrementItr() {
   if (children_itr_position_ != children_.size()) {
     const FileContext* file_context(&children_[children_itr_position_]);

@@ -86,7 +86,7 @@ class DirectoryListingTest {
 
   bool GenerateDirectoryListings(fs::path const& path, fs::path relative_path) {
     fs::directory_iterator itr(path), end;
-    // Create directory listing for relative path...
+    // Create directory listing for relative path
     if (relative_path == fs::path("\\") || relative_path == fs::path("/"))
       relative_path.clear();
     DirectoryListing directory_listing(
@@ -109,8 +109,8 @@ class DirectoryListingTest {
       }
       CHECK(WriteFile(path / "msdir.listing", directory_listing.Serialise()));
     }
-    catch (...) {
-      LOG(kError) << "Test GenerateDirectoryListings: Failed";
+    catch (const std::exception& e) {
+      LOG(kError) << "GenerateDirectoryListings test failed: " << e.what();
       return false;
     }
     return true;
@@ -121,7 +121,7 @@ class DirectoryListingTest {
     CHECK(ReadFile(path / "msdir.listing", &serialised_directory_listing));
     DirectoryListing directory_listing(serialised_directory_listing);
 
-    // Remove the directory listing file...
+    // Remove the directory listing file
     boost::system::error_code error_code;
     CHECK(fs::remove(path / "msdir.listing", error_code));
     fs::directory_iterator itr(path), end;
@@ -133,12 +133,12 @@ class DirectoryListingTest {
                                                      relative_path / (*itr).path().filename()));
           CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
           CHECK_NOTHROW(directory_listing.RemoveChild(metadata));
-          // Remove the disk directory also...
+          // Remove the disk directory also
           CheckedRemove((*itr).path());
         } else if (fs::is_regular_file(*itr)) {
           CHECK_NOTHROW(directory_listing.GetChild((*itr).path().filename(), metadata));
           CHECK_NOTHROW(directory_listing.RemoveChild(metadata));
-          // Remove the disk file also...
+          // Remove the disk file also
           CheckedRemove((*itr).path());
         } else {
           if (fs::exists(*itr))
@@ -149,8 +149,8 @@ class DirectoryListingTest {
         }
       }
     }
-    catch (...) {
-      LOG(kError) << "Test RemoveDLE: Failed";
+    catch (const std::exception& e) {
+      LOG(kError) << "RemoveDirectoryListingsEntries test failed: " << e.what();
       return false;
     }
     CHECK(directory_listing.empty());
@@ -176,7 +176,7 @@ class DirectoryListingTest {
           std::string new_name(RandomAlphaNumericString(5));
           metadata.name = fs::path(new_name);
           CHECK_NOTHROW(directory_listing.AddChild(metadata));
-          // Rename corresponding directory...
+          // Rename corresponding directory
           CheckedRename((*itr).path(), ((*itr).path().parent_path() / new_name));
         } else if (fs::is_regular_file(*itr)) {
           if ((*itr).path().filename().string() != listing) {
@@ -185,7 +185,7 @@ class DirectoryListingTest {
             std::string new_name(RandomAlphaNumericString(5) + ".txt");
             metadata.name = fs::path(new_name);
             CHECK_NOTHROW(directory_listing.AddChild(metadata));
-            // Rename corresponding file...
+            // Rename corresponding file
             CheckedRename((*itr).path(), ((*itr).path().parent_path() / new_name));
           }
         } else {
@@ -197,8 +197,8 @@ class DirectoryListingTest {
         }
       }
     }
-    catch (...) {
-      LOG(kError) << "Test RenameDLE: Failed";
+    catch (const std::exception& e) {
+      LOG(kError) << "RenameDirectoryEntries test failed: " << e.what();
       return false;
     }
     return true;
@@ -230,8 +230,8 @@ class DirectoryListingTest {
         }
       }
     }
-    catch (...) {
-      LOG(kError) << "Test DLDHC: Failed";
+    catch (const std::exception& e) {
+      LOG(kError) << "DirectoryHasChild test failed: " << e.what();
       return false;
     }
     return true;
@@ -266,8 +266,8 @@ class DirectoryListingTest {
         }
       }
     }
-    catch (...) {
-      LOG(kError) << "Test MatchEntries: Failed";
+    catch (const std::exception& e) {
+      LOG(kError) << "MatchEntries test failed: " << e.what();
       return false;
     }
     if (relative_path == fs::path("\\") || relative_path == fs::path("/"))
@@ -307,8 +307,8 @@ class DirectoryListingTest {
         }
       }
     }
-    catch (...) {
-      LOG(kError) << "Test failed";
+    catch (const std::exception& e) {
+      LOG(kError) << "MatchEntriesUsingFreeFunctions test failed: " << e.what();
       return false;
     }
     return true;
@@ -466,13 +466,11 @@ TEST_CASE_METHOD(DirectoryListingTest, "Serialise and parse", "[DirectoryListing
     } else {
 #ifdef MAIDSAFE_WIN32
       meta_data.end_of_file = RandomUint32();
-      // When archiving MetaData the following assumption is made,
-      // end_of_file == allocation_size. This is reasonable since when file
-      // info is queried or on closing a file we set those values equal. This
-      // stemmed from cbfs asserting when end_of_file.QuadPart was less than
-      // allocation_size.QuadPart, although they were not always set in an
-      // order that avoided this, so, to allow the test to pass...
-      // meta_data.allocation_size = RandomUint32();
+      // When archiving MetaData the following assumption is made: end_of_file == allocation_size.
+      // This is reasonable since when file info is queried or on closing a file we set those values
+      // equal.  This stemmed from cbfs asserting when end_of_file.QuadPart was less than
+      // allocation_size.QuadPart, although they were not always set in an order that avoided this,
+      // so, to allow the test to pass: meta_data.allocation_size = RandomUint32();
       meta_data.allocation_size = meta_data.end_of_file;
       meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
       GetSystemTimeAsFileTime(&meta_data.creation_time);

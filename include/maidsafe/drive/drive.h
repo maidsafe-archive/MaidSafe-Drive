@@ -49,13 +49,14 @@ class Drive {
  public:
   Drive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
         const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
-        const boost::filesystem::path& user_app_dir, bool create = false);
+        const boost::filesystem::path& user_app_dir, bool create);
 
   virtual ~Drive() {}
   Identity root_parent_id() const;
 
  protected:
-  detail::FileContext* GetContext(const boost::filesystem::path& relative_path) const;
+  const detail::FileContext* GetContext(const boost::filesystem::path& relative_path);
+  detail::FileContext* GetMutableContext(const boost::filesystem::path& relative_path);
   void Create(const boost::filesystem::path& relative_path, detail::FileContext&& file_context);
   void Open(const boost::filesystem::path& relative_path);
   void Flush(const boost::filesystem::path& relative_path);
@@ -68,7 +69,7 @@ class Drive {
   uint32_t Write(const boost::filesystem::path& relative_path, const char* data, uint32_t size,
                  uint64_t offset);
 
-  detail::DirectoryHandler directory_handler_;
+  detail::DirectoryHandler<Storage> directory_handler_;
   std::shared_ptr<Storage> storage_;
   const boost::filesystem::path kMountDir_;
   const boost::filesystem::path kUserAppDir_;
@@ -103,7 +104,9 @@ template <typename Storage>
 Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
                       const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
                       const boost::filesystem::path& user_app_dir, bool create)
-    : directory_handler_(storage, unique_user_id, root_parent_id, create),
+    : directory_handler_(storage, unique_user_id, root_parent_id,
+                         boost::filesystem::unique_path(kUserAppDir_ / "Buffers" /
+                                                        "%%%%%-%%%%%-%%%%%-%%%%%"), create),
       storage_(storage),
       kMountDir_(mount_dir),
       kUserAppDir_(user_app_dir),
@@ -133,10 +136,10 @@ void Drive<Storage>::InitialiseEncryptor(const boost::filesystem::path& relative
   });
   auto disk_buffer_path(
       boost::filesystem::unique_path(kUserAppDir_ / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"));
-  file_context.data_buffer.reset(new detail::FileContext::Buffer(default_max_buffer_memory_,
+  file_context.buffer.reset(new detail::FileContext::Buffer(default_max_buffer_memory_,
       default_max_buffer_disk_, buffer_pop_functor, disk_buffer_path));
-  file_context.self_encryptor.reset(new encrypt::SelfEncryptor(file_context->meta_data.data_map,
-      *file_context->data_buffer, get_chunk_from_store_));
+  file_context.self_encryptor.reset(new encrypt::SelfEncryptor(file_context.meta_data.data_map,
+      *file_context.buffer, get_chunk_from_store_));
 }
 
 template <typename Storage>
@@ -152,17 +155,31 @@ bool Drive<Storage>::FlushEncryptor(detail::FileContext* file_context) {
     file_context->self_encryptor.reset();
     file_context->buffer.reset();
   }
+  return true;
 }
 
 template <typename Storage>
-detail::FileContext* Drive<Storage>::GetContext(
-    const boost::filesystem::path& relative_path) const {
-  Directory* parent(directory_handler_.Get(relative_path.parent_path()));
+const detail::FileContext* Drive<Storage>::GetContext(
+    const boost::filesystem::path& relative_path) {
+  detail::Directory* parent(directory_handler_.Get(relative_path.parent_path()));
   auto file_context(parent->GetChild(relative_path.filename()));
   // The open_count must be >=0.  If 0, the buffer and encryptor should be null.  If > 0 and the
   // context doesn't represent a directory, the buffer and encryptor should be non-null.
   assert(file_context->open_count == 0 ? (!file_context->buffer && !file_context->self_encryptor) :
-         (file_context->open_count > 0 && (file_context.meta_data.directory_id ||
+         (file_context->open_count > 0 && (file_context->meta_data.directory_id ||
+             (file_context->buffer && file_context->self_encryptor))));
+  return file_context;
+}
+
+template <typename Storage>
+detail::FileContext* Drive<Storage>::GetMutableContext(
+    const boost::filesystem::path& relative_path) {
+  detail::Directory* parent(directory_handler_.Get(relative_path.parent_path()));
+  auto file_context(parent->GetMutableChild(relative_path.filename()));
+  // The open_count must be >=0.  If 0, the buffer and encryptor should be null.  If > 0 and the
+  // context doesn't represent a directory, the buffer and encryptor should be non-null.
+  assert(file_context->open_count == 0 ? (!file_context->buffer && !file_context->self_encryptor) :
+         (file_context->open_count > 0 && (file_context->meta_data.directory_id ||
              (file_context->buffer && file_context->self_encryptor))));
   return file_context;
 }
@@ -179,7 +196,7 @@ void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
 
 template <typename Storage>
 void Drive<Storage>::Open(const boost::filesystem::path& relative_path) {
-  auto file_context(GetContext(relative_path));
+  auto file_context(GetMutableContext(relative_path));
   if (!file_context->meta_data.directory_id) {
     ++file_context->open_count;
     if (!file_context->self_encryptor)
@@ -189,7 +206,7 @@ void Drive<Storage>::Open(const boost::filesystem::path& relative_path) {
 
 template <typename Storage>
 void Drive<Storage>::Flush(const boost::filesystem::path& relative_path) {
-  auto file_context(GetContext(relative_path));
+  auto file_context(GetMutableContext(relative_path));
   if (file_context->self_encryptor && !FlushEncryptor(file_context)) {
     LOG(kError) << "Failed to flush " << relative_path;
     ThrowError(CommonErrors::unknown);
@@ -199,7 +216,7 @@ void Drive<Storage>::Flush(const boost::filesystem::path& relative_path) {
 
 template <typename Storage>
 void Drive<Storage>::Release(const boost::filesystem::path& relative_path) {
-  auto file_context(GetContext(relative_path));
+  auto file_context(GetMutableContext(relative_path));
   --file_context->open_count;
   if (file_context->self_encryptor && !FlushEncryptor(file_context))
     LOG(kError) << "Failed to flush " << relative_path << " during Release";

@@ -60,6 +60,7 @@ class Directory {
 
   bool HasChild(const boost::filesystem::path& name) const;
   const FileContext* GetChild(const boost::filesystem::path& name) const;
+  FileContext* GetMutableChild(const boost::filesystem::path& name);
   const FileContext* GetChildAndIncrementItr();
   void AddChild(FileContext&& child);
   FileContext RemoveChild(const boost::filesystem::path& child_name);

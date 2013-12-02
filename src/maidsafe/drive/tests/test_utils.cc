@@ -236,8 +236,8 @@ fs::path CreateNamedFile(fs::path const& path, const std::string& name, int64_t&
       }
       ofs.close();
     }
-    catch (...) {
-      LOG(kError) << "Write exception thrown.";
+    catch (const std::exception& e) {
+      LOG(kError) << "CreateNamedFile error: " << e.what();
       return fs::path();
     }
   }
@@ -278,8 +278,8 @@ bool ModifyFile(fs::path const& path, int64_t& file_size) {
       }
       ofs.close();
     }
-    catch (...) {
-      LOG(kError) << "Write exception thrown.";
+    catch (const std::exception& e) {
+      LOG(kError) << "ModifyFile error: " << e.what();
       return false;
     }
   }

@@ -177,13 +177,13 @@ void PrintResult(const std::chrono::high_resolution_clock::time_point& start,
 void CopyThenReadLargeFile() {
   on_scope_exit cleanup(clean_root);
 
-  // Create file on disk...
+  // Create file on disk
   size_t size = 300 * 1024 * 1024;
   fs::path file(GenerateFile(g_temp, size));
   if (!fs::exists(file) || fs::file_size(file) != size)
     ThrowError(CommonErrors::filesystem_io_error);
 
-  // Copy file to virtual drive...
+  // Copy file to virtual drive
   auto copy_start_time(std::chrono::high_resolution_clock::now());
   fs::copy_file(file, g_root / file.filename(), fs::copy_option::fail_if_exists);
   auto copy_stop_time(std::chrono::high_resolution_clock::now());
@@ -191,7 +191,7 @@ void CopyThenReadLargeFile() {
   if (!fs::exists(g_root / file.filename()))
     ThrowError(CommonErrors::filesystem_io_error);
 
-  // Read the file back to a disk file...
+  // Read the file back to a disk file
   // Because of the system caching, the pure read can't reflect the real speed
   fs::path test_file(g_temp / (RandomAlphaNumericString(5) + ".txt"));
   auto read_start_time(std::chrono::high_resolution_clock::now());
@@ -201,7 +201,7 @@ void CopyThenReadLargeFile() {
   if (!fs::exists(test_file))
     ThrowError(CommonErrors::filesystem_io_error);
 
-  // Compare content in the two files...
+  // Compare content in the two files
   if (fs::file_size(g_root / file.filename()) != fs::file_size(file))
     ThrowError(CommonErrors::filesystem_io_error);
   auto compare_start_time(std::chrono::high_resolution_clock::now());
@@ -227,13 +227,13 @@ void CopyThenReadManySmallFiles() {
   uint32_t total_data_size = CreateTestTreeStructure(g_temp, directories, files, num_of_directories,
                                                      num_of_files, max_filesize, min_filesize);
 
-  // Copy test_tree to virtual drive...
+  // Copy test_tree to virtual drive
   auto copy_start_time(std::chrono::high_resolution_clock::now());
   CopyRecursiveDirectory(directories.at(0), g_root);
   auto copy_stop_time(std::chrono::high_resolution_clock::now());
   PrintResult(copy_start_time, copy_stop_time, total_data_size, "Copied");
 
-  // Read the test_tree back to a disk file...
+  // Read the test_tree back to a disk file
   std::string str = directories.at(0).string();
   boost::algorithm::replace_first(str, g_temp.string(), g_root.string());
   fs::path from_directory(str);
@@ -243,7 +243,7 @@ void CopyThenReadManySmallFiles() {
   auto read_stop_time(std::chrono::high_resolution_clock::now());
   PrintResult(read_start_time, read_stop_time, total_data_size, "Read");
 
-  // Compare content in the two test_trees...
+  // Compare content in the two test_trees
   auto compare_start_time(std::chrono::high_resolution_clock::now());
   for (const auto& file : files) {
     auto str = file.string();

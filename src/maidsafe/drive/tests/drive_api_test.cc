@@ -199,7 +199,7 @@ TEST_CASE("Local store", "[behavioural]") {
 //                                      result_meta_data,
 //                                      &(*result_meta_data.directory_id),
 //                                      nullptr));
-//  // Fails due to inaccurate time conversions...
+//  // Fails due to inaccurate time conversions
 //  // EXPECT_TRUE(LastAccessTimesMatch(new_meta, result_meta_data));
 // }
 //
@@ -225,7 +225,7 @@ TEST_CASE("Local store", "[behavioural]") {
 //                                      result_meta_data,
 //                                      &(*result_meta_data.directory_id),
 //                                      nullptr));
-//  // Fails due to inaccurate time conversions...
+//  // Fails due to inaccurate time conversions
 //  // EXPECT_TRUE(LastAccessTimesMatch(meta_data, result_meta_data));
 // }
 //
@@ -247,11 +247,11 @@ TEST_CASE("Local store", "[behavioural]") {
 //                                      result_meta_data,
 //                                      &(*result_meta_data.directory_id),
 //                                      nullptr));
-//  // Fails due to inaccurate time conversions...
+//  // Fails due to inaccurate time conversions
 //  // EXPECT_TRUE(LastAccessTimesMatch(*file_context.meta_data, result_meta_data));
 // }
 //
-//// Self encryption tests were using free functions which are now gone...
+//// Self encryption tests were using free functions which are now gone
 // TEST_F(DriveApiTest, BEH_WriteReadThenFlush) {
 //  std::shared_ptr<encrypt::DataMap> data_map(new encrypt::DataMap);
 //  std::string initial_content(RandomString(100));

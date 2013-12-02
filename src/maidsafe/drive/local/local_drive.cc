@@ -72,7 +72,7 @@ int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity
   if (!fs::exists(storage_dir, error_code))
     return error_code.value();
 
-  LocalDrive drive(storage, unique_id, parent_id, mount_dir, drive_name, create);
+  LocalDrive drive(storage, unique_id, parent_id, mount_dir, GetUserAppDir(), drive_name, create);
   g_local_drive = &drive;
   drive.Mount();
 
