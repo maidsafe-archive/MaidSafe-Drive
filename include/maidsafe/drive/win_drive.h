@@ -84,7 +84,7 @@ class CbfsDrive : public Drive<Storage> {
   void Mount();
   bool Unmount();
   int Install();
-  uint32_t max_file_path_length();
+  uint32_t max_file_path_length() const;
 
  private:
   CbfsDrive(const CbfsDrive&);
@@ -97,7 +97,7 @@ class CbfsDrive : public Drive<Storage> {
   void FlushAll();
   void UpdateDriverStatus();
   void UpdateMountingPoints();
-  void OnCallbackFsInit();
+  void InitialiseCbfs();
   int OnCallbackFsInstall();
   void OnCallbackFsUninstall();
   void OnCallbackFsDeleteStorage();
@@ -208,13 +208,12 @@ void CbfsDrive<Storage>::Mount() {
     int timeout_milliseconds(30000);
 #endif
   try {
-    OnCallbackFsInit();
+    InitialiseCbfs();
     UpdateDriverStatus();
     callback_filesystem_.Initialize(guid_.data());
     callback_filesystem_.CreateStorage();
     // SetIcon can only be called after CreateStorage has successfully completed.
     callback_filesystem_.SetIcon(icon_id_);
-    callback_filesystem_.SetTag(static_cast<void*>(this));
     callback_filesystem_.MountMedia(timeout_milliseconds);
     // The following can only be called when the media is mounted.
     callback_filesystem_.AddMountingPoint(kMountDir_.c_str());
@@ -272,7 +271,7 @@ bool CbfsDrive<Storage>::Unmount() {
 }
 
 template <typename Storage>
-uint32_t CbfsDrive<Storage>::max_file_path_length() {
+uint32_t CbfsDrive<Storage>::max_file_path_length() const {
   return static_cast<uint32_t>(callback_filesystem_.GetMaxFilePathLength());
 }
 
@@ -341,9 +340,38 @@ void CbfsDrive<Storage>::UpdateMountingPoints() {
 }
 
 template <typename Storage>
-void CbfsDrive<Storage>::OnCallbackFsInit() {
+void CbfsDrive<Storage>::InitialiseCbfs() {
   try {
+    // Properties
+    callback_filesystem_.SetCallAllOpenCloseCallbacks(false);
+    callback_filesystem_.SetCaseSensitiveFileNames(true);
+    callback_filesystem_.SetClusterSize(32 * 512);  // must be a multiple of sector size
+    callback_filesystem_.SetFileCacheEnabled(true);
+    callback_filesystem_.SetMaxFileNameLength(MAX_PATH);
+    callback_filesystem_.SetMaxFilePathLength(32767);
+    callback_filesystem_.SetMaxReadWriteBlockSize(0xFFFFFFFF);
+    callback_filesystem_.SetMetaDataCacheEnabled(true);
+    callback_filesystem_.SetNonexistentFilesCacheEnabled(true);
+    callback_filesystem_.SetParalleledProcessingAllowed(true);
+    callback_filesystem_.SetProcessRestrictionsEnabled(false);
+    callback_filesystem_.SetSectorSize(512);
+    callback_filesystem_.SetSerializeCallbacks(true);
+    callback_filesystem_.SetShortFileNameSupport(false);
+//    callback_filesystem_.SetStorageCharacteristics(
+//        CallbackFileSystem::CbFsStorageCharacteristics(
+//            CallbackFileSystem::scRemovableMedia |
+//            CallbackFileSystem::scShowInEjectionTray |
+//            CallbackFileSystem::scAllowEjection));
+//    callback_filesystem_.SetStorageType(CallbackFileSystem::stDiskPnP);
+    callback_filesystem_.SetStorageType(CallbackFileSystem::stDisk);
+    callback_filesystem_.SetTag(static_cast<void*>(this));
+    callback_filesystem_.SetThreadPoolSize(Concurrency() / 2);
+    callback_filesystem_.SetUseFileCreationFlags(true);
+
+    // Methods
     callback_filesystem_.SetRegistrationKey(registration_key_);
+
+    // Events
     callback_filesystem_.SetOnStorageEjected(CbFsStorageEjected);
     callback_filesystem_.SetOnMount(CbFsMount);
     callback_filesystem_.SetOnUnmount(CbFsUnmount);
@@ -367,19 +395,9 @@ void CbfsDrive<Storage>::OnCallbackFsInit() {
     callback_filesystem_.SetOnWriteFile(CbFsWriteFile);
     callback_filesystem_.SetOnIsDirectoryEmpty(CbFsIsDirectoryEmpty);
     callback_filesystem_.SetOnFlushFile(CbFsFlushFile);
-    callback_filesystem_.SetSerializeCallbacks(true);
-    callback_filesystem_.SetFileCacheEnabled(false);
-    callback_filesystem_.SetMetaDataCacheEnabled(false);
-    callback_filesystem_.SetCaseSensitiveFileNames(true);
-//    callback_filesystem_.SetStorageCharacteristics(
-//        CallbackFileSystem::CbFsStorageCharacteristics(
-//            CallbackFileSystem::scRemovableMedia |
-//            CallbackFileSystem::scShowInEjectionTray |
-//            CallbackFileSystem::scAllowEjection));
-//    callback_filesystem_.SetStorageType(CallbackFileSystem::stDiskPnP);
   }
   catch (const ECBFSError& error) {
-    detail::ErrorMessage("OnCallbackFsInit", error);
+    detail::ErrorMessage("InitialiseCbfs", error);
   }
   return;
 }

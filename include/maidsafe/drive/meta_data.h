@@ -52,7 +52,6 @@ struct MetaData {
   MetaData();
   MetaData(const boost::filesystem::path& name, bool is_directory);
   explicit MetaData(const protobuf::MetaData& protobuf_meta_data);
-  MetaData(const MetaData& other);
   MetaData(MetaData&& other);
   MetaData& operator=(MetaData other);
 
@@ -76,9 +75,12 @@ struct MetaData {
   struct stat attributes;
   boost::filesystem::path link_to;
 #endif
-  encrypt::DataMap data_map;
+  std::unique_ptr<encrypt::DataMap> data_map;
   std::unique_ptr<DirectoryId> directory_id;
   std::vector<std::string> notes;
+
+ private:
+  MetaData(const MetaData& other);
 };
 
 void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT;

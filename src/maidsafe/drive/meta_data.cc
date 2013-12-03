@@ -130,7 +130,7 @@ MetaData::MetaData(const fs::path& name, bool is_directory)
       creation_time(),
       last_access_time(),
       last_write_time(),
-      data_map(),
+      data_map(is_directory ? nullptr : new encrypt::DataMap()),
       directory_id(is_directory ? new DirectoryId(RandomString(64)) : nullptr),
       notes() {
     FILETIME file_time;
@@ -142,7 +142,7 @@ MetaData::MetaData(const fs::path& name, bool is_directory)
 #else
       attributes(),
       link_to(),
-      data_map(),
+      data_map(is_directory ? nullptr : new encrypt::DataMap()),
       directory_id(is_directory ? new DirectoryId(RandomString(64)) : nullptr),
       notes() {
   attributes.st_gid = getgid();
@@ -231,7 +231,8 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
   if (protobuf_meta_data.has_serialised_data_map()) {
     if (directory_id)
       ThrowError(CommonErrors::parsing_error);
-    encrypt::ParseDataMap(protobuf_meta_data.serialised_data_map(), data_map);
+    data_map.reset(new encrypt::DataMap());
+    encrypt::ParseDataMap(protobuf_meta_data.serialised_data_map(), *data_map);
   } else if (!directory_id) {
     ThrowError(CommonErrors::parsing_error);
   }
@@ -239,23 +240,6 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
   for (int i(0); i != protobuf_meta_data.notes_size(); ++i)
     notes.push_back(protobuf_meta_data.notes(i));
 }
-
-MetaData::MetaData(const MetaData& other)
-    : name(other.name),
-#ifdef MAIDSAFE_WIN32
-      end_of_file(other.end_of_file),
-      allocation_size(other.allocation_size),
-      attributes(other.attributes),
-      creation_time(other.creation_time),
-      last_access_time(other.last_access_time),
-      last_write_time(other.last_write_time),
-#else
-      attributes(other.attributes),
-      link_to(other.link_to),
-#endif
-      data_map(other.data_map),
-      directory_id(other.directory_id ? new DirectoryId(*other.directory_id) : nullptr),
-      notes(other.notes) {}
 
 MetaData::MetaData(MetaData&& other)
     : name(std::move(other.name)),
@@ -324,7 +308,7 @@ void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
     protobuf_meta_data->set_directory_id(directory_id->string());
   } else {
     std::string serialised_data_map;
-    encrypt::SerialiseDataMap(data_map, serialised_data_map);
+    encrypt::SerialiseDataMap(*data_map, serialised_data_map);
     protobuf_meta_data->set_serialised_data_map(serialised_data_map);
   }
 

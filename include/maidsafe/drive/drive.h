@@ -32,6 +32,7 @@
 #include "boost/filesystem/operations.hpp"
 #include "boost/filesystem/path.hpp"
 
+//#include "maidsafe/common/on_scope_exit.h"
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
 
@@ -138,22 +139,25 @@ void Drive<Storage>::InitialiseEncryptor(const boost::filesystem::path& relative
       boost::filesystem::unique_path(kUserAppDir_ / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"));
   file_context.buffer.reset(new detail::FileContext::Buffer(default_max_buffer_memory_,
       default_max_buffer_disk_, buffer_pop_functor, disk_buffer_path));
-  file_context.self_encryptor.reset(new encrypt::SelfEncryptor(file_context.meta_data.data_map,
+  file_context.self_encryptor.reset(new encrypt::SelfEncryptor(*file_context.meta_data.data_map,
       *file_context.buffer, get_chunk_from_store_));
 }
 
 template <typename Storage>
 bool Drive<Storage>::FlushEncryptor(detail::FileContext* file_context) {
   assert(file_context->self_encryptor);
+  assert(file_context->meta_data.data_map);
+  //on_scope_exit cleanup([file_context] {
+  //  if (file_context->open_count == 0) {
+  //    file_context->self_encryptor.reset();
+  //    file_context->buffer.reset();
+  //  }
+  //});
   if (!file_context->self_encryptor->Flush())
     return false;
-  for (const auto& chunk : file_context->meta_data.data_map.chunks) {
+  for (const auto& chunk : file_context->meta_data.data_map->chunks) {
     auto content(file_context->buffer->Get(chunk.hash));
     storage_->Put(ImmutableData(content));
-  }
-  if (file_context->open_count == 0) {
-    file_context->self_encryptor.reset();
-    file_context->buffer.reset();
   }
   return true;
 }
@@ -163,11 +167,11 @@ const detail::FileContext* Drive<Storage>::GetContext(
     const boost::filesystem::path& relative_path) {
   detail::Directory* parent(directory_handler_.Get(relative_path.parent_path()));
   auto file_context(parent->GetChild(relative_path.filename()));
-  // The open_count must be >=0.  If 0, the buffer and encryptor should be null.  If > 0 and the
-  // context doesn't represent a directory, the buffer and encryptor should be non-null.
-  assert(file_context->open_count == 0 ? (!file_context->buffer && !file_context->self_encryptor) :
-         (file_context->open_count > 0 && (file_context->meta_data.directory_id ||
-             (file_context->buffer && file_context->self_encryptor))));
+  // The open_count must be >=0.  If > 0 and the context doesn't represent a directory, the buffer
+  // and encryptor should be non-null.
+  assert(file_context->open_count == 0 || (file_context->open_count > 0 &&
+            (file_context->meta_data.directory_id ||
+                (file_context->buffer && file_context->self_encryptor))));
   return file_context;
 }
 
@@ -176,11 +180,11 @@ detail::FileContext* Drive<Storage>::GetMutableContext(
     const boost::filesystem::path& relative_path) {
   detail::Directory* parent(directory_handler_.Get(relative_path.parent_path()));
   auto file_context(parent->GetMutableChild(relative_path.filename()));
-  // The open_count must be >=0.  If 0, the buffer and encryptor should be null.  If > 0 and the
-  // context doesn't represent a directory, the buffer and encryptor should be non-null.
-  assert(file_context->open_count == 0 ? (!file_context->buffer && !file_context->self_encryptor) :
-         (file_context->open_count > 0 && (file_context->meta_data.directory_id ||
-             (file_context->buffer && file_context->self_encryptor))));
+  // The open_count must be >=0.  If > 0 and the context doesn't represent a directory, the buffer
+  // and encryptor should be non-null.
+  assert(file_context->open_count == 0 || (file_context->open_count > 0 &&
+              (file_context->meta_data.directory_id ||
+                   (file_context->buffer && file_context->self_encryptor))));
   return file_context;
 }
 

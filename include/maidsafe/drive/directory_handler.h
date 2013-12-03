@@ -139,7 +139,9 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
     Directory root_parent(ParentId(unique_user_id_), root_parent_id);
     Directory root(ParentId(root_parent_id), DirectoryId(RandomString(64)));
     root_parent.AddChild(std::move(root_file_context));
-    cache_[kRoot] = std::move(root);
+    root.contents_changed_ = true;
+    Put(std::move(root_parent), "");
+    Put(std::move(root), kRoot);
   }
 }
 
