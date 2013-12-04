@@ -30,6 +30,7 @@
 #include "boost/program_options.hpp"
 #include "boost/preprocessor/stringize.hpp"
 #include "boost/system/error_code.hpp"
+#include "boost/locale.hpp"
 
 #include "maidsafe/common/crypto.h"
 #include "maidsafe/common/error.h"
@@ -258,6 +259,8 @@ void SetSignalHandler() {}
 
 int main(int argc, char* argv[]) {
   maidsafe::log::Logging::Instance().Initialise(argc, argv);
+  std::locale::global(boost::locale::generator().generate(""));
+  fs::path::imbue(std::locale());
   boost::system::error_code error_code;
   try {
     // Set up command line options and config file options
