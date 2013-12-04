@@ -28,8 +28,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <string>
-#include <vector>
 
 #include "boost/filesystem/path.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
@@ -77,7 +75,6 @@ struct MetaData {
 #endif
   std::unique_ptr<encrypt::DataMap> data_map;
   std::unique_ptr<DirectoryId> directory_id;
-  std::vector<std::string> notes;
 
  private:
   MetaData(const MetaData& other);

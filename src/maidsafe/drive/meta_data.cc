@@ -131,8 +131,7 @@ MetaData::MetaData(const fs::path& name, bool is_directory)
       last_access_time(),
       last_write_time(),
       data_map(is_directory ? nullptr : new encrypt::DataMap()),
-      directory_id(is_directory ? new DirectoryId(RandomString(64)) : nullptr),
-      notes() {
+      directory_id(is_directory ? new DirectoryId(RandomString(64)) : nullptr) {
     FILETIME file_time;
     GetSystemTimeAsFileTime(&file_time);
     creation_time = file_time;
@@ -176,10 +175,9 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
 #endif
       data_map(),
       directory_id(protobuf_meta_data.has_directory_id() ?
-                   new DirectoryId(protobuf_meta_data.directory_id()) : nullptr),
-      notes() {
+                   new DirectoryId(protobuf_meta_data.directory_id()) : nullptr) {
   if ((name == "\\") || (name == "/"))
-    name = fs::path("/").make_preferred();
+    name = kRoot;
 
   const protobuf::AttributesArchive& attributes_archive = protobuf_meta_data.attributes_archive();
 
@@ -236,9 +234,6 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
   } else if (!directory_id) {
     ThrowError(CommonErrors::parsing_error);
   }
-
-  for (int i(0); i != protobuf_meta_data.notes_size(); ++i)
-    notes.push_back(protobuf_meta_data.notes(i));
 }
 
 MetaData::MetaData(MetaData&& other)
@@ -255,8 +250,7 @@ MetaData::MetaData(MetaData&& other)
       link_to(std::move(other.link_to)),
 #endif
       data_map(std::move(other.data_map)),
-      directory_id(std::move(other.directory_id)),
-      notes(std::move(other.notes)) {}
+      directory_id(std::move(other.directory_id)) {}
 
 MetaData& MetaData::operator=(MetaData other) {
   swap(*this, other);
@@ -311,9 +305,6 @@ void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
     encrypt::SerialiseDataMap(*data_map, serialised_data_map);
     protobuf_meta_data->set_serialised_data_map(serialised_data_map);
   }
-
-  for (const auto& note : notes)
-    protobuf_meta_data->add_notes(note);
 }
 
 bptime::ptime MetaData::creation_posix_time() const {
@@ -368,7 +359,6 @@ void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT {
 #endif
   swap(lhs.data_map, rhs.data_map);
   swap(lhs.directory_id, rhs.directory_id);
-  swap(lhs.notes, rhs.notes);
 }
 
 }  // namespace detail

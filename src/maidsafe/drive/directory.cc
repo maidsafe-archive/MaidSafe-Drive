@@ -20,7 +20,6 @@
 
 #include <algorithm>
 #include <iterator>
-#include <utility>
 
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/utils.h"
@@ -36,40 +35,21 @@ namespace detail {
 
 namespace {
 
-bool FileContextHasName(const FileContext& file_context, const fs::path& name) {
-  return GetLowerCase(file_context.meta_data.name.string()) == GetLowerCase(name.string());
+bool FileContextHasName(const FileContext* file_context, const fs::path& name) {
+  return GetLowerCase(file_context->meta_data.name.string()) == GetLowerCase(name.string());
 }
 
 }  // unnamed namespace
 
-Directory::Directory() : contents_changed_(false), parent_id_(), directory_id_(),
-                         max_versions_(kMaxVersions), children_(), children_itr_position_(0) {}
-
 Directory::Directory(ParentId parent_id, DirectoryId directory_id)
-    : contents_changed_(false), parent_id_(std::move(parent_id)),
+    : versions_(), parent_id_(std::move(parent_id)), last_changed_(),
       directory_id_(std::move(directory_id)), max_versions_(kMaxVersions), children_(),
       children_itr_position_(0) {}
 
-Directory::Directory(Directory&& other)
-    : contents_changed_(std::move(other.contents_changed_)),
-      parent_id_(std::move(other.parent_id_)), directory_id_(std::move(other.directory_id_)),
-      max_versions_(std::move(other.max_versions_)), children_(std::move(other.children_)),
-      children_itr_position_(std::move(other.children_itr_position_)) {}
-
-Directory::Directory(ParentId parent_id, Directory other)
-    : contents_changed_(std::move(other.contents_changed_)),
-      parent_id_(std::move(parent_id)), directory_id_(std::move(other.directory_id_)),
-      max_versions_(std::move(other.max_versions_)), children_(std::move(other.children_)),
-      children_itr_position_(std::move(other.children_itr_position_)) {}
-
-Directory& Directory::operator=(Directory other) {
-  swap(*this, other);
-  return *this;
-}
-
-Directory::Directory(ParentId parent_id, const std::string& serialised_directory)
-    : contents_changed_(false), parent_id_(std::move(parent_id)), directory_id_(),
-      max_versions_(kMaxVersions), children_(), children_itr_position_(0) {
+Directory::Directory(ParentId parent_id, const std::string& serialised_directory,
+                     std::vector<StructuredDataVersions::VersionName> versions)
+    : versions_(std::move(versions)), parent_id_(std::move(parent_id)), last_changed_(),
+      directory_id_(), max_versions_(kMaxVersions), children_(), children_itr_position_(0) {
   protobuf::Directory proto_directory;
   if (!proto_directory.ParseFromString(serialised_directory))
     ThrowError(CommonErrors::parsing_error);
@@ -78,7 +58,7 @@ Directory::Directory(ParentId parent_id, const std::string& serialised_directory
   max_versions_ = MaxVersions(proto_directory.max_versions());
 
   for (int i(0); i != proto_directory.children_size(); ++i)
-    children_.emplace_back(MetaData(proto_directory.children(i)), this);
+    children_.emplace_back(new FileContext(MetaData(proto_directory.children(i)), this));
   std::sort(std::begin(children_), std::end(children_));
 }
 
@@ -88,47 +68,47 @@ std::string Directory::Serialise() {
   proto_directory.set_max_versions(max_versions_.data);
 
   for (const auto& child : children_)
-    child.meta_data.ToProtobuf(proto_directory.add_children());
+    child->meta_data.ToProtobuf(proto_directory.add_children());
 
-  contents_changed_ = false;
+  last_changed_.reset();
   return proto_directory.SerializeAsString();
 }
 
-std::vector<FileContext>::iterator Directory::Find(const fs::path& name) {
+Directory::Children::iterator Directory::Find(const fs::path& name) {
   return std::find_if(std::begin(children_), std::end(children_),
-                      [&name](const FileContext& file_context) {
-                           return FileContextHasName(file_context, name); });
+                      [&name](const Children::value_type& file_context) {
+                           return FileContextHasName(file_context.get(), name); });
 }
 
-std::vector<FileContext>::const_iterator Directory::Find(const fs::path& name) const {
+Directory::Children::const_iterator Directory::Find(const fs::path& name) const {
   return std::find_if(std::begin(children_), std::end(children_),
-                      [&name](const FileContext& file_context) {
-                           return FileContextHasName(file_context, name); });
+                      [&name](const Children::value_type& file_context) {
+                           return FileContextHasName(file_context.get(), name); });
 }
 
 bool Directory::HasChild(const fs::path& name) const {
   return std::any_of(std::begin(children_), std::end(children_),
-      [&name](const FileContext& file_context) {
-          return FileContextHasName(file_context, name); });
+      [&name](const Children::value_type& file_context) {
+          return FileContextHasName(file_context.get(), name); });
 }
 
 const FileContext* Directory::GetChild(const fs::path& name) const {
   auto itr(Find(name));
   if (itr == std::end(children_))
     ThrowError(DriveErrors::no_such_file);
-  return &(*itr);
+  return itr->get();
 }
 
 FileContext* Directory::GetMutableChild(const fs::path& name) {
   auto itr(Find(name));
   if (itr == std::end(children_))
     ThrowError(DriveErrors::no_such_file);
-  return &(*itr);
+  return itr->get();
 }
 
 const FileContext* Directory::GetChildAndIncrementItr() {
   if (children_itr_position_ != children_.size()) {
-    const FileContext* file_context(&children_[children_itr_position_]);
+    const FileContext* file_context(children_[children_itr_position_].get());
     ++children_itr_position_;
     return file_context;
   }
@@ -140,20 +120,20 @@ void Directory::AddChild(FileContext&& child) {
   if (itr != std::end(children_))
     ThrowError(DriveErrors::file_exists);
   child.parent = this;
-  children_.emplace_back(std::move(child));
+  children_.emplace_back(new FileContext(std::move(child)));
   SortAndResetChildrenIterator();
-  contents_changed_ = true;
+  MarkAsChanged();
 }
 
-FileContext Directory::RemoveChild(const fs::path& child_name) {
-  auto itr(Find(child_name));
+FileContext Directory::RemoveChild(const fs::path& name) {
+  auto itr(Find(name));
   if (itr == std::end(children_))
     ThrowError(DriveErrors::no_such_file);
-  FileContext file_context(std::move(*itr));
+  std::unique_ptr<FileContext> file_context(std::move(*itr));
   children_.erase(itr);
   SortAndResetChildrenIterator();
-  contents_changed_ = true;
-  return file_context;
+  MarkAsChanged();
+  return std::move(*file_context);
 }
 
 void Directory::RenameChild(const fs::path& old_name, const fs::path& new_name) {
@@ -163,9 +143,9 @@ void Directory::RenameChild(const fs::path& old_name, const fs::path& new_name) 
   itr = Find(old_name);
   if (itr == std::end(children_))
     ThrowError(DriveErrors::no_such_file);
-  itr->meta_data.name = new_name;
+  (*itr)->meta_data.name = new_name;
   SortAndResetChildrenIterator();
-  contents_changed_ = true;
+  MarkAsChanged();
 }
 
 bool Directory::empty() const {
@@ -177,18 +157,20 @@ void Directory::SortAndResetChildrenIterator() {
   ResetChildrenIterator();
 }
 
-bool operator<(const Directory& lhs, const Directory& rhs) {
-  return lhs.directory_id() < rhs.directory_id();
+void Directory::MarkAsChanged() {
+  last_changed_.reset(new std::chrono::steady_clock::time_point(std::chrono::steady_clock::now()));
 }
 
-void swap(Directory& lhs, Directory& rhs) MAIDSAFE_NOEXCEPT {
-  using std::swap;
-  swap(lhs.contents_changed_, rhs.contents_changed_);
-  swap(lhs.parent_id_, rhs.parent_id_);
-  swap(lhs.directory_id_, rhs.directory_id_);
-  swap(lhs.max_versions_, rhs.max_versions_);
-  swap(lhs.children_, rhs.children_);
-  swap(lhs.children_itr_position_, rhs.children_itr_position_);
+bool Directory::NeedsToBeSaved(bool ignore_delay) const {
+  if (last_changed_) {
+    return (*last_changed_ + kDirectoryInactivityDelay > std::chrono::steady_clock::now()) ||
+           ignore_delay;
+  }
+  return false;
+}
+
+bool operator<(const Directory& lhs, const Directory& rhs) {
+  return lhs.directory_id() < rhs.directory_id();
 }
 
 }  // namespace detail

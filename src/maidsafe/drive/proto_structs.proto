@@ -41,7 +41,6 @@ message MetaData {
   required AttributesArchive attributes_archive = 2;
   optional bytes serialised_data_map = 3;
   optional bytes directory_id = 4;
-  repeated bytes notes = 5;
 }
 
 message Directory {

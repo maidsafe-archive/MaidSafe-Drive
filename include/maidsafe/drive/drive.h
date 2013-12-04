@@ -116,7 +116,6 @@ Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_u
       default_max_buffer_memory_(Concurrency() * 1024 * 1024),  // cores * default chunk size
       default_max_buffer_disk_(static_cast<uint64_t>(
           boost::filesystem::space(kUserAppDir_).available / 10)) {
-  // TODO(Fraser#5#): 2013-11-27 - BEFORE_RELEASE If default_max_buffer_disk_ < some limit, throw?
   get_chunk_from_store_ = [this](const std::string& name)->NonEmptyString {
     auto chunk(storage_->Get(ImmutableData::Name(Identity(name))).get());
     return chunk.data();
@@ -215,7 +214,7 @@ void Drive<Storage>::Flush(const boost::filesystem::path& relative_path) {
     LOG(kError) << "Failed to flush " << relative_path;
     ThrowError(CommonErrors::unknown);
   }
-  directory_handler_.PutVersion(relative_path.parent_path());
+  //directory_handler_.PutVersion(relative_path.parent_path());
 }
 
 template <typename Storage>
@@ -225,7 +224,7 @@ void Drive<Storage>::Release(const boost::filesystem::path& relative_path) {
     --file_context->open_count;
   if (file_context->self_encryptor && !FlushEncryptor(file_context))
     LOG(kError) << "Failed to flush " << relative_path << " during Release";
-  directory_handler_.PutVersion(relative_path.parent_path());
+  //directory_handler_.PutVersion(relative_path.parent_path());
 }
 
 template <typename Storage>

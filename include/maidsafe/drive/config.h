@@ -20,6 +20,7 @@
 #define MAIDSAFE_DRIVE_CONFIG_H_
 
 #include <cstdint>
+#include <chrono>
 
 #include "boost/filesystem/path.hpp"
 
@@ -45,6 +46,10 @@ namespace detail {
 
 extern const boost::filesystem::path kRoot;
 extern const MaxVersions kMaxVersions;
+// The delay between the last update to a directory and the creation of the corresponding version.
+extern const std::chrono::steady_clock::duration kDirectoryInactivityDelay;
+// The delay between the last update to a file and the start of storing the generated chunks.
+extern const std::chrono::steady_clock::duration kFileInactivityDelay;
 
 }  // namespace detail
 

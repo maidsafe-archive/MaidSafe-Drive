@@ -28,6 +28,10 @@ const boost::filesystem::path kRoot(boost::filesystem::path("/").make_preferred(
 
 const MaxVersions kMaxVersions(21);
 
+const std::chrono::steady_clock::duration kDirectoryInactivityDelay(std::chrono::seconds(2));
+
+const std::chrono::steady_clock::duration kFileInactivityDelay(std::chrono::milliseconds(1900));
+
 }  // namespace detail
 
 }  // namespace drive

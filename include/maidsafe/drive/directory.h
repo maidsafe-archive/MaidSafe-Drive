@@ -19,14 +19,17 @@
 #ifndef MAIDSAFE_DRIVE_DIRECTORY_H_
 #define MAIDSAFE_DRIVE_DIRECTORY_H_
 
+#include <chrono>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "boost/filesystem/path.hpp"
 
-#include "maidsafe/common/config.h"
 #include "maidsafe/common/tagged_value.h"
 #include "maidsafe/common/types.h"
+#include "maidsafe/data_types/immutable_data.h"
+#include "maidsafe/data_types/structured_data_versions.h"
 
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/file_context.h"
@@ -48,14 +51,11 @@ class DirectoryTest;
 
 class Directory {
  public:
-  Directory();
   Directory(ParentId parent_id, DirectoryId directory_id);
-  Directory(ParentId parent_id, Directory other);
-  Directory(Directory&& other);
-  Directory& operator=(Directory other);
-  ~Directory() {}
-
-  Directory(ParentId parent_id, const std::string& serialised_directory);
+  Directory(ParentId parent_id, const std::string& serialised_directory,
+            std::vector<StructuredDataVersions::VersionName> versions);
+  // This serialises the appropriate member data (critically parent_id_ must never be serialised),
+  // and sets 'contents_changed_' to false.
   std::string Serialise();
 
   bool HasChild(const boost::filesystem::path& name) const;
@@ -63,31 +63,40 @@ class Directory {
   FileContext* GetMutableChild(const boost::filesystem::path& name);
   const FileContext* GetChildAndIncrementItr();
   void AddChild(FileContext&& child);
-  FileContext RemoveChild(const boost::filesystem::path& child_name);
+  FileContext RemoveChild(const boost::filesystem::path& name);
   void RenameChild(const boost::filesystem::path& old_name,
                    const boost::filesystem::path& new_name);
   void ResetChildrenIterator() { children_itr_position_ = 0; }
   bool empty() const;
   DirectoryId directory_id() const { return directory_id_; }
-  ParentId parent_id() const { return parent_id_; }
-  // This is true if any child has been added, removed or had its metadata changed.  It is false on
-  // construction and is set false by a call to Serialise().
-  bool contents_changed_;
+  void MarkAsChanged();
+  // If 'ignore_delay' is false, returns true if 'last_changed_' is non-null and greater than
+  // 'kDirectoryInactivityDelay'.  If 'ignore_delay' is true, returns true if 'last_changed_' is
+  // non-null.
+  bool NeedsToBeSaved(bool ignore_delay) const;
+  std::vector<StructuredDataVersions::VersionName> versions_;
+  ParentId parent_id_;
 
-  friend void swap(Directory& lhs, Directory& rhs) MAIDSAFE_NOEXCEPT;
   friend void test::DirectoriesMatch(const Directory& lhs, const Directory& rhs);
   friend class test::DirectoryTest;
 
  private:
   Directory(const Directory& other);
-  std::vector<FileContext>::iterator Find(const boost::filesystem::path& name);
-  std::vector<FileContext>::const_iterator Find(const boost::filesystem::path& name) const;
+  Directory(Directory&& other);
+  Directory& operator=(Directory other);
+
+  typedef std::vector<std::unique_ptr<FileContext>> Children;
+
+  Children::iterator Find(const boost::filesystem::path& name);
+  Children::const_iterator Find(const boost::filesystem::path& name) const;
   void SortAndResetChildrenIterator();
 
-  ParentId parent_id_;
+  // This is non-null if any child has been added, removed or had its metadata changed.  It is set
+  // to null by a call to Serialise().
+  std::unique_ptr<std::chrono::steady_clock::time_point> last_changed_;
   DirectoryId directory_id_;
   MaxVersions max_versions_;
-  std::vector<FileContext> children_;
+  Children children_;
   size_t children_itr_position_;
 };
 
