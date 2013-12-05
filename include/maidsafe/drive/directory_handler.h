@@ -65,7 +65,7 @@ class DirectoryHandler {
   DirectoryHandler(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
                    const Identity& root_parent_id, const boost::filesystem::path& disk_buffer_path,
                    bool create);
-  virtual ~DirectoryHandler() {}
+  ~DirectoryHandler();
 
   void Add(const boost::filesystem::path& relative_path, FileContext&& file_context);
   Directory* Get(const boost::filesystem::path& relative_path);
@@ -92,14 +92,16 @@ class DirectoryHandler {
                         const boost::filesystem::path& new_relative_path);
   void RenameDifferentParent(const boost::filesystem::path& old_relative_path,
                              const boost::filesystem::path& new_relative_path);
+  void Put(Directory* directory, StoreDelay delay = StoreDelay::kApply);
+  ImmutableData SerialiseDirectory(Directory* directory) const;
   std::unique_ptr<Directory> GetFromStorage(const ParentId& parent_id,
                                             const DirectoryId& directory_id) const;
-  //Puts a new version of 'relative_path' (which must be a directory) to storage.
-  //void PutVersion(const boost::filesystem::path& relative_path);
-  void Put(Directory* directory);
+  std::unique_ptr<Directory> ParseDirectory(
+      const ImmutableData& encrypted_data_map, const ParentId& parent_id,
+      const DirectoryId& directory_id,
+      std::vector<StructuredDataVersions::VersionName> versions) const;
   void DeleteOldestVersion(Directory* directory);
   void DeleteAllVersions(Directory* directory);
-  encrypt::DataMap GetDataMap(const ParentId& parent_id, const DirectoryId& directory_id) const;
 
   std::shared_ptr<Storage> storage_;
   Identity unique_user_id_, root_parent_id_;
@@ -135,20 +137,27 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
     return chunk.data();
   };
   if (create) {
+    // TODO(Fraser#5#): 2013-12-05 - Fill 'root_file_context' attributes appropriately.
     FileContext root_file_context(kRoot, true);
     std::unique_ptr<Directory> root_parent(
         new Directory(ParentId(unique_user_id_), root_parent_id));
     std::unique_ptr<Directory> root(
-        new Directory(ParentId(root_parent_id), DirectoryId(RandomString(64))));
+        new Directory(ParentId(root_parent_id), *root_file_context.meta_data.directory_id));
+    root_file_context.parent = root_parent.get();
     root_parent->AddChild(std::move(root_file_context));
     root->MarkAsChanged();
-    Put(root_parent.get());
-    Put(root.get());
+    Put(root_parent.get(), StoreDelay::kIgnore);
+    Put(root.get(), StoreDelay::kIgnore);
     cache_[""] = std::move(root_parent);
     cache_[kRoot] = std::move(root);
   } else {
     cache_[""] = GetFromStorage(ParentId(unique_user_id_), root_parent_id_);
   }
+}
+
+template <typename Storage>
+DirectoryHandler<Storage>::~DirectoryHandler() {
+  FlushAll();
 }
 
 template <typename Storage>
@@ -195,7 +204,7 @@ Directory* DirectoryHandler<Storage>::Get(const boost::filesystem::path& relativ
 
     // Locate the first antecedent in cache
     antecedent = relative_path;
-    while (itr == std::end(cache_) && antecedent.has_parent_path()) {
+    while (itr == std::end(cache_) && !antecedent.empty()) {
       antecedent = antecedent.parent_path();
       itr = cache_.find(antecedent);
     }
@@ -253,7 +262,7 @@ void DirectoryHandler<Storage>::FlushAll() {
       }
       child = dir.second->GetChildAndIncrementItr();
     }
-    Put(dir.second.get());
+    Put(dir.second.get(), StoreDelay::kIgnore);
   }
   if (error)
     ThrowError(CommonErrors::unknown);
@@ -463,11 +472,9 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
 }
 
 template <typename Storage>
-void DirectoryHandler<Storage>::Put(Directory* directory) {
-  if (!directory->NeedsToBeSaved(false))
+void DirectoryHandler<Storage>::Put(Directory* directory, StoreDelay delay) {
+  if (!directory->NeedsToBeSaved(delay))
     return;
-
-  std::string serialised_directory(directory->Serialise());
 
   // Should delete oldest version only when told to do so by return message from PutVersion.
   //try {
@@ -478,6 +485,26 @@ void DirectoryHandler<Storage>::Put(Directory* directory) {
   //  assert(false);  // Should never fail.
   //}
 
+  ImmutableData encrypted_data_map(SerialiseDirectory(directory));
+  storage_->Put(encrypted_data_map);
+  // TODO(Fraser#5#): 2013-12-03 - Change versions to not be typed.
+  if (directory->versions_.empty()) {
+    directory->versions_.emplace_back(0, encrypted_data_map.name());
+    storage_->PutVersion<MutableData>(MutableData::Name(directory->directory_id()),
+                                      StructuredDataVersions::VersionName(),
+                                      directory->versions_[0]);
+  } else {
+    directory->versions_.emplace_back(directory->versions_.back().index + 1,
+                                      encrypted_data_map.name());
+    auto ritr(directory->versions_.rbegin());
+    storage_->PutVersion<MutableData>(MutableData::Name(directory->directory_id()), *(ritr + 1),
+                                      *ritr);
+  }
+}
+
+template <typename Storage>
+ImmutableData DirectoryHandler<Storage>::SerialiseDirectory(Directory* directory) const {
+  std::string serialised_directory(directory->Serialise());
   encrypt::DataMap data_map;
   {
     encrypt::SelfEncryptor self_encryptor(data_map, disk_buffer_, get_chunk_from_store_);
@@ -491,42 +518,46 @@ void DirectoryHandler<Storage>::Put(Directory* directory) {
     auto content(disk_buffer_.Get(chunk.hash));
     storage_->Put(ImmutableData(content));
   }
-
-  //ImmutableData data(NonEmptyString(proto_directory.SerializeAsString()));
-  //versions_.emplace_back(versions_.empty() ? 0 : versions_.back().index + 1, data.name());
-
-
   auto encrypted_data_map_contents(encrypt::EncryptDataMap(directory->parent_id_,
                                                            directory->directory_id(), data_map));
-  ImmutableData encrypted_data_map(encrypted_data_map_contents);
-  disk_buffer_.Store(encrypted_data_map.name()->string(), encrypted_data_map_contents);
-  storage_->Put(encrypted_data_map);
-  // TODO(Fraser#5#): 2013-12-03 - Change versions to not be typed.
-  if (directory->versions_.size() == 1) {
-    storage_->PutVersion<ImmutableData>(ImmutableData::Name(directory->directory_id()),
-                                        StructuredDataVersions::VersionName(),
-                                        directory->versions_[0]);
-  } else {
-    auto ritr(directory->versions_.rbegin());
-    storage_->PutVersion<ImmutableData>(ImmutableData::Name(directory->directory_id()), *(ritr + 1),
-                                        *ritr);
-  }
+  return ImmutableData(encrypted_data_map_contents);
 }
 
 template <typename Storage>
 std::unique_ptr<Directory> DirectoryHandler<Storage>::GetFromStorage(
     const ParentId& parent_id, const DirectoryId& directory_id) const {
-  auto data_map(GetDataMap(parent_id, directory_id));
+  auto version_tip_of_trees(
+      storage_->GetVersions<MutableData>(MutableData::Name(directory_id)).get());
+  assert(!version_tip_of_trees.empty());
+  if (version_tip_of_trees.size() != 1U) {
+    // TODO(Fraser#5#): 2013-12-05 - Handle multiple branches (resolve conflicts if possible or
+    //                  display all versions parsed as dirs to user and get them to choose a single
+    //                  one to keep)
+    version_tip_of_trees.resize(1);
+  }
+  auto versions(storage_->GetBranch<MutableData>(MutableData::Name(directory_id),
+                                                 version_tip_of_trees.front()).get());
+  assert(!versions.empty());
+  ImmutableData encrypted_data_map(storage_->Get(versions.back().id).get());
+  return ParseDirectory(encrypted_data_map, parent_id, directory_id, std::move(versions));
+}
+
+template <typename Storage>
+std::unique_ptr<Directory> DirectoryHandler<Storage>::ParseDirectory(
+    const ImmutableData& encrypted_data_map, const ParentId& parent_id,
+    const DirectoryId& directory_id,
+    std::vector<StructuredDataVersions::VersionName> versions) const {
+  auto data_map(encrypt::DecryptDataMap(parent_id.data, directory_id,
+                                        encrypted_data_map.data().string()));
   encrypt::SelfEncryptor self_encryptor(data_map, disk_buffer_, get_chunk_from_store_);
   uint32_t data_map_size(static_cast<uint32_t>(data_map.size()));
   std::string serialised_listing(data_map_size, 0);
 
   if (!self_encryptor.Read(const_cast<char*>(serialised_listing.c_str()), data_map_size, 0))
-    ThrowError(CommonErrors::invalid_parameter);
+    ThrowError(CommonErrors::parsing_error);
 
-  std::vector<StructuredDataVersions::VersionName> versions;
-
-  std::unique_ptr<Directory> directory(new Directory(parent_id, serialised_listing, versions));
+  std::unique_ptr<Directory> directory(new Directory(parent_id, serialised_listing,
+                                                     std::move(versions)));
   assert(directory->directory_id() == directory_id);
   return std::move(directory);
 }
@@ -545,14 +576,6 @@ void DirectoryHandler<Storage>::DeleteOldestVersion(Directory* /*directory*/) {
 
 template <typename Storage>
 void DirectoryHandler<Storage>::DeleteAllVersions(Directory* /*directory*/) {
-}
-
-template <typename Storage>
-encrypt::DataMap DirectoryHandler<Storage>::GetDataMap(
-    const ParentId& parent_id, const DirectoryId& directory_id) const {
-  MutableData::Name name(directory_id);
-  MutableData directory(storage_->Get(name).get());
-  return encrypt::DecryptDataMap(parent_id, directory_id, directory.data().string());
 }
 
 template <typename Storage>

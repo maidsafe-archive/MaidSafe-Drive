@@ -70,10 +70,10 @@ class Directory {
   bool empty() const;
   DirectoryId directory_id() const { return directory_id_; }
   void MarkAsChanged();
-  // If 'ignore_delay' is false, returns true if 'last_changed_' is non-null and greater than
-  // 'kDirectoryInactivityDelay'.  If 'ignore_delay' is true, returns true if 'last_changed_' is
+  // If 'delay' is 'kApply', returns true if 'last_changed_' is non-null and greater than
+  // 'kDirectoryInactivityDelay'.  If 'delay' is 'kIgnore', returns true if 'last_changed_' is
   // non-null.
-  bool NeedsToBeSaved(bool ignore_delay) const;
+  bool NeedsToBeSaved(StoreDelay delay) const;
   std::vector<StructuredDataVersions::VersionName> versions_;
   ParentId parent_id_;
 

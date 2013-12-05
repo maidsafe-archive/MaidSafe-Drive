@@ -161,10 +161,10 @@ void Directory::MarkAsChanged() {
   last_changed_.reset(new std::chrono::steady_clock::time_point(std::chrono::steady_clock::now()));
 }
 
-bool Directory::NeedsToBeSaved(bool ignore_delay) const {
+bool Directory::NeedsToBeSaved(StoreDelay delay) const {
   if (last_changed_) {
     return (*last_changed_ + kDirectoryInactivityDelay > std::chrono::steady_clock::now()) ||
-           ignore_delay;
+           (delay == StoreDelay::kIgnore);
   }
   return false;
 }
