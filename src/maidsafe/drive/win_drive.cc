@@ -31,6 +31,23 @@ namespace drive {
 
 namespace detail {
 
+bool SetAttributes(DWORD& attributes, DWORD new_value) {
+  if (new_value != 0 && attributes != new_value) {
+    attributes = new_value;
+    return true;
+  }
+  return false;
+}
+
+bool SetFiletime(FILETIME& filetime, PFILETIME new_value) {
+  if (new_value && filetime.dwLowDateTime != new_value->dwLowDateTime &&
+      filetime.dwHighDateTime != new_value->dwHighDateTime) {
+    filetime = *new_value;
+    return true;
+  }
+  return false;
+}
+
 void ErrorMessage(const std::string &method_name, ECBFSError error) {
   LOG(kError) << "Cbfs::" << method_name << ": " << WstringToString(error.Message());
 }

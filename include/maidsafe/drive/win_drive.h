@@ -67,6 +67,11 @@ boost::filesystem::path GetRelativePath(CbfsDrive<Storage>* cbfs_drive, CbFsFile
   return boost::filesystem::path(file_name.get());
 }
 
+// Returns true if 'attributes' was changed
+bool SetAttributes(DWORD& attributes, DWORD new_value);
+// Returns true if 'filetime' was changed
+bool SetFiletime(FILETIME& filetime, PFILETIME new_value);
+
 void ErrorMessage(const std::string& method_name, ECBFSError error);
 
 }  // namespace detail
@@ -893,15 +898,16 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
   LOG(kInfo) << "CbFsSetFileAttributes- " << relative_path << " 0x" << std::hex << file_attributes;
   try {
     auto file_context(cbfs_drive->GetMutableContext(relative_path));
-    if (file_attributes != 0)
-      file_context->meta_data.attributes = file_attributes;
-    if (creation_time)
-      file_context->meta_data.creation_time = *creation_time;
+    bool changed(detail::SetAttributes(file_context->meta_data.attributes, file_attributes));
+    changed |= detail::SetFiletime(file_context->meta_data.creation_time, creation_time);
+    // TODO(Fraser#5#): 2013-12-05 - Decide whether to treat this as worthy of marking the metadata
+    //                  as changed (hence causing a new directory version to be stored) or not.
+    // changed |= detail::SetFiletime(file_context->meta_data.last_access_time, last_access_time);
     if (last_access_time)
       file_context->meta_data.last_access_time = *last_access_time;
-    if (last_write_time)
-      file_context->meta_data.last_write_time = *last_write_time;
-    file_context->parent->MarkAsChanged();
+    changed |= detail::SetFiletime(file_context->meta_data.last_write_time, last_write_time);
+    if (changed)
+      file_context->parent->MarkAsChanged();
   }
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
