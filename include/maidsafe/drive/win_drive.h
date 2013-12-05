@@ -1046,6 +1046,7 @@ void CbfsDrive<Storage>::CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo*
   SCOPED_PROFILE
   auto cbfs_drive(detail::GetDrive<Storage>(sender));
   if (!file_info) {
+    LOG(kInfo) << "CbFsFlushFile - All files";
     try {
       cbfs_drive->FlushAll();
       return;

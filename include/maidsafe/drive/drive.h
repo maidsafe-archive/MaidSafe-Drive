@@ -155,8 +155,16 @@ bool Drive<Storage>::FlushEncryptor(detail::FileContext* file_context) {
   if (!file_context->self_encryptor->Flush())
     return false;
   for (const auto& chunk : file_context->meta_data.data_map->chunks) {
-    auto content(file_context->buffer->Get(chunk.hash));
-    storage_->Put(ImmutableData(content));
+    try {
+      auto content(file_context->buffer->Get(chunk.hash));
+      storage_->Put(ImmutableData(content));
+    }
+    catch (const common_error& error) {
+      if (error.code() == make_error_code(CommonErrors::no_such_element))
+        LOG(kInfo) << HexSubstr(chunk.hash) << " has not been created by this encryptor.";
+      else
+        throw;
+    }
   }
   return true;
 }

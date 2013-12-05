@@ -20,6 +20,7 @@
 #define MAIDSAFE_DRIVE_DIRECTORY_H_
 
 #include <chrono>
+#include <deque>
 #include <memory>
 #include <string>
 #include <vector>
@@ -53,7 +54,7 @@ class Directory {
  public:
   Directory(ParentId parent_id, DirectoryId directory_id);
   Directory(ParentId parent_id, const std::string& serialised_directory,
-            std::vector<StructuredDataVersions::VersionName> versions);
+            const std::vector<StructuredDataVersions::VersionName>& versions);
   // This serialises the appropriate member data (critically parent_id_ must never be serialised),
   // and sets 'contents_changed_' to false.
   std::string Serialise();
@@ -74,7 +75,7 @@ class Directory {
   // 'kDirectoryInactivityDelay'.  If 'delay' is 'kIgnore', returns true if 'last_changed_' is
   // non-null.
   bool NeedsToBeSaved(StoreDelay delay) const;
-  std::vector<StructuredDataVersions::VersionName> versions_;
+  std::deque<StructuredDataVersions::VersionName> versions_;
   ParentId parent_id_;
 
   friend void test::DirectoriesMatch(const Directory& lhs, const Directory& rhs);

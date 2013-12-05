@@ -47,9 +47,10 @@ Directory::Directory(ParentId parent_id, DirectoryId directory_id)
       children_itr_position_(0) {}
 
 Directory::Directory(ParentId parent_id, const std::string& serialised_directory,
-                     std::vector<StructuredDataVersions::VersionName> versions)
-    : versions_(std::move(versions)), parent_id_(std::move(parent_id)), last_changed_(),
-      directory_id_(), max_versions_(kMaxVersions), children_(), children_itr_position_(0) {
+                     const std::vector<StructuredDataVersions::VersionName>& versions)
+    : versions_(std::begin(versions), std::end(versions)), parent_id_(std::move(parent_id)),
+      last_changed_(), directory_id_(), max_versions_(kMaxVersions), children_(),
+      children_itr_position_(0) {
   protobuf::Directory proto_directory;
   if (!proto_directory.ParseFromString(serialised_directory))
     ThrowError(CommonErrors::parsing_error);

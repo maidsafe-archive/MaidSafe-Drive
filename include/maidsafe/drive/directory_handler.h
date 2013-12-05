@@ -494,11 +494,10 @@ void DirectoryHandler<Storage>::Put(Directory* directory, StoreDelay delay) {
                                       StructuredDataVersions::VersionName(),
                                       directory->versions_[0]);
   } else {
-    directory->versions_.emplace_back(directory->versions_.back().index + 1,
-                                      encrypted_data_map.name());
-    auto ritr(directory->versions_.rbegin());
-    storage_->PutVersion<MutableData>(MutableData::Name(directory->directory_id()), *(ritr + 1),
-                                      *ritr);
+    directory->versions_.emplace_front(directory->versions_.front().index + 1,
+                                       encrypted_data_map.name());
+    auto it(std::begin(directory->versions_));
+    storage_->PutVersion<MutableData>(MutableData::Name(directory->directory_id()), *(it + 1), *it);
   }
 }
 
@@ -538,7 +537,7 @@ std::unique_ptr<Directory> DirectoryHandler<Storage>::GetFromStorage(
   auto versions(storage_->GetBranch<MutableData>(MutableData::Name(directory_id),
                                                  version_tip_of_trees.front()).get());
   assert(!versions.empty());
-  ImmutableData encrypted_data_map(storage_->Get(versions.back().id).get());
+  ImmutableData encrypted_data_map(storage_->Get(versions.front().id).get());
   return ParseDirectory(encrypted_data_map, parent_id, directory_id, std::move(versions));
 }
 
