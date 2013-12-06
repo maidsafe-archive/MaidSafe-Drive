@@ -76,7 +76,7 @@ class DriveInUserSpace {
   // Doesn't time out.
   void WaitUntilUnMounted();
 
-  // ********************* LifeStuff share functions ***********************************************
+  // ********************* Client share functions **************************************************
 
   template <typename ShareStorage>
   void AddService(const boost::filesystem::path& service_alias,
@@ -196,7 +196,7 @@ DriveInUserSpace<Storage>::DriveInUserSpace(std::shared_ptr<nfs_client::MaidNode
       mount_mutex_(),
       mount_condition_variable_() {
   static_assert(std::is_same<Storage, nfs_client::MaidNodeNfs>::value,
-                "Cannot use without Lifestuff");
+                "Cannot use without Client");
 }
 
 template <typename Storage>

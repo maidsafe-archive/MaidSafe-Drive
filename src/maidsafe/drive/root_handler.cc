@@ -131,7 +131,7 @@ DataTagValue RootHandler<data_store::SureFileStore>::GetDirectoryType(
   return DataTagValue::kOwnerDirectoryValue;
 }
 
-// TODO(dirvine) uncomment for lifestuff  #BEFORE_RELEASE
+// TODO(dirvine) uncomment for client  #BEFORE_RELEASE
 template <>
 void RootHandler<nfs_client::MaidNodeNfs>::CreateRoot(const Identity& /*unique_user_id*/) {
   //  drive_root_id_ = Identity(RandomString(64));
