@@ -42,7 +42,8 @@ bool FileContextHasName(const FileContext* file_context, const fs::path& name) {
 }  // unnamed namespace
 
 Directory::Directory(ParentId parent_id, DirectoryId directory_id)
-    : versions_(), parent_id_(std::move(parent_id)), last_changed_(),
+    : versions_(), parent_id_(std::move(parent_id)),
+      last_changed_(new std::chrono::steady_clock::time_point(std::chrono::steady_clock::now())),
       directory_id_(std::move(directory_id)), max_versions_(kMaxVersions), children_(),
       children_itr_position_(0) {}
 
@@ -164,7 +165,7 @@ void Directory::MarkAsChanged() {
 
 bool Directory::NeedsToBeSaved(StoreDelay delay) const {
   if (last_changed_) {
-    return (*last_changed_ + kDirectoryInactivityDelay > std::chrono::steady_clock::now()) ||
+    return (*last_changed_ + kDirectoryInactivityDelay < std::chrono::steady_clock::now()) ||
            (delay == StoreDelay::kIgnore);
   }
   return false;

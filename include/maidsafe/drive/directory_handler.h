@@ -178,9 +178,9 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
   parent.second->meta_data.UpdateLastModifiedTime();
 
 #ifndef MAIDSAFE_WIN32
-  parent.second->attributes.st_ctime = parent.second->attributes.st_mtime;
+  parent.second->meta_data.attributes.st_ctime = parent.second->meta_data.attributes.st_mtime;
   if (IsDirectory(file_context)) {
-    ++parent.second->attributes.st_nlink;
+    ++parent.second->meta_data.attributes.st_nlink;
     parent.second->parent->MarkAsChanged();
   }
 #endif
@@ -219,7 +219,7 @@ Directory* DirectoryHandler<Storage>::Get(const boost::filesystem::path& relativ
   while (path_itr != std::end(relative_path)) {
     if (path_itr == std::begin(relative_path)) {
       file_context = parent->GetChild(kRoot);
-      antecedent = kRoot; 
+      antecedent = kRoot;
     } else {
       file_context = parent->GetChild(*path_itr);
       antecedent = (antecedent / *path_itr).make_preferred();
@@ -490,14 +490,15 @@ void DirectoryHandler<Storage>::Put(Directory* directory, StoreDelay delay) {
   // TODO(Fraser#5#): 2013-12-03 - Change versions to not be typed.
   if (directory->versions_.empty()) {
     directory->versions_.emplace_back(0, encrypted_data_map.name());
-    storage_->PutVersion<MutableData>(MutableData::Name(directory->directory_id()),
-                                      StructuredDataVersions::VersionName(),
-                                      directory->versions_[0]);
+    storage_->template PutVersion<MutableData>(MutableData::Name(directory->directory_id()),
+                                               StructuredDataVersions::VersionName(),
+                                               directory->versions_[0]);
   } else {
     directory->versions_.emplace_front(directory->versions_.front().index + 1,
                                        encrypted_data_map.name());
-    auto it(std::begin(directory->versions_));
-    storage_->PutVersion<MutableData>(MutableData::Name(directory->directory_id()), *(it + 1), *it);
+    auto itr(std::begin(directory->versions_));
+    storage_->template PutVersion<MutableData>(MutableData::Name(directory->directory_id()),
+                                              *(itr + 1), *itr);
   }
 }
 
@@ -526,7 +527,7 @@ template <typename Storage>
 std::unique_ptr<Directory> DirectoryHandler<Storage>::GetFromStorage(
     const ParentId& parent_id, const DirectoryId& directory_id) const {
   auto version_tip_of_trees(
-      storage_->GetVersions<MutableData>(MutableData::Name(directory_id)).get());
+      storage_->template GetVersions<MutableData>(MutableData::Name(directory_id)).get());
   assert(!version_tip_of_trees.empty());
   if (version_tip_of_trees.size() != 1U) {
     // TODO(Fraser#5#): 2013-12-05 - Handle multiple branches (resolve conflicts if possible or
@@ -534,8 +535,8 @@ std::unique_ptr<Directory> DirectoryHandler<Storage>::GetFromStorage(
     //                  one to keep)
     version_tip_of_trees.resize(1);
   }
-  auto versions(storage_->GetBranch<MutableData>(MutableData::Name(directory_id),
-                                                 version_tip_of_trees.front()).get());
+  auto versions(storage_->template GetBranch<MutableData>(MutableData::Name(directory_id),
+                                                          version_tip_of_trees.front()).get());
   assert(!versions.empty());
   ImmutableData encrypted_data_map(storage_->Get(versions.front().id).get());
   return ParseDirectory(encrypted_data_map, parent_id, directory_id, std::move(versions));

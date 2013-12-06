@@ -112,8 +112,7 @@ MetaData::MetaData()
       attributes(),
       link_to(),
       data_map(),
-      directory_id(),
-      notes() {
+      directory_id() {
   attributes.st_gid = getgid();
   attributes.st_uid = getuid();
   attributes.st_mode = 0644;
@@ -142,8 +141,7 @@ MetaData::MetaData(const fs::path& name, bool is_directory)
       attributes(),
       link_to(),
       data_map(is_directory ? nullptr : new encrypt::DataMap()),
-      directory_id(is_directory ? new DirectoryId(RandomString(64)) : nullptr),
-      notes() {
+      directory_id(is_directory ? new DirectoryId(RandomString(64)) : nullptr) {
   attributes.st_gid = getgid();
   attributes.st_uid = getuid();
   attributes.st_mode = 0644;

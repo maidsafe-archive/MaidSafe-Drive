@@ -267,7 +267,7 @@ uint32_t Drive<Storage>::Read(const boost::filesystem::path& relative_path, char
 template <typename Storage>
 uint32_t Drive<Storage>::Write(const boost::filesystem::path& relative_path, const char* data,
                                uint32_t size, uint64_t offset) {
-  auto file_context(GetContext(relative_path));
+  auto file_context(GetMutableContext(relative_path));
   assert(file_context->self_encryptor);
   LOG(kInfo) << "For "  << relative_path << ", writing " << size << " bytes at offset " << offset;
   if (!file_context->self_encryptor->Write(data, size, offset))

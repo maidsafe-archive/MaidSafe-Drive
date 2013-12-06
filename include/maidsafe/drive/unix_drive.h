@@ -73,35 +73,6 @@ inline std::string GetFileType(mode_t mode) {
   return "";
 }
 
-template <typename Storage>
-int CreateNew(const fs::path& full_path, mode_t mode, dev_t rdev = 0) {
-  if (detail::ExcludedFilename(full_path.filename().stem().string())) {
-    LOG(kError) << "Invalid name: " << full_path;
-    return -EINVAL;
-  }
-  bool is_directory(S_ISDIR(mode));
-  FileContext file_context(full_path.filename(), is_directory);
-
-  time(&file_context.meta_data.attributes.st_atime);
-  file_context.meta_data.attributes.st_ctime = file_context.meta_data.attributes.st_mtime =
-      file_context.meta_data.attributes.st_atime;
-  file_context.meta_data.attributes.st_mode = mode;
-  file_context.meta_data.attributes.st_rdev = rdev;
-  file_context.meta_data.attributes.st_nlink = (is_directory ? 2 : 1);
-  file_context.meta_data.attributes.st_uid = fuse_get_context()->uid;
-  file_context.meta_data.attributes.st_gid = fuse_get_context()->gid;
-
-  try {
-    Global<Storage>::g_fuse_drive->Create(full_path, std::move(file_context));
-  }
-  catch (const std::exception& e) {
-    LOG(kError) << "CreateNew: " << full_path << ": " << e.what();
-    return -EIO;
-  }
-
-  return 0;
-}
-
 // template <typename Storage>
 // bool ForceFlush(RootHandler<Storage>& root_handler, FileContext<Storage>* file_context) {
 //   assert(file_context);
@@ -172,7 +143,6 @@ class FuseDrive : public Drive<Storage> {
   static int OpsWrite(const char* path, const char* buf, size_t size, off_t offset,
                       struct fuse_file_info* file_info);
 
-
 // We can set extended attribute for our own purposes, i.e. if we wanted to store extra info
 // (revisions for instance) then we can do it here.
 #ifdef HAVE_SETXATTR
@@ -183,8 +153,9 @@ class FuseDrive : public Drive<Storage> {
 //                         int flags);
 #endif  // HAVE_SETXATTR
 
+  static int CreateNew(const fs::path& full_path, mode_t mode, dev_t rdev = 0);
   static int GetAttributes(const char* path, struct stat* stbuf);
-  static int Release(const char* path, struct fuse_file_info* file_info);
+  static int Release(const char* path);
   static int Truncate(const char* path, off_t size);
 
   static struct fuse_operations maidsafe_ops_;
@@ -380,7 +351,7 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsChmod(const char* path, mode_t mode) {
   LOG(kInfo) << "OpsChmod: " << path << ", to " << std::oct << mode;
   try {
-    auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
+    auto file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path));
     file_context->meta_data.attributes.st_mode = mode;
     time(&file_context->meta_data.attributes.st_ctime);
     file_context->parent->MarkAsChanged();
@@ -403,7 +374,7 @@ int FuseDrive<Storage>::OpsChown(const char* path, uid_t uid, gid_t gid) {
   if (!change_uid && !change_gid)
     return 0;
   try {
-    auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
+    auto file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path));
     if (change_uid)
       file_context->meta_data.attributes.st_uid = uid;
     if (change_gid)
@@ -429,7 +400,7 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsCreate(const char* path, mode_t mode, struct fuse_file_info* /*file_info*/) {
   LOG(kInfo) << "OpsCreate: " << path << " (" << detail::GetFileType(mode) << "), mode: "
              << std::oct << mode;
-  return detail::CreateNew<Storage>(path, mode);
+  return Global<Storage>::g_fuse_drive->CreateNew(path, mode);
 }
 
 // Quote from FUSE documentation:
@@ -628,7 +599,7 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsMkdir(const char* path, mode_t mode) {
   LOG(kInfo) << "OpsMkdir: " << path << " (" << detail::GetFileType(mode) << "), mode: " << std::oct
              << mode;
-  return detail::CreateNew<Storage>(path, mode);
+  return Global<Storage>::g_fuse_drive->CreateNew(path, mode);
 }
 
 // Quote from FUSE documentation:
@@ -642,7 +613,7 @@ int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t rdev) {
   LOG(kInfo) << "OpsMknod: " << path << " (" << detail::GetFileType(mode) << "), mode: " << std::oct
              << mode << std::dec << ", rdev: " << rdev;
   assert(!S_ISDIR(mode) && !detail::GetFileType(mode).empty());
-  return detail::CreateNew<Storage>(path, mode, rdev);
+  return Global<Storage>::g_fuse_drive->CreateNew(path, mode, rdev);
 }
 
 // Quote from FUSE documentation:
@@ -830,7 +801,7 @@ int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t size) {
 template <typename Storage>
 int FuseDrive<Storage>::OpsRelease(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsRelease: " << path << ", flags: " << file_info->flags;
-  return Release(path, file_info);
+  return Release(path);
 }
 
 // Quote from FUSE documentation:
@@ -839,7 +810,7 @@ int FuseDrive<Storage>::OpsRelease(const char* path, struct fuse_file_info* file
 template <typename Storage>
 int FuseDrive<Storage>::OpsReleasedir(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsReleasedir: " << path << ", flags: " << file_info->flags;
-  return Release(path, file_info);
+  return Release(path);
 }
 
 // Quote from FUSE documentation:
@@ -997,7 +968,7 @@ int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]
   LOG(kInfo) << "OpsUtimens: " << path;
   detail::FileContext* file_context(nullptr);
   try {
-    file_context = Global<Storage>::g_fuse_drive->GetContext(path);
+    file_context = Global<Storage>::g_fuse_drive->GetMutableContext(path);
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to change times for " << path << ": " << e.what();
@@ -1107,6 +1078,35 @@ int FuseDrive<Storage>::OpsSetxattr(const char* path, const char* name, const ch
 #endif  // HAVE_SETXATTR
 
 template <typename Storage>
+int FuseDrive<Storage>::CreateNew(const fs::path& full_path, mode_t mode, dev_t rdev) {
+  if (detail::ExcludedFilename(full_path.filename().stem().string())) {
+    LOG(kError) << "Invalid name: " << full_path;
+    return -EINVAL;
+  }
+  bool is_directory(S_ISDIR(mode));
+  detail::FileContext file_context(full_path.filename(), is_directory);
+
+  time(&file_context.meta_data.attributes.st_atime);
+  file_context.meta_data.attributes.st_ctime = file_context.meta_data.attributes.st_mtime =
+      file_context.meta_data.attributes.st_atime;
+  file_context.meta_data.attributes.st_mode = mode;
+  file_context.meta_data.attributes.st_rdev = rdev;
+  file_context.meta_data.attributes.st_nlink = (is_directory ? 2 : 1);
+  file_context.meta_data.attributes.st_uid = fuse_get_context()->uid;
+  file_context.meta_data.attributes.st_gid = fuse_get_context()->gid;
+
+  try {
+    Global<Storage>::g_fuse_drive->Create(full_path, std::move(file_context));
+  }
+  catch (const std::exception& e) {
+    LOG(kError) << "CreateNew: " << full_path << ": " << e.what();
+    return -EIO;
+  }
+
+  return 0;
+}
+
+template <typename Storage>
 int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
   try {
     auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
@@ -1139,7 +1139,7 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
 }
 
 template <typename Storage>
-int FuseDrive<Storage>::Release(const char* path, struct fuse_file_info* /*file_info*/) {
+int FuseDrive<Storage>::Release(const char* path) {
   LOG(kInfo) << "Release - " << path;
   try {
     Global<Storage>::g_fuse_drive->Release(path);
@@ -1154,7 +1154,7 @@ int FuseDrive<Storage>::Release(const char* path, struct fuse_file_info* /*file_
 template <typename Storage>
 int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
   try {
-    auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
+    auto file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path));
     assert(file_context->self_encryptor);
     file_context->self_encryptor->Truncate(size);
     file_context->meta_data.attributes.st_size = size;
