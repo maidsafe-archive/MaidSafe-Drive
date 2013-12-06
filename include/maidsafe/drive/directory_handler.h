@@ -234,18 +234,12 @@ Directory* DirectoryHandler<Storage>::Get(const boost::filesystem::path& relativ
       parent = directory.get();
       auto insertion_result(cache_.emplace(antecedent, std::move(directory)));
       assert(insertion_result.second);
+      static_cast<void>(insertion_result);
     }
     ++path_itr;
   }
   return parent;
 }
-
-//template <typename Storage>
-//void DirectoryHandler<Storage>::PutVersion(const boost::filesystem::path& relative_path) {
-//  auto directory(Get(relative_path));
-//  assert(directory);
-//  Put(directory);
-//}
 
 template <typename Storage>
 void DirectoryHandler<Storage>::FlushAll() {
