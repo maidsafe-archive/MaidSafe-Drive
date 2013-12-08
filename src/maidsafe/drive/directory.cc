@@ -41,17 +41,22 @@ bool FileContextHasName(const FileContext* file_context, const fs::path& name) {
 
 }  // unnamed namespace
 
-Directory::Directory(ParentId parent_id, DirectoryId directory_id)
-    : versions_(), parent_id_(std::move(parent_id)),
-      last_changed_(new std::chrono::steady_clock::time_point(std::chrono::steady_clock::now())),
-      directory_id_(std::move(directory_id)), max_versions_(kMaxVersions), children_(),
-      children_itr_position_(0) {}
+Directory::Directory(ParentId parent_id, DirectoryId directory_id,
+                     boost::asio::io_service& io_service,
+                     std::function<void(const boost::system::error_code&)> store_functor)
+    : mutex_(), parent_id_(std::move(parent_id)), directory_id_(std::move(directory_id)),
+      timer_(io_service), store_functor_(store_functor), versions_(), max_versions_(kMaxVersions),
+      children_(), children_itr_position_(0), store_pending_(false) {
+  DoScheduleForStoring(StoreDelay::kApply);
+}
 
 Directory::Directory(ParentId parent_id, const std::string& serialised_directory,
-                     const std::vector<StructuredDataVersions::VersionName>& versions)
+                     const std::vector<StructuredDataVersions::VersionName>& versions,
+                     boost::asio::io_service& io_service,
+                     std::function<void(const boost::system::error_code&)> store_functor)
     : versions_(std::begin(versions), std::end(versions)), parent_id_(std::move(parent_id)),
-      last_changed_(), directory_id_(), max_versions_(kMaxVersions), children_(),
-      children_itr_position_(0) {
+      timer_(io_service), store_functor_(store_functor), directory_id_(),
+      max_versions_(kMaxVersions), children_(), children_itr_position_(0), store_pending_(false) {
   protobuf::Directory proto_directory;
   if (!proto_directory.ParseFromString(serialised_directory))
     ThrowError(CommonErrors::parsing_error);
@@ -66,13 +71,14 @@ Directory::Directory(ParentId parent_id, const std::string& serialised_directory
 
 std::string Directory::Serialise() {
   protobuf::Directory proto_directory;
+  std::lock_guard<std::mutex> lock(mutex_);
   proto_directory.set_directory_id(directory_id_.string());
   proto_directory.set_max_versions(max_versions_.data);
 
   for (const auto& child : children_)
     child->meta_data.ToProtobuf(proto_directory.add_children());
 
-  last_changed_.reset();
+  store_pending_ = false;
   return proto_directory.SerializeAsString();
 }
 
@@ -88,13 +94,43 @@ Directory::Children::const_iterator Directory::Find(const fs::path& name) const 
                            return FileContextHasName(file_context.get(), name); });
 }
 
+void Directory::SortAndResetChildrenIterator() {
+  std::sort(std::begin(children_), std::end(children_));
+  children_itr_position_ = 0;
+}
+
+void Directory::DoScheduleForStoring(StoreDelay delay) {
+  if (delay == StoreDelay::kApply) {
+    auto cancelled_count(timer_.expires_from_now(kInactivityDelay));
+    if (cancelled_count > 0 && store_pending_) {
+      LOG(kSuccess) << "Successfully cancelled " << cancelled_count << " store functor.";
+      assert(cancelled_count == 1);
+    } else {
+      LOG(kWarning) << "Failed to cancel store functor.";
+    }
+    timer_.async_wait(store_functor_);
+  } else {
+    auto cancelled_count(timer_.cancel());
+    if (cancelled_count > 0 && store_pending_) {
+      LOG(kSuccess) << "Successfully cancelled " << cancelled_count << " store functor.";
+      assert(cancelled_count == 1);
+    } else {
+      LOG(kWarning) << "Failed to cancel store functor.";
+    }
+    timer_.get_io_service().post([this] { store_functor_(boost::system::error_code()); });
+  }
+  store_pending_ = true;
+}
+
 bool Directory::HasChild(const fs::path& name) const {
+  std::lock_guard<std::mutex> lock(mutex_);
   return std::any_of(std::begin(children_), std::end(children_),
       [&name](const Children::value_type& file_context) {
           return FileContextHasName(file_context.get(), name); });
 }
 
 const FileContext* Directory::GetChild(const fs::path& name) const {
+  std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(name));
   if (itr == std::end(children_))
     ThrowError(DriveErrors::no_such_file);
@@ -102,6 +138,7 @@ const FileContext* Directory::GetChild(const fs::path& name) const {
 }
 
 FileContext* Directory::GetMutableChild(const fs::path& name) {
+  std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(name));
   if (itr == std::end(children_))
     ThrowError(DriveErrors::no_such_file);
@@ -109,6 +146,7 @@ FileContext* Directory::GetMutableChild(const fs::path& name) {
 }
 
 const FileContext* Directory::GetChildAndIncrementItr() {
+  std::lock_guard<std::mutex> lock(mutex_);
   if (children_itr_position_ != children_.size()) {
     const FileContext* file_context(children_[children_itr_position_].get());
     ++children_itr_position_;
@@ -118,27 +156,30 @@ const FileContext* Directory::GetChildAndIncrementItr() {
 }
 
 void Directory::AddChild(FileContext&& child) {
+  std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(child.meta_data.name));
   if (itr != std::end(children_))
     ThrowError(DriveErrors::file_exists);
   child.parent = this;
   children_.emplace_back(new FileContext(std::move(child)));
   SortAndResetChildrenIterator();
-  MarkAsChanged();
+  DoScheduleForStoring(StoreDelay::kApply);
 }
 
 FileContext Directory::RemoveChild(const fs::path& name) {
+  std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(name));
   if (itr == std::end(children_))
     ThrowError(DriveErrors::no_such_file);
   std::unique_ptr<FileContext> file_context(std::move(*itr));
   children_.erase(itr);
   SortAndResetChildrenIterator();
-  MarkAsChanged();
+  DoScheduleForStoring(StoreDelay::kApply);
   return std::move(*file_context);
 }
 
 void Directory::RenameChild(const fs::path& old_name, const fs::path& new_name) {
+  std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(new_name));
   if (itr != std::end(children_))
     ThrowError(DriveErrors::file_exists);
@@ -147,28 +188,49 @@ void Directory::RenameChild(const fs::path& old_name, const fs::path& new_name) 
     ThrowError(DriveErrors::no_such_file);
   (*itr)->meta_data.name = new_name;
   SortAndResetChildrenIterator();
-  MarkAsChanged();
+  DoScheduleForStoring(StoreDelay::kApply);
+}
+
+void Directory::ResetChildrenIterator() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  children_itr_position_ = 0;
 }
 
 bool Directory::empty() const {
+  std::lock_guard<std::mutex> lock(mutex_);
   return children_.empty();
 }
 
-void Directory::SortAndResetChildrenIterator() {
-  std::sort(std::begin(children_), std::end(children_));
-  ResetChildrenIterator();
+ParentId Directory::parent_id() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return parent_id_;
 }
 
-void Directory::MarkAsChanged() {
-  last_changed_.reset(new std::chrono::steady_clock::time_point(std::chrono::steady_clock::now()));
+void Directory::SetParentId(const ParentId parent_id) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  parent_id_ = parent_id;
 }
 
-bool Directory::NeedsToBeSaved(StoreDelay delay) const {
-  if (last_changed_) {
-    return (*last_changed_ + kDirectoryInactivityDelay < std::chrono::steady_clock::now()) ||
-           (delay == StoreDelay::kIgnore);
+DirectoryId Directory::directory_id() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return directory_id_;
+}
+
+void Directory::ScheduleForStoring(StoreDelay delay) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  DoScheduleForStoring(delay);
+}
+
+std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
+    Directory::AddNewVersion(ImmutableData::Name version_id) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (versions_.empty()) {
+    versions_.emplace_back(0, version_id);
+    return std::make_tuple(directory_id_, StructuredDataVersions::VersionName(), versions_[0]);
   }
-  return false;
+  versions_.emplace_front(versions_.front().index + 1, version_id);
+  auto itr(std::begin(versions_));
+  return std::make_tuple(directory_id_, *(itr + 1), *itr);
 }
 
 bool operator<(const Directory& lhs, const Directory& rhs) {

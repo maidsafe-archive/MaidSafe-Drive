@@ -22,10 +22,14 @@
 #include <chrono>
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
+#include "boost/asio/io_service.hpp"
+#include "boost/asio/steady_timer.hpp"
 #include "boost/filesystem/path.hpp"
+#include "boost/system/error_code.hpp"
 
 #include "maidsafe/common/tagged_value.h"
 #include "maidsafe/common/types.h"
@@ -52,11 +56,14 @@ class DirectoryTest;
 
 class Directory {
  public:
-  Directory(ParentId parent_id, DirectoryId directory_id);
+  Directory(ParentId parent_id, DirectoryId directory_id, boost::asio::io_service& io_service,
+            std::function<void(const boost::system::error_code&)> store_functor);
   Directory(ParentId parent_id, const std::string& serialised_directory,
-            const std::vector<StructuredDataVersions::VersionName>& versions);
+            const std::vector<StructuredDataVersions::VersionName>& versions,
+            boost::asio::io_service& io_service,
+            std::function<void(const boost::system::error_code&)> store_functor);
   // This serialises the appropriate member data (critically parent_id_ must never be serialised),
-  // and sets 'contents_changed_' to false.
+  // and sets 'store_pending_' false.
   std::string Serialise();
 
   bool HasChild(const boost::filesystem::path& name) const;
@@ -67,16 +74,15 @@ class Directory {
   FileContext RemoveChild(const boost::filesystem::path& name);
   void RenameChild(const boost::filesystem::path& old_name,
                    const boost::filesystem::path& new_name);
-  void ResetChildrenIterator() { children_itr_position_ = 0; }
+  void ResetChildrenIterator();
   bool empty() const;
-  DirectoryId directory_id() const { return directory_id_; }
-  void MarkAsChanged();
-  // If 'delay' is 'kApply', returns true if 'last_changed_' is non-null and greater than
-  // 'kDirectoryInactivityDelay'.  If 'delay' is 'kIgnore', returns true if 'last_changed_' is
-  // non-null.
-  bool NeedsToBeSaved(StoreDelay delay) const;
-  std::deque<StructuredDataVersions::VersionName> versions_;
-  ParentId parent_id_;
+  ParentId parent_id() const;
+  void SetParentId(const ParentId parent_id);
+  DirectoryId directory_id() const;
+  void ScheduleForStoring(StoreDelay delay = StoreDelay::kApply);
+  // Returns directory_id and most recent 2 version names (including the one passed in).
+  std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
+      AddNewVersion(ImmutableData::Name version_id);
 
   friend void test::DirectoriesMatch(const Directory& lhs, const Directory& rhs);
   friend class test::DirectoryTest;
@@ -91,14 +97,18 @@ class Directory {
   Children::iterator Find(const boost::filesystem::path& name);
   Children::const_iterator Find(const boost::filesystem::path& name) const;
   void SortAndResetChildrenIterator();
+  void DoScheduleForStoring(StoreDelay delay);
 
-  // This is non-null if any child has been added, removed or had its metadata changed.  It is set
-  // to null by a call to Serialise().
-  std::unique_ptr<std::chrono::steady_clock::time_point> last_changed_;
+  mutable std::mutex mutex_;
+  ParentId parent_id_;
   DirectoryId directory_id_;
+  boost::asio::steady_timer timer_;
+  std::function<void(const boost::system::error_code&)> store_functor_;
+  std::deque<StructuredDataVersions::VersionName> versions_;
   MaxVersions max_versions_;
   Children children_;
   size_t children_itr_position_;
+  bool store_pending_;
 };
 
 bool operator<(const Directory& lhs, const Directory& rhs);

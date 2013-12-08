@@ -354,7 +354,7 @@ int FuseDrive<Storage>::OpsChmod(const char* path, mode_t mode) {
     auto file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path));
     file_context->meta_data.attributes.st_mode = mode;
     time(&file_context->meta_data.attributes.st_ctime);
-    file_context->parent->MarkAsChanged();
+    file_context->parent->ScheduleForStoring();
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to chmod " << path << ": " << e.what();
@@ -380,7 +380,7 @@ int FuseDrive<Storage>::OpsChown(const char* path, uid_t uid, gid_t gid) {
     if (change_gid)
       file_context->meta_data.attributes.st_gid = gid;
     time(&file_context->meta_data.attributes.st_ctime);
-    file_context->parent->MarkAsChanged();
+    file_context->parent->ScheduleForStoring();
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to chown " << path << ": " << e.what();
@@ -1001,7 +1001,7 @@ int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]
     file_context->meta_data->attributes.st_mtimensec = tspec.tv_nsec;
   }
 #endif
-  file_context->parent->MarkAsChanged();
+  file_context->parent->ScheduleForStoring();
   return 0;
 }
 
@@ -1161,7 +1161,7 @@ int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
     time(&file_context->meta_data.attributes.st_mtime);
     file_context->meta_data.attributes.st_ctime = file_context->meta_data.attributes.st_atime =
         file_context->meta_data.attributes.st_mtime;
-    file_context->parent->MarkAsChanged();
+    file_context->parent->ScheduleForStoring();
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to truncate " << path << ": " << e.what();
