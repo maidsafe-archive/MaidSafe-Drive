@@ -102,7 +102,7 @@ void Directory::SortAndResetChildrenIterator() {
 void Directory::DoScheduleForStoring(bool use_delay) {
   if (use_delay) {
     auto cancelled_count(timer_.expires_from_now(kInactivityDelay));
-#ifndef NDEBUF
+#ifndef NDEBUG
     if (cancelled_count > 0 && store_pending_) {
       LOG(kSuccess) << "Successfully cancelled " << cancelled_count << " store functor.";
       assert(cancelled_count == 1);
@@ -123,7 +123,7 @@ void Directory::DoScheduleForStoring(bool use_delay) {
       LOG(kWarning) << "Failed to cancel store functor.";
     }
     store_pending_ = true;
-#ifndef NDEBUF
+#ifndef NDEBUG
   } else {
     LOG(kSuccess) << "No store functor pending.";
 #endif
