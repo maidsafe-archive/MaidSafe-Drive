@@ -79,7 +79,8 @@ class Directory {
   ParentId parent_id() const;
   void SetParentId(const ParentId parent_id);
   DirectoryId directory_id() const;
-  void ScheduleForStoring(StoreDelay delay = StoreDelay::kApply);
+  void ScheduleForStoring();
+  void StoreImmediatelyIfPending();
   // Returns directory_id and most recent 2 version names (including the one passed in).
   std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
       AddNewVersion(ImmutableData::Name version_id);
@@ -97,7 +98,7 @@ class Directory {
   Children::iterator Find(const boost::filesystem::path& name);
   Children::const_iterator Find(const boost::filesystem::path& name) const;
   void SortAndResetChildrenIterator();
-  void DoScheduleForStoring(StoreDelay delay);
+  void DoScheduleForStoring(bool use_delay = true);
 
   mutable std::mutex mutex_;
   ParentId parent_id_;

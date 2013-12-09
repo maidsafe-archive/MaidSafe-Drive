@@ -49,8 +49,6 @@ extern const MaxVersions kMaxVersions;
 // The delay between the last update to a directory and the creation of the corresponding version.
 extern const std::chrono::steady_clock::duration kInactivityDelay;
 
-enum class StoreDelay { kApply, kIgnore };
-
 }  // namespace detail
 
 }  // namespace drive

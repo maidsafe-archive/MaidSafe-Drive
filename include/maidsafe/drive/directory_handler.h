@@ -111,8 +111,8 @@ class DirectoryHandler {
   mutable detail::FileContext::Buffer disk_buffer_;
   std::function<NonEmptyString(const std::string&)> get_chunk_from_store_;
   mutable std::mutex cache_mutex_;
-  std::map<boost::filesystem::path, std::unique_ptr<Directory>> cache_;
   AsioService asio_service_;
+  std::map<boost::filesystem::path, std::unique_ptr<Directory>> cache_;
 };
 
 // ==================== Implementation details ====================================================
@@ -131,8 +131,8 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
                    [](const std::string&, const NonEmptyString&) {}, disk_buffer_path),
       get_chunk_from_store_(),
       cache_mutex_(),
-      cache_(),
-      asio_service_(1) {
+      asio_service_(1),
+      cache_() {
   if (!unique_user_id.IsInitialised())
     ThrowError(CommonErrors::uninitialised);
   if (!root_parent_id.IsInitialised())
@@ -152,7 +152,7 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
         GetStoreFunctor(kRoot)));
     root_file_context.parent = root_parent.get();
     root_parent->AddChild(std::move(root_file_context));
-    root->ScheduleForStoring(StoreDelay::kIgnore);
+    root->ScheduleForStoring();
     cache_[""] = std::move(root_parent);
     cache_[kRoot] = std::move(root);
   } else {
@@ -260,7 +260,7 @@ void DirectoryHandler<Storage>::FlushAll() {
       }
       child = dir.second->GetChildAndIncrementItr();
     }
-    dir.second->ScheduleForStoring(StoreDelay::kIgnore);
+    dir.second->StoreImmediatelyIfPending();
   }
   if (error)
     ThrowError(CommonErrors::unknown);
@@ -414,7 +414,7 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
       assert(insertion_result.second);
       directory = insertion_result.first->second.get();
     }
-    directory->ScheduleForStoring(StoreDelay::kIgnore);
+    directory->ScheduleForStoring();
   }
 
   new_parent.first->AddChild(std::move(file_context));
@@ -560,7 +560,7 @@ std::function<void(const boost::system::error_code&)> DirectoryHandler<Storage>:
     const boost::filesystem::path& relative_path) {
   return [this, relative_path](const boost::system::error_code& ec) {
     if (ec != boost::asio::error::operation_aborted) {
-      LOG(kSuccess) << "Timer expired - storing " << relative_path;
+      LOG(kSuccess) << "Storing " << relative_path;
       Put(relative_path);
     } else {
       LOG(kWarning) << "Timer was cancelled - not storing " << relative_path;

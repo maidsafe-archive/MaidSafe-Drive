@@ -47,7 +47,7 @@ Directory::Directory(ParentId parent_id, DirectoryId directory_id,
     : mutex_(), parent_id_(std::move(parent_id)), directory_id_(std::move(directory_id)),
       timer_(io_service), store_functor_(store_functor), versions_(), max_versions_(kMaxVersions),
       children_(), children_itr_position_(0), store_pending_(false) {
-  DoScheduleForStoring(StoreDelay::kApply);
+  DoScheduleForStoring();
 }
 
 Directory::Directory(ParentId parent_id, const std::string& serialised_directory,
@@ -99,27 +99,35 @@ void Directory::SortAndResetChildrenIterator() {
   children_itr_position_ = 0;
 }
 
-void Directory::DoScheduleForStoring(StoreDelay delay) {
-  if (delay == StoreDelay::kApply) {
+void Directory::DoScheduleForStoring(bool use_delay) {
+  if (use_delay) {
     auto cancelled_count(timer_.expires_from_now(kInactivityDelay));
+#ifndef NDEBUF
     if (cancelled_count > 0 && store_pending_) {
       LOG(kSuccess) << "Successfully cancelled " << cancelled_count << " store functor.";
       assert(cancelled_count == 1);
-    } else {
+    } else if (store_pending_) {
       LOG(kWarning) << "Failed to cancel store functor.";
     }
+#endif
+    static_cast<void>(cancelled_count);
     timer_.async_wait(store_functor_);
-  } else {
+    store_pending_ = true;
+  } else if (store_pending_) {
     auto cancelled_count(timer_.cancel());
-    if (cancelled_count > 0 && store_pending_) {
+    if (cancelled_count > 0) {
       LOG(kSuccess) << "Successfully cancelled " << cancelled_count << " store functor.";
       assert(cancelled_count == 1);
+      timer_.get_io_service().post([this] { store_functor_(boost::system::error_code()); });
     } else {
       LOG(kWarning) << "Failed to cancel store functor.";
     }
-    timer_.get_io_service().post([this] { store_functor_(boost::system::error_code()); });
+    store_pending_ = true;
+#ifndef NDEBUF
+  } else {
+    LOG(kSuccess) << "No store functor pending.";
+#endif
   }
-  store_pending_ = true;
 }
 
 bool Directory::HasChild(const fs::path& name) const {
@@ -163,7 +171,7 @@ void Directory::AddChild(FileContext&& child) {
   child.parent = this;
   children_.emplace_back(new FileContext(std::move(child)));
   SortAndResetChildrenIterator();
-  DoScheduleForStoring(StoreDelay::kApply);
+  DoScheduleForStoring();
 }
 
 FileContext Directory::RemoveChild(const fs::path& name) {
@@ -174,7 +182,7 @@ FileContext Directory::RemoveChild(const fs::path& name) {
   std::unique_ptr<FileContext> file_context(std::move(*itr));
   children_.erase(itr);
   SortAndResetChildrenIterator();
-  DoScheduleForStoring(StoreDelay::kApply);
+  DoScheduleForStoring();
   return std::move(*file_context);
 }
 
@@ -188,7 +196,7 @@ void Directory::RenameChild(const fs::path& old_name, const fs::path& new_name) 
     ThrowError(DriveErrors::no_such_file);
   (*itr)->meta_data.name = new_name;
   SortAndResetChildrenIterator();
-  DoScheduleForStoring(StoreDelay::kApply);
+  DoScheduleForStoring();
 }
 
 void Directory::ResetChildrenIterator() {
@@ -216,9 +224,14 @@ DirectoryId Directory::directory_id() const {
   return directory_id_;
 }
 
-void Directory::ScheduleForStoring(StoreDelay delay) {
+void Directory::ScheduleForStoring() {
   std::lock_guard<std::mutex> lock(mutex_);
-  DoScheduleForStoring(delay);
+  DoScheduleForStoring();
+}
+
+void Directory::StoreImmediatelyIfPending() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  DoScheduleForStoring(false);
 }
 
 std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
