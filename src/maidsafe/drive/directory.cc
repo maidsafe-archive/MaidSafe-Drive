@@ -54,8 +54,8 @@ Directory::Directory(ParentId parent_id, const std::string& serialised_directory
                      const std::vector<StructuredDataVersions::VersionName>& versions,
                      boost::asio::io_service& io_service,
                      std::function<void(const boost::system::error_code&)> store_functor)
-    : versions_(std::begin(versions), std::end(versions)), parent_id_(std::move(parent_id)),
-      timer_(io_service), store_functor_(store_functor), directory_id_(),
+    : mutex_(), parent_id_(std::move(parent_id)), directory_id_(), timer_(io_service),
+      store_functor_(store_functor), versions_(std::begin(versions), std::end(versions)),
       max_versions_(kMaxVersions), children_(), children_itr_position_(0), store_pending_(false) {
   protobuf::Directory proto_directory;
   if (!proto_directory.ParseFromString(serialised_directory))
