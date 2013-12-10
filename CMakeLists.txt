@@ -123,6 +123,9 @@ target_compile_definitions(maidsafe_drive
   PRIVATE
     $<$<BOOL:${Cbfs_FOUND}>:CBFS_KEY=${Cbfs_KEY}>
 )
+if(TARGET FilesystemTest)
+  target_compile_options(FilesystemTest PRIVATE $<$<CXX_COMPILER_ID:Clang>:-Wno-empty-body>)
+endif()
 if(Cbfs_FOUND)
   target_compile_definitions(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_DEFINITIONS>)
   target_compile_options(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_OPTIONS>)
@@ -137,7 +140,6 @@ if(MaidsafeTesting)
   add_style_test()
   if(Cbfs_FOUND OR NOT WIN32)
     add_gtests(TESTdrive)
-    add_catch_tests(FilesystemTest)
   endif()
   add_project_experimental()
   test_summary_output()
