@@ -34,7 +34,7 @@ include(../../cmake_modules/standard_setup.cmake)
 #==================================================================================================#
 if(WIN32)
   include(maidsafe_find_cbfs)
-  if(NOT DONT_USE_CBFS)
+  if(NOT Cbfs_FOUND AND NOT DONT_USE_CBFS)
     set(Msg "\nFailed to find Callback File System.  This is a prerequisite for Drive on Windows, so ")
     set(Msg "${Msg}Drive will be excluded from the default build.  See ")
     set(Msg "${Msg}https://github.com/maidsafe/MaidSafe/wiki/Build-Instructions#optional-components")

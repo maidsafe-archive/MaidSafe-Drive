@@ -244,7 +244,7 @@ BOOL CtrlHandler(DWORD control_type) {
 }
 
 void SetSignalHandler() {
-  if (!SetConsoleCtrlHandler(&CtrlHandler, TRUE)) {
+  if (!SetConsoleCtrlHandler(reinterpret_cast<PHANDLER_ROUTINE>(&CtrlHandler), TRUE)) {
     g_error_message = "Failed to set control handler.\n\n";
     g_return_code = 16;
     maidsafe::ThrowError(maidsafe::CommonErrors::unknown);
