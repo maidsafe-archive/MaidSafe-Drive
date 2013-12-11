@@ -34,6 +34,16 @@ include(../../cmake_modules/standard_setup.cmake)
 #==================================================================================================#
 if(WIN32)
   include(maidsafe_find_cbfs)
+  if(NOT DONT_USE_CBFS)
+    set(Msg "\nFailed to find Callback File System.  This is a prerequisite for Drive on Windows, so ")
+    set(Msg "${Msg}Drive will be excluded from the default build.  See ")
+    set(Msg "${Msg}https://github.com/maidsafe/MaidSafe/wiki/Build-Instructions#optional-components")
+    set(Msg "${Msg} for further info.\nIf Cbfs is already installed, run:\n")
+    set(Msg "${Msg}cmake . -DCBFS_ROOT_DIR=<Path to Cbfs root directory>\n")
+    set(Msg "${Msg}e.g.\ncmake . -DCBFS_ROOT_DIR=\"C:\\Program Files\\EldoS\\Callback File System\"\n")
+    set(Msg "${Msg}To permanently disable this warning, run:\ncmake . -DDONT_USE_CBFS=TRUE\n")
+    message(WARNING "${Msg}")
+  endif()
 else()
   include(maidsafe_find_fuse)
 endif()
@@ -49,17 +59,12 @@ set(LocalDriveMain ${DriveSourcesDir}/local/local_drive.cc)
 set(NetworkDriveMain ${DriveSourcesDir}/network/network_drive.cc)
 set(WinServiceMain ${DriveSourcesDir}/win_service/win_service_main.cc)
 set(UnixFiles ${DriveApiDir}/unix_drive.h ${DriveSourcesDir}/unix_drive.cc)
-set(CbfsWinFiles ${DriveApiDir}/win_drive.h ${DriveSourcesDir}/win_drive.cc)
-set(DummyWinFiles ${DriveApiDir}/dummy_win_drive.h)
+set(WinFiles ${DriveApiDir}/win_drive.h ${DriveSourcesDir}/win_drive.cc)
 
 if(WIN32)
-  if(Cbfs_FOUND)
-    list(REMOVE_ITEM DriveAllFiles ${UnixFiles} ${DummyWinFiles})
-  else()
-    list(REMOVE_ITEM DriveAllFiles ${UnixFiles} ${CbfsWinFiles})
-  endif()
+  list(REMOVE_ITEM DriveAllFiles ${UnixFiles})
 else()
-  list(REMOVE_ITEM DriveAllFiles ${CbfsWinFiles} ${DummyWinFiles})
+  list(REMOVE_ITEM DriveAllFiles ${WinFiles})
 endif()
 
 glob_dir(DriveTests ${DriveSourcesDir}/tests Tests)
@@ -95,8 +100,7 @@ target_link_libraries(local_drive maidsafe_drive)
 ms_add_executable(network_drive "Production" ${NetworkDriveMain})
 target_link_libraries(network_drive maidsafe_drive maidsafe_nfs_client)
 
-#TODO (TEAM) Create unit test target for directory listing to build even with dummy win dependency
-if(MaidsafeTesting AND (Cbfs_FOUND OR NOT WIN32))
+if(MaidsafeTesting)
   set(LocalDriveLocationFile ${CMAKE_CURRENT_BINARY_DIR}/filesystem_test/local_drive_location.h)
   set(NetworkDriveLocationFile ${CMAKE_CURRENT_BINARY_DIR}/filesystem_test/network_drive_location.h)
   ms_add_executable(filesystem_benchmark "Tools/Drive"
@@ -128,6 +132,14 @@ endif()
 
 rename_outdated_built_exes()
 
+if(WIN32 AND NOT Cbfs_FOUND)
+  foreach(Target maidsafe_drive cbfs_driver local_drive network_drive filesystem_benchmark filesystem_test test_drive)
+    if(TARGET ${Target})
+      set_target_properties(${Target} PROPERTIES EXCLUDE_FROM_ALL ON EXCLUDE_FROM_DEFAULT_BUILD ON)
+    endif()
+  endforeach()
+endif()
+
 
 #==================================================================================================#
 # Set compiler and linker flags                                                                    #
@@ -136,7 +148,6 @@ include(standard_flags)
 
 target_compile_definitions(maidsafe_drive
   PUBLIC
-    $<$<BOOL:${Cbfs_FOUND}>:HAVE_CBFS>
     $<$<BOOL:${UNIX}>:FUSE_USE_VERSION=26>
   PRIVATE
     $<$<BOOL:${Cbfs_FOUND}>:CBFS_KEY=${Cbfs_KEY}>
@@ -163,9 +174,7 @@ endif()
 #==================================================================================================#
 if(MaidsafeTesting)
   add_style_test()
-  if(Cbfs_FOUND OR NOT WIN32)
-    add_catch_tests(test_drive)
-  endif()
+  add_catch_tests(test_drive)
   add_project_experimental()
   test_summary_output()
 endif()
