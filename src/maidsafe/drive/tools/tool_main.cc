@@ -53,9 +53,6 @@
 
 #include "maidsafe/drive/drive.h"
 
-#include "local_drive_location.h"  // NOLINT
-#include "network_drive_location.h"  // NOLINT
-
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 namespace bp = boost::process;
@@ -169,8 +166,8 @@ po::variables_map ParseAllOptions(int& argc, char* argv[],
 
   // Strip used command line options before passing to RunTool function.
   unused_options = po::collect_unrecognized(parsed.options, po::include_positional);
-  argc = static_cast<int>(unused_options.size() + 1);
-  int position(1);
+  argc = static_cast<int>(unused_options.size());
+  int position(0);
   for (const auto& unused_option : unused_options)
     std::strcpy(argv[position++], unused_option.c_str());  // NOLINT
 
@@ -263,7 +260,7 @@ void PrepareLocalVfs() {
 
   // Set up boost::process args
   std::vector<std::string> process_args;
-  const auto kExePath(process::GetLocalDriveLocation());
+  const auto kExePath(process::GetOtherExecutablePath("local_drive").string());
   process_args.push_back(kExePath);
   std::string shared_memory_opt("--shared_memory " + shared_memory_name);
   process_args.push_back(shared_memory_opt);
@@ -313,7 +310,10 @@ void PrepareTest() {
 
 int main(int argc, char** argv) {
   try {
-    auto unused_options(maidsafe::log::Logging::Instance().Initialise(argc, argv));
+    auto unuseds(maidsafe::log::Logging::Instance().Initialise(argc, argv));
+    std::vector<std::string> unused_options;
+    for (const auto& unused : unuseds)
+      unused_options.emplace_back(&unused[0]);
     auto variables_map(maidsafe::test::ParseAllOptions(argc, argv, unused_options));
     maidsafe::test::HandleHelp(variables_map);
     maidsafe::test::GetTestType(variables_map);

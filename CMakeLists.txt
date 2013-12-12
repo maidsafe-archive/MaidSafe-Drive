@@ -101,28 +101,20 @@ ms_add_executable(network_drive "Production" ${NetworkDriveMain})
 target_link_libraries(network_drive maidsafe_drive maidsafe_nfs_client)
 
 if(MaidsafeTesting)
-  set(LocalDriveLocationFile ${CMAKE_CURRENT_BINARY_DIR}/filesystem_test/local_drive_location.h)
-  set(NetworkDriveLocationFile ${CMAKE_CURRENT_BINARY_DIR}/filesystem_test/network_drive_location.h)
   ms_add_executable(filesystem_benchmark "Tools/Drive"
                     ${DriveSourcesDir}/tools/filesystem_benchmark.cc
-                    ${DriveSourcesDir}/tools/tool_main.cc
-                    ${LocalDriveLocationFile}
-                    ${NetworkDriveLocationFile})
+                    ${DriveSourcesDir}/tools/tool_main.cc)
   ms_add_executable(filesystem_test "Tools/Drive"
                     ${DriveSourcesDir}/tools/filesystem_test.cc
-                    ${DriveSourcesDir}/tools/tool_main.cc
-                    ${LocalDriveLocationFile}
-                    ${NetworkDriveLocationFile})
+                    ${DriveSourcesDir}/tools/tool_main.cc)
   ms_add_executable(test_drive "Tests/Drive" ${DriveTestsAllFiles})
   target_include_directories(test_drive PRIVATE ${PROJECT_SOURCE_DIR}/src)
   set_property(TARGET test_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=713CC6CE-B3E2-4fd9-838D-E28F558F6866")
 
-  add_process_location(local_drive "${LocalDriveLocationFile}")
-  add_process_location(network_drive "${NetworkDriveLocationFile}")
-  add_dependencies(filesystem_benchmark local_drive network_drive local_drive_location_helper network_drive_location_helper)
-  add_dependencies(filesystem_test local_drive network_drive local_drive_location_helper network_drive_location_helper)
-  target_include_directories(filesystem_benchmark PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/filesystem_test" $<$<BOOL:${MSVC}>:$<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>>)
-  target_include_directories(filesystem_test PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/filesystem_test" $<$<BOOL:${MSVC}>:$<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>>)
+  add_dependencies(filesystem_benchmark local_drive network_drive)
+  add_dependencies(filesystem_test local_drive network_drive)
+  target_include_directories(filesystem_benchmark PRIVATE $<$<BOOL:${MSVC}>:$<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>>)
+  target_include_directories(filesystem_test PRIVATE $<$<BOOL:${MSVC}>:$<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>>)
 
   target_link_libraries(filesystem_benchmark maidsafe_common)
   target_link_libraries(filesystem_test maidsafe_common)
