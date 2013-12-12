@@ -298,7 +298,7 @@ void CopyThenReadManySmallFiles() {
 }  // namespace maidsafe
 
 int main(int argc, char** argv) {
-  auto unused_options(maidsafe::log::Logging::Instance().Initialise(argc, argv));
+  auto unuseds(maidsafe::log::Logging::Instance().Initialise(argc, argv));
 
   try {
     // Handle passing path to test root via command line
@@ -310,6 +310,9 @@ int main(int argc, char** argv) {
         "root", po::value<std::string>(), description.c_str())(
         "no_big_test", po::bool_switch(&no_big_test), "Disable single large file test.")(
         "no_small_test", po::bool_switch(&no_small_test), "Disable multiple small files test.");
+    std::vector<std::string> unused_options;
+    for (size_t i(1); i < unuseds.size(); ++i)
+      unused_options.emplace_back(&unuseds[i][0]);
     po::parsed_options parsed(po::command_line_parser(unused_options)
                                   .options(command_line_options)
                                   .allow_unregistered()

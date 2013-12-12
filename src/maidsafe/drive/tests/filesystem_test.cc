@@ -641,7 +641,7 @@ TEST_CASE("Check failures", "[Filesystem]") {
 }  // namespace maidsafe
 
 int main(int argc, char** argv) {
-  auto unused_options(maidsafe::log::Logging::Instance().Initialise(argc, argv));
+  auto unuseds(maidsafe::log::Logging::Instance().Initialise(argc, argv));
 
   // Handle passing path to test root via command line
   po::options_description path_option("Path option");
@@ -649,6 +649,9 @@ int main(int argc, char** argv) {
                           fs::temp_directory_path().string());
   path_option.add_options()("help,h", "Show help message.")("root", po::value<std::string>(),
                                                             description.c_str());
+  std::vector<std::string> unused_options;
+  for (size_t i(1); i < unuseds.size(); ++i)
+    unused_options.emplace_back(&unuseds[i][0]);
   po::parsed_options parsed(
       po::command_line_parser(unused_options).options(path_option).allow_unregistered().run());
 
