@@ -35,6 +35,26 @@ namespace detail {
 
 namespace {
 
+void FlushEncryptor(FileContext* file_context,
+                    const std::function<void(const ImmutableData&)>& put_chunk_functor,
+                    std::vector<ImmutableData::Name>& chunks_to_be_incremented) {
+  file_context->self_encryptor->Flush();
+  for (const auto& chunk : file_context->self_encryptor->data_map().chunks) {
+    if (std::any_of(std::begin(file_context->self_encryptor->original_data_map().chunks),
+                    std::end(file_context->self_encryptor->original_data_map().chunks),
+                    [&chunk](const encrypt::ChunkDetails& original_chunk) {
+                          return chunk.hash == original_chunk.hash;
+                    })) {
+      chunks_to_be_incremented.emplace_back(Identity(chunk.hash));
+    } else {
+      auto content(file_context->buffer->Get(chunk.hash));
+      put_chunk_functor(ImmutableData(content));
+    }
+  }
+  file_context->self_encryptor.reset();
+  file_context->buffer.reset();
+}
+
 bool FileContextHasName(const FileContext* file_context, const fs::path& name) {
   return GetLowerCase(file_context->meta_data.name.string()) == GetLowerCase(name.string());
 }
@@ -69,14 +89,25 @@ Directory::Directory(ParentId parent_id, const std::string& serialised_directory
   std::sort(std::begin(children_), std::end(children_));
 }
 
-std::string Directory::Serialise() {
+std::string Directory::Serialise(
+    std::function<void(const ImmutableData&)> put_chunk_functor,
+    std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor) {
   protobuf::Directory proto_directory;
   std::lock_guard<std::mutex> lock(mutex_);
   proto_directory.set_directory_id(directory_id_.string());
   proto_directory.set_max_versions(max_versions_.data);
 
-  for (const auto& child : children_)
+  std::vector<ImmutableData::Name> chunks_to_be_incremented;
+  for (const auto& child : children_) {
     child->meta_data.ToProtobuf(proto_directory.add_children());
+    if (child->self_encryptor) {  // Child is a file which has been opened
+      FlushEncryptor(child.get(), put_chunk_functor, chunks_to_be_incremented);
+    } else if (child->meta_data.data_map) {  // Child is a file which has not been opened
+      for (const auto& chunk : child->meta_data.data_map->chunks)
+        chunks_to_be_incremented.emplace_back(Identity(chunk.hash));
+    }
+  }
+  increment_chunks_functor(chunks_to_be_incremented);
 
   store_pending_ = false;
   return proto_directory.SerializeAsString();

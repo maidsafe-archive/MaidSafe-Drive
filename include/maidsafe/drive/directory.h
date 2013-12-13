@@ -63,8 +63,11 @@ class Directory {
             boost::asio::io_service& io_service,
             std::function<void(const boost::system::error_code&)> store_functor);
   // This serialises the appropriate member data (critically parent_id_ must never be serialised),
-  // and sets 'store_pending_' false.
-  std::string Serialise();
+  // and sets 'store_pending_' false.  It also stores all new chunks from all children, increments
+  // all the other chunks, and resets all self_encryptors & buffers.
+  std::string Serialise(
+      std::function<void(const ImmutableData&)> put_chunk_functor,
+      std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor);
 
   bool HasChild(const boost::filesystem::path& name) const;
   const FileContext* GetChild(const boost::filesystem::path& name) const;

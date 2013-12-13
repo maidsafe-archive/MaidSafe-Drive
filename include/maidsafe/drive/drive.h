@@ -143,33 +143,6 @@ void Drive<Storage>::InitialiseEncryptor(const boost::filesystem::path& relative
 }
 
 template <typename Storage>
-bool Drive<Storage>::FlushEncryptor(detail::FileContext* file_context) {
-  assert(file_context->self_encryptor);
-  assert(file_context->meta_data.data_map);
-  //on_scope_exit cleanup([file_context] {
-  //  if (file_context->open_count == 0) {
-  //    file_context->self_encryptor.reset();
-  //    file_context->buffer.reset();
-  //  }
-  //});
-  if (!file_context->self_encryptor->Flush())
-    return false;
-  for (const auto& chunk : file_context->meta_data.data_map->chunks) {
-    try {
-      auto content(file_context->buffer->Get(chunk.hash));
-      storage_->Put(ImmutableData(content));
-    }
-    catch (const common_error& error) {
-      if (error.code() == make_error_code(CommonErrors::no_such_element))
-        LOG(kInfo) << HexSubstr(chunk.hash) << " has not been created by this encryptor.";
-      else
-        throw;
-    }
-  }
-  return true;
-}
-
-template <typename Storage>
 const detail::FileContext* Drive<Storage>::GetContext(
     const boost::filesystem::path& relative_path) {
   detail::Directory* parent(directory_handler_.Get(relative_path.parent_path()));
@@ -218,21 +191,20 @@ void Drive<Storage>::Open(const boost::filesystem::path& relative_path) {
 template <typename Storage>
 void Drive<Storage>::Flush(const boost::filesystem::path& relative_path) {
   auto file_context(GetMutableContext(relative_path));
-  if (file_context->self_encryptor && !FlushEncryptor(file_context)) {
+  if (file_context->self_encryptor && !file_context->self_encryptor->Flush()) {
     LOG(kError) << "Failed to flush " << relative_path;
     ThrowError(CommonErrors::unknown);
   }
-  //directory_handler_.PutVersion(relative_path.parent_path());
 }
 
 template <typename Storage>
 void Drive<Storage>::Release(const boost::filesystem::path& relative_path) {
   auto file_context(GetMutableContext(relative_path));
-  if (!file_context->meta_data.directory_id)
+  if (!file_context->meta_data.directory_id) {
     --file_context->open_count;
-  if (file_context->self_encryptor && !FlushEncryptor(file_context))
-    LOG(kError) << "Failed to flush " << relative_path << " during Release";
-  //directory_handler_.PutVersion(relative_path.parent_path());
+    if (file_context->self_encryptor && !file_context->self_encryptor->Flush())
+      LOG(kError) << "Failed to flush " << relative_path << " during Release";
+  }
 }
 
 template <typename Storage>

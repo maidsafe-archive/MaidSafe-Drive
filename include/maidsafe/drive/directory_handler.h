@@ -479,7 +479,11 @@ void DirectoryHandler<Storage>::Put(const boost::filesystem::path& relative_path
 
 template <typename Storage>
 ImmutableData DirectoryHandler<Storage>::SerialiseDirectory(Directory* directory) const {
-  std::string serialised_directory(directory->Serialise());
+  auto put_chunk([this](const ImmutableData& chunk) { storage_->Put(chunk); });
+  auto increment_chunks([this](const std::vector<ImmutableData::Name>& chunk_names) {
+    storage_->IncrementReferenceCount(chunk_names);
+  });
+  std::string serialised_directory(directory->Serialise(put_chunk, increment_chunks));
   encrypt::DataMap data_map;
   {
     encrypt::SelfEncryptor self_encryptor(data_map, disk_buffer_, get_chunk_from_store_);
