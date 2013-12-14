@@ -408,7 +408,8 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
       auto itr(cache_.find(old_relative_path));
       assert(itr != std::end(cache_));
       std::unique_ptr<Directory> temp(std::move(itr->second));
-      temp->SetParentId(ParentId(new_parent.first->directory_id()));
+      temp->SetNewParent(ParentId(new_parent.first->directory_id()),
+                         GetStoreFunctor(new_relative_path));
       cache_.erase(itr);
       auto insertion_result(cache_.emplace(new_relative_path, std::move(temp)));
       assert(insertion_result.second);

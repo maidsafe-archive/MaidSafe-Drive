@@ -80,7 +80,8 @@ class Directory {
   void ResetChildrenIterator();
   bool empty() const;
   ParentId parent_id() const;
-  void SetParentId(const ParentId parent_id);
+  void SetNewParent(const ParentId parent_id,
+                    std::function<void(const boost::system::error_code&)> store_functor);
   DirectoryId directory_id() const;
   void ScheduleForStoring();
   void StoreImmediatelyIfPending();

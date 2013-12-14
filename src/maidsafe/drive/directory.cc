@@ -245,9 +245,11 @@ ParentId Directory::parent_id() const {
   return parent_id_;
 }
 
-void Directory::SetParentId(const ParentId parent_id) {
+void Directory::SetNewParent(const ParentId parent_id,
+                             std::function<void(const boost::system::error_code&)> store_functor) {
   std::lock_guard<std::mutex> lock(mutex_);
   parent_id_ = parent_id;
+  store_functor_ = store_functor;
 }
 
 DirectoryId Directory::directory_id() const {
