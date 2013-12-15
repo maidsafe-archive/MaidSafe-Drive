@@ -50,7 +50,7 @@ class Directory;
 namespace test {
 
 void DirectoriesMatch(const Directory& lhs, const Directory& rhs);
-class DirectoryTest;
+class DirectoryListingTest;
 
 }  // namespace test
 
@@ -89,7 +89,7 @@ class Directory {
       AddNewVersion(ImmutableData::Name version_id);
 
   friend void test::DirectoriesMatch(const Directory& lhs, const Directory& rhs);
-  friend class test::DirectoryTest;
+  friend class test::DirectoryListingTest;
 
  private:
   Directory(const Directory& other);

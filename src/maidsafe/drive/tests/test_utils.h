@@ -33,6 +33,8 @@
 #include "maidsafe/encrypt/self_encryptor.h"
 
 #include "maidsafe/drive/drive_api.h"
+#include "maidsafe/drive/directory.h"
+
 
 namespace fs = boost::filesystem;
 namespace bptime = boost::posix_time;
@@ -73,7 +75,7 @@ bool SameFileContents(fs::path const& path1, fs::path const& path2);
 
 uint64_t TotalSize(const encrypt::DataMap& data_map);
 
-void GenerateDirectoryListingEntryForFile(DirectoryListing& directory_listing, const fs::path& path,
+void GenerateDirectoryListingEntryForFile(Directory& directory, const fs::path& path,
                                           const uintmax_t& file_size);
 
 void CheckedExists(const fs::path& path);

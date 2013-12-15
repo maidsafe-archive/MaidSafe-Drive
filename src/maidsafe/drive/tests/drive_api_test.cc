@@ -41,7 +41,7 @@
 #include "maidsafe/encrypt/self_encryptor.h"
 
 #include "maidsafe/drive/meta_data.h"
-#include "maidsafe/drive/directory_listing.h"
+#include "maidsafe/drive/directory.h"
 #include "maidsafe/drive/directory_handler.h"
 #include "maidsafe/drive/utils.h"
 #include "maidsafe/drive/tests/test_utils.h"
@@ -52,90 +52,90 @@ namespace maidsafe {
 namespace drive {
 namespace test {
 
-#ifdef MAIDSAFE_WIN32
-bool TimesMatch(const FILETIME& time1, const FILETIME& time2) {
-  if (time1.dwHighDateTime != time2.dwHighDateTime) {
-    LOG(kWarning) << "time1.dwHighDateTime (" << time1.dwHighDateTime
-                  << ") != time2.dwHighDateTime (" << time2.dwHighDateTime << ")";
-    return false;
-  }
-  if (time1.dwLowDateTime != time2.dwLowDateTime) {
-    LOG(kWarning) << "time1.dwLowDateTime (" << time1.dwLowDateTime
-                  << ") != time2.dwLowDateTime (" << time2.dwLowDateTime << ")";
-    return false;
-  }
-  return true;
-}
-#endif
-
-void SetLastAccessTime(MetaData* meta_data) {
-#ifdef MAIDSAFE_WIN32
-  GetSystemTimeAsFileTime(&meta_data->last_access_time);
-#else
-  time(&meta_data->attributes.st_atime);
-#endif
-}
-
-void AssertLastAccessTimesMatch(const MetaData& meta_data1, const MetaData& meta_data2) {
-#ifdef MAIDSAFE_WIN32
-  REQUIRE(TimesMatch(meta_data1.last_access_time, meta_data2.last_access_time));
-#else
-  REQUIRE(meta_data1.attributes.st_atime == meta_data2.attributes.st_atime);
-#endif
-}
-
-TEST_CASE("Local store", "[behavioural]") {
-  maidsafe::test::TestPath main_test_dir(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
-  Identity unique_user_id(RandomString(64));
-  Identity root_parent_id(RandomString(64));
-  fs::path file_name("test.txt");
-  fs::path storage_path(*main_test_dir / "Drive");
-  DiskUsage disk_usage(1048576000);
-  std::shared_ptr<maidsafe::data_store::LocalStore>
-      storage(new maidsafe::data_store::LocalStore(storage_path, disk_usage));
-  std::string content("Content\n");
-  {
-#ifdef MAIDSAFE_WIN32
-    auto mount_dir(GetNextAvailableDrivePath());
-#else
-    fs::path mount_dir(*main_test_dir / "mount");
-#endif
-    VirtualDrive<data_store::LocalStore>::value_type drive(
-        storage, unique_user_id, root_parent_id, mount_dir, "MaidSafeDrive", true);
-
-    auto promise(std::make_shared<boost::promise<void>>());
-    auto async_future(boost::async(boost::launch::async, [&drive] { drive.Mount(); }));
-#ifdef MAIDSAFE_WIN32
-    mount_dir /= "\\";
-#endif
-    maidsafe::Sleep(std::chrono::seconds(3));
-    CHECK(WriteFile(mount_dir / file_name, content));
-    CHECK(NonEmptyString(content) == ReadFile(mount_dir / file_name));
-    promise->set_value();
-    boost::future<void> future(promise->get_future());
-    future.get();
-  }
-
-  {
-#ifdef MAIDSAFE_WIN32
-    auto mount_dir(GetNextAvailableDrivePath());
-#else
-    fs::path mount_dir(*main_test_dir / "mount");
-#endif
-    VirtualDrive<data_store::LocalStore>::value_type drive(
-        storage, unique_user_id, root_parent_id, mount_dir, "MaidSafeDrive", false);
-    auto promise(std::make_shared<boost::promise<void>>());
-    auto async_future(boost::async(boost::launch::async, [&drive] { drive.Mount(); }));
-#ifdef MAIDSAFE_WIN32
-    mount_dir /= "\\";
-#endif
-    maidsafe::Sleep(std::chrono::seconds(3));
-    CHECK(NonEmptyString(content) == ReadFile(mount_dir / file_name));
-    promise->set_value();
-    boost::future<void> future(promise->get_future());
-    future.get();
-  }
-}
+//#ifdef MAIDSAFE_WIN32
+//bool TimesMatch(const FILETIME& time1, const FILETIME& time2) {
+//  if (time1.dwHighDateTime != time2.dwHighDateTime) {
+//    LOG(kWarning) << "time1.dwHighDateTime (" << time1.dwHighDateTime
+//                  << ") != time2.dwHighDateTime (" << time2.dwHighDateTime << ")";
+//    return false;
+//  }
+//  if (time1.dwLowDateTime != time2.dwLowDateTime) {
+//    LOG(kWarning) << "time1.dwLowDateTime (" << time1.dwLowDateTime
+//                  << ") != time2.dwLowDateTime (" << time2.dwLowDateTime << ")";
+//    return false;
+//  }
+//  return true;
+//}
+//#endif
+//
+//void SetLastAccessTime(MetaData* meta_data) {
+//#ifdef MAIDSAFE_WIN32
+//  GetSystemTimeAsFileTime(&meta_data->last_access_time);
+//#else
+//  time(&meta_data->attributes.st_atime);
+//#endif
+//}
+//
+//void AssertLastAccessTimesMatch(const MetaData& meta_data1, const MetaData& meta_data2) {
+//#ifdef MAIDSAFE_WIN32
+//  REQUIRE(TimesMatch(meta_data1.last_access_time, meta_data2.last_access_time));
+//#else
+//  REQUIRE(meta_data1.attributes.st_atime == meta_data2.attributes.st_atime);
+//#endif
+//}
+//
+//TEST_CASE("Local store", "[behavioural]") {
+//  maidsafe::test::TestPath main_test_dir(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
+//  Identity unique_user_id(RandomString(64));
+//  Identity root_parent_id(RandomString(64));
+//  fs::path file_name("test.txt");
+//  fs::path storage_path(*main_test_dir / "Drive");
+//  DiskUsage disk_usage(1048576000);
+//  std::shared_ptr<maidsafe::data_store::LocalStore>
+//      storage(new maidsafe::data_store::LocalStore(storage_path, disk_usage));
+//  std::string content("Content\n");
+//  {
+//#ifdef MAIDSAFE_WIN32
+//    auto mount_dir(GetNextAvailableDrivePath());
+//#else
+//    fs::path mount_dir(*main_test_dir / "mount");
+//#endif
+//    VirtualDrive<data_store::LocalStore>::value_type drive(
+//        storage, unique_user_id, root_parent_id, mount_dir, "MaidSafeDrive", true);
+//
+//    auto promise(std::make_shared<boost::promise<void>>());
+//    auto async_future(boost::async(boost::launch::async, [&drive] { drive.Mount(); }));
+//#ifdef MAIDSAFE_WIN32
+//    mount_dir /= "\\";
+//#endif
+//    maidsafe::Sleep(std::chrono::seconds(3));
+//    CHECK(WriteFile(mount_dir / file_name, content));
+//    CHECK(NonEmptyString(content) == ReadFile(mount_dir / file_name));
+//    promise->set_value();
+//    boost::future<void> future(promise->get_future());
+//    future.get();
+//  }
+//
+//  {
+//#ifdef MAIDSAFE_WIN32
+//    auto mount_dir(GetNextAvailableDrivePath());
+//#else
+//    fs::path mount_dir(*main_test_dir / "mount");
+//#endif
+//    VirtualDrive<data_store::LocalStore>::value_type drive(
+//        storage, unique_user_id, root_parent_id, mount_dir, "MaidSafeDrive", false);
+//    auto promise(std::make_shared<boost::promise<void>>());
+//    auto async_future(boost::async(boost::launch::async, [&drive] { drive.Mount(); }));
+//#ifdef MAIDSAFE_WIN32
+//    mount_dir /= "\\";
+//#endif
+//    maidsafe::Sleep(std::chrono::seconds(3));
+//    CHECK(NonEmptyString(content) == ReadFile(mount_dir / file_name));
+//    promise->set_value();
+//    boost::future<void> future(promise->get_future());
+//    future.get();
+//  }
+//}
 
 // TODO(Team): 2013-09-25 - Uncomment and fix or delete
 // class DriveApiTest : public testing::Test {

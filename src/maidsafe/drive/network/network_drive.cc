@@ -71,12 +71,12 @@ struct GetDrive {
 };
 #endif
 
-int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
+int Mount(const fs::path &/*mount_dir*/, const fs::path &chunk_dir) {
   fs::path storage_path(chunk_dir / "store");
   DiskUsage disk_usage(1048576000);
   MemoryUsage memory_usage(0);
-  std::shared_ptr<maidsafe::data_store::SureFileStore>
-      storage(new maidsafe::data_store::SureFileStore(storage_path, disk_usage));
+  std::shared_ptr<maidsafe::data_store::LocalStore>
+      storage(new maidsafe::data_store::LocalStore(storage_path, disk_usage));
 
   boost::system::error_code error_code;
   if (!fs::exists(chunk_dir, error_code))
@@ -92,19 +92,20 @@ int Mount(const fs::path &mount_dir, const fs::path &chunk_dir) {
   Identity unique_user_id(std::string(64, 'a'));
   Identity root_parent_id(root_parent_id_str.empty() ? Identity() : Identity(root_parent_id_str));
   std::string product_id;
-  typedef GetDrive<maidsafe::data_store::SureFileStore>::type Drive;
-  Drive drive(storage,
-              unique_user_id,
-              root_parent_id,
-              mount_dir,
-              product_id,
-              "MaidSafeDrive");
-  if (first_run)
-    BOOST_VERIFY(WriteFile(id_path, drive.root_parent_id().string()));
 
-  g_unmount_functor = [&] { drive.Unmount(); };  // NOLINT
-  signal(SIGINT, CtrlCHandler);
-  drive.WaitUntilUnMounted();
+  //typedef GetDrive<maidsafe::data_store::LocalStore>::type Drive;
+  //Drive drive(storage,
+  //            unique_user_id,
+  //            root_parent_id,
+  //            mount_dir,
+  //            product_id,
+  //            "MaidSafeDrive");
+  //if (first_run)
+  //  BOOST_VERIFY(WriteFile(id_path, drive.root_parent_id().string()));
+
+  //g_unmount_functor = [&] { drive.Unmount(); };  // NOLINT
+  //signal(SIGINT, CtrlCHandler);
+  //drive.Mount();
 
   return 0;
 }

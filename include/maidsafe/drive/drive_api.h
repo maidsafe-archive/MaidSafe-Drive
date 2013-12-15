@@ -22,8 +22,6 @@
 #ifdef MAIDSAFE_WIN32
 #ifdef HAVE_CBFS
 #include "maidsafe/drive/win_drive.h"
-#else
-#include "maidsafe/drive/dummy_win_drive.h"
 #endif
 #else
 #include "maidsafe/drive/unix_drive.h"
@@ -38,8 +36,6 @@ struct VirtualDrive {
 #ifdef MAIDSAFE_WIN32
 #ifdef HAVE_CBFS
   typedef CbfsDrive<Storage> value_type;
-#else
-  typedef DummyWinDrive<Storage> value_type;
 #endif
 #else
   typedef FuseDrive<Storage> value_type;

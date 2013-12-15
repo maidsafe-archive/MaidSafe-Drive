@@ -302,29 +302,29 @@ bool SameFileContents(fs::path const& path1, fs::path const& path2) {
 }
 
 uint64_t TotalSize(const encrypt::DataMap& data_map) {
-  uint64_t size(data_map->chunks.empty() ? data_map->content.size() : 0);
-  std::for_each(data_map->chunks.begin(), data_map->chunks.end(),
+  uint64_t size(data_map.chunks.empty() ? data_map.content.size() : 0);
+  std::for_each(data_map.chunks.begin(), data_map.chunks.end(),
                 [&size](encrypt::ChunkDetails chunk) { size += chunk.size; });
   return size;
 }
 
-void GenerateDirectoryListingEntryForFile(DirectoryListing& directory_listing, const fs::path& path,
+void GenerateDirectoryListingEntryForFile(Directory& directory, const fs::path& path,
                                           const uintmax_t& file_size) {
-  MetaData meta_data(path.filename(), false);
+  FileContext file_context(path.filename(), false);
 #ifdef MAIDSAFE_WIN32
-  meta_data.end_of_file = file_size;
-  meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
-  GetSystemTimeAsFileTime(&meta_data.creation_time);
-  GetSystemTimeAsFileTime(&meta_data.last_access_time);
-  GetSystemTimeAsFileTime(&meta_data.last_write_time);
-  meta_data.allocation_size = RandomUint32();
+  file_context.meta_data.end_of_file = file_size;
+  file_context.meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
+  GetSystemTimeAsFileTime(&file_context.meta_data.creation_time);
+  GetSystemTimeAsFileTime(&file_context.meta_data.last_access_time);
+  GetSystemTimeAsFileTime(&file_context.meta_data.last_write_time);
+  file_context.meta_data.allocation_size = RandomUint32();
 #else
-  time(&meta_data.attributes.st_atime);
-  time(&meta_data.attributes.st_mtime);
-  meta_data.attributes.st_size = file_size;
+  time(&file_context.meta_data.attributes.st_atime);
+  time(&file_context.meta_data.attributes.st_mtime);
+  file_context.meta_data.attributes.st_size = file_size;
 #endif
-  meta_data.data_map->content = RandomString(100);
-  CHECK_NOTHROW(directory_listing.AddChild(meta_data));
+  file_context.meta_data.data_map->content = RandomString(100);
+  CHECK_NOTHROW(directory.AddChild(std::move(file_context)));
 }
 
 void CheckedExists(const fs::path& path) {
