@@ -756,7 +756,7 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, directory_info));
   std::wstring mask_str(mask);
   LOG(kInfo) << "CbFsEnumerateDirectory - " << relative_path << " mask: "
-             << WstringToString(mask_str) << " restart: " << restart;
+             << WstringToString(mask_str) << " restart: " << std::boolalpha << (restart != 0);
   bool exact_match(mask_str != L"*");
   *file_found = false;
 
