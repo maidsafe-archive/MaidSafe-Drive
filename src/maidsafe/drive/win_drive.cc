@@ -29,7 +29,40 @@ namespace drive {
 #  error CBFS_KEY must be defined.
 #endif
 
+namespace {
+
+DWORD GetDisableLastAccessUpdateRegKey() {
+  HKEY handle_to_key(nullptr);
+  std::wstring name(L"SYSTEM\\CurrentControlSet\\Control\\FileSystem");
+  auto open_result(RegOpenKeyExW(HKEY_LOCAL_MACHINE, name.c_str(), NULL, KEY_READ, &handle_to_key));
+
+  // If the key doesn't exist, the meaning is equivalent to the key's value being 0.
+  if (open_result == ERROR_FILE_NOT_FOUND)
+    return 0;
+  // If we can't access the key, assume the value is 1 (the default for Windows 7 onwards).
+  if (open_result != ERROR_SUCCESS)
+    return 1;
+
+  DWORD value_data(0);
+  DWORD buffer_size(sizeof(value_data));
+  std::wstring value_name(L"NtfsDisableLastAccessUpdate");
+  auto query_result(RegQueryValueExW(handle_to_key, value_name.c_str(), NULL, NULL,
+                                     reinterpret_cast<LPBYTE>(&value_data), &buffer_size));
+  // If the key doesn't exist, the meaning is equivalent to the key's value being 0.
+  if (query_result == ERROR_FILE_NOT_FOUND)
+    return 0;
+  // If we can't access the key, assume the value is 1 (the default for Windows 7 onwards).
+  return query_result == ERROR_SUCCESS ? value_data : 1;
+}
+
+}  // unnamed namespace
+
 namespace detail {
+
+bool LastAccessUpdateIsDisabled() {
+  static const bool kIsDisabled(GetDisableLastAccessUpdateRegKey() == 1U);
+  return kIsDisabled;
+}
 
 bool SetAttributes(DWORD& attributes, DWORD new_value) {
   if (new_value != 0 && attributes != new_value) {

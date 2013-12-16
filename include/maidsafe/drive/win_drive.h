@@ -69,6 +69,11 @@ boost::filesystem::path GetRelativePath(CbfsDrive<Storage>* cbfs_drive, CbFsFile
   return boost::filesystem::path(file_name.get());
 }
 
+// By default on Win7 onwards, the registry has NtfsDisableLastAccessUpdate == 1.  This means that
+// the LastAccessTime is never updated.  If the registry value is 0 or non-existent we should handle
+// updating LastAccessTime, otherwise updates can be ignored.
+bool LastAccessUpdateIsDisabled();
+
 // Returns true if 'attributes' was changed
 bool SetAttributes(DWORD& attributes, DWORD new_value);
 // Returns true if 'filetime' was changed
@@ -902,11 +907,11 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
     auto file_context(cbfs_drive->GetMutableContext(relative_path));
     bool changed(detail::SetAttributes(file_context->meta_data.attributes, file_attributes));
     changed |= detail::SetFiletime(file_context->meta_data.creation_time, creation_time);
-    // TODO(Fraser#5#): 2013-12-05 - Decide whether to treat this as worthy of marking the metadata
-    //                  as changed (hence causing a new directory version to be stored) or not.
-    // changed |= detail::SetFiletime(file_context->meta_data.last_access_time, last_access_time);
-    if (last_access_time)
-      file_context->meta_data.last_access_time = *last_access_time;
+    if (!detail::LastAccessUpdateIsDisabled())
+      // TODO(Fraser#5#): 2013-12-05 - Decide whether to treat this as worthy of marking the
+      //                  metadata as changed (hence causing a new directory version to be stored).
+      // changed |= detail::SetFiletime(file_context->meta_data.last_access_time, last_access_time);
+      detail::SetFiletime(file_context->meta_data.last_access_time, last_access_time);
     changed |= detail::SetFiletime(file_context->meta_data.last_write_time, last_write_time);
     if (changed)
       file_context->parent->ScheduleForStoring();
