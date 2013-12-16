@@ -93,56 +93,56 @@ testing::AssertionResult LastAccessTimesMatch(const MetaData& meta_data1,
 #endif
 }
 
-TEST(Drive, BEH_SureStore) {
-  OnServiceAdded on_added([] { LOG(kInfo) << "Trying to add a service."; });
-  OnServiceRemoved on_removed([](const fs::path &
-                                 alias) { LOG(kInfo) << "Trying to remove " << alias; });
-  OnServiceRenamed on_renamed([](const fs::path & old_alias, const fs::path & new_alias) {
-    LOG(kInfo) << "Renamed " << old_alias << " to " << new_alias;
-  });
-  maidsafe::test::TestPath main_test_dir(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
-  Identity root_id;
-  Identity service_root_id(RandomString(64));
-  fs::path service_name("AnotherService"), service_root, file_name("test.txt");
-  std::string content("Content\n");
-  {
-#ifdef MAIDSAFE_WIN32
-    auto mount_dir(GetNextAvailableDrivePath());
-    VirtualDrive<data_store::SureFileStore>::value_type drive(
-        Identity(), mount_dir, std::string(), "SureFileDrive", on_added, on_removed, on_renamed);
-    mount_dir /= "\\";
-#else
-    fs::path mount_dir(*main_test_dir / "mount");
-    VirtualDrive<data_store::SureFileStore>::value_type drive(
-        Identity(), mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
-#endif
-    root_id = drive.drive_root_id();
-    MetaData meta_data("TestService", true);
-    DirectoryId grandparent_id, parent_id;
-    drive.AddService(meta_data.name, *main_test_dir / "TestService", Identity(RandomString(64)));
-    drive.AddService(service_name, *main_test_dir / service_name, service_root_id);
-
-    service_root = mount_dir / service_name;
-    EXPECT_TRUE(WriteFile(service_root / file_name, content));
-    EXPECT_EQ(NonEmptyString(content), ReadFile(service_root / file_name));
-  }
-
-  {
-#ifdef MAIDSAFE_WIN32
-    auto mount_dir(GetNextAvailableDrivePath());
-    VirtualDrive<data_store::SureFileStore>::value_type drive(
-        root_id, mount_dir, std::string(), "SureFileDrive", on_added, on_removed, on_renamed);
-    mount_dir /= "\\";
-#else
-    fs::path mount_dir(*main_test_dir / "mount");
-    VirtualDrive<data_store::SureFileStore>::value_type drive(root_id, mount_dir, "SureFileDrive",
-                                                              on_added, on_removed, on_renamed);
-#endif
-    drive.AddService(service_name, *main_test_dir / service_name, service_root_id);
-    service_root = mount_dir / service_name;
-    EXPECT_EQ(NonEmptyString(content), ReadFile(service_root / file_name));
-  }
-}
+// TEST(Drive, BEH_SureStore) {
+//  OnServiceAdded on_added([] { LOG(kInfo) << "Trying to add a service."; });
+//  OnServiceRemoved on_removed([](const fs::path &
+//                                 alias) { LOG(kInfo) << "Trying to remove " << alias; });
+//  OnServiceRenamed on_renamed([](const fs::path & old_alias, const fs::path & new_alias) {
+//    LOG(kInfo) << "Renamed " << old_alias << " to " << new_alias;
+//  });
+//  maidsafe::test::TestPath main_test_dir(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
+//  Identity root_id;
+//  Identity service_root_id(RandomString(64));
+//  fs::path service_name("AnotherService"), service_root, file_name("test.txt");
+//  std::string content("Content\n");
+//  {
+// #ifdef MAIDSAFE_WIN32
+//    auto mount_dir(GetNextAvailableDrivePath());
+//    VirtualDrive<data_store::SureFileStore>::value_type drive(
+//        Identity(), mount_dir, std::string(), "SureFileDrive", on_added, on_removed, on_renamed);
+//    mount_dir /= "\\";
+// #else
+//    fs::path mount_dir(*main_test_dir / "mount");
+//    VirtualDrive<data_store::SureFileStore>::value_type drive(
+//        Identity(), mount_dir, "SureFileDrive", on_added, on_removed, on_renamed);
+// #endif
+//    root_id = drive.drive_root_id();
+//    MetaData meta_data("TestService", true);
+//    DirectoryId grandparent_id, parent_id;
+//    drive.AddService(meta_data.name, *main_test_dir / "TestService", Identity(RandomString(64)));
+//    drive.AddService(service_name, *main_test_dir / service_name, service_root_id);
+//
+//    service_root = mount_dir / service_name;
+//    EXPECT_TRUE(WriteFile(service_root / file_name, content));
+//    EXPECT_EQ(NonEmptyString(content), ReadFile(service_root / file_name));
+//  }
+//
+//  {
+// #ifdef MAIDSAFE_WIN32
+//    auto mount_dir(GetNextAvailableDrivePath());
+//    VirtualDrive<data_store::SureFileStore>::value_type drive(
+//        root_id, mount_dir, std::string(), "SureFileDrive", on_added, on_removed, on_renamed);
+//    mount_dir /= "\\";
+// #else
+//    fs::path mount_dir(*main_test_dir / "mount");
+//    VirtualDrive<data_store::SureFileStore>::value_type drive(root_id, mount_dir, "SureFileDrive",
+//                                                              on_added, on_removed, on_renamed);
+// #endif
+//    drive.AddService(service_name, *main_test_dir / service_name, service_root_id);
+//    service_root = mount_dir / service_name;
+//    EXPECT_EQ(NonEmptyString(content), ReadFile(service_root / file_name));
+//  }
+// }
 
 // TODO(Team): 2013-09-25 - Uncomment and fix or delete
 // class DriveApiTest : public testing::Test {
