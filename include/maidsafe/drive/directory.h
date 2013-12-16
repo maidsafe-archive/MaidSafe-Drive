@@ -28,6 +28,7 @@
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/directory_listing.h"
 
+
 namespace maidsafe {
 
 namespace drive {
