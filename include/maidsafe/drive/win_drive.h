@@ -30,7 +30,7 @@
 #include <utility>
 
 #pragma pack(push, r1, 8)
-#include "CbFs.h"
+#include "CbFs.h"  // NOLINT
 #pragma pack(pop, r1)
 
 #include "boost/filesystem/path.hpp"
