@@ -21,6 +21,8 @@
 #include <algorithm>
 #include <iterator>
 
+#include "maidsafe/common/profiler.h"
+
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/utils.h"
 #include "maidsafe/drive/proto_structs.pb.h"
@@ -116,13 +118,13 @@ std::string Directory::Serialise(
 Directory::Children::iterator Directory::Find(const fs::path& name) {
   return std::find_if(std::begin(children_), std::end(children_),
                       [&name](const Children::value_type& file_context) {
-                           return FileContextHasName(file_context.get(), name); });
+                           return file_context->meta_data.name == name; });
 }
 
 Directory::Children::const_iterator Directory::Find(const fs::path& name) const {
   return std::find_if(std::begin(children_), std::end(children_),
                       [&name](const Children::value_type& file_context) {
-                           return FileContextHasName(file_context.get(), name); });
+                           return file_context->meta_data.name == name; });
 }
 
 void Directory::SortAndResetChildrenIterator() {
@@ -165,7 +167,7 @@ bool Directory::HasChild(const fs::path& name) const {
   std::lock_guard<std::mutex> lock(mutex_);
   return std::any_of(std::begin(children_), std::end(children_),
       [&name](const Children::value_type& file_context) {
-          return FileContextHasName(file_context.get(), name); });
+          return file_context->meta_data.name == name; });
 }
 
 const FileContext* Directory::GetChild(const fs::path& name) const {
@@ -177,6 +179,7 @@ const FileContext* Directory::GetChild(const fs::path& name) const {
 }
 
 FileContext* Directory::GetMutableChild(const fs::path& name) {
+  SCOPED_PROFILE
   std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(name));
   if (itr == std::end(children_))

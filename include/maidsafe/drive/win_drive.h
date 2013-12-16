@@ -38,6 +38,8 @@
 #include "boost/preprocessor/stringize.hpp"
 #include "boost/thread/future.hpp"
 
+#include "maidsafe/common/profiler.h"
+
 #include "maidsafe/common/utils.h"
 #include "maidsafe/encrypt/self_encryptor.h"
 
@@ -62,7 +64,7 @@ CbfsDrive<Storage>* GetDrive(CallbackFileSystem* sender) {
 template <typename Storage>
 boost::filesystem::path GetRelativePath(CbfsDrive<Storage>* cbfs_drive, CbFsFileInfo* file_info) {
   assert(file_info);
-  std::unique_ptr<WCHAR[]> file_name(new WCHAR[cbfs_drive->max_file_path_length()]);
+  static std::unique_ptr<WCHAR[]> file_name(new WCHAR[cbfs_drive->max_file_path_length()]);
   file_info->get_FileName(file_name.get());
   return boost::filesystem::path(file_name.get());
 }
@@ -370,7 +372,7 @@ void CbfsDrive<Storage>::InitialiseCbfs() {
 //    callback_filesystem_.SetStorageType(CallbackFileSystem::stDiskPnP);
     callback_filesystem_.SetStorageType(CallbackFileSystem::stDisk);
     callback_filesystem_.SetTag(static_cast<void*>(this));
-    callback_filesystem_.SetThreadPoolSize(Concurrency() / 2);
+    callback_filesystem_.SetThreadPoolSize(Concurrency());
     callback_filesystem_.SetUseFileCreationFlags(true);
 
     // Methods

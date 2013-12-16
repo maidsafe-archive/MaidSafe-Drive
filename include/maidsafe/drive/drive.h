@@ -158,6 +158,7 @@ const detail::FileContext* Drive<Storage>::GetContext(
 template <typename Storage>
 detail::FileContext* Drive<Storage>::GetMutableContext(
     const boost::filesystem::path& relative_path) {
+  SCOPED_PROFILE
   detail::Directory* parent(directory_handler_.Get(relative_path.parent_path()));
   auto file_context(parent->GetMutableChild(relative_path.filename()));
   // The open_count must be >=0.  If > 0 and the context doesn't represent a directory, the buffer
@@ -199,6 +200,7 @@ void Drive<Storage>::Flush(const boost::filesystem::path& relative_path) {
 
 template <typename Storage>
 void Drive<Storage>::Release(const boost::filesystem::path& relative_path) {
+  SCOPED_PROFILE
   auto file_context(GetMutableContext(relative_path));
   if (!file_context->meta_data.directory_id) {
     --file_context->open_count;

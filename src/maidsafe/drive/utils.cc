@@ -28,6 +28,7 @@
 #include "boost/algorithm/string/replace.hpp"
 
 #include "maidsafe/common/log.h"
+#include "maidsafe/common/profiler.h"
 
 namespace maidsafe {
 
@@ -75,6 +76,7 @@ bool ExcludedFilename(const boost::filesystem::path& path) {
 }
 
 bool MatchesMask(std::wstring mask, const boost::filesystem::path& file_name) {
+  SCOPED_PROFILE
 #if defined MAIDSAFE_WIN32
   static const std::wstring kNeedEscaped(L".[]{}()+|^$");
 #elif defined MAIDSAFE_APPLE
