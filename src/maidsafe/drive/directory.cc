@@ -57,9 +57,11 @@ void FlushEncryptor(FileContext* file_context,
   file_context->buffer.reset();
 }
 
+/*
 bool FileContextHasName(const FileContext* file_context, const fs::path& name) {
   return GetLowerCase(file_context->meta_data.name.string()) == GetLowerCase(name.string());
 }
+*/
 
 }  // unnamed namespace
 

@@ -113,8 +113,8 @@ if(MaidsafeTesting)
 
   add_dependencies(filesystem_benchmark local_drive network_drive)
   add_dependencies(filesystem_test local_drive network_drive)
-  target_include_directories(filesystem_benchmark PRIVATE $<$<BOOL:${MSVC}>:$<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>>)
-  target_include_directories(filesystem_test PRIVATE $<$<BOOL:${MSVC}>:$<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>>)
+  target_include_directories(filesystem_benchmark PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
+  target_include_directories(filesystem_test PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
 
   target_link_libraries(filesystem_benchmark maidsafe_common)
   target_link_libraries(filesystem_test maidsafe_common)
@@ -144,6 +144,10 @@ target_compile_definitions(maidsafe_drive
   PRIVATE
     $<$<BOOL:${Cbfs_FOUND}>:CBFS_KEY=${Cbfs_KEY}>
 )
+if(MaidsafeTesting)
+  target_compile_definitions(filesystem_benchmark PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
+  target_compile_definitions(filesystem_test PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
+endif()
 if(Cbfs_FOUND)
   target_compile_definitions(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_DEFINITIONS> "CBFS_KEY=${Cbfs_KEY}")
   target_compile_options(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_OPTIONS>)

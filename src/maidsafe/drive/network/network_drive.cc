@@ -52,24 +52,22 @@ namespace drive {
 
 namespace {
 
-std::function<void()> g_unmount_functor;
+//std::function<void()> g_unmount_functor;
 
-void CtrlCHandler(int /*value*/) {
-  g_unmount_functor();
-}
+//void CtrlCHandler(int /*value*/) {
+//  g_unmount_functor();
+//}
 
 }  // unnamed namespace
 
-#ifdef WIN32
 template<typename Storage>
 struct GetDrive {
+#ifdef WIN32
   typedef CbfsDrive<Storage> type;
-};
 #else
-struct GetDrive {
   typedef FuseDrive<Storage> type;
-};
 #endif
+};
 
 int Mount(const fs::path &/*mount_dir*/, const fs::path &chunk_dir) {
   fs::path storage_path(chunk_dir / "store");
