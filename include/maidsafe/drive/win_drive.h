@@ -111,12 +111,12 @@ class CbfsDrive : public Drive<Storage> {
   void UpdateMountingPoints();
   void InitialiseCbfs();
   int OnCallbackFsInstall();
-  void OnCallbackFsUninstall();
-  void OnCallbackFsDeleteStorage();
-  void OnCallbackFsMount();
-  void OnCallbackFsUnmount();
-  void OnCallbackFsAddPoint(const boost::filesystem::path&);
-  void OnCallbackFsDeletePoint();
+  //void OnCallbackFsUninstall();
+  //void OnCallbackFsDeleteStorage();
+  //void OnCallbackFsMount();
+  //void OnCallbackFsUnmount();
+  //void OnCallbackFsAddPoint(const boost::filesystem::path&);
+  //void OnCallbackFsDeletePoint();
 
   static void CbFsMount(CallbackFileSystem* sender);
   static void CbFsUnmount(CallbackFileSystem* sender);
@@ -814,8 +814,17 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsCloseDirectoryEnumeration(
     CallbackFileSystem* sender, CbFsFileInfo* directory_info,
     CbFsDirectoryEnumerationInfo* /*directory_enumeration_info*/) {
-  LOG(kInfo) << "CbFsCloseEnumeration - "
-             << detail::GetRelativePath<Storage>(detail::GetDrive<Storage>(sender), directory_info);
+  auto cbfs_drive(detail::GetDrive<Storage>(sender));
+  auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, directory_info));
+  LOG(kInfo) << "CbFsCloseEnumeration - " << relative_path;
+  try {
+    auto directory(cbfs_drive->directory_handler_.Get(relative_path));
+    directory->ResetChildrenIterator();
+  }
+  catch (const std::exception& e) {
+    LOG(kError) << "Failed closing enumeration for " << relative_path << ": " << e.what();
+    throw ECBFSError(ERROR_FILE_NOT_FOUND);
+  }
 }
 
 // Quote from CBFS documentation:

@@ -260,6 +260,7 @@ void DirectoryHandler<Storage>::FlushAll() {
       }
       child = dir.second->GetChildAndIncrementItr();
     }
+    dir.second->ResetChildrenIterator();
     dir.second->StoreImmediatelyIfPending();
   }
   if (error)
@@ -563,7 +564,7 @@ void DirectoryHandler<Storage>::DeleteAllVersions(Directory* /*directory*/) {
 template <typename Storage>
 std::function<void(const boost::system::error_code&)> DirectoryHandler<Storage>::GetStoreFunctor(
     const boost::filesystem::path& relative_path) {
-  return [this, relative_path](const boost::system::error_code& ec) {
+  return [this, relative_path](const boost::system::error_code& ec) {  // NOLINT
     if (ec != boost::asio::error::operation_aborted) {
       LOG(kSuccess) << "Storing " << relative_path;
       Put(relative_path);
