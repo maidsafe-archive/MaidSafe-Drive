@@ -471,9 +471,9 @@ TEST_CASE_METHOD(DirectoryListingTest, "Serialise and parse", "[DirectoryListing
       GetSystemTimeAsFileTime(&file_context.meta_data.last_access_time);
       GetSystemTimeAsFileTime(&file_context.meta_data.last_write_time);
 #else
-      time(&meta_data.attributes.st_atime);
-      time(&meta_data.attributes.st_mtime);
-      meta_data.attributes.st_size = RandomUint32();
+      time(&file_context.meta_data.attributes.st_atime);
+      time(&file_context.meta_data.attributes.st_mtime);
+      file_context.meta_data.attributes.st_size = RandomUint32();
 #endif
       file_context.meta_data.data_map->content = RandomString(10);
     }
