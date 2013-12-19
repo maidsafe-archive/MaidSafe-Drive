@@ -69,6 +69,7 @@ endif()
 
 glob_dir(DriveTests ${DriveSourcesDir}/tests Tests)
 glob_dir(DriveTools ${DriveSourcesDir}/tools Tools)
+glob_dir(DriveToolsCommands ${DriveSourcesDir}/tools/commands Commands)
 if(WIN32)
   glob_dir(Installer ${DriveSourcesDir}/installer Installer)
 endif()
@@ -107,6 +108,11 @@ if(MaidsafeTesting)
   ms_add_executable(filesystem_test "Tools/Drive"
                     ${DriveSourcesDir}/tools/filesystem_test.cc
                     ${DriveSourcesDir}/tools/tool_main.cc)
+  ms_add_executable(filesystem_commands "Tools/Drive"
+                    ${DriveSourcesDir}/tools/filesystem_commands.h
+                    ${DriveSourcesDir}/tools/filesystem_commands.cc
+                    ${DriveSourcesDir}/tools/tool_main.cc
+                    ${DriveToolsCommandsAllFiles})
   ms_add_executable(test_drive "Tests/Drive" ${DriveTestsAllFiles})
   target_include_directories(test_drive PRIVATE ${PROJECT_SOURCE_DIR}/src)
   set_property(TARGET test_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=713CC6CE-B3E2-4fd9-838D-E28F558F6866")
@@ -115,9 +121,11 @@ if(MaidsafeTesting)
   add_dependencies(filesystem_test local_drive network_drive)
   target_include_directories(filesystem_benchmark PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
   target_include_directories(filesystem_test PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
+  target_include_directories(filesystem_commands PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
   target_link_libraries(filesystem_benchmark maidsafe_common)
   target_link_libraries(filesystem_test maidsafe_common)
+  target_link_libraries(filesystem_commands maidsafe_common maidsafe_drive)
   add_dependencies(filesystem_test catch)
   target_link_libraries(test_drive maidsafe_drive)
 endif()
@@ -125,7 +133,7 @@ endif()
 rename_outdated_built_exes()
 
 if(WIN32 AND NOT Cbfs_FOUND)
-  foreach(Target maidsafe_drive cbfs_driver local_drive network_drive filesystem_benchmark filesystem_test test_drive)
+  foreach(Target maidsafe_drive cbfs_driver local_drive network_drive filesystem_benchmark filesystem_test filesystem_commands test_drive)
     if(TARGET ${Target})
       set_target_properties(${Target} PROPERTIES EXCLUDE_FROM_ALL ON EXCLUDE_FROM_DEFAULT_BUILD ON)
     endif()

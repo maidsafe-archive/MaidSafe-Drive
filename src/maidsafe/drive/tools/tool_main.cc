@@ -264,7 +264,7 @@ void PrepareLocalVfs() {
   process_args.push_back(kExePath);
   std::string shared_memory_opt("--shared_memory " + shared_memory_name);
   process_args.push_back(shared_memory_opt);
-  // process_args.push_back("--log_* I --log_colour_mode 1");
+                                                            process_args.push_back("--log_* I --log_colour_mode 2 --log_no_async");
   const auto kCommandLine(process::ConstructCommandLine(process_args));
 
   boost::system::error_code error_code;
