@@ -65,11 +65,27 @@ int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp);
 
 namespace {
 
+#ifdef _MSC_VER
+// This function is needed to avoid use of po::bool_switch causing MSVC warning C4505:
+// 'boost::program_options::typed_value<bool>::name' : unreferenced local function has been removed.
+void UseUnreferenced() {
+  auto dummy = po::typed_value<bool>(nullptr);
+  static_cast<void>(dummy);
+}
+#endif
+
 fs::path g_root, g_temp, g_storage_path;
 std::unique_ptr<bp::child> g_child;
 std::string g_error_message;
 int g_return_code(0);
-enum class TestType { kDisk, kLocal, kNetwork } g_test_type;
+enum class TestType { kDisk, kLocal, kNetwork, kLocalConsole, kNetworkConsole } g_test_type;
+bool g_enable_vfs_logging;
+#ifdef MAIDSAFE_WIN32
+const std::string kHelpInfo("You must pass exactly one of '--disk', '--local', '--local_console', "
+                            "'--network' or '--network_console'");
+#else
+const std::string kHelpInfo("You must pass exactly one of '--disk', '--local' or '--network'");
+#endif
 
 void CreateDir(const fs::path& dir) {
   boost::system::error_code error_code;
@@ -146,11 +162,21 @@ std::function<void()> remove_test_dirs([] {
 
 po::options_description CommandLineOptions() {
   po::options_description command_line_options(
-      "Filesystem Tool Options:\nYou must pass exactly one of '--disk', '--local' or '--network'");
+      std::string("Filesystem Tool Options:\n") + kHelpInfo);
   command_line_options.add_options()("help,h", "Show help message.")
                                     ("disk", "Perform all tests/benchmarks on native hard disk.")
                                     ("local", "Perform all tests/benchmarks on local VFS.")
                                     ("network", "Perform all tests/benchmarks on network VFS.");
+#ifdef MAIDSAFE_WIN32
+  command_line_options.add_options()
+      ("local_console", "Perform all tests/benchmarks on local VFS running as a console app.")
+      ("network_console", "Perform all tests/benchmarks on network VFS running as a console app.")
+      ("enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging), "Enable logging on the VFS "
+          "(this is only useful if used with '--local_console' or '--network_console'.");
+#else
+  command_line_options.add_options() ("enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging),
+      "Enable logging on the VFS (this is only useful if used with '--local' or '--network'.");
+#endif
   return command_line_options;
 }
 
@@ -198,10 +224,17 @@ void GetTestType(const po::variables_map& variables_map) {
     ++option_count;
     g_test_type = TestType::kNetwork;
   }
+  if (variables_map.count("local_console")) {
+    ++option_count;
+    g_test_type = TestType::kLocalConsole;
+  }
+  if (variables_map.count("network_console")) {
+    ++option_count;
+    g_test_type = TestType::kNetworkConsole;
+  }
   if (option_count != 1) {
     std::ostringstream stream;
-    stream << "You must pass exactly one of '--disk', '--local' or '--network'.  "
-           << "For all options, run '--help'\n\n";
+    stream << kHelpInfo << "'.  For all options, run '--help'\n\n";
     g_error_message = stream.str();
     g_return_code = 1;
     ThrowError(CommonErrors::invalid_parameter);
@@ -260,11 +293,13 @@ void PrepareLocalVfs() {
 
   // Set up boost::process args
   std::vector<std::string> process_args;
-  const auto kExePath(process::GetOtherExecutablePath("local_drive").string());
+  const auto kExePath(process::GetOtherExecutablePath(
+      g_test_type == TestType::kLocal ? "local_drive" : "local_drive_console").string());
   process_args.push_back(kExePath);
   std::string shared_memory_opt("--shared_memory " + shared_memory_name);
   process_args.push_back(shared_memory_opt);
-                                                            process_args.push_back("--log_* I --log_colour_mode 2 --log_no_async");
+  if (g_enable_vfs_logging)
+    process_args.push_back("--log_* I --log_colour_mode 2");
   const auto kCommandLine(process::ConstructCommandLine(process_args));
 
   boost::system::error_code error_code;
@@ -292,9 +327,11 @@ void PrepareTest() {
       PrepareDisk();
       break;
     case TestType::kLocal:
+    case TestType::kLocalConsole:
       PrepareLocalVfs();
       break;
     case TestType::kNetwork:
+    case TestType::kNetworkConsole:
       PrepareNetworkVfs();
       break;
     default:

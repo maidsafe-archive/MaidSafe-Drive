@@ -16,6 +16,10 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
+#ifdef USES_WINMAIN
+#include <Windows.h>
+#include <shellapi.h>
+#endif
 #include <signal.h>
 
 #include <functional>
@@ -37,10 +41,10 @@
 
 #include "maidsafe/data_store/local_store.h"
 
-#ifdef WIN32
-#  include "maidsafe/drive/win_drive.h"
+#ifdef MAIDSAFE_WIN32
+#include "maidsafe/drive/win_drive.h"
 #else
-#  include "maidsafe/drive/unix_drive.h"
+#include "maidsafe/drive/unix_drive.h"
 #endif
 
 
@@ -62,7 +66,7 @@ namespace {
 
 template<typename Storage>
 struct GetDrive {
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
   typedef CbfsDrive<Storage> type;
 #else
   typedef FuseDrive<Storage> type;
@@ -149,10 +153,20 @@ fs::path GetPathFromProgramOption(const std::string &option_name,
 }
 
 
-int main(int argc, char *argv[]) {
+#ifdef USES_WINMAIN
+int CALLBACK wWinMain(HINSTANCE /*handle_to_instance*/, HINSTANCE /*handle_to_previous_instance*/,
+                      PWSTR /*command_line_args_without_program_name*/, int /*command_show*/) {
+  int argc(0);
+  LPWSTR* argv(nullptr);
+  argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+  typedef po::wcommand_line_parser CommandLineParser;
+#else
+int main(int argc, char* argv[]) {
+  typedef po::command_line_parser CommandLineParser;
   maidsafe::log::Logging::Instance().Initialise(argc, argv);
+#endif
   boost::system::error_code error_code;
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
   fs::path logging_dir("C:\\ProgramData\\MaidSafeDrive\\logs");
 #else
   fs::path logging_dir(fs::temp_directory_path(error_code) / "maidsafe_drive/logs");
@@ -179,8 +193,8 @@ int main(int argc, char *argv[]) {
         ("checkdata", "check all data (metadata and chunks)");
 
     po::variables_map variables_map;
-    po::store(po::command_line_parser(argc, argv).options(options_description).allow_unregistered().
-                                                  run(), variables_map);
+    po::store(CommandLineParser(argc, argv).options(options_description).allow_unregistered().
+                                            run(), variables_map);
     po::notify(variables_map);
 
     // set up options for config file
@@ -189,7 +203,7 @@ int main(int argc, char *argv[]) {
 
     // try open some config options
     std::ifstream local_config_file("maidsafe_drive.conf");
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
     fs::path main_config_path("C:/ProgramData/MaidSafeDrive/maidsafe_drive.conf");
 #else
     fs::path main_config_path("/etc/maidsafe_drive.conf");
@@ -215,7 +229,7 @@ int main(int argc, char *argv[]) {
     }
 
     fs::path chunkstore_path(GetPathFromProgramOption("chunkdir", &variables_map, true));
-#ifdef WIN32
+#ifdef MAIDSAFE_WIN32
     fs::path mount_path(GetPathFromProgramOption("mountdir", &variables_map, false));
 #else
     fs::path mount_path(GetPathFromProgramOption("mountdir", &variables_map, true));
