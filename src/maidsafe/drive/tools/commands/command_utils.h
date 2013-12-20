@@ -21,6 +21,9 @@
 
 #ifdef MAIDSAFE_WIN32
 #include <Windows.h>
+#else
+#include <sys/stat.h>
+#include <fcntl.h>
 #endif
 
 #include <map>
@@ -42,7 +45,7 @@ struct Environment {
 #ifdef MAIDSAFE_WIN32
   std::map<boost::filesystem::path, std::pair<HANDLE, HANDLE>> files;
 #else
-  std::map<boost::filesystem::path, std::pair<, >> files;
+  std::map<boost::filesystem::path, std::pair<int, int>> files;
 #endif
 
  private:

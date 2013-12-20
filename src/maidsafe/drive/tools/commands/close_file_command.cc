@@ -35,8 +35,13 @@ void CloseFileCommand::Run() {
   auto itr(environment_.files.find(path));
   assert(itr != std::end(environment_.files));
   assert(itr->second.first && itr->second.second);
+#ifdef MAIDSAFE_WIN32
   auto virtual_result(CloseHandle(itr->second.first));
   auto real_result(CloseHandle(itr->second.second));
+#else
+  auto virtual_result(close(itr->second.first));
+  auto real_result(close(itr->second.second));
+#endif
   std::cout << (virtual_result == 0 ? "\tFailed to close" : "\tClosed") << " virtual file "
             << environment_.root / path << '\n';
   std::cout << (real_result == 0 ? "\tFailed to close" : "\tClosed") << " real file "

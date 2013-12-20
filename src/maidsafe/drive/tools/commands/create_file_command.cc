@@ -32,15 +32,25 @@ const std::string CreateFileCommand::kName("Create file");
 
 void CreateFileCommand::Run() {
   auto path(GetRelativePath(environment_));
+#ifdef MAIDSAFE_WIN32
   auto virtual_file(CreateFile((environment_.root / path).wstring().c_str(), GENERIC_ALL, 0, NULL,
                                CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL));
   auto real_file(CreateFile((environment_.root / path).wstring().c_str(), GENERIC_ALL, 0, NULL,
                             CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL));
-  std::cout << (virtual_file == nullptr ? "\tFailed to create" : "\tCreated") << " virtual file "
+  bool virtual_file_success(virtual_file != nullptr);
+  bool real_file_success(real_file != nullptr);
+#else
+  mode_t mode(S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+  auto virtual_file(creat((environment_.root / path).c_str(), mode));
+  auto real_file(creat((environment_.root / path).c_str(), mode));
+  bool virtual_file_success(virtual_file >= 0);
+  bool real_file_success(real_file >= 0);
+#endif
+  std::cout << (virtual_file_success ? "\tFailed to create" : "\tCreated") << " virtual file "
             << environment_.root / path << '\n';
-  std::cout << (real_file == nullptr ? "\tFailed to create" : "\tCreated") << " real file "
+  std::cout << (real_file_success ? "\tFailed to create" : "\tCreated") << " real file "
             << environment_.temp / path << '\n';
-  if (virtual_file && real_file)
+  if (virtual_file_success && real_file_success)
     environment_.files.emplace(path, std::make_pair(virtual_file, real_file));
 }
 
