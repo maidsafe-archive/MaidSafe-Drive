@@ -99,6 +99,15 @@ ms_add_executable(local_drive "Production" ${LocalDriveMain})
 target_link_libraries(local_drive maidsafe_drive)
 ms_add_executable(network_drive "Production" ${NetworkDriveMain})
 target_link_libraries(network_drive maidsafe_drive maidsafe_nfs_client)
+if(WIN32)
+  set_property(TARGET local_drive network_drive PROPERTY WIN32_EXECUTABLE TRUE)
+  if(MaidsafeTesting)
+    ms_add_executable(local_drive_console "Production" ${LocalDriveMain})
+    target_link_libraries(local_drive_console maidsafe_drive)
+    ms_add_executable(network_drive_console "Production" ${NetworkDriveMain})
+    target_link_libraries(network_drive_console maidsafe_drive maidsafe_nfs_client)
+  endif()
+endif()
 
 if(MaidsafeTesting)
   ms_add_executable(filesystem_benchmark "Tools/Drive"
@@ -113,6 +122,10 @@ if(MaidsafeTesting)
 
   add_dependencies(filesystem_benchmark local_drive network_drive)
   add_dependencies(filesystem_test local_drive network_drive)
+  if(WIN32)
+    add_dependencies(filesystem_benchmark local_drive_console network_drive_console)
+    add_dependencies(filesystem_test local_drive_console network_drive_console)
+  endif()
   target_include_directories(filesystem_benchmark PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
   target_include_directories(filesystem_test PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
 
@@ -125,7 +138,7 @@ endif()
 rename_outdated_built_exes()
 
 if(WIN32 AND NOT Cbfs_FOUND)
-  foreach(Target maidsafe_drive cbfs_driver local_drive network_drive filesystem_benchmark filesystem_test test_drive)
+  foreach(Target maidsafe_drive cbfs_driver local_drive network_drive local_drive_console network_drive_console filesystem_benchmark filesystem_test test_drive)
     if(TARGET ${Target})
       set_target_properties(${Target} PROPERTIES EXCLUDE_FROM_ALL ON EXCLUDE_FROM_DEFAULT_BUILD ON)
     endif()
@@ -144,6 +157,9 @@ target_compile_definitions(maidsafe_drive
   PRIVATE
     $<$<BOOL:${Cbfs_FOUND}>:CBFS_KEY=${Cbfs_KEY}>
 )
+target_compile_definitions(local_drive PRIVATE $<$<BOOL:${WIN32}>:USES_WINMAIN>)
+target_compile_definitions(network_drive PRIVATE $<$<BOOL:${WIN32}>:USES_WINMAIN>)
+
 if(MaidsafeTesting)
   target_compile_definitions(filesystem_benchmark PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
   target_compile_definitions(filesystem_test PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
@@ -153,7 +169,8 @@ if(Cbfs_FOUND)
   target_compile_options(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_OPTIONS>)
   set_property(TARGET cbfs_driver APPEND_STRING PROPERTY LINK_FLAGS " /level='requireAdministrator' /uiAccess='false' ")
   if(MaidsafeTesting)
-    set_property(TARGET local_drive network_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=713CC6CE-B3E2-4fd9-838D-E28F558F6866" "CBFS_KEY=${Cbfs_KEY}")
+    set_property(TARGET local_drive network_drive local_drive_console network_drive_console
+                 APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=713CC6CE-B3E2-4fd9-838D-E28F558F6866" "CBFS_KEY=${Cbfs_KEY}")
   else()
     # TODO(Brian) BEFORE_RELEASE - Set these UIDs appropriately
     set_property(TARGET local_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=MAIDSAFE-SUREFILE" "CBFS_KEY=${Cbfs_KEY}")
