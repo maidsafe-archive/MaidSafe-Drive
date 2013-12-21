@@ -155,7 +155,6 @@ class FuseDrive : public Drive<Storage> {
 
   static int CreateNew(const fs::path& full_path, mode_t mode, dev_t rdev = 0);
   static int GetAttributes(const char* path, struct stat* stbuf);
-  static int Release(const char* path);
   static int Truncate(const char* path, off_t size);
 
   static struct fuse_operations maidsafe_ops_;
@@ -801,7 +800,14 @@ int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t size) {
 template <typename Storage>
 int FuseDrive<Storage>::OpsRelease(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsRelease: " << path << ", flags: " << file_info->flags;
-  return Release(path);
+  try {
+    Global<Storage>::g_fuse_drive->Release(path);
+  }
+  catch (const std::exception& e) {
+    LOG(kError) << "OpsRelease: " << path << ": " << e.what();
+    return -EBADF;
+  }
+  return 0;
 }
 
 // Quote from FUSE documentation:
@@ -810,7 +816,14 @@ int FuseDrive<Storage>::OpsRelease(const char* path, struct fuse_file_info* file
 template <typename Storage>
 int FuseDrive<Storage>::OpsReleasedir(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsReleasedir: " << path << ", flags: " << file_info->flags;
-  return Release(path);
+  try {
+    Global<Storage>::g_fuse_drive->ReleaseDir(path);
+  }
+  catch (const std::exception& e) {
+    LOG(kError) << "OpsReleasedir: " << path << ": " << e.what();
+    return -EBADF;
+  }
+  return 0;
 }
 
 // Quote from FUSE documentation:
@@ -1134,19 +1147,6 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
 //    }
     LOG(kWarning) << "OpsGetattr: " << path << " - " << e.what();
     return -ENOENT;
-  }
-  return 0;
-}
-
-template <typename Storage>
-int FuseDrive<Storage>::Release(const char* path) {
-  LOG(kInfo) << "Release - " << path;
-  try {
-    Global<Storage>::g_fuse_drive->Release(path);
-  }
-  catch (const std::exception& e) {
-    LOG(kError) << "Release: " << path << ": " << e.what();
-    return -EBADF;
   }
   return 0;
 }

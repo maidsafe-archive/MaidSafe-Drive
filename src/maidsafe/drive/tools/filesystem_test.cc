@@ -50,10 +50,14 @@ namespace {
 fs::path g_root, g_temp;
 
 std::function<void()> clean_root([] {
-  boost::system::error_code error_code;
-  fs::directory_iterator end;
-  for (fs::directory_iterator directory_itr(g_root); directory_itr != end; ++directory_itr)
-    fs::remove_all(*directory_itr, error_code);
+  try {
+    fs::directory_iterator end;
+    for (fs::directory_iterator directory_itr(g_root); directory_itr != end; ++directory_itr)
+      fs::remove_all(*directory_itr);
+  }
+  catch (const std::exception& e) {
+    std::cout << "Failed to cleanup " << g_root << " - " << e.what() << '\n';
+  }
 });
 
 void RequireExists(const fs::path& path) {
