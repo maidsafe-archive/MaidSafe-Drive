@@ -16,6 +16,10 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
+#ifdef USES_WINMAIN
+#include <Windows.h>
+#include <shellapi.h>
+#endif
 #include <signal.h>
 
 #include <functional>
@@ -77,8 +81,14 @@ int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity
   auto storage(std::make_shared<data_store::LocalStore>(storage_path, disk_usage));
 
   boost::system::error_code error_code;
-  if (!fs::exists(storage_dir, error_code))
+  if (!fs::exists(storage_dir, error_code)) {
+    LOG(kError) << storage_dir << " doesn't exist.";
     return error_code.value();
+  }
+  if (!fs::exists(GetUserAppDir(), error_code)) {
+    LOG(kError) << GetUserAppDir() << " doesn't exist.";
+    return error_code.value();
+  }
 
   LocalDrive drive(storage, unique_id, parent_id, mount_dir, GetUserAppDir(), drive_name, create);
   g_local_drive = &drive;
@@ -163,13 +173,14 @@ po::options_description HiddenOptions() {
   return options;
 }
 
-po::variables_map ParseAllOptions(int argc, char* argv[],
+template <typename Char>
+po::variables_map ParseAllOptions(int argc, Char* argv[],
                                   const po::options_description& command_line_options,
                                   const po::options_description& config_file_options) {
   po::variables_map variables_map;
   try {
     // Parse command line
-    po::store(po::command_line_parser(argc, argv).options(command_line_options).
+    po::store(po::basic_command_line_parser<Char>(argc, argv).options(command_line_options).
                   allow_unregistered().run(), variables_map);
     po::notify(variables_map);
 
@@ -300,8 +311,16 @@ void SetSignalHandler() {}
 
 #endif
 
+#ifdef USES_WINMAIN
+int CALLBACK wWinMain(HINSTANCE /*handle_to_instance*/, HINSTANCE /*handle_to_previous_instance*/,
+                      PWSTR /*command_line_args_without_program_name*/, int /*command_show*/) {
+  int argc(0);
+  LPWSTR* argv(nullptr);
+  argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+#else
 int main(int argc, char* argv[]) {
   maidsafe::log::Logging::Instance().Initialise(argc, argv);
+#endif
   std::locale::global(boost::locale::generator().generate(""));
   fs::path::imbue(std::locale());
   boost::system::error_code error_code;
