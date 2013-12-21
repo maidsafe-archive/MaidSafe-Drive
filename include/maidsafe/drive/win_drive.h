@@ -39,7 +39,6 @@
 #include "boost/thread/future.hpp"
 
 #include "maidsafe/common/profiler.h"
-
 #include "maidsafe/common/utils.h"
 #include "maidsafe/encrypt/self_encryptor.h"
 
@@ -188,7 +187,6 @@ class CbfsDrive : public Drive<Storage> {
   LPCWSTR icon_id_;
   std::wstring drive_name_;
   LPCSTR registration_key_;
-  boost::promise<void> unmounted_;
   std::once_flag unmounted_once_flag_;
 };
 
@@ -204,7 +202,6 @@ CbfsDrive<Storage>::CbfsDrive(std::shared_ptr<Storage> storage, const Identity& 
       icon_id_(L"MaidSafeDriveIcon"),
       drive_name_(drive_name.wstring()),
       registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)),
-      unmounted_(),
       unmounted_once_flag_() {}
 
 template <typename Storage>
@@ -241,8 +238,6 @@ void CbfsDrive<Storage>::Mount() {
   }
 
   LOG(kInfo) << "Mounted.";
-  auto wait_until_unmounted(unmounted_.get_future());
-  wait_until_unmounted.get();
 }
 
 template <typename Storage>
@@ -272,7 +267,6 @@ bool CbfsDrive<Storage>::Unmount() {
         if (callback_filesystem_.StoragePresent())
           callback_filesystem_.DeleteStorage();
         callback_filesystem_.SetRegistrationKey(nullptr);
-        unmounted_.set_value();
     });
   }
   catch (const ECBFSError& error) {

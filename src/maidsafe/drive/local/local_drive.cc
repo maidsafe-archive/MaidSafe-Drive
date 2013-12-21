@@ -31,6 +31,9 @@
 #include "boost/preprocessor/stringize.hpp"
 #include "boost/system/error_code.hpp"
 #include "boost/locale.hpp"
+#include "boost/interprocess/shared_memory_object.hpp"
+#include "boost/interprocess/mapped_region.hpp"
+#include "boost/interprocess/sync/scoped_lock.hpp"
 
 #include "maidsafe/common/crypto.h"
 #include "maidsafe/common/error.h"
@@ -51,6 +54,8 @@
 
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
+namespace ip = boost::interprocess;
+namespace pt = boost::posix_time;
 
 namespace maidsafe {
 
@@ -64,7 +69,9 @@ typedef FuseDrive<data_store::LocalStore> LocalDrive;
 LocalDrive* g_local_drive(nullptr);
 
 int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity& unique_id,
-          const Identity& parent_id, const fs::path& drive_name, bool create) {
+          const Identity& parent_id, const fs::path& drive_name, bool create,
+          const std::string& shared_object_name) {
+  typedef ip::shared_memory_object SharedMemoryObject;
   fs::path storage_path(storage_dir / "local_store");
   DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
   auto storage(std::make_shared<data_store::LocalStore>(storage_path, disk_usage));
@@ -76,6 +83,38 @@ int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity
   LocalDrive drive(storage, unique_id, parent_id, mount_dir, GetUserAppDir(), drive_name, create);
   g_local_drive = &drive;
   drive.Mount();
+
+  SharedMemoryObject shared_object(ip::open_only, shared_object_name.c_str(), ip::read_write);
+  ip::mapped_region region(shared_object, ip::read_write);
+  MountStatus* mount_status = static_cast<MountStatus*>(region.get_address());
+
+  {
+    ip::scoped_lock<ip::interprocess_mutex> lock(mount_status->mutex);
+    mount_status->mounted = true;
+    pt::ptime wait_time(pt::second_clock::universal_time() + pt::seconds(10));
+    auto mount_predicate([&]() { return mount_status->unmount == false; });
+    mount_status->condition.notify_one();
+    mount_status->condition.timed_wait(lock, wait_time, mount_predicate);
+
+    if (mount_status->unmount) {
+      drive.Unmount();
+      return 32;
+    }
+  }
+  {
+    ip::scoped_lock<ip::interprocess_mutex> lock(mount_status->mutex);
+    auto mount_predicate([&]() { return mount_status->unmount == true; });
+    mount_status->condition.wait(lock, mount_predicate);
+    assert(mount_status->unmount);
+  }
+
+  drive.Unmount();
+
+  {
+    ip::scoped_lock<ip::interprocess_mutex> lock(mount_status->mutex);
+    mount_status->mounted = false;
+    mount_status->condition.notify_one();
+  }
 
   return 0;
 }
@@ -179,9 +218,12 @@ struct Options {
   bool create, check_data;
 };
 
-bool GetFromIpc(const po::variables_map& variables_map, Options& options) {
+bool GetFromIpc(const po::variables_map& variables_map, Options& options,
+                std::string& shared_object_name) {
   if (variables_map.count("shared_memory")) {
     std::string shared_memory_name(variables_map.at("shared_memory").as<std::string>());
+    auto hash(maidsafe::crypto::Hash<maidsafe::crypto::SHA512>(shared_memory_name).string());
+    shared_object_name = maidsafe::HexEncode(hash).substr(0, 32);
     auto vec_strings = maidsafe::ipc::ReadSharedMemory(shared_memory_name.c_str(), 6);
     options.mount_dir = vec_strings[0];
     options.chunk_store = vec_strings[1];
@@ -189,6 +231,7 @@ bool GetFromIpc(const po::variables_map& variables_map, Options& options) {
     options.parent_id = maidsafe::Identity(vec_strings[3]);
     options.drive_name = vec_strings[4];
     options.create = (std::stoi(vec_strings[5]) != 0);
+    maidsafe::ipc::RemoveSharedMemory(shared_memory_name);
     return true;
   }
   return false;
@@ -273,14 +316,16 @@ int main(int argc, char* argv[]) {
     auto variables_map(ParseAllOptions(argc, argv, command_line_options, config_file_options));
     HandleHelp(variables_map);
     Options options;
-    if (!GetFromIpc(variables_map, options))
+    std::string shared_object_name;
+    if (!GetFromIpc(variables_map, options, shared_object_name))
       GetFromProgramOptions(variables_map, options);
 
     // Validate options and run the Drive
     ValidateOptions(options);
     SetSignalHandler();
     return maidsafe::drive::Mount(options.mount_dir, options.chunk_store, options.unique_id,
-                                  options.parent_id, options.drive_name, options.create);
+                                  options.parent_id, options.drive_name, options.create,
+                                  shared_object_name);
   }
   catch (const std::exception& e) {
     if (!g_error_message.empty()) {

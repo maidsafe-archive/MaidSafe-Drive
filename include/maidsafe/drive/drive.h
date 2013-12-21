@@ -31,6 +31,8 @@
 
 #include "boost/filesystem/operations.hpp"
 #include "boost/filesystem/path.hpp"
+#include "boost/interprocess/sync/interprocess_mutex.hpp"
+#include "boost/interprocess/sync/interprocess_condition.hpp"
 
 //#include "maidsafe/common/on_scope_exit.h"
 #include "maidsafe/common/rsa.h"
@@ -44,6 +46,15 @@
 namespace maidsafe {
 
 namespace drive {
+
+struct MountStatus {
+  MountStatus() : mutex(), condition(), mounted(false), unmount(true) {}
+
+  mutable boost::interprocess::interprocess_mutex mutex;
+  boost::interprocess::interprocess_condition condition;
+  bool mounted;
+  bool unmount;
+};
 
 template <typename Storage>
 class Drive {
