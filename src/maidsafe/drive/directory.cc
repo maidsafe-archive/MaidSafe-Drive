@@ -114,17 +114,10 @@ Directory::Directory(ParentId parent_id, const std::string& serialised_directory
 Directory::~Directory() {
   std::unique_lock<std::mutex> lock(mutex_);
   DoScheduleForStoring(false);
-  while (store_state_ != StoreState::kComplete) {
-    lock.unlock();
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    lock.lock();
-  }
-  // TODO(Fraser#5#): 2013-12-21 - Investigate why the cond_var_.notify_one() in AddNewVersion
-  //                  doesn't wake the thread here on MSVC.
-  //bool result(cond_var_.wait_for(lock, kInactivityDelay + std::chrono::milliseconds(500),
-  //                               [&] { return store_state_ == StoreState::kComplete; }));
-  //assert(result);
-  //static_cast<void>(result);
+  bool result(cond_var_.wait_for(lock, kInactivityDelay + std::chrono::milliseconds(500),
+                                 [&] { return store_state_ == StoreState::kComplete; }));
+  assert(result);
+  static_cast<void>(result);
 }
 
 std::string Directory::Serialise(
@@ -162,11 +155,12 @@ std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersi
     store_state_ = StoreState::kComplete;
     if (versions_.empty()) {
       versions_.emplace_back(0, version_id);
-      return std::make_tuple(directory_id_, StructuredDataVersions::VersionName(), versions_[0]);
+      result = std::make_tuple(directory_id_, StructuredDataVersions::VersionName(), versions_[0]);
+    } else {
+      versions_.emplace_front(versions_.front().index + 1, version_id);
+      auto itr(std::begin(versions_));
+      result = std::make_tuple(directory_id_, *(itr + 1), *itr);
     }
-    versions_.emplace_front(versions_.front().index + 1, version_id);
-    auto itr(std::begin(versions_));
-    result = std::make_tuple(directory_id_, *(itr + 1), *itr);
   }
   cond_var_.notify_one();
   return result;
@@ -312,17 +306,10 @@ ParentId Directory::parent_id() const {
 void Directory::SetNewParent(const ParentId parent_id, std::function<void(Directory*)> put_functor,  // NOLINT
                              const boost::filesystem::path& path) {
   std::unique_lock<std::mutex> lock(mutex_);
-  // TODO(Fraser#5#): 2013-12-21 - Investigate why the cond_var_.notify_one() in AddNewVersion
-  //                  doesn't wake the thread here on MSVC.
-  while (store_state_ == StoreState::kOngoing) {
-    lock.unlock();
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    lock.lock();
-  }
-  //bool result(cond_var_.wait_for(lock, std::chrono::milliseconds(500),
-  //                               [&] { return store_state_ != StoreState::kOngoing; }));
-  //assert(result);
-  //static_cast<void>(result);
+  bool result(cond_var_.wait_for(lock, std::chrono::milliseconds(500),
+                                 [&] { return store_state_ != StoreState::kOngoing; }));
+  assert(result);
+  static_cast<void>(result);
   parent_id_ = parent_id;
   store_functor_ = GetStoreFunctor(this, put_functor, path);
 }
