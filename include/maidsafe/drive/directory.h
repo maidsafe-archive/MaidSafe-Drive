@@ -51,7 +51,7 @@ class Directory;
 namespace test {
 
 void DirectoriesMatch(const Directory& lhs, const Directory& rhs);
-class DirectoryListingTest;
+class DirectoryTest;
 
 }  // namespace test
 
@@ -95,7 +95,7 @@ class Directory {
   void StoreImmediatelyIfPending();
 
   friend void test::DirectoriesMatch(const Directory& lhs, const Directory& rhs);
-  friend class test::DirectoryListingTest;
+  friend class test::DirectoryTest;
 
  private:
   Directory(const Directory& other);

@@ -59,28 +59,21 @@ inline uint64_t GetSize(MetaData meta_data) {
 #endif
 }
 
-class DirectoryListingTest {
+class DirectoryTest {
  public:
-  DirectoryListingTest()
+  DirectoryTest()
       : main_test_dir_(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive")),
         relative_root_(kRoot),
         unique_id_(RandomAlphaNumericString(64)),
         parent_id_(crypto::Hash<crypto::SHA512>(main_test_dir_->string())),
         directory_id_(RandomAlphaNumericString(64)),
         asio_service_(1),
-        store_functor_([](const boost::system::error_code& ec) {
-          if (ec != boost::asio::error::operation_aborted) {
-            LOG(kSuccess) << "Storing.";
-          } else {
-            LOG(kWarning) << "Not storing.";
-          }}),
-        directory_(ParentId(unique_id_), parent_id_, asio_service_.service(), store_functor_),
-        put_chunk_functor_([](const ImmutableData&) {
-          LOG(kInfo) << "Putting chunk.";
-          }),
+        put_functor_([](Directory*) { LOG(kInfo) << "Putting directory."; }),
+        directory_(ParentId(unique_id_), parent_id_, asio_service_.service(), put_functor_, ""),
+        put_chunk_functor_([](const ImmutableData&) { LOG(kInfo) << "Putting chunk."; }),
         increment_chunks_functor_([](const std::vector<ImmutableData::Name>&) {
           LOG(kInfo) << "Incrementing chunks.";
-          }) {}
+        }) {}
 
  protected:
   void GenerateDirectoryListingEntryForDirectory(Directory& directory, fs::path const& path) {
@@ -104,7 +97,7 @@ class DirectoryListingTest {
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
     DirectoryId directory_id(crypto::Hash<crypto::SHA512>(absolute_path.string()));
-    Directory directory(parent_id, directory_id, asio_service_.service(), store_functor_);
+    Directory directory(parent_id, directory_id, asio_service_.service(), put_functor_, "");
     fs::directory_iterator itr(path), end;
     try {
       for (; itr != end; ++itr) {
@@ -139,7 +132,7 @@ class DirectoryListingTest {
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
     Directory directory(parent_id, serialised_directory, versions, asio_service_.service(),
-                        store_functor_);
+                        put_functor_, "");
 
     FileContext* file_context(nullptr);
     // Remove the directory listing file
@@ -184,7 +177,7 @@ class DirectoryListingTest {
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
     Directory directory(parent_id, serialised_directory, versions, asio_service_.service(),
-                        store_functor_);
+                        put_functor_, "");
 
     FileContext* file_context(nullptr);
     std::string listing("msdir.listing");
@@ -236,7 +229,7 @@ class DirectoryListingTest {
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
     Directory directory(parent_id, serialised_directory, versions, asio_service_.service(),
-                        store_functor_);
+                        put_functor_, "");
 
     std::string listing("msdir.listing");
     fs::directory_iterator itr(path), end;
@@ -273,7 +266,7 @@ class DirectoryListingTest {
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
     Directory directory(parent_id, serialised_directory, versions, asio_service_.service(),
-                        store_functor_);
+                        put_functor_, "");
 
     const FileContext* file_context(nullptr);
     std::string listing("msdir.listing");
@@ -318,30 +311,30 @@ class DirectoryListingTest {
   fs::path relative_root_;
   Identity unique_id_, parent_id_, directory_id_;
   AsioService asio_service_;
-  std::function<void(const boost::system::error_code&)> store_functor_;
+  std::function<void(Directory*)> put_functor_;
   Directory directory_;
   std::function<void(const ImmutableData&)> put_chunk_functor_;
   std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor_;
 
  private:
-  DirectoryListingTest(const DirectoryListingTest&);
-  DirectoryListingTest& operator=(const DirectoryListingTest&);
+  DirectoryTest(const DirectoryTest&);
+  DirectoryTest& operator=(const DirectoryTest&);
 };
 
-TEST_CASE_METHOD(DirectoryListingTest, "Add children", "[DirectoryListing][behavioural]") {
+TEST_CASE_METHOD(DirectoryTest, "Add children", "[DirectoryListing][behavioural]") {
   REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
   REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
   REQUIRE(MatchEntries(*main_test_dir_, relative_root_));
 }
 
-TEST_CASE_METHOD(DirectoryListingTest, "Add then remove children",
+TEST_CASE_METHOD(DirectoryTest, "Add then remove children",
                  "[DirectoryListing][behavioural]") {
   REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
   REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
   REQUIRE(RemoveDirectoryListingsEntries(*main_test_dir_, relative_root_));
 }
 
-TEST_CASE_METHOD(DirectoryListingTest, "Add then rename children",
+TEST_CASE_METHOD(DirectoryTest, "Add then rename children",
                  "[DirectoryListing][behavioural]") {
   REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
   REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
@@ -350,7 +343,7 @@ TEST_CASE_METHOD(DirectoryListingTest, "Add then rename children",
   REQUIRE(MatchEntries(*main_test_dir_, relative_root_));
 }
 
-TEST_CASE_METHOD(DirectoryListingTest, "Directory has child", "[DirectoryListing][behavioural]") {
+TEST_CASE_METHOD(DirectoryTest, "Directory has child", "[DirectoryListing][behavioural]") {
   REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
   REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
   REQUIRE(DirectoryHasChild(*main_test_dir_, relative_root_));
@@ -432,7 +425,7 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
   }
 }
 
-TEST_CASE_METHOD(DirectoryListingTest, "Serialise and parse", "[DirectoryListing][behavioural]") {
+TEST_CASE_METHOD(DirectoryTest, "Serialise and parse", "[DirectoryListing][behavioural]") {
   maidsafe::test::TestPath testpath(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
   boost::system::error_code error_code;
   int64_t file_size(0);
@@ -486,11 +479,11 @@ TEST_CASE_METHOD(DirectoryListingTest, "Serialise and parse", "[DirectoryListing
 
   std::vector<StructuredDataVersions::VersionName> versions;
   Directory recovered_directory(directory_.parent_id(), serialised_directory, versions,
-                                asio_service_.service(), store_functor_);
+                                asio_service_.service(), put_functor_, "");
   DirectoriesMatch(directory_, recovered_directory);
 }
 
-TEST_CASE_METHOD(DirectoryListingTest, "Iterator reset", "[DirectoryListing][behavioural]") {
+TEST_CASE_METHOD(DirectoryTest, "Iterator reset", "[DirectoryListing][behavioural]") {
   // Add elements
   REQUIRE(directory_.empty());
   const size_t kTestCount(10);
