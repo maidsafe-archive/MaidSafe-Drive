@@ -100,6 +100,7 @@ class FuseDrive : public Drive<Storage> {
 
   virtual ~FuseDrive();
   void Mount();
+  void Unmount();
 
  private:
   FuseDrive(const FuseDrive&);
@@ -329,6 +330,11 @@ void FuseDrive<Storage>::Mount() {
   // //    Drive<Storage>::SetMountState(false);
   // //    return kFuseFailedToMount;
   // //  }
+}
+
+template <typename Storage>
+void FuseDrive<Storage>::Unmount() {
+
 }
 
 // =============================== Callbacks =======================================================
