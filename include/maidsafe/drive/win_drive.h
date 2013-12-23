@@ -812,8 +812,7 @@ void CbfsDrive<Storage>::CbFsCloseDirectoryEnumeration(
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, directory_info));
   LOG(kInfo) << "CbFsCloseEnumeration - " << relative_path;
   try {
-    auto directory(cbfs_drive->directory_handler_.Get(relative_path));
-    directory->ResetChildrenIterator();
+    cbfs_drive->ReleaseDir(relative_path);
   }
   catch (const std::exception& e) {
     LOG(kError) << "Failed closing enumeration for " << relative_path << ": " << e.what();

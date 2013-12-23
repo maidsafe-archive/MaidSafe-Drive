@@ -20,6 +20,7 @@
 #define MAIDSAFE_DRIVE_DIRECTORY_H_
 
 #include <chrono>
+#include <condition_variable>
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -57,17 +58,23 @@ class DirectoryListingTest;
 class Directory {
  public:
   Directory(ParentId parent_id, DirectoryId directory_id, boost::asio::io_service& io_service,
-            std::function<void(const boost::system::error_code&)> store_functor);
+            std::function<void(Directory*)> put_functor, const boost::filesystem::path& path);  // NOLINT
   Directory(ParentId parent_id, const std::string& serialised_directory,
             const std::vector<StructuredDataVersions::VersionName>& versions,
-            boost::asio::io_service& io_service,
-            std::function<void(const boost::system::error_code&)> store_functor);
-  // This serialises the appropriate member data (critically parent_id_ must never be serialised),
-  // and sets 'store_pending_' false.  It also stores all new chunks from all children, increments
-  // all the other chunks, and resets all self_encryptors & buffers.
+            boost::asio::io_service& io_service, std::function<void(Directory*)> put_functor,  // NOLINT
+            const boost::filesystem::path& path);
+  ~Directory();
+  // This marks the start of an attempt to store the directory.  It serialises the appropriate
+  // member data (critically parent_id_ must never be serialised), and sets 'store_state_' to
+  // kOngoing.  It also stores all new chunks from all children, increments all the other chunks,
+  // and resets all self_encryptors & buffers.
   std::string Serialise(
       std::function<void(const ImmutableData&)> put_chunk_functor,
       std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor);
+  // This marks the end of an attempt to store the directory.  It returns directory_id and most
+  // recent 2 version names (including the one passed in), and sets 'store_state_' to kComplete.
+  std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
+      AddNewVersion(ImmutableData::Name version_id);
 
   bool HasChild(const boost::filesystem::path& name) const;
   const FileContext* GetChild(const boost::filesystem::path& name) const;
@@ -80,14 +87,12 @@ class Directory {
   void ResetChildrenIterator();
   bool empty() const;
   ParentId parent_id() const;
-  void SetNewParent(const ParentId parent_id,
-                    std::function<void(const boost::system::error_code&)> store_functor);
+  // This will block while a store attempt is ongoing.
+  void SetNewParent(const ParentId parent_id, std::function<void(Directory*)> put_functor,  // NOLINT
+                    const boost::filesystem::path& path);
   DirectoryId directory_id() const;
   void ScheduleForStoring();
   void StoreImmediatelyIfPending();
-  // Returns directory_id and most recent 2 version names (including the one passed in).
-  std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
-      AddNewVersion(ImmutableData::Name version_id);
 
   friend void test::DirectoriesMatch(const Directory& lhs, const Directory& rhs);
   friend class test::DirectoryListingTest;
@@ -105,6 +110,7 @@ class Directory {
   void DoScheduleForStoring(bool use_delay = true);
 
   mutable std::mutex mutex_;
+  std::condition_variable cond_var_;
   ParentId parent_id_;
   DirectoryId directory_id_;
   boost::asio::steady_timer timer_;
@@ -113,7 +119,7 @@ class Directory {
   MaxVersions max_versions_;
   Children children_;
   size_t children_itr_position_;
-  bool store_pending_;
+  enum class StoreState { kPending, kOngoing, kComplete } store_state_;
 };
 
 bool operator<(const Directory& lhs, const Directory& rhs);

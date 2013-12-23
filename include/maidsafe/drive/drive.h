@@ -19,6 +19,7 @@
 #ifndef MAIDSAFE_DRIVE_DRIVE_H_
 #define MAIDSAFE_DRIVE_DRIVE_H_
 
+#include <algorithm>
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
@@ -34,7 +35,6 @@
 #include "boost/interprocess/sync/interprocess_mutex.hpp"
 #include "boost/interprocess/sync/interprocess_condition.hpp"
 
-//#include "maidsafe/common/on_scope_exit.h"
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
 
@@ -73,6 +73,7 @@ class Drive {
   void Open(const boost::filesystem::path& relative_path);
   void Flush(const boost::filesystem::path& relative_path);
   void Release(const boost::filesystem::path& relative_path);
+  void ReleaseDir(const boost::filesystem::path& relative_path);
   void Delete(const boost::filesystem::path& relative_path);
   void Rename(const boost::filesystem::path& old_relative_path,
               const boost::filesystem::path& new_relative_path);
@@ -81,7 +82,6 @@ class Drive {
   uint32_t Write(const boost::filesystem::path& relative_path, const char* data, uint32_t size,
                  uint64_t offset);
 
-  detail::DirectoryHandler<Storage> directory_handler_;
   std::shared_ptr<Storage> storage_;
   const boost::filesystem::path kMountDir_;
   const boost::filesystem::path kUserAppDir_;
@@ -95,6 +95,10 @@ class Drive {
   std::function<NonEmptyString(const std::string&)> get_chunk_from_store_;
   MemoryUsage default_max_buffer_memory_;
   DiskUsage default_max_buffer_disk_;
+
+ protected:
+  // Needs to be destructed first so that 'get_chunk_from_store_' and 'storage_' outlive it.
+  detail::DirectoryHandler<Storage> directory_handler_;
 };
 
 #ifdef MAIDSAFE_WIN32
@@ -116,17 +120,17 @@ template <typename Storage>
 Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
                       const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
                       const boost::filesystem::path& user_app_dir, bool create)
-    : directory_handler_(storage, unique_user_id, root_parent_id,
-                         boost::filesystem::unique_path(user_app_dir / "Buffers" /
-                                                        "%%%%%-%%%%%-%%%%%-%%%%%"), create),
-      storage_(storage),
+    : storage_(storage),
       kMountDir_(mount_dir),
       kUserAppDir_(user_app_dir),
       get_chunk_from_store_(),
       // TODO(Fraser#5#): 2013-11-27 - BEFORE_RELEASE - confirm the following 2 variables.
       default_max_buffer_memory_(Concurrency() * 1024 * 1024),  // cores * default chunk size
       default_max_buffer_disk_(static_cast<uint64_t>(
-          boost::filesystem::space(kUserAppDir_).available / 10)) {
+          boost::filesystem::space(kUserAppDir_).available / 10)),
+      directory_handler_(storage, unique_user_id, root_parent_id,
+                         boost::filesystem::unique_path(user_app_dir / "Buffers" /
+                                                        "%%%%%-%%%%%-%%%%%-%%%%%"), create) {
   get_chunk_from_store_ = [this](const std::string& name)->NonEmptyString {
     auto chunk(storage_->Get(ImmutableData::Name(Identity(name))).get());
     return chunk.data();
@@ -218,6 +222,13 @@ void Drive<Storage>::Release(const boost::filesystem::path& relative_path) {
     if (file_context->self_encryptor && !file_context->self_encryptor->Flush())
       LOG(kError) << "Failed to flush " << relative_path << " during Release";
   }
+}
+
+template <typename Storage>
+void Drive<Storage>::ReleaseDir(const boost::filesystem::path& relative_path) {
+  SCOPED_PROFILE
+  auto directory(directory_handler_.Get(relative_path));
+  directory->ResetChildrenIterator();
 }
 
 template <typename Storage>
