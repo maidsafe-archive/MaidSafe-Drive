@@ -29,8 +29,12 @@
 #include <string>
 #include <fstream>
 #include <iterator>
-#include <locale>
 
+#ifndef MAIDSAFE_WINDOWS
+#include <locale>
+#else
+#include "boost/locale.hpp"
+#endif
 #include "boost/filesystem.hpp"
 #include "boost/program_options.hpp"
 #include "boost/preprocessor/stringize.hpp"
@@ -321,7 +325,12 @@ int CALLBACK wWinMain(HINSTANCE /*handle_to_instance*/, HINSTANCE /*handle_to_pr
 int main(int argc, char* argv[]) {
   maidsafe::log::Logging::Instance().Initialise(argc, argv);
 #endif
+
+#ifdef MAIDSAFE_WINDOWS
+  std::locale::global(std::locale::generator().generate(""));
+#else
   std::locale::global(std::locale(""));
+#endif
   fs::path::imbue(std::locale());
   boost::system::error_code error_code;
   try {
