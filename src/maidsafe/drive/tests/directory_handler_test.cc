@@ -361,8 +361,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveFile", "[DirectoryHandler][beh
               second_file_context(second_directory_name, true),
               file_context(old_file_name, false);
   const FileContext* recovered_file_context(nullptr);
-  Directory *old_parent_directory(nullptr), *new_parent_directory(nullptr);
-
+  Directory *old_parent_directory(nullptr), *new_parent_directory(nullptr), *directory(nullptr);
   CHECK_NOTHROW(listing_handler_->Add(kRoot / first_directory_name,
                 std::move(first_file_context)));
   CHECK_NOTHROW(listing_handler_->Add(kRoot / second_directory_name,
@@ -382,8 +381,9 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveFile", "[DirectoryHandler][beh
                   std::exception);
   CHECK_THROWS_AS(recovered_file_context = new_parent_directory->GetChild(new_file_name),
                   std::exception);
-  CHECK_THROWS_AS(Directory* directory(listing_handler_->Get(
-                                          kRoot / first_directory_name / old_file_name)),
+ 
+  CHECK_THROWS_AS(directory = listing_handler_->Get(
+                                          kRoot / first_directory_name / old_file_name),
                   std::exception);
 
   CHECK_NOTHROW(listing_handler_->Rename(kRoot / first_directory_name / old_file_name,
@@ -399,8 +399,8 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveFile", "[DirectoryHandler][beh
                   std::exception);
   CHECK_THROWS_AS(recovered_file_context = new_parent_directory->GetChild(new_file_name),
                   std::exception);
-  CHECK_THROWS_AS(Directory* directory(listing_handler_->Get(
-                                         kRoot / first_directory_name / new_file_name)),
+  CHECK_THROWS_AS(directory = listing_handler_->Get(
+                                         kRoot / first_directory_name / new_file_name),
                   std::exception);
 
   CHECK_THROWS_AS(listing_handler_->Rename(kRoot / first_directory_name / old_file_name, kRoot /
@@ -419,8 +419,9 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveFile", "[DirectoryHandler][beh
                   std::exception);
   CHECK_NOTHROW(recovered_file_context = new_parent_directory->GetChild(new_file_name));
   CHECK(new_file_name == recovered_file_context->meta_data.name);
-  CHECK_THROWS_AS(Directory* directory(listing_handler_->Get(kRoot / second_directory_name /
-                  new_file_name)), std::exception);
+  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / second_directory_name /
+                  new_file_name), std::exception);
+  static_cast<void>(directory);  // Silence compiler warning
 }
 
 }  // namespace test
