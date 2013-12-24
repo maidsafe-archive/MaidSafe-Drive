@@ -30,10 +30,10 @@
 #include <fstream>
 #include <iterator>
 
-#ifndef MAIDSAFE_WINDOWS
+#ifndef MAIDSAFE_WIN32
 #include <locale>
 #else
-#include "boost/locale.hpp"
+#include "boost/locale/generator.hpp"
 #endif
 #include "boost/filesystem.hpp"
 #include "boost/program_options.hpp"
@@ -98,6 +98,8 @@ int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity
   g_local_drive = &drive;
   drive.Mount();
 
+                                                                  std::this_thread::sleep_for(std::chrono::seconds(300));
+
   SharedMemoryObject shared_object(ip::open_only, shared_object_name.c_str(), ip::read_write);
   ip::mapped_region region(shared_object, ip::read_write);
   MountStatus* mount_status = static_cast<MountStatus*>(region.get_address());
@@ -106,7 +108,7 @@ int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity
     ip::scoped_lock<ip::interprocess_mutex> lock(mount_status->mutex);
     mount_status->mounted = true;
     pt::ptime wait_time(pt::second_clock::universal_time() + pt::seconds(10));
-    auto mount_predicate([&]() { return mount_status->unmount == false; });
+    auto mount_predicate([&] { return mount_status->unmount == false; });
     mount_status->condition.notify_one();
     mount_status->condition.timed_wait(lock, wait_time, mount_predicate);
 
@@ -326,8 +328,8 @@ int main(int argc, char* argv[]) {
   maidsafe::log::Logging::Instance().Initialise(argc, argv);
 #endif
 
-#ifdef MAIDSAFE_WINDOWS
-  std::locale::global(std::locale::generator().generate(""));
+#ifdef MAIDSAFE_WIN32
+  std::locale::global(boost::locale::generator().generate(""));
 #else
   std::locale::global(std::locale(""));
 #endif

@@ -144,20 +144,22 @@ void SetUpRootDirectory(fs::path base_dir) {
   LOG(kInfo) << "Created root directory " << g_root;
 }
 
-void RemoveRootDirectory() {
-  boost::system::error_code error_code;
-  fs::remove_all(g_root, error_code);
-  if (error_code)
-    LOG(kWarning) << "Failed to remove root directory " << g_root << ": " << error_code.message();
-  else
-    LOG(kInfo) << "Removed " << g_root;
-}
+//void RemoveRootDirectory() {
+//  try {
+//  boost::system::error_code error_code;
+//  fs::remove_all(g_root, error_code);
+//  if (error_code)
+//    LOG(kWarning) << "Failed to remove root directory " << g_root << ": " << error_code.message();
+//  else
+//    LOG(kInfo) << "Removed " << g_root;
+//    } catch(...) {}
+//}
 
 std::function<void()> remove_test_dirs([] {
   RemoveTempDirectory();
   if (fs::exists(g_storage_path))
     RemoveStorageDirectory();
-  RemoveRootDirectory();
+//  RemoveRootDirectory();
 });
 
 po::options_description CommandLineOptions() {
