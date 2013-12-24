@@ -172,7 +172,7 @@ if(Cbfs_FOUND)
   target_compile_options(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_OPTIONS>)
   set_property(TARGET cbfs_driver APPEND_STRING PROPERTY LINK_FLAGS " /level='requireAdministrator' /uiAccess='false' ")
   if(MaidsafeTesting)
-    set_property(TARGET local_drive network_drive local_drive_console network_drive_console
+    set_property(TARGET local_drive network_drive local_drive_console network_drive_console maidsafe_drive
                  APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=${CbfsGUIDTesting}" "CBFS_KEY=${Cbfs_KEY}")
   else()
     set_property(TARGET local_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=${CbfsGUIDLocal}" "CBFS_KEY=${Cbfs_KEY}")

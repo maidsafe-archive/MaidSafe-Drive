@@ -75,10 +75,11 @@ typedef CbfsDrive<data_store::LocalStore> LocalDrive;
 typedef FuseDrive<data_store::LocalStore> LocalDrive;
 #endif
 LocalDrive* g_local_drive(nullptr);
+boost::promise<void> g_unmount;
 
 int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity& unique_id,
           const Identity& parent_id, const fs::path& drive_name, bool create,
-          const std::string& shared_object_name) {
+          std::shared_ptr<std::string> shared_object_name) {
   typedef ip::shared_memory_object SharedMemoryObject;
   fs::path storage_path(storage_dir / "local_store");
   DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
@@ -98,7 +99,7 @@ int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity
   g_local_drive = &drive;
   drive.Mount();
 
-  SharedMemoryObject shared_object(ip::open_only, shared_object_name.c_str(), ip::read_write);
+  SharedMemoryObject shared_object(ip::open_only, shared_object_name->c_str(), ip::read_write);
   ip::mapped_region region(shared_object, ip::read_write);
   MountStatus* mount_status = static_cast<MountStatus*>(region.get_address());
 
@@ -129,6 +130,33 @@ int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity
     mount_status->mounted = false;
     mount_status->condition.notify_one();
   }
+
+  return 0;
+}
+
+int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity& unique_id,
+          const Identity& parent_id, const fs::path& drive_name, bool create) {
+  typedef ip::shared_memory_object SharedMemoryObject;
+  fs::path storage_path(storage_dir / "local_store");
+  DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
+  auto storage(std::make_shared<data_store::LocalStore>(storage_path, disk_usage));
+
+  boost::system::error_code error_code;
+  if (!fs::exists(storage_dir, error_code)) {
+    LOG(kError) << storage_dir << " doesn't exist.";
+    return error_code.value();
+  }
+  if (!fs::exists(GetUserAppDir(), error_code)) {
+    LOG(kError) << GetUserAppDir() << " doesn't exist.";
+    return error_code.value();
+  }
+
+  LocalDrive drive(storage, unique_id, parent_id, mount_dir, GetUserAppDir(), drive_name, create);
+  g_local_drive = &drive;
+  drive.Mount();
+
+  auto wait_until_unmounted(g_unmount.get_future());
+  wait_until_unmounted.get();
 
   return 0;
 }
@@ -234,11 +262,11 @@ struct Options {
 };
 
 bool GetFromIpc(const po::variables_map& variables_map, Options& options,
-                std::string& shared_object_name) {
+                std::shared_ptr<std::string> shared_object_name) {
   if (variables_map.count("shared_memory")) {
     std::string shared_memory_name(variables_map.at("shared_memory").as<std::string>());
     auto hash(maidsafe::crypto::Hash<maidsafe::crypto::SHA512>(shared_memory_name).string());
-    shared_object_name = maidsafe::HexEncode(hash).substr(0, 32);
+    shared_object_name.reset(new std::string(maidsafe::HexEncode(hash).substr(0, 32)));
     auto vec_strings = maidsafe::ipc::ReadSharedMemory(shared_memory_name.c_str(), 6);
     options.mount_dir = vec_strings[0];
     options.chunk_store = vec_strings[1];
@@ -298,6 +326,7 @@ BOOL CtrlHandler(DWORD control_type) {
   if (!maidsafe::drive::g_local_drive)
     return FALSE;
   maidsafe::drive::g_local_drive->Unmount();
+  maidsafe::drive::g_unmount.set_value();
   return TRUE;
 }
 
@@ -344,16 +373,20 @@ int main(int argc, char* argv[]) {
     auto variables_map(ParseAllOptions(argc, argv, command_line_options, config_file_options));
     HandleHelp(variables_map);
     Options options;
-    std::string shared_object_name;
+    std::shared_ptr<std::string> shared_object_name;
     if (!GetFromIpc(variables_map, options, shared_object_name))
       GetFromProgramOptions(variables_map, options);
 
     // Validate options and run the Drive
     ValidateOptions(options);
     SetSignalHandler();
-    return maidsafe::drive::Mount(options.mount_dir, options.chunk_store, options.unique_id,
-                                  options.parent_id, options.drive_name, options.create,
-                                  shared_object_name);
+    if (shared_object_name)
+      return maidsafe::drive::Mount(options.mount_dir, options.chunk_store, options.unique_id,
+                                    options.parent_id, options.drive_name, options.create,
+                                    shared_object_name);
+    else
+      return maidsafe::drive::Mount(options.mount_dir, options.chunk_store, options.unique_id,
+                                    options.parent_id, options.drive_name, options.create);
   }
   catch (const std::exception& e) {
     if (!g_error_message.empty()) {
