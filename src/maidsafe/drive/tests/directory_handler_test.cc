@@ -97,12 +97,10 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "AddDirectory", "[DirectoryHandler][behav
   FileContext file_context(directory_name, true);
   const FileContext* recovered_file_context(nullptr);
   Directory* directory(nullptr);
-  FileContext file_context_tmp = file_context;
-  CHECK_NOTHROW(listing_handler_->Add(kRoot / directory_name, std::move(file_context_tmp)));
+  DirectoryId dir(*file_context.meta_data.directory_id);
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / directory_name, std::move(file_context)));
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / directory_name));
-  CHECK(directory->directory_id().IsInitialised());
-  CHECK(file_context.meta_data.directory_id->IsInitialised());
-  CHECK(directory->directory_id() == *file_context.meta_data.directory_id);
+  CHECK(directory->directory_id() == dir);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(directory_name));
   CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
@@ -139,9 +137,8 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "AddFile", "[DirectoryHandler][behavioura
   FileContext file_context(file_name, false);
   const FileContext* recovered_file_context(nullptr);
   Directory* directory(nullptr);
-  FileContext file_context_tmp = file_context;
 
-  CHECK_NOTHROW(listing_handler_->Add(kRoot / file_name, std::move(file_context_tmp)));
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / file_name, std::move(file_context)));
   CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / file_name), std::exception);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK(directory->HasChild(file_name));
@@ -157,17 +154,15 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "AddSameFile", "[DirectoryHandler][behavi
   FileContext file_context(file_name, false);
   const FileContext* recovered_file_context(nullptr);
   Directory* directory(nullptr);
+  DirectoryId dir(*file_context.meta_data.directory_id);
 
-  FileContext file_context_tmp = file_context;
-  CHECK_NOTHROW(listing_handler_->Add(kRoot / file_name, std::move(file_context_tmp)));
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / file_name, std::move(file_context)));
   CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / file_name), std::exception);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK(directory->HasChild(file_name));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(file_name));
   CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
 
-  CHECK_THROWS_AS(listing_handler_->Add(kRoot / file_name, std::move(file_context_tmp)),
-                  std::exception);
   CHECK(directory->HasChild(file_name));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(file_name));
   CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
@@ -181,11 +176,11 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteDirectory", "[DirectoryHandler][be
   FileContext file_context(directory_name, true);
   const FileContext* recovered_file_context(nullptr);
   Directory* directory(nullptr);
+  DirectoryId dir(*file_context.meta_data.directory_id);
 
-  FileContext file_context_tmp = file_context;
-  CHECK_NOTHROW(listing_handler_->Add(kRoot / directory_name, std::move(file_context_tmp)));
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / directory_name, std::move(file_context)));
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / directory_name));
-  CHECK(directory->directory_id() == *file_context.meta_data.directory_id);
+  CHECK(directory->directory_id() == dir);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(directory_name));
   CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
@@ -205,11 +200,11 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteSameDirectory", "[DirectoryHandler
   FileContext file_context(directory_name, true);
   const FileContext* recovered_file_context(nullptr);
   Directory* directory(nullptr);
+  DirectoryId dir(*file_context.meta_data.directory_id);
 
-  FileContext file_context_tmp = file_context;
-  CHECK_NOTHROW(listing_handler_->Add(kRoot / directory_name, std::move(file_context_tmp)));
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / directory_name, std::move(file_context)));
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / directory_name));
-  CHECK(directory->directory_id() == *file_context.meta_data.directory_id);
+  CHECK(directory->directory_id() == dir);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(directory_name));
   CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
@@ -231,8 +226,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteFile", "[DirectoryHandler][behavio
   const FileContext* recovered_file_context(nullptr);
   Directory* directory(nullptr);
 
-  FileContext file_context_tmp = file_context;
-  CHECK_NOTHROW(listing_handler_->Add(kRoot / file_name, std::move(file_context_tmp)));
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / file_name, std::move(file_context)));
   CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / file_name), std::exception);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(file_name));
@@ -252,8 +246,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteSameFile", "[DirectoryHandler][beh
   const FileContext* recovered_file_context(nullptr);
   Directory* directory(nullptr);
 
-  FileContext file_context_tmp = file_context;
-  CHECK_NOTHROW(listing_handler_->Add(kRoot / file_name, std::move(file_context_tmp)));
+  CHECK_NOTHROW(listing_handler_->Add(kRoot / file_name, std::move(file_context)));
   CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / file_name), std::exception);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(file_name));
@@ -285,8 +278,9 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveDirectory", "[DirectoryHandler
 
   CHECK_NOTHROW(old_parent_directory = listing_handler_->Get(kRoot / first_directory_name));
   CHECK_NOTHROW(file_context.parent = old_parent_directory);
+  DirectoryId dir(*file_context.meta_data.directory_id);
   CHECK_NOTHROW(listing_handler_->Add(kRoot / first_directory_name / old_directory_name,
-                file_context));
+                std::move(file_context)));
 
   CHECK_NOTHROW(recovered_file_context = old_parent_directory->GetChild(old_directory_name));
   CHECK(old_directory_name == recovered_file_context->meta_data.name);
@@ -301,7 +295,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveDirectory", "[DirectoryHandler
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / first_directory_name /
                                                   old_directory_name));
   CHECK(directory->parent_id().data == old_parent_directory->directory_id());
-  CHECK(directory->directory_id() == *file_context.meta_data.directory_id);
+  CHECK(directory->directory_id() == dir);
   CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / first_directory_name /
                   new_directory_name), std::exception);
   CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / second_directory_name /
@@ -379,7 +373,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveFile", "[DirectoryHandler][beh
   CHECK_NOTHROW(old_parent_directory = listing_handler_->Get(kRoot / first_directory_name));
   CHECK_NOTHROW(file_context.parent = old_parent_directory);
   CHECK_NOTHROW(listing_handler_->Add(kRoot / first_directory_name / old_file_name,
-                file_context));
+                std::move(file_context)));
 
   CHECK_NOTHROW(recovered_file_context = old_parent_directory->GetChild(old_file_name));
   CHECK(old_file_name == recovered_file_context->meta_data.name);
@@ -435,5 +429,5 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveFile", "[DirectoryHandler][beh
 
 }  // namespace test
 }  // namespace detail
-}  // namespace drive
+}  // namespace drive:
 }  // namespace maidsafe
