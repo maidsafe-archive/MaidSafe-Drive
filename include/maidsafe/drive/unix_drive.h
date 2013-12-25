@@ -34,7 +34,10 @@
 #endif
 #include "fuse/fuse.h"
 #include "fuse/fuse_common.h"
+#include "fuse/fuse_lowlevel.h"
 #include "fuse/fuse_opt.h"
+
+#include "maidsafe/common/on_scope_exit.h"
 
 #include "maidsafe/drive/drive.h"
 #include "maidsafe/drive/file_context.h"
@@ -160,8 +163,10 @@ class FuseDrive : public Drive<Storage> {
 
   static struct fuse_operations maidsafe_ops_;
   struct fuse* fuse_;
+  fuse_chan* fuse_channel_;
   fs::path fuse_mountpoint_;
   std::string drive_name_;
+  std::thread fuse_event_loop_thread_;
 };
 
 const int kMaxPath(4096);
@@ -181,14 +186,18 @@ FuseDrive<Storage>::FuseDrive(std::shared_ptr<Storage> storage, const Identity& 
                               bool create)
     : Drive<Storage>(storage, unique_user_id, root_parent_id, mount_dir, user_app_dir, create),
       fuse_(nullptr),
+      fuse_channel_(nullptr),
       fuse_mountpoint_(mount_dir),
-      drive_name_(drive_name.string()) {
+      drive_name_(drive_name.string()),
+      fuse_event_loop_thread_() {
   fs::create_directory(fuse_mountpoint_);
   Init();
 }
 
 template <typename Storage>
 FuseDrive<Storage>::~FuseDrive() {
+  Unmount();
+  fuse_event_loop_thread_.join();
   log::Logging::Instance().Flush();
 }
 
@@ -237,18 +246,6 @@ void FuseDrive<Storage>::Init() {
 
 template <typename Storage>
 void FuseDrive<Storage>::Mount() {
-  // boost::system::error_code error_code;
-  // if (!fs::exists(Drive<Storage>::kMountDir_, error_code) || error_code) {
-  //   LOG(kError) << "Mount dir " << Drive<Storage>::kMountDir_ << " doesn't exist."
-  //               //<< (error_code ? ("  " + error_code.message()) : "");
-  //   ThrowError(DriveErrors::failed_to_mount);
-  // }
-
-  // if (!fs::is_empty(Drive<Storage>::kMountDir_, error_code) || error_code) {
-  //   LOG(kError) << "Mount dir " << Drive<Storage>::kMountDir_ << " isn't empty."
-  //               // << (error_code ? ("  " + error_code.message()) : "");
-  //   ThrowError(DriveErrors::failed_to_mount);
-  // }
   fuse_args args = FUSE_ARGS_INIT(0, nullptr);
   fuse_opt_add_arg(&args, (drive_name_.c_str()));
   fuse_opt_add_arg(&args, (fuse_mountpoint_.c_str()));
@@ -261,79 +258,52 @@ void FuseDrive<Storage>::Mount() {
 #endif
   fuse_opt_add_arg(&args, "-s");  // this is single threaded
 
-  //   if (read_only)
-  //     fuse_opt_add_arg(&args, "-oro");
-  fuse_main(args.argc, args.argv, &maidsafe_ops_, NULL);
-  // struct fuse_args args = FUSE_ARGS_INIT(2, opts.get());
-  // fuse helper macros for options
-  // fuse_opt_parse(&args, nullptr, nullptr, nullptr);
+  // if (read_only)
+  //   fuse_opt_add_arg(&args, "-oro");
+  // fuse_main(args.argc, args.argv, &maidsafe_ops_, NULL);
 
-  // NB - If we remove -odefault_permissions, we must check in OpsOpen
-  //      that the operation is permitted for the given flags.  We also need to
-  //      implement OpsAccess.
-  // fuse_opt_add_arg(&args, "-odefault_permissions,kernel_cache,direct_io");
-  //   if (read_only)
-  //     fuse_opt_add_arg(&args, "-oro");
-  //   if (debug_info)
-  //     fuse_opt_add_arg(&args, "-odebug");
-  // fuse_opt_add_arg(&args, "-f");  // run in foreground
-  // fuse_opt_add_arg(&args, "-s");  // this is single threaded
+  int multithreaded, foreground;
+  char *mountpoint(nullptr);
+  if (fuse_parse_cmdline(&args, &mountpoint, &multithreaded, &foreground) == -1)
+    ThrowError(DriveErrors::failed_to_mount);
 
-  // int multithreaded, foreground;
-  // if (fuse_parse_cmdline(&args, &fuse_mountpoint_, &multithreaded, &foreground) == -1)
-  //   ThrowError(DriveErrors::failed_to_mount);
+   fuse_channel_ = fuse_mount(mountpoint, &args);
+   if (!fuse_channel_) {
+     fuse_opt_free_args(&args);
+     ThrowError(DriveErrors::failed_to_mount);
+   }
 
-  // fuse_channel_ = fuse_mount(fuse_mountpoint_, &args);
-  // if (!fuse_channel_) {
-  //   fuse_opt_free_args(&args);
-  //   free(fuse_mountpoint_);
-  //   ThrowError(DriveErrors::failed_to_mount);
-  // }
+   fuse_ = fuse_new(fuse_channel_, &args, &maidsafe_ops_, sizeof(maidsafe_ops_), nullptr);
+   fuse_opt_free_args(&args);
+   on_scope_exit cleanup_on_error([&]()->void {
+     fuse_unmount(mountpoint, fuse_channel_);
+     if (fuse_)
+       fuse_destroy(fuse_);
+     free(mountpoint);
+   });
+   if (!fuse_)
+     ThrowError(DriveErrors::failed_to_mount);
 
-  // fuse_ = fuse_new(fuse_channel_, &args, &maidsafe_ops_, sizeof(maidsafe_ops_), nullptr);
-  // fuse_opt_free_args(&args);
-  // if (fuse_ == nullptr) {
-  //   fuse_unmount(fuse_mountpoint_, fuse_channel_);
-  //   if (fuse_)
-  //     fuse_destroy(fuse_);
-  //   free(fuse_mountpoint_);
-  //   ThrowError(DriveErrors::failed_to_mount);
-  // }
+   if (fuse_daemonize(foreground) == -1)
+     ThrowError(DriveErrors::failed_to_mount);
 
-  // if (fuse_daemonize(foreground) == -1) {
-  //   fuse_unmount(fuse_mountpoint_, fuse_channel_);
-  //   if (fuse_)
-  //     fuse_destroy(fuse_);
-  //   free(fuse_mountpoint_);
-  //   ThrowError(DriveErrors::failed_to_mount);
-  // }
+   if (fuse_set_signal_handlers(fuse_get_session(fuse_)) == -1)
+     ThrowError(DriveErrors::failed_to_mount);
 
-  // if (fuse_set_signal_handlers(fuse_get_session(fuse_)) == -1) {
-  //   fuse_unmount(fuse_mountpoint_, fuse_channel_);
-  //   if (fuse_)
-  //     fuse_destroy(fuse_);
-  //   free(fuse_mountpoint_);
-  //   ThrowError(DriveErrors::failed_to_mount);
-  // }
+   if (multithreaded)
+     fuse_event_loop_thread_ = std::move(std::thread(&fuse_loop_mt, fuse_));
+   else
+     fuse_event_loop_thread_ = std::move(std::thread(&fuse_loop, fuse_));
 
-  // //  int res;
-  // //  if (multithreaded)
-  // //  fuse_event_loop_thread_ = boost::move(boost::thread(&fuse_loop_mt, fuse_));
-  // //    res = fuse_loop_mt(fuse_);
-  // //  else
-  // fuse_event_loop_thread_ = std::move(std::thread(&fuse_loop, fuse_));
-  // //    res = fuse_loop(fuse_);
-
-  // //  if (res != 0) {
-  // //    LOG(kError) << "Fuse Loop result: " << res;
-  // //    Drive<Storage>::SetMountState(false);
-  // //    return kFuseFailedToMount;
-  // //  }
+  cleanup_on_error.Release();
+  free(mountpoint);
 }
 
 template <typename Storage>
 void FuseDrive<Storage>::Unmount() {
-
+  fuse_exit(fuse_);
+  fuse_unmount(fuse_mountpoint_.c_str(), fuse_channel_);
+  fuse_destroy(fuse_);
 }
 
 // =============================== Callbacks =======================================================
@@ -726,36 +696,33 @@ int FuseDrive<Storage>::OpsRead(const char* path, char* buf, size_t size, off_t 
 // offset parameter and always passes non-zero offset to the filler function.  When the buffer is
 // full (or an error happens) the filler function will return '1'.
 template <typename Storage>
-int FuseDrive<Storage>::OpsReaddir(const char* /*path*/, void* /*buf*/, fuse_fill_dir_t /*filler*/,
-                                   off_t /*offset*/, struct fuse_file_info* /*file_info*/) {
-//  LOG(kInfo) << "OpsReaddir: " << path << "; offset = " << offset;
+int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t filler,
+                                   off_t offset, struct fuse_file_info* /*file_info*/) {
+  LOG(kInfo) << "OpsReaddir: " << path << "; offset = " << offset;
 
-//  filler(buf, ".", nullptr, 0);
-//  filler(buf, "..", nullptr, 0);
-//  std::shared_ptr<detail::DirectoryListing> dir_listing;
-//  try {
-//    detail::Directory directory(Global<Storage>::g_fuse_drive->GetDirectory(fs::path(path)));
-//    dir_listing = directory.listing;
-//  }
-//  catch (const std::exception&) {
-//  }
+  filler(buf, ".", nullptr, 0);
+  filler(buf, "..", nullptr, 0);
+  detail::Directory* directory;
+  try {
+    directory = Global<Storage>::g_fuse_drive->directory_handler_.Get(path);
+  }
+  catch (const std::exception& e) {
+    LOG(kError) << "OpsReaddir: " << path << ", can't get directory: " << e.what();
+    return -EBADF;
+  }
+  assert(directory);
 
-//  if (!dir_listing) {
-//    LOG(kError) << "OpsReaddir: " << path << ", can't get dir listing.";
-//    return -EBADF;
-//  }
+  // TODO(Fraser#5#): 2011-05-18 - Handle offset properly.
+  if (offset == 0)
+    directory->ResetChildrenIterator();
 
-//  detail::MetaData meta_data;
-//  // TODO(Fraser#5#): 2011-05-18 - Handle offset properly.
-//  if (offset == 0)
-//    dir_listing->ResetChildrenIterator();
+  const detail::FileContext* file_context(nullptr);
+  do {
+    file_context = directory->GetChildAndIncrementItr();
+    if (filler(buf, file_context->meta_data.name.c_str(), &file_context->meta_data.attributes, 0))
+      break;
+  } while(file_context);
 
-//  while (dir_listing->GetChildAndIncrementItr(meta_data)) {
-//    if (filler(buf, meta_data.name.c_str(), &meta_data.attributes, 0))
-//      break;
-//  }
-
-//  detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
 //  if (file_context) {
 //    file_context->content_changed = true;
 //    time(&file_context->meta_data->attributes.st_atime);

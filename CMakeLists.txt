@@ -54,7 +54,7 @@ endif()
 #==================================================================================================#
 set(DriveSourcesDir ${PROJECT_SOURCE_DIR}/src/maidsafe/drive)
 set(DriveApiDir ${PROJECT_SOURCE_DIR}/include/maidsafe/drive)
-glob_dir(Drive ${DriveSourcesDir} Drive)
+ms_glob_dir(Drive ${DriveSourcesDir} Drive)
 set(LocalDriveMain ${DriveSourcesDir}/local/local_drive.cc)
 set(NetworkDriveMain ${DriveSourcesDir}/network/network_drive.cc)
 set(WinServiceMain ${DriveSourcesDir}/win_service/win_service_main.cc)
@@ -67,17 +67,17 @@ else()
   list(REMOVE_ITEM DriveAllFiles ${WinFiles})
 endif()
 
-glob_dir(DriveTests ${DriveSourcesDir}/tests Tests)
-glob_dir(DriveTools ${DriveSourcesDir}/tools Tools)
+ms_glob_dir(DriveTests ${DriveSourcesDir}/tests Tests)
+ms_glob_dir(DriveTools ${DriveSourcesDir}/tools Tools)
 if(WIN32)
-  glob_dir(Installer ${DriveSourcesDir}/installer Installer)
+  ms_glob_dir(Installer ${DriveSourcesDir}/installer Installer)
 endif()
 
 
 #==================================================================================================#
 # Define MaidSafe libraries and executables                                                        #
 #==================================================================================================#
-ms_add_static_library(drive ${DriveAllFiles})
+ms_add_static_library(maidsafe_drive ${DriveAllFiles})
 target_include_directories(maidsafe_drive
   PUBLIC ${PROJECT_SOURCE_DIR}/include ${Cbfs_INCLUDE_DIR} ${Fuse_INCLUDE_DIR}
   PRIVATE ${PROJECT_SOURCE_DIR}/src)
@@ -138,7 +138,7 @@ if(MaidsafeTesting)
   target_link_libraries(test_drive maidsafe_drive)
 endif()
 
-rename_outdated_built_exes()
+ms_rename_outdated_built_exes()
 
 if(WIN32 AND NOT Cbfs_FOUND)
   foreach(Target maidsafe_drive cbfs_driver local_drive network_drive local_drive_console network_drive_console filesystem_benchmark filesystem_test test_drive)
@@ -172,7 +172,7 @@ if(Cbfs_FOUND)
   target_compile_options(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_OPTIONS>)
   set_property(TARGET cbfs_driver APPEND_STRING PROPERTY LINK_FLAGS " /level='requireAdministrator' /uiAccess='false' ")
   if(MaidsafeTesting)
-    set_property(TARGET local_drive network_drive local_drive_console network_drive_console
+    set_property(TARGET local_drive network_drive local_drive_console network_drive_console maidsafe_drive
                  APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=${CbfsGUIDTesting}" "CBFS_KEY=${Cbfs_KEY}")
   else()
     set_property(TARGET local_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=${CbfsGUIDLocal}" "CBFS_KEY=${Cbfs_KEY}")
@@ -185,8 +185,8 @@ endif()
 # Tests                                                                                            #
 #==================================================================================================#
 if(MaidsafeTesting)
-  add_style_test()
-  add_catch_tests(test_drive)
-  add_project_experimental()
-  test_summary_output()
+  ms_add_style_test()
+  ms_add_catch_tests(test_drive)
+  ms_add_project_experimental()
+  ms_test_summary_output()
 endif()

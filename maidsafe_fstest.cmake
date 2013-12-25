@@ -54,7 +54,7 @@ add_dependencies(fstest DriveDemo)
 #    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:DriveDemo> "${CMAKE_BINARY_DIR}/pjd-fstest-20080816/DriveDemo")
 
 # Remove fstest.c from coverage stats
-add_coverage_exclude(fstest\\\\.c)
+ms_add_coverage_exclude(fstest\\\\.c)
 
 # Add lines to CTestCustom.cmake to invoke execution of DriveDemo before tests start and killing after tests complete
 # file(APPEND ${CMAKE_BINARY_DIR}/CTestCustom.cmake "SET(CTEST_CUSTOM_PRE_TEST \"${CMAKE_BINARY_DIR}/pjd-fstest-20080816/DriveDemo -C ${CHUNKDIR} -M ${METADATADIR} -D ${MOUNTDIR}\")\n")
