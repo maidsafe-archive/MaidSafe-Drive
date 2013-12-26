@@ -154,7 +154,6 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "AddSameFile", "[DirectoryHandler][behavi
   FileContext file_context(file_name, false);
   const FileContext* recovered_file_context(nullptr);
   Directory* directory(nullptr);
-  DirectoryId dir(*file_context.meta_data.directory_id);
 
   CHECK_NOTHROW(listing_handler_->Add(kRoot / file_name, std::move(file_context)));
   CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / file_name), std::exception);
@@ -351,7 +350,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveDirectory", "[DirectoryHandler
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / second_directory_name /
                                                   new_directory_name));
   CHECK(directory->parent_id().data == new_parent_directory->directory_id());
-  CHECK(directory->directory_id() == *file_context.meta_data.directory_id);
+  CHECK(directory->directory_id() == dir);
 }
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveFile", "[DirectoryHandler][behavioural]") {

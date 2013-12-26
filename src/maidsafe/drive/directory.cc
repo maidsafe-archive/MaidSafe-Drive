@@ -116,7 +116,7 @@ Directory::~Directory() {
   DoScheduleForStoring(false);
   bool result(cond_var_.wait_for(lock, kInactivityDelay + std::chrono::milliseconds(500),
                                  [&] { return store_state_ == StoreState::kComplete; }));
-  assert(result);
+  //assert(result);
   static_cast<void>(result);
 }
 
