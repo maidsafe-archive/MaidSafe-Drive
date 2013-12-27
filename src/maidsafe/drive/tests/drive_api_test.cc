@@ -49,7 +49,9 @@
 namespace fs = boost::filesystem;
 
 namespace maidsafe {
+
 namespace drive {
+
 namespace test {
 
 //#ifdef MAIDSAFE_WIN32
@@ -538,5 +540,7 @@ namespace test {
 // }
 
 }  // namespace test
+
 }  // namespace drive
+
 }  // namespace maidsafe

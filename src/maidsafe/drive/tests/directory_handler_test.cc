@@ -48,8 +48,11 @@
 namespace fs = boost::filesystem;
 
 namespace maidsafe {
+
 namespace drive {
+
 namespace detail {
+
 namespace test {
 
 class DirectoryHandlerTest {
@@ -89,7 +92,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Construct", "[DirectoryHandler][behaviou
   CHECK(recovered_directory->parent_id().data == root_parent_id_);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "AddDirectory", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Add directory", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -106,7 +109,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "AddDirectory", "[DirectoryHandler][behav
   CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "AddSameDirectory", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Add same directory", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -129,7 +132,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "AddSameDirectory", "[DirectoryHandler][b
   CHECK(meta_data_name == recovered_file_context->meta_data.name);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "AddFile", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Add file", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -146,7 +149,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "AddFile", "[DirectoryHandler][behavioura
   CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "AddSameFile", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Add same file", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -167,7 +170,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "AddSameFile", "[DirectoryHandler][behavi
   CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteDirectory", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Delete directory", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -191,7 +194,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteDirectory", "[DirectoryHandler][be
                   std::exception);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteSameDirectory", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Delete same directory", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -216,7 +219,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteSameDirectory", "[DirectoryHandler
   CHECK_THROWS_AS(listing_handler_->Delete(kRoot / directory_name), std::exception);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteFile", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Delete file", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -236,7 +239,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteFile", "[DirectoryHandler][behavio
   CHECK_THROWS_AS(recovered_file_context = directory->GetChild(file_name), std::exception);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteSameFile", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Delete same file", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -258,7 +261,8 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteSameFile", "[DirectoryHandler][beh
   CHECK_THROWS_AS(listing_handler_->Delete(kRoot / file_name), std::exception);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveDirectory", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Rename and move directory",
+                 "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -353,7 +357,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveDirectory", "[DirectoryHandler
   CHECK(directory->directory_id() == dir);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveFile", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Rename and move file", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -427,6 +431,9 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveFile", "[DirectoryHandler][beh
 }
 
 }  // namespace test
+
 }  // namespace detail
-}  // namespace drive:
+
+}  // namespace drive
+
 }  // namespace maidsafe
