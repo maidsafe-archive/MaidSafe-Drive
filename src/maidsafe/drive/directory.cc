@@ -244,7 +244,7 @@ FileContext* Directory::GetMutableChild(const fs::path& name) {
 
 const FileContext* Directory::GetChildAndIncrementItr() {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (children_itr_position_ != children_.size()) {
+  if (children_itr_position_ < children_.size()) {
     const FileContext* file_context(children_[children_itr_position_].get());
     ++children_itr_position_;
     return file_context;
