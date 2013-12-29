@@ -303,12 +303,12 @@ class DirectoryTest {
     return true;
   }
 
-  void SortAndResetChildrenIterator() {
-    directory_.SortAndResetChildrenIterator();
+  void SortAndResetChildrenCounter() {
+    directory_.SortAndResetChildrenCounter();
   }
   
-  void ResetChildrenIterator() {
-    directory_.ResetChildrenIterator();
+  void ResetChildrenCounter() {
+    directory_.ResetChildrenCounter();
   }
 
   maidsafe::test::TestPath main_test_dir_;
@@ -491,7 +491,7 @@ TEST_CASE_METHOD(DirectoryTest, "Iterator reset", "[DirectoryListing][behavioura
   // Add elements
   REQUIRE(directory_.empty());
   const size_t kTestCount(10);
-  ResetChildrenIterator();
+  ResetChildrenCounter();
   CHECK(4U < kTestCount);
   char c('A');
   for (size_t i(0); i != kTestCount; ++i, ++c) {
@@ -509,7 +509,7 @@ TEST_CASE_METHOD(DirectoryTest, "Iterator reset", "[DirectoryListing][behavioura
     CHECK(((i % 2) == 0) == (file_context->meta_data.directory_id != nullptr));
   }
 
-  SortAndResetChildrenIterator();
+  SortAndResetChildrenCounter();
 
   CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
   CHECK("A" == file_context->meta_data.name);

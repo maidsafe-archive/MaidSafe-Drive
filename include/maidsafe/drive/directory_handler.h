@@ -252,7 +252,7 @@ void DirectoryHandler<Storage>::FlushAll() {
   bool error(false);
   std::lock_guard<std::mutex> lock(cache_mutex_);
   for (auto& dir : cache_) {
-    dir.second->ResetChildrenIterator();
+    dir.second->ResetChildrenCounter();
     auto child(dir.second->GetChildAndIncrementCounter());
     while (child) {
       if (child->self_encryptor && !child->self_encryptor->Flush()) {
@@ -261,7 +261,7 @@ void DirectoryHandler<Storage>::FlushAll() {
       }
       child = dir.second->GetChildAndIncrementCounter();
     }
-    dir.second->ResetChildrenIterator();
+    dir.second->ResetChildrenCounter();
     dir.second->StoreImmediatelyIfPending();
   }
   if (error)

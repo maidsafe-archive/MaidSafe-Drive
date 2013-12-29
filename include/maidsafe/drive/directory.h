@@ -84,7 +84,7 @@ class Directory {
   FileContext RemoveChild(const boost::filesystem::path& name);
   void RenameChild(const boost::filesystem::path& old_name,
                    const boost::filesystem::path& new_name);
-  void ResetChildrenIterator();
+  void ResetChildrenCounter();
   bool empty() const;
   ParentId parent_id() const;
   // This will block while a store attempt is ongoing.
@@ -106,7 +106,7 @@ class Directory {
 
   Children::iterator Find(const boost::filesystem::path& name);
   Children::const_iterator Find(const boost::filesystem::path& name) const;
-  void SortAndResetChildrenIterator();
+  void SortAndResetChildrenCounter();
   void DoScheduleForStoring(bool use_delay = true);
 
   mutable std::mutex mutex_;

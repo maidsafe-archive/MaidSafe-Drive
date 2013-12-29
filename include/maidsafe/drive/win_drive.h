@@ -765,7 +765,7 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
   try {
     directory = cbfs_drive->directory_handler_.Get(relative_path);
     if (restart)
-      directory->ResetChildrenIterator();
+      directory->ResetChildrenCounter();
   }
   catch (const std::exception& e) {
     LOG(kError) << "Failed enumerating " << relative_path << ": " << e.what();
