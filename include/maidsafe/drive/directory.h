@@ -79,7 +79,7 @@ class Directory {
   bool HasChild(const boost::filesystem::path& name) const;
   const FileContext* GetChild(const boost::filesystem::path& name) const;
   FileContext* GetMutableChild(const boost::filesystem::path& name);
-  const FileContext* GetChildAndIncrementItr();
+  const FileContext* GetChildAndIncrementCounter();
   void AddChild(FileContext&& child);
   FileContext RemoveChild(const boost::filesystem::path& name);
   void RenameChild(const boost::filesystem::path& old_name,
@@ -118,7 +118,7 @@ class Directory {
   std::deque<StructuredDataVersions::VersionName> versions_;
   MaxVersions max_versions_;
   Children children_;
-  size_t children_itr_position_;
+  size_t children_count_position_;
   enum class StoreState { kPending, kOngoing, kComplete } store_state_;
 };
 
