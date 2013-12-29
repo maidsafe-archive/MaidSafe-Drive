@@ -714,11 +714,11 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
 
   // TODO(Fraser#5#): 2011-05-18 - Handle offset properly.
   if (offset == 0)
-    directory->ResetChildrenIterator();
+    directory->ResetChildrenCounter();
 
   const detail::FileContext* file_context(nullptr);
   do {
-    file_context = directory->GetChildAndIncrementItr();
+    file_context = directory->GetChildAndIncrementCounter();
     if (filler(buf, file_context->meta_data.name.c_str(), &file_context->meta_data.attributes, 0))
       break;
   } while(file_context);

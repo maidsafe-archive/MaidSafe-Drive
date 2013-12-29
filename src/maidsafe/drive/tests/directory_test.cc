@@ -311,12 +311,12 @@ class DirectoryTest {
     return true;
   }
 
-  void SortAndResetChildrenIterator() {
-    directory_.SortAndResetChildrenIterator();
+  void SortAndResetChildrenCounter() {
+    directory_.SortAndResetChildrenCounter();
   }
   
-  void ResetChildrenIterator() {
-    directory_.ResetChildrenIterator();
+  void ResetChildrenCounter() {
+    directory_.ResetChildrenCounter();
   }
 
   maidsafe::test::TestPath main_test_dir_;
@@ -497,7 +497,7 @@ TEST_CASE_METHOD(DirectoryTest, "Iterator reset", "[Directory][behavioural]") {
   // Add elements
   REQUIRE(directory_.empty());
   const size_t kTestCount(10);
-  ResetChildrenIterator();
+  ResetChildrenCounter();
   CHECK(4U < kTestCount);
   char c('A');
   for (size_t i(0); i != kTestCount; ++i, ++c) {
@@ -510,42 +510,42 @@ TEST_CASE_METHOD(DirectoryTest, "Iterator reset", "[Directory][behavioural]") {
   const FileContext* file_context(nullptr);
   c = 'A';
   for (size_t i(0); i != kTestCount; ++i, ++c) {
-    CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementItr());
+    CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
     CHECK(std::string(1, c) == file_context->meta_data.name);
     CHECK(((i % 2) == 0) == (file_context->meta_data.directory_id != nullptr));
   }
 
-  SortAndResetChildrenIterator();
+  SortAndResetChildrenCounter();
 
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementItr());
+  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
   CHECK("A" == file_context->meta_data.name);
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementItr());
+  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
   CHECK("B" == file_context->meta_data.name);
 
   // Add another element and check iterator is reset
   ++c;
   FileContext new_file_context(std::string(1, c), false);
   CHECK_NOTHROW(directory_.AddChild(std::move(new_file_context)));
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementItr());
+  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
   CHECK("A" == file_context->meta_data.name);
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementItr());
+  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
   CHECK("B" == file_context->meta_data.name);
 
   // Remove an element and check iterator is reset
   REQUIRE(directory_.HasChild(new_file_context.meta_data.name));
   CHECK_NOTHROW(FileContext context(directory_.RemoveChild(new_file_context.meta_data.name)));
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementItr());
+  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
   CHECK("A" == file_context->meta_data.name);
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementItr());
+  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
   CHECK("B" == file_context->meta_data.name);
 
   // Try to remove a non-existent element and check iterator is not reset
   REQUIRE_FALSE(directory_.HasChild(new_file_context.meta_data.name));
   CHECK_THROWS_AS(FileContext context(directory_.RemoveChild(new_file_context.meta_data.name)),
                   std::exception);
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementItr());
+  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
   CHECK("C" == file_context->meta_data.name);
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementItr());
+  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
   CHECK("D" == file_context->meta_data.name);
 
   // Check operator<

@@ -85,7 +85,7 @@ Directory::Directory(ParentId parent_id, DirectoryId directory_id,
     : mutex_(), cond_var_(), parent_id_(std::move(parent_id)),
       directory_id_(std::move(directory_id)), timer_(io_service),
       store_functor_(GetStoreFunctor(this, put_functor, path)), versions_(),
-      max_versions_(kMaxVersions), children_(), children_itr_position_(0),
+      max_versions_(kMaxVersions), children_(), children_count_position_(0),
       store_state_(StoreState::kComplete) {
   DoScheduleForStoring();
 }
@@ -98,7 +98,7 @@ Directory::Directory(ParentId parent_id, const std::string& serialised_directory
     : mutex_(), cond_var_(), parent_id_(std::move(parent_id)), directory_id_(), timer_(io_service),
       store_functor_(GetStoreFunctor(this, put_functor, path)),
       versions_(std::begin(versions), std::end(versions)), max_versions_(kMaxVersions), children_(),
-      children_itr_position_(0), store_state_(StoreState::kComplete) {
+      children_count_position_(0), store_state_(StoreState::kComplete) {
   protobuf::Directory proto_directory;
   if (!proto_directory.ParseFromString(serialised_directory))
     ThrowError(CommonErrors::parsing_error);
@@ -178,9 +178,9 @@ Directory::Children::const_iterator Directory::Find(const fs::path& name) const 
                            return file_context->meta_data.name == name; });
 }
 
-void Directory::SortAndResetChildrenIterator() {
+void Directory::SortAndResetChildrenCounter() {
   std::sort(std::begin(children_), std::end(children_));
-  children_itr_position_ = 0;
+  children_count_position_ = 0;
 }
 
 void Directory::DoScheduleForStoring(bool use_delay) {
@@ -242,11 +242,11 @@ FileContext* Directory::GetMutableChild(const fs::path& name) {
   return itr->get();
 }
 
-const FileContext* Directory::GetChildAndIncrementItr() {
+const FileContext* Directory::GetChildAndIncrementCounter() {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (children_itr_position_ < children_.size()) {
-    const FileContext* file_context(children_[children_itr_position_].get());
-    ++children_itr_position_;
+  if (children_count_position_ < children_.size()) {
+    const FileContext* file_context(children_[children_count_position_].get());
+    ++children_count_position_;
     return file_context;
   }
   return nullptr;
@@ -259,7 +259,7 @@ void Directory::AddChild(FileContext&& child) {
     ThrowError(DriveErrors::file_exists);
   child.parent = this;
   children_.emplace_back(new FileContext(std::move(child)));
-  SortAndResetChildrenIterator();
+  SortAndResetChildrenCounter();
   DoScheduleForStoring();
 }
 
@@ -270,7 +270,7 @@ FileContext Directory::RemoveChild(const fs::path& name) {
     ThrowError(DriveErrors::no_such_file);
   std::unique_ptr<FileContext> file_context(std::move(*itr));
   children_.erase(itr);
-  SortAndResetChildrenIterator();
+  SortAndResetChildrenCounter();
   DoScheduleForStoring();
   return std::move(*file_context);
 }
@@ -284,13 +284,13 @@ void Directory::RenameChild(const fs::path& old_name, const fs::path& new_name) 
   if (itr == std::end(children_))
     ThrowError(DriveErrors::no_such_file);
   (*itr)->meta_data.name = new_name;
-  SortAndResetChildrenIterator();
+  SortAndResetChildrenCounter();
   DoScheduleForStoring();
 }
 
-void Directory::ResetChildrenIterator() {
+void Directory::ResetChildrenCounter() {
   std::lock_guard<std::mutex> lock(mutex_);
-  children_itr_position_ = 0;
+  children_count_position_ = 0;
 }
 
 bool Directory::empty() const {

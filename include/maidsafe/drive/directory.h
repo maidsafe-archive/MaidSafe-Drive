@@ -79,12 +79,12 @@ class Directory {
   bool HasChild(const boost::filesystem::path& name) const;
   const FileContext* GetChild(const boost::filesystem::path& name) const;
   FileContext* GetMutableChild(const boost::filesystem::path& name);
-  const FileContext* GetChildAndIncrementItr();
+  const FileContext* GetChildAndIncrementCounter();
   void AddChild(FileContext&& child);
   FileContext RemoveChild(const boost::filesystem::path& name);
   void RenameChild(const boost::filesystem::path& old_name,
                    const boost::filesystem::path& new_name);
-  void ResetChildrenIterator();
+  void ResetChildrenCounter();
   bool empty() const;
   ParentId parent_id() const;
   // This will block while a store attempt is ongoing.
@@ -106,7 +106,7 @@ class Directory {
 
   Children::iterator Find(const boost::filesystem::path& name);
   Children::const_iterator Find(const boost::filesystem::path& name) const;
-  void SortAndResetChildrenIterator();
+  void SortAndResetChildrenCounter();
   void DoScheduleForStoring(bool use_delay = true);
 
   mutable std::mutex mutex_;
@@ -118,7 +118,7 @@ class Directory {
   std::deque<StructuredDataVersions::VersionName> versions_;
   MaxVersions max_versions_;
   Children children_;
-  size_t children_itr_position_;
+  size_t children_count_position_;
   enum class StoreState { kPending, kOngoing, kComplete } store_state_;
 };
 

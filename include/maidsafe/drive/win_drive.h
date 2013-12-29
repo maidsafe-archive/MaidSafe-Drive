@@ -765,7 +765,7 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
   try {
     directory = cbfs_drive->directory_handler_.Get(relative_path);
     if (restart)
-      directory->ResetChildrenIterator();
+      directory->ResetChildrenCounter();
   }
   catch (const std::exception& e) {
     LOG(kError) << "Failed enumerating " << relative_path << ": " << e.what();
@@ -775,13 +775,13 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
   const detail::FileContext* file_context(nullptr);
   if (exact_match) {
     while (!(*file_found)) {
-      file_context = directory->GetChildAndIncrementItr();
+      file_context = directory->GetChildAndIncrementCounter();
       if (!file_context)
         break;
       *file_found = detail::MatchesMask(mask_str, file_context->meta_data.name);
     }
   } else {
-    file_context = directory->GetChildAndIncrementItr();
+    file_context = directory->GetChildAndIncrementCounter();
     *file_found = (file_context != nullptr);
   }
 
