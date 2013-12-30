@@ -110,12 +110,6 @@ class CbfsDrive : public Drive<Storage> {
   void UpdateMountingPoints();
   void InitialiseCbfs();
   int OnCallbackFsInstall();
-  //void OnCallbackFsUninstall();
-  //void OnCallbackFsDeleteStorage();
-  //void OnCallbackFsMount();
-  //void OnCallbackFsUnmount();
-  //void OnCallbackFsAddPoint(const boost::filesystem::path&);
-  //void OnCallbackFsDeletePoint();
 
   static void CbFsMount(CallbackFileSystem* sender);
   static void CbFsUnmount(CallbackFileSystem* sender);

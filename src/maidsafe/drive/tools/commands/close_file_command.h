@@ -19,9 +19,9 @@
 #ifndef MAIDSAFE_DRIVE_TOOLS_COMMANDS_CLOSE_FILE_COMMAND_H_
 #define MAIDSAFE_DRIVE_TOOLS_COMMANDS_CLOSE_FILE_COMMAND_H_
 
-#include "maidsafe/drive/tools/filesystem_commands.h"
-
 #include <string>
+
+#include "maidsafe/drive/tools/filesystem_commands.h"
 
 namespace maidsafe {
 

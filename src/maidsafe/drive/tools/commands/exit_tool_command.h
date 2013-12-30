@@ -19,9 +19,9 @@
 #ifndef MAIDSAFE_DRIVE_TOOLS_COMMANDS_EXIT_TOOL_COMMAND_H_
 #define MAIDSAFE_DRIVE_TOOLS_COMMANDS_EXIT_TOOL_COMMAND_H_
 
-#include "maidsafe/drive/tools/filesystem_commands.h"
-
 #include <string>
+
+#include "maidsafe/drive/tools/filesystem_commands.h"
 
 namespace maidsafe {
 

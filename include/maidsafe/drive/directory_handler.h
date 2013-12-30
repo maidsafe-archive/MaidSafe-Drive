@@ -108,7 +108,7 @@ class DirectoryHandler {
   Identity unique_user_id_, root_parent_id_;
   mutable detail::FileContext::Buffer disk_buffer_;
   std::function<NonEmptyString(const std::string&)> get_chunk_from_store_;
-  std::function<void(Directory*)> put_functor_;
+  std::function<void(Directory*)> put_functor_;  // NOLINT
   mutable std::mutex cache_mutex_;
   AsioService asio_service_;
   std::map<boost::filesystem::path, std::unique_ptr<Directory>> cache_;
@@ -318,10 +318,10 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
      cache_.erase(new_relative_path.parent_path());
   }
   if (IsDirectory(FileContext (old_relative_path, true))) {
-   std::lock_guard<std::mutex> lock(cache_mutex_);
-   auto itr(cache_.find(old_relative_path));
-   if (itr != std::end(cache_))
-     cache_.erase(old_relative_path);
+    std::lock_guard<std::mutex> lock(cache_mutex_);
+    auto itr(cache_.find(old_relative_path));
+    if (itr != std::end(cache_))
+      cache_.erase(old_relative_path);
   }
 }
 

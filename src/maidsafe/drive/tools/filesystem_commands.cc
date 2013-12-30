@@ -20,8 +20,7 @@
 
 #include <functional>
 #include <iostream>
-//#include <string>
-//#include <vector>
+#include <string>
 
 #include "boost/filesystem/operations.hpp"
 #include "boost/program_options.hpp"

@@ -28,6 +28,7 @@
 
 #include <map>
 #include <string>
+#include <utility>
 
 #include "boost/filesystem/path.hpp"
 

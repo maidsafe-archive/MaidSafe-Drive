@@ -267,33 +267,33 @@ void FuseDrive<Storage>::Mount() {
   if (fuse_parse_cmdline(&args, &mountpoint, &multithreaded, &foreground) == -1)
     ThrowError(DriveErrors::failed_to_mount);
 
-   fuse_channel_ = fuse_mount(mountpoint, &args);
-   if (!fuse_channel_) {
-     fuse_opt_free_args(&args);
-     ThrowError(DriveErrors::failed_to_mount);
-   }
+  fuse_channel_ = fuse_mount(mountpoint, &args);
+  if (!fuse_channel_) {
+    fuse_opt_free_args(&args);
+    ThrowError(DriveErrors::failed_to_mount);
+  }
 
-   fuse_ = fuse_new(fuse_channel_, &args, &maidsafe_ops_, sizeof(maidsafe_ops_), nullptr);
-   fuse_opt_free_args(&args);
-   on_scope_exit cleanup_on_error([&]()->void {
-     fuse_unmount(mountpoint, fuse_channel_);
-     if (fuse_)
-       fuse_destroy(fuse_);
-     free(mountpoint);
-   });
-   if (!fuse_)
-     ThrowError(DriveErrors::failed_to_mount);
+  fuse_ = fuse_new(fuse_channel_, &args, &maidsafe_ops_, sizeof(maidsafe_ops_), nullptr);
+  fuse_opt_free_args(&args);
+  on_scope_exit cleanup_on_error([&]()->void {
+    fuse_unmount(mountpoint, fuse_channel_);
+    if (fuse_)
+      fuse_destroy(fuse_);
+    free(mountpoint);
+  });
+  if (!fuse_)
+    ThrowError(DriveErrors::failed_to_mount);
 
-   if (fuse_daemonize(foreground) == -1)
-     ThrowError(DriveErrors::failed_to_mount);
+  if (fuse_daemonize(foreground) == -1)
+    ThrowError(DriveErrors::failed_to_mount);
 
-   if (fuse_set_signal_handlers(fuse_get_session(fuse_)) == -1)
-     ThrowError(DriveErrors::failed_to_mount);
+  if (fuse_set_signal_handlers(fuse_get_session(fuse_)) == -1)
+    ThrowError(DriveErrors::failed_to_mount);
 
-   if (multithreaded)
-     fuse_event_loop_thread_ = std::move(std::thread(&fuse_loop_mt, fuse_));
-   else
-     fuse_event_loop_thread_ = std::move(std::thread(&fuse_loop, fuse_));
+  if (multithreaded)
+    fuse_event_loop_thread_ = std::move(std::thread(&fuse_loop_mt, fuse_));
+  else
+    fuse_event_loop_thread_ = std::move(std::thread(&fuse_loop, fuse_));
 
   cleanup_on_error.Release();
   free(mountpoint);
@@ -372,7 +372,8 @@ int FuseDrive<Storage>::OpsChown(const char* path, uid_t uid, gid_t gid) {
 // If this method is not implemented or under Linux kernel versions earlier than 2.6.15, the mknod()
 // and open() methods will be called instead.
 template <typename Storage>
-int FuseDrive<Storage>::OpsCreate(const char* path, mode_t mode, struct fuse_file_info* /*file_info*/) {
+int FuseDrive<Storage>::OpsCreate(const char* path, mode_t mode,
+                                  struct fuse_file_info* /*file_info*/) {
   LOG(kInfo) << "OpsCreate: " << path << " (" << detail::GetFileType(mode) << "), mode: "
              << std::oct << mode;
   return Global<Storage>::g_fuse_drive->CreateNew(path, mode);
@@ -721,7 +722,7 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
     file_context = directory->GetChildAndIncrementCounter();
     if (filler(buf, file_context->meta_data.name.c_str(), &file_context->meta_data.attributes, 0))
       break;
-  } while(file_context);
+  } while (file_context);
 
 //  if (file_context) {
 //    file_context->content_changed = true;
@@ -1017,7 +1018,7 @@ int FuseDrive<Storage>::OpsGetxattr(const char* path, const char* name, char* va
   LOG(kInfo) << "OpsGetxattr: " << path;
   fs::path full_path(Global<Storage>::g_fuse_drive->metadata_dir_ / name);
   int res = lgetxattr(TranslatePath(name, path).c_str(), name, value, size);
-  if (res == -1){
+  if (res == -1) {
     LOG(kError) << "OpsGetxattr: " << path;
     return -errno;
   }
@@ -1030,7 +1031,7 @@ int FuseDrive<Storage>::OpsListxattr(const char* path, char* list, size_t size) 
   int res = llistxattr(TranslatePath(full_path.c_str(), path).c_str(),
                        list,
                        size);
-  if (res == -1){
+  if (res == -1) {
     LOG(kError) << "OpsListxattr: " << path;
     return -errno;
   }
@@ -1042,7 +1043,7 @@ int FuseDrive<Storage>::OpsRemovexattr(const char* path, const char* name) {
   fs::path full_path(Global<Storage>::g_fuse_drive->metadata_dir_ / name);
   int res = lremovexattr(TranslatePath(full_path.c_str(), path).c_str(),
                          name);
-  if (res == -1){
+  if (res == -1) {
     LOG(kError) << "OpsRemovexattr: " << path;
     return -errno;
   }
@@ -1055,7 +1056,7 @@ int FuseDrive<Storage>::OpsSetxattr(const char* path, const char* name, const ch
   fs::path full_path(Global<Storage>::g_fuse_drive->metadata_dir_ / name);
   int res = lsetxattr(TranslatePath(full_path, path).c_str(),
                       name, value, size, flags);
-  if (res == -1){
+  if (res == -1) {
     LOG(kError) << "OpsSetxattr: " << path << ", flags: " << flags;
     return -errno;
   }
