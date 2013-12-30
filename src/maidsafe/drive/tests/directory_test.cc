@@ -68,16 +68,18 @@ class DirectoryTest {
         parent_id_(crypto::Hash<crypto::SHA512>(main_test_dir_->string())),
         directory_id_(RandomAlphaNumericString(64)),
         asio_service_(1),
-        put_functor_([](Directory*) { LOG(kInfo) << "Putting directory."; }),
-        directory_(ParentId(unique_id_), parent_id_, asio_service_.service(), put_functor_, ""),
         put_chunk_functor_([](const ImmutableData&) { LOG(kInfo) << "Putting chunk."; }),
         increment_chunks_functor_([](const std::vector<ImmutableData::Name>&) {
           LOG(kInfo) << "Incrementing chunks.";
-        }) {
+        }),
+        put_functor_([&](Directory* directory) {
+          LOG(kInfo) << "Putting directory.";
+          ImmutableData contents(
+              NonEmptyString(directory->Serialise(put_chunk_functor_, increment_chunks_functor_)));
+          directory->AddNewVersion(contents.name());
+        }),
+        directory_(ParentId(unique_id_), parent_id_, asio_service_.service(), put_functor_, "") {
     asio_service_.Start();
-    ImmutableData contents(
-        NonEmptyString(directory_.Serialise(put_chunk_functor_, increment_chunks_functor_)));
-    directory_.AddNewVersion(contents.name());
   }
 
  protected:
@@ -233,7 +235,7 @@ class DirectoryTest {
   bool DirectoryHasChild(fs::path const& path, fs::path const& relative_path) {
     std::string serialised_directory;
     CHECK(ReadFile(path / "msdir.listing", &serialised_directory));
-   std::vector<StructuredDataVersions::VersionName> versions;
+    std::vector<StructuredDataVersions::VersionName> versions;
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
     Directory directory(parent_id, serialised_directory, versions, asio_service_.service(),
@@ -314,7 +316,7 @@ class DirectoryTest {
   void SortAndResetChildrenCounter() {
     directory_.SortAndResetChildrenCounter();
   }
-  
+
   void ResetChildrenCounter() {
     directory_.ResetChildrenCounter();
   }
@@ -323,10 +325,10 @@ class DirectoryTest {
   fs::path relative_root_;
   Identity unique_id_, parent_id_, directory_id_;
   AsioService asio_service_;
-  std::function<void(Directory*)> put_functor_;
-  Directory directory_;
   std::function<void(const ImmutableData&)> put_chunk_functor_;
   std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor_;
+  std::function<void(Directory*)> put_functor_;  // NOLINT
+  Directory directory_;
 
  private:
   DirectoryTest(const DirectoryTest&);
@@ -371,11 +373,13 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
       FAIL("Data map pointer mismatch");
     if ((*itr1)->meta_data.data_map) {
       REQUIRE(TotalSize(*(*itr1)->meta_data.data_map) == TotalSize(*(*itr2)->meta_data.data_map));
-      REQUIRE((*itr1)->meta_data.data_map->chunks.size() == (*itr2)->meta_data.data_map->chunks.size());
+      REQUIRE((*itr1)->meta_data.data_map->chunks.size() ==
+              (*itr2)->meta_data.data_map->chunks.size());
       auto chunk_itr1((*itr1)->meta_data.data_map->chunks.begin());
       auto chunk_itr2((*itr2)->meta_data.data_map->chunks.begin());
       size_t chunk_no(0);
-      for (; chunk_itr1 != (*itr1)->meta_data.data_map->chunks.end(); ++chunk_itr1, ++chunk_itr2, ++chunk_no) {
+      for (; chunk_itr1 != (*itr1)->meta_data.data_map->chunks.end();
+           ++chunk_itr1, ++chunk_itr2, ++chunk_no) {
         if ((*chunk_itr1).hash != (*chunk_itr2).hash)
           FAIL("DataMap chunk " << chunk_no << " hash mismatch.");
         if ((*chunk_itr1).pre_hash != (*chunk_itr2).pre_hash)
@@ -395,7 +399,8 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
     REQUIRE((*itr1)->meta_data.attributes == (*itr2)->meta_data.attributes);
     REQUIRE((*itr1)->meta_data.creation_time.dwHighDateTime ==
             (*itr2)->meta_data.creation_time.dwHighDateTime);
-    if ((*itr1)->meta_data.creation_time.dwLowDateTime != (*itr2)->meta_data.creation_time.dwLowDateTime) {
+    if ((*itr1)->meta_data.creation_time.dwLowDateTime !=
+        (*itr2)->meta_data.creation_time.dwLowDateTime) {
       uint32_t error = 0xA;
       if ((*itr1)->meta_data.creation_time.dwLowDateTime >
           (*itr2)->meta_data.creation_time.dwLowDateTime + error ||
@@ -413,8 +418,8 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
           (*itr2)->meta_data.last_access_time.dwLowDateTime + error ||
           (*itr1)->meta_data.last_access_time.dwLowDateTime <
           (*itr2)->meta_data.last_access_time.dwLowDateTime - error)
-        FAIL("Last access times low: " << (*itr1)->meta_data.last_access_time.dwLowDateTime << " != "
-             << (*itr2)->meta_data.last_access_time.dwLowDateTime);
+        FAIL("Last access times low: " << (*itr1)->meta_data.last_access_time.dwLowDateTime
+             << " != " << (*itr2)->meta_data.last_access_time.dwLowDateTime);
     }
     REQUIRE((*itr1)->meta_data.last_write_time.dwHighDateTime ==
             (*itr2)->meta_data.last_write_time.dwHighDateTime);
@@ -486,6 +491,9 @@ TEST_CASE_METHOD(DirectoryTest, "Serialise and parse", "[Directory][behavioural]
 
   std::string serialised_directory(directory_.Serialise(put_chunk_functor_,
                                    increment_chunks_functor_));
+  ImmutableData contents(
+      NonEmptyString(directory_.Serialise(put_chunk_functor_, increment_chunks_functor_)));
+  directory_.AddNewVersion(contents.name());
 
   std::vector<StructuredDataVersions::VersionName> versions;
   Directory recovered_directory(directory_.parent_id(), serialised_directory, versions,

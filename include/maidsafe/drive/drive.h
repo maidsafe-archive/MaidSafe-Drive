@@ -228,7 +228,7 @@ template <typename Storage>
 void Drive<Storage>::ReleaseDir(const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
   auto directory(directory_handler_.Get(relative_path));
-  directory->ResetChildrenIterator();
+  directory->ResetChildrenCounter();
 }
 
 template <typename Storage>

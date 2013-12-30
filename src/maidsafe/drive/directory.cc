@@ -108,7 +108,7 @@ Directory::Directory(ParentId parent_id, const std::string& serialised_directory
 
   for (int i(0); i != proto_directory.children_size(); ++i)
     children_.emplace_back(new FileContext(MetaData(proto_directory.children(i)), this));
-  std::sort(std::begin(children_), std::end(children_));
+  SortAndResetChildrenCounter();
 }
 
 Directory::~Directory() {
@@ -116,7 +116,7 @@ Directory::~Directory() {
   DoScheduleForStoring(false);
   bool result(cond_var_.wait_for(lock, kInactivityDelay + std::chrono::milliseconds(500),
                                  [&] { return store_state_ == StoreState::kComplete; }));
-  //assert(result);
+  assert(result);
   static_cast<void>(result);
 }
 
@@ -179,7 +179,10 @@ Directory::Children::const_iterator Directory::Find(const fs::path& name) const 
 }
 
 void Directory::SortAndResetChildrenCounter() {
-  std::sort(std::begin(children_), std::end(children_));
+  std::sort(std::begin(children_), std::end(children_),
+            [](const std::unique_ptr<FileContext>& lhs, const std::unique_ptr<FileContext>& rhs) {
+              return *lhs < *rhs;
+            });
   children_count_position_ = 0;
 }
 
@@ -204,7 +207,7 @@ void Directory::DoScheduleForStoring(bool use_delay) {
     auto cancelled_count(timer_.cancel());
     if (cancelled_count > 0) {
       LOG(kInfo) << "Successfully brought forward schedule for " << cancelled_count
-                    << " store functor.";
+                 << " store functor.";
       assert(cancelled_count == 1);
       timer_.get_io_service().post([this] { store_functor_(boost::system::error_code()); });
     } else {
