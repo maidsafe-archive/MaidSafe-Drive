@@ -89,10 +89,10 @@ class DirectoryHandler {
 
   bool IsDirectory(const FileContext& file_context) const;
   std::pair<Directory*, FileContext*> GetParent(const boost::filesystem::path& relative_path);
-  void RenameSameParent(const boost::filesystem::path& old_relative_path,
-                        const boost::filesystem::path& new_relative_path);
+  void PrepareNewPath(const boost::filesystem::path& new_relative_path, Directory* new_parent);
   void RenameDifferentParent(const boost::filesystem::path& old_relative_path,
-                             const boost::filesystem::path& new_relative_path);
+                             const boost::filesystem::path& new_relative_path,
+                             Directory* new_parent);
   void Put(Directory* directory);
   ImmutableData SerialiseDirectory(Directory* directory) const;
   std::unique_ptr<Directory> GetFromStorage(const boost::filesystem::path& relative_path,
@@ -202,10 +202,8 @@ Directory* DirectoryHandler<Storage>::Get(const boost::filesystem::path& relativ
     std::lock_guard<std::mutex> lock(cache_mutex_);
     // Try to find the exact directory
     auto itr(cache_.find(relative_path));
-    if (itr != std::end(cache_)) {
-      LOG(kInfo) << "Dir from cache" << relative_path.string();
+    if (itr != std::end(cache_))
       return itr->second.get();
-    }
 
     // Locate the first antecedent in cache
     antecedent = relative_path;
@@ -301,21 +299,24 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
   SCOPED_PROFILE
   assert(old_relative_path != new_relative_path);
 
+  auto new_parent(Get(new_relative_path.parent_path()));
+  PrepareNewPath(new_relative_path, new_parent);
+
   if (old_relative_path.parent_path() == new_relative_path.parent_path()) {
-    RenameSameParent(old_relative_path, new_relative_path);
-    std::lock_guard<std::mutex> lock(cache_mutex_);
-    auto itr(cache_.find(old_relative_path.parent_path()));
-    if (itr != std::end(cache_))
-     cache_.erase(old_relative_path.parent_path());
+    new_parent->RenameChild(old_relative_path.filename(), new_relative_path.filename());
+    //std::lock_guard<std::mutex> lock(cache_mutex_);
+    //auto itr(cache_.find(old_relative_path.parent_path()));
+    //if (itr != std::end(cache_))
+    // cache_.erase(old_relative_path.parent_path());
   } else {
-    RenameDifferentParent(old_relative_path, new_relative_path);
-    std::lock_guard<std::mutex> lock(cache_mutex_);
-    auto itr1(cache_.find(old_relative_path.parent_path()));
-    if (itr1 != std::end(cache_))
-     cache_.erase(old_relative_path.parent_path());
-    auto itr2(cache_.find(new_relative_path.parent_path()));
-    if (itr2 != std::end(cache_))
-     cache_.erase(new_relative_path.parent_path());
+    RenameDifferentParent(old_relative_path, new_relative_path, new_parent);
+    //std::lock_guard<std::mutex> lock(cache_mutex_);
+    //auto itr1(cache_.find(old_relative_path.parent_path()));
+    //if (itr1 != std::end(cache_))
+    // cache_.erase(old_relative_path.parent_path());
+    //auto itr2(cache_.find(new_relative_path.parent_path()));
+    //if (itr2 != std::end(cache_))
+    // cache_.erase(new_relative_path.parent_path());
   }
   if (IsDirectory(FileContext (old_relative_path, true))) {
     std::lock_guard<std::mutex> lock(cache_mutex_);
@@ -341,58 +342,46 @@ std::pair<Directory*, FileContext*> DirectoryHandler<Storage>::GetParent(
 }
 
 template <typename Storage>
-void DirectoryHandler<Storage>::RenameSameParent(const boost::filesystem::path& old_relative_path,
-                                                 const boost::filesystem::path& new_relative_path) {
-  auto parent(GetParent(old_relative_path));
-  assert(parent.first && parent.second);
-  parent.first->RenameChild(old_relative_path.filename(), new_relative_path.filename());
-
-//#ifndef MAIDSAFE_WIN32
-//  struct stat old;
-//  old.st_ctime = meta_data.attributes.st_ctime;
-//  old.st_mtime = meta_data.attributes.st_mtime;
-//  time(&meta_data.attributes.st_mtime);
-//  meta_data.attributes.st_ctime = meta_data.attributes.st_mtime;
-//#endif
-//
-//  if (!parent.first->HasChild(new_relative_path.filename())) {
-//    parent.first->RemoveChild(meta_data);
-//    meta_data.name = new_relative_path.filename();
-//    parent.first->AddChild(meta_data);
-//  } else {
-//    MetaData old_meta_data;
-//    try {
-//      parent.first->GetChild(new_relative_path.filename(), old_meta_data);
-//    }
-//    catch (const std::exception& exception) {
-//#ifndef MAIDSAFE_WIN32
-//      meta_data.attributes.st_ctime = old.st_ctime;
-//      meta_data.attributes.st_mtime = old.st_mtime;
-//#endif
-//      boost::throw_exception(exception);
-//    }
-//    parent.first->RemoveChild(old_meta_data);
-//    parent.first->RemoveChild(meta_data);
-//    meta_data.name = new_relative_path.filename();
-//    parent.first->AddChild(meta_data);
-//  }
-
+void DirectoryHandler<Storage>::PrepareNewPath(const boost::filesystem::path& new_relative_path,
+                                               Directory* new_parent) {
+  // From http://www.boost.org/doc/libs/release/libs/filesystem/doc/reference.html#rename -
+  // "If old_p and new_p resolve to the same existing file, no action is taken. Otherwise, if new_p
+  // resolves to an existing non-directory file, it is removed, while if new_p resolves to an
+  // existing directory, it is removed if empty on ISO/IEC 9945 but is an error on Windows. A
+  // symbolic link is itself renamed, rather than the file it resolves to being renamed."
+  try {
+    auto existing_child(new_parent->GetChild(new_relative_path.filename()));
+    if (IsDirectory(*existing_child)) {
 #ifdef MAIDSAFE_WIN32
-  //GetSystemTimeAsFileTime(&parent.second->meta_data.last_write_time);
-  //parent.second->parent->ScheduleForStoring();
+      ThrowError(DriveErrors::file_exists);
 #else
-  //parent.second->attributes.st_ctime = parent.second->attributes.st_mtime =
-  //    meta_data.attributes.st_mtime;
+      auto existing_directory(Get(new_relative_path));
+      if (existing_directory->empty()) {
+        new_parent->RemoveChild(new_relative_path.filename());
+        DeleteAllVersions(existing_directory);
+        std::lock_guard<std::mutex> lock(cache_mutex_);
+        cache_.erase(new_relative_path);
+      } else {
+        ThrowError(DriveErrors::file_exists);
+      }
 #endif
+    } else {
+      new_parent->RemoveChild(new_relative_path.filename());
+    }
+  }
+  catch (const drive_error& error) {
+    if (error.code() != make_error_code(DriveErrors::no_such_file))
+      throw;
+  }
 }
 
 template <typename Storage>
 void DirectoryHandler<Storage>::RenameDifferentParent(
     const boost::filesystem::path& old_relative_path,
-    const boost::filesystem::path& new_relative_path) {
+    const boost::filesystem::path& new_relative_path,
+    Directory* new_parent) {
   auto old_parent(GetParent(old_relative_path));
-  auto new_parent(GetParent(new_relative_path));
-  assert(old_parent.first && old_parent.second && new_parent.first && new_parent.second);
+  assert(old_parent.first && old_parent.second && new_parent);
   auto file_context(old_parent.first->RemoveChild(old_relative_path.filename()));
 
 //#ifndef MAIDSAFE_WIN32
@@ -410,8 +399,7 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
       auto itr(cache_.find(old_relative_path));
       assert(itr != std::end(cache_));
       std::unique_ptr<Directory> temp(std::move(itr->second));
-      temp->SetNewParent(ParentId(new_parent.first->directory_id()), put_functor_,
-                         new_relative_path);
+      temp->SetNewParent(ParentId(new_parent->directory_id()), put_functor_, new_relative_path);
       cache_.erase(itr);
       auto insertion_result(cache_.emplace(new_relative_path, std::move(temp)));
       assert(insertion_result.second);
@@ -420,7 +408,7 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
     directory->ScheduleForStoring();
   }
 
-  new_parent.first->AddChild(std::move(file_context));
+  new_parent->AddChild(std::move(file_context));
 
 //  if (!new_parent.listing->HasChild(new_relative_path.filename())) {
 //    meta_data.name = new_relative_path.filename();

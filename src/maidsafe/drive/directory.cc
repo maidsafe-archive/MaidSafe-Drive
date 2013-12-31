@@ -280,10 +280,8 @@ FileContext Directory::RemoveChild(const fs::path& name) {
 
 void Directory::RenameChild(const fs::path& old_name, const fs::path& new_name) {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto itr(Find(new_name));
-  if (itr != std::end(children_))
-    ThrowError(DriveErrors::file_exists);
-  itr = Find(old_name);
+  assert(Find(new_name) == std::end(children_));
+  auto itr(Find(old_name));
   if (itr == std::end(children_))
     ThrowError(DriveErrors::no_such_file);
   (*itr)->meta_data.name = new_name;
