@@ -275,6 +275,7 @@ uint32_t Drive<Storage>::Write(const boost::filesystem::path& relative_path, con
   file_context->meta_data.attributes.st_size = max_size;
   file_context->meta_data.attributes.st_blocks = file_context->meta_data.attributes.st_size / 512;
 #endif
+  file_context->parent->ScheduleForStoring();
   return size;
 }
 

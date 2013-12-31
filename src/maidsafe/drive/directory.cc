@@ -66,8 +66,10 @@ void FlushEncryptor(FileContext* file_context,
       put_chunk_functor(ImmutableData(content));
     }
   }
-  file_context->self_encryptor.reset();
-  file_context->buffer.reset();
+  if (file_context->open_count == 0) {
+    file_context->self_encryptor.reset();
+    file_context->buffer.reset();
+  }
 }
 
 /*
