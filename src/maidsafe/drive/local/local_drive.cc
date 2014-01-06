@@ -262,7 +262,7 @@ struct Options {
 };
 
 bool GetFromIpc(const po::variables_map& variables_map, Options& options,
-                std::shared_ptr<std::string> shared_object_name) {
+                std::shared_ptr<std::string>& shared_object_name) {
   if (variables_map.count("shared_memory")) {
     std::string shared_memory_name(variables_map.at("shared_memory").as<std::string>());
     auto hash(maidsafe::crypto::Hash<maidsafe::crypto::SHA512>(shared_memory_name).string());
