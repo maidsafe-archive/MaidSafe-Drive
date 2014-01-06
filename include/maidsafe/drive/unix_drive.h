@@ -241,7 +241,7 @@ void FuseDrive<Storage>::Init() {
   maidsafe_ops_.listxattr = OpsListxattr;
   maidsafe_ops_.removexattr = OpsRemovexattr;
 #endif
-  //umask(0022);
+  umask(0022);
 }
 
 template <typename Storage>

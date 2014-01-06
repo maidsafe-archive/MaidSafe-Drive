@@ -72,10 +72,10 @@ std::unique_ptr<drive::Launcher> g_launcher;
 std::string g_error_message;
 int g_return_code(0);
 enum class TestType {
-  kLocal = drive::DriveType::kLocal,
-  kNetwork = drive::DriveType::kNetwork,
-  kLocalConsole = drive::DriveType::kLocalConsole,
-  kNetworkConsole = drive::DriveType::kNetworkConsole,
+  kLocal = static_cast<int>(drive::DriveType::kLocal),
+  kNetwork = static_cast<int>(drive::DriveType::kNetwork),
+  kLocalConsole = static_cast<int>(drive::DriveType::kLocalConsole),
+  kNetworkConsole = static_cast<int>(drive::DriveType::kNetworkConsole),
   kDisk
 } g_test_type;
 bool g_enable_vfs_logging;
