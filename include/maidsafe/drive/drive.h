@@ -32,8 +32,6 @@
 
 #include "boost/filesystem/operations.hpp"
 #include "boost/filesystem/path.hpp"
-#include "boost/interprocess/sync/interprocess_mutex.hpp"
-#include "boost/interprocess/sync/interprocess_condition.hpp"
 
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
@@ -46,15 +44,6 @@
 namespace maidsafe {
 
 namespace drive {
-
-struct MountStatus {
-  MountStatus() : mutex(), condition(), mounted(false), unmount(true) {}
-
-  mutable boost::interprocess::interprocess_mutex mutex;
-  boost::interprocess::interprocess_condition condition;
-  bool mounted;
-  bool unmount;
-};
 
 template <typename Storage>
 class Drive {
@@ -100,20 +89,6 @@ class Drive {
   // Needs to be destructed first so that 'get_chunk_from_store_' and 'storage_' outlive it.
   detail::DirectoryHandler<Storage> directory_handler_;
 };
-
-#ifdef MAIDSAFE_WIN32
-inline boost::filesystem::path GetNextAvailableDrivePath() {
-  uint32_t drive_letters(GetLogicalDrives()), mask(0x4);
-  std::string path("C:");
-  while (drive_letters & mask) {
-    mask <<= 1;
-    ++path[0];
-  }
-  if (path[0] > 'Z')
-    ThrowError(DriveErrors::no_drive_letter_available);
-  return boost::filesystem::path(path);
-}
-#endif
 
 // ==================== Implementation =============================================================
 template <typename Storage>

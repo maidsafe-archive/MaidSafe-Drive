@@ -39,9 +39,6 @@
 #include "boost/program_options.hpp"
 #include "boost/preprocessor/stringize.hpp"
 #include "boost/system/error_code.hpp"
-#include "boost/interprocess/shared_memory_object.hpp"
-#include "boost/interprocess/mapped_region.hpp"
-#include "boost/interprocess/sync/scoped_lock.hpp"
 
 #include "maidsafe/common/crypto.h"
 #include "maidsafe/common/error.h"
@@ -49,7 +46,6 @@
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
 #include "maidsafe/common/application_support_directories.h"
-#include "maidsafe/common/ipc.h"
 #include "maidsafe/common/types.h"
 
 #include "maidsafe/data_store/local_store.h"
@@ -59,11 +55,10 @@
 #else
 #include "maidsafe/drive/unix_drive.h"
 #endif
+#include "maidsafe/drive/tools/launcher.h"
 
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
-namespace ip = boost::interprocess;
-namespace pt = boost::posix_time;
 
 namespace maidsafe {
 
@@ -79,8 +74,7 @@ boost::promise<void> g_unmount;
 
 int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity& unique_id,
           const Identity& parent_id, const fs::path& drive_name, bool create,
-          std::shared_ptr<std::string> shared_object_name) {
-  typedef ip::shared_memory_object SharedMemoryObject;
+          const std::string& mount_status_shared_object_name) {
   fs::path storage_path(storage_dir / "local_store");
   DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
   auto storage(std::make_shared<data_store::LocalStore>(storage_path, disk_usage));
@@ -98,45 +92,14 @@ int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity
   LocalDrive drive(storage, unique_id, parent_id, mount_dir, GetUserAppDir(), drive_name, create);
   g_local_drive = &drive;
   drive.Mount();
-
-  SharedMemoryObject shared_object(ip::open_only, shared_object_name->c_str(), ip::read_write);
-  ip::mapped_region region(shared_object, ip::read_write);
-  MountStatus* mount_status = static_cast<MountStatus*>(region.get_address());
-
-  {
-    ip::scoped_lock<ip::interprocess_mutex> lock(mount_status->mutex);
-    mount_status->mounted = true;
-    pt::ptime wait_time(pt::second_clock::universal_time() + pt::seconds(10));
-    auto mount_predicate([&] { return mount_status->unmount == false; });
-    mount_status->condition.notify_one();
-    mount_status->condition.timed_wait(lock, wait_time, mount_predicate);
-
-    if (mount_status->unmount) {
-      drive.Unmount();
-      return 32;
-    }
-  }
-  {
-    ip::scoped_lock<ip::interprocess_mutex> lock(mount_status->mutex);
-    auto mount_predicate([&]() { return mount_status->unmount == true; });
-    mount_status->condition.wait(lock, mount_predicate);
-    assert(mount_status->unmount);
-  }
-
+  NotifyMountedAndWaitForUnmountRequest(mount_status_shared_object_name);
   drive.Unmount();
-
-  {
-    ip::scoped_lock<ip::interprocess_mutex> lock(mount_status->mutex);
-    mount_status->mounted = false;
-    mount_status->condition.notify_one();
-  }
-
+  NotifyUnmounted(mount_status_shared_object_name);
   return 0;
 }
 
 int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity& unique_id,
           const Identity& parent_id, const fs::path& drive_name, bool create) {
-  typedef ip::shared_memory_object SharedMemoryObject;
   fs::path storage_path(storage_dir / "local_store");
   DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
   auto storage(std::make_shared<data_store::LocalStore>(storage_path, disk_usage));
@@ -253,54 +216,37 @@ void HandleHelp(const po::variables_map& variables_map) {
   }
 }
 
-struct Options {
-  Options() : mount_dir(), chunk_store(), drive_name(), unique_id(), parent_id(), create(false),
-              check_data(false) {}
-  fs::path mount_dir, chunk_store, drive_name;
-  maidsafe::Identity unique_id, parent_id;
-  bool create, check_data;
-};
-
-bool GetFromIpc(const po::variables_map& variables_map, Options& options,
-                std::shared_ptr<std::string> shared_object_name) {
+bool GetFromIpc(const po::variables_map& variables_map, maidsafe::drive::Options& options) {
   if (variables_map.count("shared_memory")) {
-    std::string shared_memory_name(variables_map.at("shared_memory").as<std::string>());
-    auto hash(maidsafe::crypto::Hash<maidsafe::crypto::SHA512>(shared_memory_name).string());
-    shared_object_name.reset(new std::string(maidsafe::HexEncode(hash).substr(0, 32)));
-    auto vec_strings = maidsafe::ipc::ReadSharedMemory(shared_memory_name.c_str(), 6);
-    options.mount_dir = vec_strings[0];
-    options.chunk_store = vec_strings[1];
-    options.unique_id = maidsafe::Identity(vec_strings[2]);
-    options.parent_id = maidsafe::Identity(vec_strings[3]);
-    options.drive_name = vec_strings[4];
-    options.create = (std::stoi(vec_strings[5]) != 0);
-    maidsafe::ipc::RemoveSharedMemory(shared_memory_name);
+    maidsafe::drive::ReadAndRemoveInitialSharedMemory(
+        variables_map.at("shared_memory").as<std::string>(), options);
     return true;
   }
   return false;
 }
 
-void GetFromProgramOptions(const po::variables_map& variables_map, Options& options) {
-  options.mount_dir = GetStringFromProgramOption("mount_dir", variables_map);
-  options.chunk_store = GetStringFromProgramOption("storage_dir", variables_map);
+void GetFromProgramOptions(const po::variables_map& variables_map,
+                           maidsafe::drive::Options& options) {
+  options.mount_path = GetStringFromProgramOption("mount_dir", variables_map);
+  options.storage_path = GetStringFromProgramOption("storage_dir", variables_map);
   auto unique_id(GetStringFromProgramOption("unique_id", variables_map));
   if (!unique_id.empty())
     options.unique_id = maidsafe::Identity(unique_id);
   auto parent_id(GetStringFromProgramOption("parent_id", variables_map));
   if (!parent_id.empty())
-    options.parent_id = maidsafe::Identity(parent_id);
+    options.root_parent_id = maidsafe::Identity(parent_id);
   options.drive_name = GetStringFromProgramOption("drive_name", variables_map);
-  options.create = (variables_map.count("create") != 0);
+  options.create_store = (variables_map.count("create") != 0);
 }
 
-void ValidateOptions(const Options& options) {
+void ValidateOptions(const maidsafe::drive::Options& options) {
   std::string error_message;
   g_return_code = 0;
-  if (options.mount_dir.empty()) {
+  if (options.mount_path.empty()) {
     error_message += "  mount_dir must be set\n";
     ++g_return_code;
   }
-  if (options.chunk_store.empty()) {
+  if (options.storage_path.empty()) {
     error_message += "  chunk_store must be set\n";
     g_return_code += 2;
   }
@@ -308,7 +254,7 @@ void ValidateOptions(const Options& options) {
     error_message += "  unique_id must be set to a 64 character string\n";
     g_return_code += 4;
   }
-  if (!options.parent_id.IsInitialised()) {
+  if (!options.root_parent_id.IsInitialised()) {
     error_message += "  parent_id must be set to a 64 character string\n";
     g_return_code += 8;
   }
@@ -354,7 +300,6 @@ int CALLBACK wWinMain(HINSTANCE /*handle_to_instance*/, HINSTANCE /*handle_to_pr
 int main(int argc, char* argv[]) {
   maidsafe::log::Logging::Instance().Initialise(argc, argv);
 #endif
-
 #ifdef MAIDSAFE_WIN32
   std::locale::global(boost::locale::generator().generate(""));
 #else
@@ -372,21 +317,22 @@ int main(int argc, char* argv[]) {
     // Read in options
     auto variables_map(ParseAllOptions(argc, argv, command_line_options, config_file_options));
     HandleHelp(variables_map);
-    Options options;
-    std::shared_ptr<std::string> shared_object_name;
-    if (!GetFromIpc(variables_map, options, shared_object_name))
+    maidsafe::drive::Options options;
+    bool using_ipc(GetFromIpc(variables_map, options));
+    if (!using_ipc)
       GetFromProgramOptions(variables_map, options);
 
     // Validate options and run the Drive
     ValidateOptions(options);
     SetSignalHandler();
-    if (shared_object_name)
-      return maidsafe::drive::Mount(options.mount_dir, options.chunk_store, options.unique_id,
-                                    options.parent_id, options.drive_name, options.create,
-                                    shared_object_name);
+    if (using_ipc)
+      return maidsafe::drive::Mount(options.mount_path, options.storage_path, options.unique_id,
+                                    options.root_parent_id, options.drive_name,
+                                    options.create_store, options.mount_status_shared_object_name);
     else
-      return maidsafe::drive::Mount(options.mount_dir, options.chunk_store, options.unique_id,
-                                    options.parent_id, options.drive_name, options.create);
+      return maidsafe::drive::Mount(options.mount_path, options.storage_path, options.unique_id,
+                                    options.root_parent_id, options.drive_name,
+                                    options.create_store);
   }
   catch (const std::exception& e) {
     if (!g_error_message.empty()) {
