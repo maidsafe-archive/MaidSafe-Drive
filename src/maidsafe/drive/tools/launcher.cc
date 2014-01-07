@@ -122,9 +122,8 @@ void NotifyUnmounted(const std::string& mount_status_shared_object_name) {
 
 Launcher::Launcher(const Options& options)
     : initial_shared_memory_name_(RandomAlphaNumericString(32)),
-      kMountPath_(AdjustMountPath(options.mount_path)), kStoragePath_(options.storage_path),
-      mount_status_shared_object_(), mount_status_mapped_region_(), mount_status_(nullptr),
-      drive_process_() {
+      kMountPath_(AdjustMountPath(options.mount_path)), mount_status_shared_object_(),
+      mount_status_mapped_region_(), mount_status_(nullptr), drive_process_() {
   maidsafe::on_scope_exit cleanup_on_throw([&] {
     try {
       StopDriveProcess();

@@ -80,7 +80,6 @@ class Launcher {
   ~Launcher();
   void StopDriveProcess();
   boost::filesystem::path kMountPath() const { return kMountPath_; }
-  boost::filesystem::path kStoragePath() const { return kStoragePath_; }
 
  private:
   Launcher(const Launcher&);
@@ -94,7 +93,7 @@ class Launcher {
   void WaitForDriveToMount();
 
   std::string initial_shared_memory_name_;
-  const boost::filesystem::path kMountPath_, kStoragePath_;
+  const boost::filesystem::path kMountPath_;
   boost::interprocess::shared_memory_object mount_status_shared_object_;
   boost::interprocess::mapped_region mount_status_mapped_region_;
   MountStatus* mount_status_;
