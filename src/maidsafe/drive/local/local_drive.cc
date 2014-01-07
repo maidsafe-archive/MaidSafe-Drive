@@ -31,7 +31,7 @@
 #include <iterator>
 
 #ifndef MAIDSAFE_WIN32
-#include <locale>
+#include <locale>  // NOLINT
 #else
 #include "boost/locale/generator.hpp"
 #endif

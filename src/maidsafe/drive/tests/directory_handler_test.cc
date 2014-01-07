@@ -48,8 +48,11 @@
 namespace fs = boost::filesystem;
 
 namespace maidsafe {
+
 namespace drive {
+
 namespace detail {
+
 namespace test {
 
 class DirectoryHandlerTest {
@@ -89,7 +92,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Construct", "[DirectoryHandler][behaviou
   CHECK(recovered_directory->parent_id().data == root_parent_id_);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "AddDirectory", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Add directory", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -97,38 +100,39 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "AddDirectory", "[DirectoryHandler][behav
   FileContext file_context(directory_name, true);
   const FileContext* recovered_file_context(nullptr);
   Directory* directory(nullptr);
-
+  DirectoryId dir(*file_context.meta_data.directory_id);
   CHECK_NOTHROW(listing_handler_->Add(kRoot / directory_name, std::move(file_context)));
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / directory_name));
-  CHECK(directory->directory_id() == *file_context.meta_data.directory_id);
+  CHECK(directory->directory_id() == dir);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(directory_name));
   CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "AddSameDirectory", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Add same directory", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
   std::string directory_name("Directory");
   FileContext file_context(directory_name, true);
+  DirectoryId dir(*file_context.meta_data.directory_id);
   const FileContext* recovered_file_context(nullptr);
   Directory* directory(nullptr);
-
+  boost::filesystem::path meta_data_name(file_context.meta_data.name);
   CHECK_NOTHROW(listing_handler_->Add(kRoot / directory_name, std::move(file_context)));
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / directory_name));
-  CHECK(directory->directory_id() == *file_context.meta_data.directory_id);
+  CHECK(directory->directory_id() == dir);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(directory_name));
-  CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
+  CHECK(meta_data_name == recovered_file_context->meta_data.name);
 
-  CHECK_THROWS_AS(listing_handler_->Add(kRoot / directory_name, std::move(file_context)),
+  CHECK_THROWS_AS(listing_handler_->Add(kRoot / directory_name, FileContext(directory_name, true)),
                   std::exception);
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(directory_name));
-  CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
+  CHECK(meta_data_name == recovered_file_context->meta_data.name);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "AddFile", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Add file", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -145,7 +149,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "AddFile", "[DirectoryHandler][behavioura
   CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "AddSameFile", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Add same file", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -161,14 +165,12 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "AddSameFile", "[DirectoryHandler][behavi
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(file_name));
   CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
 
-  CHECK_THROWS_AS(listing_handler_->Add(kRoot / file_name, std::move(file_context)),
-                  std::exception);
   CHECK(directory->HasChild(file_name));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(file_name));
   CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteDirectory", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Delete directory", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -176,10 +178,11 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteDirectory", "[DirectoryHandler][be
   FileContext file_context(directory_name, true);
   const FileContext* recovered_file_context(nullptr);
   Directory* directory(nullptr);
+  DirectoryId dir(*file_context.meta_data.directory_id);
 
   CHECK_NOTHROW(listing_handler_->Add(kRoot / directory_name, std::move(file_context)));
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / directory_name));
-  CHECK(directory->directory_id() == *file_context.meta_data.directory_id);
+  CHECK(directory->directory_id() == dir);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(directory_name));
   CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
@@ -191,7 +194,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteDirectory", "[DirectoryHandler][be
                   std::exception);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteSameDirectory", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Delete same directory", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -199,10 +202,11 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteSameDirectory", "[DirectoryHandler
   FileContext file_context(directory_name, true);
   const FileContext* recovered_file_context(nullptr);
   Directory* directory(nullptr);
+  DirectoryId dir(*file_context.meta_data.directory_id);
 
   CHECK_NOTHROW(listing_handler_->Add(kRoot / directory_name, std::move(file_context)));
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / directory_name));
-  CHECK(directory->directory_id() == *file_context.meta_data.directory_id);
+  CHECK(directory->directory_id() == dir);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(directory_name));
   CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
@@ -215,7 +219,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteSameDirectory", "[DirectoryHandler
   CHECK_THROWS_AS(listing_handler_->Delete(kRoot / directory_name), std::exception);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteFile", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Delete file", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -235,7 +239,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteFile", "[DirectoryHandler][behavio
   CHECK_THROWS_AS(recovered_file_context = directory->GetChild(file_name), std::exception);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteSameFile", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Delete same file", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -257,7 +261,8 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "DeleteSameFile", "[DirectoryHandler][beh
   CHECK_THROWS_AS(listing_handler_->Delete(kRoot / file_name), std::exception);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveDirectory", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Rename and move directory",
+                 "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -276,6 +281,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveDirectory", "[DirectoryHandler
 
   CHECK_NOTHROW(old_parent_directory = listing_handler_->Get(kRoot / first_directory_name));
   CHECK_NOTHROW(file_context.parent = old_parent_directory);
+  DirectoryId dir(*file_context.meta_data.directory_id);
   CHECK_NOTHROW(listing_handler_->Add(kRoot / first_directory_name / old_directory_name,
                 std::move(file_context)));
 
@@ -292,7 +298,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveDirectory", "[DirectoryHandler
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / first_directory_name /
                                                   old_directory_name));
   CHECK(directory->parent_id().data == old_parent_directory->directory_id());
-  CHECK(directory->directory_id() == *file_context.meta_data.directory_id);
+  CHECK(directory->directory_id() == dir);
   CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / first_directory_name /
                   new_directory_name), std::exception);
   CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / second_directory_name /
@@ -348,10 +354,10 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveDirectory", "[DirectoryHandler
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot / second_directory_name /
                                                   new_directory_name));
   CHECK(directory->parent_id().data == new_parent_directory->directory_id());
-  CHECK(directory->directory_id() == *file_context.meta_data.directory_id);
+  CHECK(directory->directory_id() == dir);
 }
 
-TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveFile", "[DirectoryHandler][behavioural]") {
+TEST_CASE_METHOD(DirectoryHandlerTest, "Rename and move file", "[DirectoryHandler][behavioural]") {
   listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true));
@@ -361,7 +367,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveFile", "[DirectoryHandler][beh
               second_file_context(second_directory_name, true),
               file_context(old_file_name, false);
   const FileContext* recovered_file_context(nullptr);
-  Directory *old_parent_directory(nullptr), *new_parent_directory(nullptr), *directory(nullptr);
+  Directory *old_parent_directory(nullptr), *new_parent_directory(nullptr);
   CHECK_NOTHROW(listing_handler_->Add(kRoot / first_directory_name,
                 std::move(first_file_context)));
   CHECK_NOTHROW(listing_handler_->Add(kRoot / second_directory_name,
@@ -381,9 +387,8 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveFile", "[DirectoryHandler][beh
                   std::exception);
   CHECK_THROWS_AS(recovered_file_context = new_parent_directory->GetChild(new_file_name),
                   std::exception);
- 
-  CHECK_THROWS_AS(directory = listing_handler_->Get(
-                                          kRoot / first_directory_name / old_file_name),
+
+  CHECK_THROWS_AS(listing_handler_->Get(kRoot / first_directory_name / old_file_name),
                   std::exception);
 
   CHECK_NOTHROW(listing_handler_->Rename(kRoot / first_directory_name / old_file_name,
@@ -399,8 +404,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveFile", "[DirectoryHandler][beh
                   std::exception);
   CHECK_THROWS_AS(recovered_file_context = new_parent_directory->GetChild(new_file_name),
                   std::exception);
-  CHECK_THROWS_AS(directory = listing_handler_->Get(
-                                         kRoot / first_directory_name / new_file_name),
+  CHECK_THROWS_AS(listing_handler_->Get(kRoot / first_directory_name / new_file_name),
                   std::exception);
 
   CHECK_THROWS_AS(listing_handler_->Rename(kRoot / first_directory_name / old_file_name, kRoot /
@@ -419,12 +423,14 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "RenameMoveFile", "[DirectoryHandler][beh
                   std::exception);
   CHECK_NOTHROW(recovered_file_context = new_parent_directory->GetChild(new_file_name));
   CHECK(new_file_name == recovered_file_context->meta_data.name);
-  CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / second_directory_name /
-                  new_file_name), std::exception);
-  static_cast<void>(directory);  // Silence compiler warning
+  CHECK_THROWS_AS(listing_handler_->Get(kRoot / second_directory_name / new_file_name),
+                  std::exception);
 }
 
 }  // namespace test
+
 }  // namespace detail
+
 }  // namespace drive
+
 }  // namespace maidsafe
