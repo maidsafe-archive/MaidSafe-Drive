@@ -35,12 +35,6 @@
 #include "boost/filesystem/path.hpp"
 #include "boost/filesystem/operations.hpp"
 #include "boost/program_options.hpp"
-#include "boost/process/child.hpp"
-#include "boost/process/execute.hpp"
-#include "boost/process/initializers.hpp"
-#include "boost/process/wait_for_exit.hpp"
-#include "boost/process/terminate.hpp"
-#include "boost/process/search_path.hpp"
 #include "boost/system/error_code.hpp"
 
 #include "maidsafe/common/application_support_directories.h"
@@ -48,14 +42,13 @@
 #include "maidsafe/common/ipc.h"
 #include "maidsafe/common/log.h"
 #include "maidsafe/common/on_scope_exit.h"
-#include "maidsafe/common/process.h"
 #include "maidsafe/common/utils.h"
 
 #include "maidsafe/drive/drive.h"
+#include "maidsafe/drive/tools/launcher.h"
 
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
-namespace bp = boost::process;
 
 namespace maidsafe {
 
@@ -74,11 +67,17 @@ void UseUnreferenced() {
 }
 #endif
 
-fs::path g_root, g_temp, g_storage_path;
-std::unique_ptr<bp::child> g_child;
+fs::path g_root, g_temp;
+std::unique_ptr<drive::Launcher> g_launcher;
 std::string g_error_message;
 int g_return_code(0);
-enum class TestType { kDisk, kLocal, kNetwork, kLocalConsole, kNetworkConsole } g_test_type;
+enum class TestType {
+  kLocal = static_cast<int>(drive::DriveType::kLocal),
+  kNetwork = static_cast<int>(drive::DriveType::kNetwork),
+  kLocalConsole = static_cast<int>(drive::DriveType::kLocalConsole),
+  kNetworkConsole = static_cast<int>(drive::DriveType::kNetworkConsole),
+  kDisk
+} g_test_type;
 bool g_enable_vfs_logging;
 #ifdef MAIDSAFE_WIN32
 const std::string kHelpInfo("You must pass exactly one of '--disk', '--local', '--local_console', "
@@ -111,24 +110,6 @@ void RemoveTempDirectory() {
     LOG(kInfo) << "Removed " << g_temp;
 }
 
-void SetUpStorageDirectory() {
-  boost::system::error_code error_code;
-  g_storage_path =
-      fs::unique_path(fs::temp_directory_path() / "MaidSafe_Test_ChunkStore_%%%%-%%%%-%%%%");
-  CreateDir(g_storage_path);
-  LOG(kInfo) << "Created g_storage_path " << g_storage_path;
-}
-
-void RemoveStorageDirectory() {
-  boost::system::error_code error_code;
-  if (fs::remove_all(g_storage_path, error_code) == 0 || error_code) {
-    LOG(kWarning) << "Failed to remove g_storage_path " << g_storage_path << ": "
-                  << error_code.message();
-  } else {
-    LOG(kInfo) << "Removed " << g_storage_path;
-  }
-}
-
 void SetUpRootDirectory(fs::path base_dir) {
 #ifdef MAIDSAFE_WIN32
   if (g_test_type == TestType::kDisk) {
@@ -141,26 +122,37 @@ void SetUpRootDirectory(fs::path base_dir) {
   g_root = fs::unique_path(base_dir / "MaidSafe_Root_Filesystem_%%%%-%%%%-%%%%");
   CreateDir(g_root);
 #endif
-  LOG(kInfo) << "Created root directory " << g_root;
+  LOG(kInfo) << "Set up g_root at " << g_root;
 }
 
-//void RemoveRootDirectory() {
-//  try {
-//  boost::system::error_code error_code;
-//  fs::remove_all(g_root, error_code);
-//  if (error_code)
-//    LOG(kWarning) << "Failed to remove root directory " << g_root << ": " << error_code.message();
-//  else
-//    LOG(kInfo) << "Removed " << g_root;
-//    } catch(...) {}
-//}
+void RemoveRootDirectory() {
+  boost::system::error_code error_code;
+  if (fs::remove_all(g_root, error_code) == 0 || error_code) {
+    LOG(kWarning) << "Failed to remove root directory " << g_root << ": "
+                  << error_code.message();
+  } else {
+    LOG(kInfo) << "Removed " << g_root;
+  }
+}
 
-std::function<void()> remove_test_dirs([] {
-  RemoveTempDirectory();
-  if (fs::exists(g_storage_path))
-    RemoveStorageDirectory();
-//  RemoveRootDirectory();
-});
+fs::path SetUpStorageDirectory() {
+  boost::system::error_code error_code;
+  fs::path storage_path(
+      fs::unique_path(fs::temp_directory_path() / "MaidSafe_Test_ChunkStore_%%%%-%%%%-%%%%"));
+  CreateDir(storage_path);
+  LOG(kInfo) << "Created storage_path " << storage_path;
+  return storage_path;
+}
+
+void RemoveStorageDirectory(const fs::path& storage_path) {
+  boost::system::error_code error_code;
+  if (fs::remove_all(storage_path, error_code) == 0 || error_code) {
+    LOG(kWarning) << "Failed to remove storage_path " << storage_path << ": "
+                  << error_code.message();
+  } else {
+    LOG(kInfo) << "Removed " << storage_path;
+  }
+}
 
 po::options_description CommandLineOptions() {
   po::options_description command_line_options(
@@ -243,102 +235,58 @@ void GetTestType(const po::variables_map& variables_map) {
   }
 }
 
-void SignalChildProcessAndWaitToExit() {
-  if (!g_child)
-    return;
-#ifdef MAIDSAFE_WIN32
-  SetConsoleCtrlHandler([](DWORD control_type)->BOOL {
-        LOG(kInfo) << "Received console control signal " << control_type << ".";
-        return (control_type == CTRL_BREAK_EVENT ? TRUE : FALSE);
-      }, TRUE);
-  assert(g_child->proc_info.dwProcessId);
-  GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, g_child->proc_info.dwProcessId);
-#else
-  assert(g_child->pid);
-  int result(kill(g_child->pid, SIGINT));
-  if (result) {
-    LOG(kError) << "Sending signal to drive process ID " << g_child->pid << " returned result "
-                << result;
-  } else {
-    LOG(kInfo) << "Sending signal to drive process ID " << g_child->pid << " returned result "
-               << result;
-  }
-#endif
-  boost::system::error_code error_code;
-  auto exit_code = bp::wait_for_exit(*g_child, error_code);
-  if (error_code)
-    LOG(kError) << "Error waiting for child to exit: " << error_code.message();
-  else
-    LOG(kInfo) << "Drive process has completed with exit code " << exit_code;
-}
-
-void PrepareDisk() {
+std::function<void()> PrepareDisk() {
   SetUpTempDirectory();
   SetUpRootDirectory(fs::temp_directory_path());
+  return [] {  // NOLINT
+    RemoveTempDirectory();
+    RemoveRootDirectory();
+  };
 }
 
-void PrepareLocalVfs() {
+std::function<void()> PrepareLocalVfs() {
   SetUpTempDirectory();
-  SetUpStorageDirectory();
+  drive::Options options;
   SetUpRootDirectory(GetHomeDir());
-
-  std::vector<std::string> shared_memory_args;
-  shared_memory_args.push_back(g_root.string());
-  shared_memory_args.push_back(g_storage_path.string());
-  shared_memory_args.push_back(RandomString(64));  // unique_id
-  shared_memory_args.push_back(RandomString(64));  // root_parent_id
-  shared_memory_args.push_back(RandomAlphaNumericString(10));  // drive_name
-  shared_memory_args.push_back("1");  // Create flag set to "true".
-
-  auto shared_memory_name(RandomAlphaNumericString(32));
-  ipc::CreateSharedMemory(shared_memory_name, shared_memory_args);
-
-  // Set up boost::process args
-  std::vector<std::string> process_args;
-  const auto kExePath(process::GetOtherExecutablePath(
-      g_test_type == TestType::kLocal ? "local_drive" : "local_drive_console").string());
-  process_args.push_back(kExePath);
-  std::string shared_memory_opt("--shared_memory " + shared_memory_name);
-  process_args.push_back(shared_memory_opt);
+  options.mount_path = g_root;
+  options.storage_path = SetUpStorageDirectory();
+  options.drive_name = RandomAlphaNumericString(10);
+  options.unique_id = Identity(RandomString(64));
+  options.root_parent_id = Identity(RandomString(64));
+  options.create_store = true;
+  options.drive_type = static_cast<drive::DriveType>(g_test_type);
   if (g_enable_vfs_logging)
-    process_args.push_back("--log_* I --log_colour_mode 2");
-  const auto kCommandLine(process::ConstructCommandLine(process_args));
+    options.drive_logging_args = "--log_* I --log_colour_mode 2";
 
-  boost::system::error_code error_code;
-  g_child.reset(new bp::child(bp::execute(bp::initializers::run_exe(kExePath),
-                                          bp::initializers::set_cmd_line(kCommandLine),
-                                          bp::initializers::set_on_error(error_code))));
-#ifdef MAIDSAFE_WIN32
-  g_root /= boost::filesystem::path("/").make_preferred();
-  while (!fs::exists(g_root, error_code))
-    Sleep(std::chrono::milliseconds(100));
-#else
-  Sleep(std::chrono::seconds(3));
-#endif
+  g_launcher.reset(new drive::Launcher(options));
+
+  return [options] {  // NOLINT
+    RemoveTempDirectory();
+    RemoveStorageDirectory(options.storage_path);
+  };
 }
 
-void PrepareNetworkVfs() {
+std::function<void()> PrepareNetworkVfs() {
   g_error_message = "Network test is unimplemented just now.";
   g_return_code = 10;
   ThrowError(CommonErrors::invalid_parameter);
+  return [] {};  // NOLINT
 }
 
-void PrepareTest() {
+std::function<void()> PrepareTest() {
   switch (g_test_type) {
     case TestType::kDisk:
-      PrepareDisk();
-      break;
+      return PrepareDisk();
     case TestType::kLocal:
     case TestType::kLocalConsole:
-      PrepareLocalVfs();
-      break;
+      return PrepareLocalVfs();
     case TestType::kNetwork:
     case TestType::kNetworkConsole:
-      PrepareNetworkVfs();
-      break;
+      return PrepareNetworkVfs();
     default:
-      break;
+      ThrowError(CommonErrors::invalid_parameter);
   }
+  return [] {};  // NOLINT
 }
 
 }  // unnamed namespace
@@ -357,12 +305,13 @@ int main(int argc, char** argv) {
     maidsafe::test::HandleHelp(variables_map);
     maidsafe::test::GetTestType(variables_map);
 
-    maidsafe::on_scope_exit cleanup_on_exit(maidsafe::test::remove_test_dirs);
-    maidsafe::test::PrepareTest();
+    auto cleanup_functor(maidsafe::test::PrepareTest());
+    maidsafe::on_scope_exit cleanup_on_exit(cleanup_functor);
 
     auto tests_result(maidsafe::test::RunTool(argc, argv, maidsafe::test::g_root,
                                               maidsafe::test::g_temp));
-    maidsafe::test::SignalChildProcessAndWaitToExit();
+    if (maidsafe::test::g_launcher)
+      maidsafe::test::g_launcher->StopDriveProcess();
     return tests_result;
   }
   catch (const std::exception& e) {

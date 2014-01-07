@@ -36,7 +36,6 @@
 
 #include "boost/filesystem/path.hpp"
 #include "boost/preprocessor/stringize.hpp"
-#include "boost/thread/future.hpp"
 
 #include "maidsafe/common/profiler.h"
 #include "maidsafe/common/utils.h"
