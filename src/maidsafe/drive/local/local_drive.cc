@@ -70,7 +70,7 @@ typedef CbfsDrive<data_store::LocalStore> LocalDrive;
 typedef FuseDrive<data_store::LocalStore> LocalDrive;
 #endif
 LocalDrive* g_local_drive(nullptr);
-boost::promise<void> g_unmount;
+std::unique_ptr<boost::promise<void>> g_unmount;
 
 int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity& unique_id,
           const Identity& parent_id, const fs::path& drive_name, bool create,
@@ -118,7 +118,7 @@ int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity
   g_local_drive = &drive;
   drive.Mount();
 
-  auto wait_until_unmounted(g_unmount.get_future());
+  auto wait_until_unmounted(g_unmount->get_future());
   wait_until_unmounted.get();
 
   return 0;
@@ -272,11 +272,12 @@ BOOL CtrlHandler(DWORD control_type) {
   if (!maidsafe::drive::g_local_drive)
     return FALSE;
   maidsafe::drive::g_local_drive->Unmount();
-  maidsafe::drive::g_unmount.set_value();
+  maidsafe::drive::g_unmount->set_value();
   return TRUE;
 }
 
 void SetSignalHandler() {
+  maidsafe::drive::g_unmount.reset(new boost::promise<void>);
   if (!SetConsoleCtrlHandler(reinterpret_cast<PHANDLER_ROUTINE>(&CtrlHandler), TRUE)) {
     g_error_message = "Failed to set control handler.\n\n";
     g_return_code = 16;
@@ -324,15 +325,16 @@ int main(int argc, char* argv[]) {
 
     // Validate options and run the Drive
     ValidateOptions(options);
-    SetSignalHandler();
-    if (using_ipc)
+    if (using_ipc) {
       return maidsafe::drive::Mount(options.mount_path, options.storage_path, options.unique_id,
                                     options.root_parent_id, options.drive_name,
                                     options.create_store, options.mount_status_shared_object_name);
-    else
+    } else {
+      SetSignalHandler();
       return maidsafe::drive::Mount(options.mount_path, options.storage_path, options.unique_id,
                                     options.root_parent_id, options.drive_name,
                                     options.create_store);
+    }
   }
   catch (const std::exception& e) {
     if (!g_error_message.empty()) {
