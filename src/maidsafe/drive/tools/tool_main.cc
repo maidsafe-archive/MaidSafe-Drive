@@ -259,6 +259,7 @@ std::function<void()> PrepareLocalVfs() {
     options.drive_logging_args = "--log_* I --log_colour_mode 2";
 
   g_launcher.reset(new drive::Launcher(options));
+  g_root = g_launcher->kMountPath();
 
   return [options] {  // NOLINT
     RemoveTempDirectory();

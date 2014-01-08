@@ -50,14 +50,24 @@ namespace {
 fs::path g_root, g_temp;
 
 std::function<void()> clean_root([] {
-  try {
-    fs::directory_iterator end;
-    for (fs::directory_iterator directory_itr(g_root); directory_itr != end; ++directory_itr)
-      fs::remove_all(*directory_itr);
+  // On Windows, this frequently fails on the first attempt due to lingering open handles in the
+  // VFS, so we make several attempts to clean up the root dir before failing.
+  int attempts(0);
+  std::string error_message;
+  while (attempts < 50) {
+    try {
+      ++attempts;
+      fs::directory_iterator end;
+      for (fs::directory_iterator directory_itr(g_root); directory_itr != end; ++directory_itr)
+        fs::remove_all(*directory_itr);
+      return;
+    }
+    catch (const std::exception& e) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      error_message = e.what();
+    }
   }
-  catch (const std::exception& e) {
-    std::cout << "Failed to cleanup " << g_root << " - " << e.what() << '\n';
-  }
+  std::cout << "Failed to cleanup " << g_root << " - " << error_message << '\n';
 });
 
 void RequireExists(const fs::path& path) {
