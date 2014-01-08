@@ -62,11 +62,32 @@ fs::path AdjustMountPath(const fs::path& mount_path) {
   return mount_path / fs::path("/").make_preferred();
 }
 
+void* GetHandleToThisProcess() {
+  auto this_process(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, TRUE, GetCurrentProcessId()));
+  if (this_process == NULL) {
+    LOG(kError) << "Failed to get a handle to this process.  Windows error: " << GetLastError();
+    ThrowError(CommonErrors::unknown);
+  }
+  return this_process;
+}
+
+void CloseHandleToThisProcess(void* this_process) {
+  // We don't want this to throw (it's called in Launcher's d'tor), but we don't care if it succeeds
+  try {
+    CloseHandle(this_process);
+  }
+  catch (...) {}
+}
+
 #else
 
 namespace {
 
 fs::path AdjustMountPath(const fs::path& mount_path) { return mount_path; }
+
+void* GetHandleToThisProcess() { return nullptr; }
+
+void CloseHandleToThisProcess(void* /*this_process*/) {}
 
 #endif
 
@@ -77,6 +98,7 @@ enum SharedMemoryArgIndex {
   kRootParentIdArg,
   kDriveNameArg,
   kCreateStoreArg,
+  kParentProcessHandle,
   kMaxArgIndex
 };
 
@@ -109,6 +131,8 @@ void ReadAndRemoveInitialSharedMemory(const std::string& initial_shared_memory_n
   options.create_store = (std::stoi(shared_memory_args[kCreateStoreArg]) != 0);
   options.mount_status_shared_object_name =
       GetMountStatusSharedMemoryName(initial_shared_memory_name);
+  options.parent_handle =
+      reinterpret_cast<void*>(std::stoull(shared_memory_args[kParentProcessHandle]));
   ipc::RemoveSharedMemory(initial_shared_memory_name);
 }
 
@@ -123,15 +147,9 @@ void NotifyUnmounted(const std::string& mount_status_shared_object_name) {
 Launcher::Launcher(const Options& options)
     : initial_shared_memory_name_(RandomAlphaNumericString(32)),
       kMountPath_(AdjustMountPath(options.mount_path)), mount_status_shared_object_(),
-      mount_status_mapped_region_(), mount_status_(nullptr), drive_process_() {
-  maidsafe::on_scope_exit cleanup_on_throw([&] {
-    try {
-      StopDriveProcess();
-    }
-    catch (const std::exception& e) {
-      LOG(kError) << e.what();
-    }
-  });
+      mount_status_mapped_region_(), mount_status_(nullptr), drive_process_(),
+      this_process_handle_(GetHandleToThisProcess()) {
+  maidsafe::on_scope_exit cleanup_on_throw([&] { Cleanup(); });
   CreateInitialSharedMemory(options);
   CreateMountStatusSharedMemory();
   StartDriveProcess(options);
@@ -147,6 +165,8 @@ void Launcher::CreateInitialSharedMemory(const Options& options) {
   shared_memory_args[kRootParentIdArg] = options.root_parent_id.string();
   shared_memory_args[kDriveNameArg] = options.drive_name.string();
   shared_memory_args[kCreateStoreArg] = options.create_store ? "1" : "0";
+  shared_memory_args[kParentProcessHandle] =
+      std::to_string(reinterpret_cast<uintptr_t>(this_process_handle_));
   ipc::CreateSharedMemory(initial_shared_memory_name_, shared_memory_args);
 }
 
@@ -170,9 +190,18 @@ void Launcher::StartDriveProcess(const Options& options) {
 
   // Start drive process
   boost::system::error_code error_code;
+#ifdef MAIDSAFE_WIN32
+  drive_process_.reset(new bp::child(bp::execute(
+      bp::initializers::run_exe(kExePath),
+      bp::initializers::on_CreateProcess_setup(
+          [](bp::windows::executor &executor) { executor.inherit_handles = TRUE; }),
+      bp::initializers::set_cmd_line(kCommandLine),
+      bp::initializers::set_on_error(error_code))));
+#else
   drive_process_.reset(new bp::child(bp::execute(bp::initializers::run_exe(kExePath),
                                                  bp::initializers::set_cmd_line(kCommandLine),
                                                  bp::initializers::set_on_error(error_code))));
+#endif
   if (error_code) {
     LOG(kError) << "Failed to start local drive: " << error_code.message();
     ThrowError(CommonErrors::uninitialised);
@@ -204,7 +233,8 @@ void Launcher::WaitForDriveToMount() {
   }
 }
 
-Launcher::~Launcher() {
+void Launcher::Cleanup() {
+  CloseHandleToThisProcess(this_process_handle_);
   try {
     StopDriveProcess();
   }
@@ -214,6 +244,10 @@ Launcher::~Launcher() {
   ipc::RemoveSharedMemory(initial_shared_memory_name_);
   bi::shared_memory_object::remove(
       GetMountStatusSharedMemoryName(initial_shared_memory_name_).c_str());
+}
+
+Launcher::~Launcher() {
+  Cleanup();
 }
 
 void Launcher::StopDriveProcess() {

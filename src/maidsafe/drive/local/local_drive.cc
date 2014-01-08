@@ -20,7 +20,7 @@
 #include <Windows.h>
 #include <shellapi.h>
 #endif
-#include <signal.h>
+#include <csignal>
 
 #include <functional>
 #include <iostream>
@@ -29,6 +29,7 @@
 #include <string>
 #include <fstream>
 #include <iterator>
+#include <mutex>
 
 #ifndef MAIDSAFE_WIN32
 #include <locale>  // NOLINT
@@ -43,6 +44,7 @@
 #include "maidsafe/common/crypto.h"
 #include "maidsafe/common/error.h"
 #include "maidsafe/common/log.h"
+#include "maidsafe/common/process.h"
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
 #include "maidsafe/common/application_support_directories.h"
@@ -64,73 +66,60 @@ namespace maidsafe {
 
 namespace drive {
 
+namespace {
+
 #ifdef MAIDSAFE_WIN32
 typedef CbfsDrive<data_store::LocalStore> LocalDrive;
 #else
 typedef FuseDrive<data_store::LocalStore> LocalDrive;
 #endif
+
 LocalDrive* g_local_drive(nullptr);
-std::unique_ptr<boost::promise<void>> g_unmount;
-
-int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity& unique_id,
-          const Identity& parent_id, const fs::path& drive_name, bool create,
-          const std::string& mount_status_shared_object_name) {
-  fs::path storage_path(storage_dir / "local_store");
-  DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
-  auto storage(std::make_shared<data_store::LocalStore>(storage_path, disk_usage));
-
-  boost::system::error_code error_code;
-  if (!fs::exists(storage_dir, error_code)) {
-    LOG(kError) << storage_dir << " doesn't exist.";
-    return error_code.value();
-  }
-  if (!fs::exists(GetUserAppDir(), error_code)) {
-    LOG(kError) << GetUserAppDir() << " doesn't exist.";
-    return error_code.value();
-  }
-
-  LocalDrive drive(storage, unique_id, parent_id, mount_dir, GetUserAppDir(), drive_name, create);
-  g_local_drive = &drive;
-  drive.Mount();
-  NotifyMountedAndWaitForUnmountRequest(mount_status_shared_object_name);
-  drive.Unmount();
-  NotifyUnmounted(mount_status_shared_object_name);
-  return 0;
-}
-
-int Mount(const fs::path &mount_dir, const fs::path &storage_dir, const Identity& unique_id,
-          const Identity& parent_id, const fs::path& drive_name, bool create) {
-  fs::path storage_path(storage_dir / "local_store");
-  DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
-  auto storage(std::make_shared<data_store::LocalStore>(storage_path, disk_usage));
-
-  boost::system::error_code error_code;
-  if (!fs::exists(storage_dir, error_code)) {
-    LOG(kError) << storage_dir << " doesn't exist.";
-    return error_code.value();
-  }
-  if (!fs::exists(GetUserAppDir(), error_code)) {
-    LOG(kError) << GetUserAppDir() << " doesn't exist.";
-    return error_code.value();
-  }
-
-  LocalDrive drive(storage, unique_id, parent_id, mount_dir, GetUserAppDir(), drive_name, create);
-  g_local_drive = &drive;
-  drive.Mount();
-
-  auto wait_until_unmounted(g_unmount->get_future());
-  wait_until_unmounted.get();
-
-  return 0;
-}
-
-}  // namespace drive
-
-}  // namespace maidsafe
-
+boost::promise<void> g_unmount;
+std::once_flag g_unmount_flag;
 const std::string kConfigFile("maidsafe_local_drive.conf");
 std::string g_error_message;
 int g_return_code(0);
+
+void Unmount() {
+  std::call_once(g_unmount_flag, [&] {
+    g_local_drive->Unmount();
+    g_unmount.set_value();
+    g_local_drive = nullptr;
+  });
+}
+
+#ifdef MAIDSAFE_WIN32
+
+process::ProcessInfo GetParentProcessInfo(const Options& options) {
+  return process::ProcessInfo(options.parent_handle);
+}
+
+BOOL CtrlHandler(DWORD control_type) {
+  LOG(kInfo) << "Received console control signal " << control_type << ".  Unmounting.";
+  if (!g_local_drive)
+    return FALSE;
+  Unmount();
+  return TRUE;
+}
+
+void SetSignalHandler() {
+  if (!SetConsoleCtrlHandler(reinterpret_cast<PHANDLER_ROUTINE>(&CtrlHandler), TRUE)) {
+    g_error_message = "Failed to set control handler.\n\n";
+    g_return_code = 16;
+    ThrowError(CommonErrors::unknown);
+  }
+}
+
+#else
+
+process::ProcessInfo GetParentProcessInfo(const Options& /*options*/) {
+  return getppid();
+}
+
+void SetSignalHandler() {}
+
+#endif
 
 std::string GetStringFromProgramOption(const std::string& option_name,
                                        const po::variables_map& variables_map) {
@@ -181,7 +170,7 @@ po::variables_map ParseAllOptions(int argc, Char* argv[],
 
     // Try to open local or main config files
     std::ifstream local_config_file(kConfigFile.c_str());
-    fs::path main_config_path(fs::path(maidsafe::GetUserAppDir() / kConfigFile));
+    fs::path main_config_path(fs::path(GetUserAppDir() / kConfigFile));
     std::ifstream main_config_file(main_config_path.string().c_str());
 
     // Try local first for testing
@@ -199,7 +188,7 @@ po::variables_map ParseAllOptions(int argc, Char* argv[],
     g_error_message = "Fatal error:\n  " + std::string(e.what()) +
                       "\nRun with -h to see all options.\n\n";
     g_return_code = 32;
-    maidsafe::ThrowError(maidsafe::CommonErrors::invalid_parameter);
+    ThrowError(CommonErrors::invalid_parameter);
   }
   return variables_map;
 }
@@ -208,38 +197,35 @@ void HandleHelp(const po::variables_map& variables_map) {
   if (variables_map.count("help")) {
     std::ostringstream stream;
     stream << VisibleOptions() << "\nThese can also be set via a config file at \"./"
-           << kConfigFile << "\" or at " << fs::path(maidsafe::GetUserAppDir() / kConfigFile)
-           << "\n\n";
+           << kConfigFile << "\" or at " << fs::path(GetUserAppDir() / kConfigFile) << "\n\n";
     g_error_message = stream.str();
     g_return_code = 0;
-    throw maidsafe::MakeError(maidsafe::CommonErrors::success);
+    throw MakeError(CommonErrors::success);
   }
 }
 
-bool GetFromIpc(const po::variables_map& variables_map, maidsafe::drive::Options& options) {
+bool GetFromIpc(const po::variables_map& variables_map, Options& options) {
   if (variables_map.count("shared_memory")) {
-    maidsafe::drive::ReadAndRemoveInitialSharedMemory(
-        variables_map.at("shared_memory").as<std::string>(), options);
+    ReadAndRemoveInitialSharedMemory(variables_map.at("shared_memory").as<std::string>(), options);
     return true;
   }
   return false;
 }
 
-void GetFromProgramOptions(const po::variables_map& variables_map,
-                           maidsafe::drive::Options& options) {
+void GetFromProgramOptions(const po::variables_map& variables_map, Options& options) {
   options.mount_path = GetStringFromProgramOption("mount_dir", variables_map);
   options.storage_path = GetStringFromProgramOption("storage_dir", variables_map);
   auto unique_id(GetStringFromProgramOption("unique_id", variables_map));
   if (!unique_id.empty())
-    options.unique_id = maidsafe::Identity(unique_id);
+    options.unique_id = Identity(unique_id);
   auto parent_id(GetStringFromProgramOption("parent_id", variables_map));
   if (!parent_id.empty())
-    options.root_parent_id = maidsafe::Identity(parent_id);
+    options.root_parent_id = Identity(parent_id);
   options.drive_name = GetStringFromProgramOption("drive_name", variables_map);
   options.create_store = (variables_map.count("create") != 0);
 }
 
-void ValidateOptions(const maidsafe::drive::Options& options) {
+void ValidateOptions(const Options& options) {
   std::string error_message;
   g_return_code = 0;
   if (options.mount_path.empty()) {
@@ -261,35 +247,80 @@ void ValidateOptions(const maidsafe::drive::Options& options) {
 
   if (g_return_code) {
     g_error_message = "Fatal error:\n" + error_message + "\nRun with -h to see all options.\n\n";
-    maidsafe::ThrowError(maidsafe::CommonErrors::invalid_parameter);
+    ThrowError(CommonErrors::invalid_parameter);
   }
 }
 
-#ifdef MAIDSAFE_WIN32
-
-BOOL CtrlHandler(DWORD control_type) {
-  LOG(kInfo) << "Received console control signal " << control_type << ".  Unmounting.";
-  if (!maidsafe::drive::g_local_drive)
-    return FALSE;
-  maidsafe::drive::g_local_drive->Unmount();
-  maidsafe::drive::g_unmount->set_value();
-  return TRUE;
+void MonitorParentProcess(const Options& options) {
+  auto parent_process_info(GetParentProcessInfo(options));
+  while (g_local_drive && process::IsRunning(parent_process_info))
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+  Unmount();
 }
 
-void SetSignalHandler() {
-  maidsafe::drive::g_unmount.reset(new boost::promise<void>);
-  if (!SetConsoleCtrlHandler(reinterpret_cast<PHANDLER_ROUTINE>(&CtrlHandler), TRUE)) {
-    g_error_message = "Failed to set control handler.\n\n";
-    g_return_code = 16;
-    maidsafe::ThrowError(maidsafe::CommonErrors::unknown);
+int MountAndWaitForIpcNotification(const Options& options) {
+  fs::path storage_path(options.storage_path / "local_store");
+  DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
+  auto storage(std::make_shared<data_store::LocalStore>(storage_path, disk_usage));
+
+  boost::system::error_code error_code;
+  if (!fs::exists(options.storage_path, error_code)) {
+    LOG(kError) << options.storage_path << " doesn't exist.";
+    return error_code.value();
   }
+  if (!fs::exists(GetUserAppDir(), error_code)) {
+    LOG(kError) << GetUserAppDir() << " doesn't exist.";
+    return error_code.value();
+  }
+
+  LocalDrive drive(storage, options.unique_id, options.root_parent_id, options.mount_path,
+                   GetUserAppDir(), options.drive_name, options.create_store);
+  g_local_drive = &drive;
+  drive.Mount();
+  // Start and detach a thread to wait for the parent process to signal an unmount request.
+  std::thread([&] {
+    NotifyMountedAndWaitForUnmountRequest(options.mount_status_shared_object_name);
+    Unmount();
+  }).detach();
+  // Start a thread to poll the parent process' continued existence.
+  std::thread poll_parent([&] { MonitorParentProcess(options); });
+
+  auto wait_until_unmounted(g_unmount.get_future());
+  wait_until_unmounted.get();
+  NotifyUnmounted(options.mount_status_shared_object_name);
+  poll_parent.join();
+  return 0;
 }
 
-#else
+int MountAndWaitForSignal(const Options& options) {
+  fs::path storage_path(options.storage_path / "local_store");
+  DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
+  auto storage(std::make_shared<data_store::LocalStore>(storage_path, disk_usage));
 
-void SetSignalHandler() {}
+  boost::system::error_code error_code;
+  if (!fs::exists(options.storage_path, error_code)) {
+    LOG(kError) << options.storage_path << " doesn't exist.";
+    return error_code.value();
+  }
+  if (!fs::exists(GetUserAppDir(), error_code)) {
+    LOG(kError) << GetUserAppDir() << " doesn't exist.";
+    return error_code.value();
+  }
 
-#endif
+  LocalDrive drive(storage, options.unique_id, options.root_parent_id, options.mount_path,
+                   GetUserAppDir(), options.drive_name, options.create_store);
+  g_local_drive = &drive;
+  drive.Mount();
+  auto wait_until_unmounted(g_unmount.get_future());
+  wait_until_unmounted.get();
+  return 0;
+}
+
+}  // unnamed namespace
+
+}  // namespace drive
+
+}  // namespace maidsafe
 
 #ifdef USES_WINMAIN
 int CALLBACK wWinMain(HINSTANCE /*handle_to_instance*/, HINSTANCE /*handle_to_previous_instance*/,
@@ -310,36 +341,33 @@ int main(int argc, char* argv[]) {
   boost::system::error_code error_code;
   try {
     // Set up command line options and config file options
-    auto visible_options(VisibleOptions());
+    auto visible_options(maidsafe::drive::VisibleOptions());
     po::options_description command_line_options, config_file_options;
-    command_line_options.add(visible_options).add(HiddenOptions());
+    command_line_options.add(visible_options).add(maidsafe::drive::HiddenOptions());
     config_file_options.add(visible_options);
 
     // Read in options
-    auto variables_map(ParseAllOptions(argc, argv, command_line_options, config_file_options));
-    HandleHelp(variables_map);
+    auto variables_map(maidsafe::drive::ParseAllOptions(argc, argv, command_line_options,
+                                                        config_file_options));
+    maidsafe::drive::HandleHelp(variables_map);
     maidsafe::drive::Options options;
-    bool using_ipc(GetFromIpc(variables_map, options));
+    bool using_ipc(maidsafe::drive::GetFromIpc(variables_map, options));
     if (!using_ipc)
-      GetFromProgramOptions(variables_map, options);
+      maidsafe::drive::GetFromProgramOptions(variables_map, options);
 
     // Validate options and run the Drive
-    ValidateOptions(options);
+    maidsafe::drive::ValidateOptions(options);
     if (using_ipc) {
-      return maidsafe::drive::Mount(options.mount_path, options.storage_path, options.unique_id,
-                                    options.root_parent_id, options.drive_name,
-                                    options.create_store, options.mount_status_shared_object_name);
+      return maidsafe::drive::MountAndWaitForIpcNotification(options);
     } else {
-      SetSignalHandler();
-      return maidsafe::drive::Mount(options.mount_path, options.storage_path, options.unique_id,
-                                    options.root_parent_id, options.drive_name,
-                                    options.create_store);
+      maidsafe::drive::SetSignalHandler();
+      return maidsafe::drive::MountAndWaitForSignal(options);
     }
   }
   catch (const std::exception& e) {
-    if (!g_error_message.empty()) {
-      std::cout << g_error_message;
-      return g_return_code;
+    if (!maidsafe::drive::g_error_message.empty()) {
+      std::cout << maidsafe::drive::g_error_message;
+      return maidsafe::drive::g_return_code;
     }
     LOG(kError) << "Exception: " << e.what();
   }

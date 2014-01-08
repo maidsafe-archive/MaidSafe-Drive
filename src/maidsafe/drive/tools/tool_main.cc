@@ -18,7 +18,7 @@
 
 
 #ifndef MAIDSAFE_WIN32
-#include <signal.h>
+#include <csignal>
 #endif
 
 #include <algorithm>

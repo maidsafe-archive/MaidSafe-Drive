@@ -66,12 +66,13 @@ struct MountStatus {
 struct Options {
   Options() : mount_path(), storage_path(), drive_name(), unique_id(), root_parent_id(),
               create_store(false), check_data(false), drive_type(DriveType::kNetwork),
-              drive_logging_args(), mount_status_shared_object_name() {}
+              drive_logging_args(), mount_status_shared_object_name(), parent_handle(nullptr) {}
   boost::filesystem::path mount_path, storage_path, drive_name;
   Identity unique_id, root_parent_id;
   bool create_store, check_data;
   DriveType drive_type;
   std::string drive_logging_args, mount_status_shared_object_name;
+  void* parent_handle;
 };
 
 class Launcher {
@@ -91,12 +92,14 @@ class Launcher {
   void StartDriveProcess(const Options& options);
   boost::filesystem::path GetDriveExecutablePath(DriveType drive_type);
   void WaitForDriveToMount();
+  void Cleanup();
 
   std::string initial_shared_memory_name_;
   const boost::filesystem::path kMountPath_;
   boost::interprocess::shared_memory_object mount_status_shared_object_;
   boost::interprocess::mapped_region mount_status_mapped_region_;
   MountStatus* mount_status_;
+  void* this_process_handle_;
   std::unique_ptr<boost::process::child> drive_process_;
 };
 
