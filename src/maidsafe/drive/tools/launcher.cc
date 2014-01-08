@@ -250,7 +250,7 @@ Launcher::~Launcher() {
   Cleanup();
 }
 
-void Launcher::StopDriveProcess() {
+void Launcher::StopDriveProcess(bool terminate_on_ipc_failure) {
   if (!drive_process_)
     return;
   bi::scoped_lock<bi::interprocess_mutex> lock(mount_status_->mutex);
@@ -260,8 +260,12 @@ void Launcher::StopDriveProcess() {
   boost::system::error_code error_code;
   if (!mount_status_->condition.timed_wait(lock, timeout,
                                            [&] { return !mount_status_->mounted; })) {
-    LOG(kError) << "Failed waiting for drive to unmount - terminating drive process.";
-    bp::terminate(*drive_process_, error_code);
+    if (terminate_on_ipc_failure) {
+      LOG(kError) << "Failed waiting for drive to unmount - terminating drive process.";
+      bp::terminate(*drive_process_, error_code);
+    } else {
+      LOG(kError) << "Failed waiting for drive to unmount.";
+    }
     drive_process_ = nullptr;
     return;
   }

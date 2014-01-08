@@ -91,8 +91,8 @@ class CbfsDrive : public Drive<Storage> {
 
   virtual ~CbfsDrive();
 
-  void Mount();
-  bool Unmount();
+  virtual void Mount();
+  virtual void Unmount();
   int Install();
   uint32_t max_file_path_length() const;
 
@@ -180,7 +180,6 @@ class CbfsDrive : public Drive<Storage> {
   LPCWSTR icon_id_;
   std::wstring drive_name_;
   LPCSTR registration_key_;
-  std::once_flag unmounted_once_flag_;
 };
 
 template <typename Storage>
@@ -194,8 +193,7 @@ CbfsDrive<Storage>::CbfsDrive(std::shared_ptr<Storage> storage, const Identity& 
       guid_(BOOST_PP_STRINGIZE(CBFS_GUID)),
       icon_id_(L"MaidSafeDriveIcon"),
       drive_name_(drive_name.wstring()),
-      registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)),
-      unmounted_once_flag_() {}
+      registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)) {}
 
 template <typename Storage>
 CbfsDrive<Storage>::~CbfsDrive() {
@@ -251,9 +249,9 @@ void CbfsDrive<Storage>::UnmountDrive(
 }
 
 template <typename Storage>
-bool CbfsDrive<Storage>::Unmount() {
+void CbfsDrive<Storage>::Unmount() {
   try {
-    std::call_once(unmounted_once_flag_, [&]() {
+    std::call_once(this->unmounted_once_flag_, [&] {
         // Only one instance of this lambda function can be run simultaneously.  If any CBFS
         // function throws, the unmounted_once_flag_ remains unset and another attempt can be made.
         UnmountDrive(std::chrono::seconds(3));
@@ -264,9 +262,7 @@ bool CbfsDrive<Storage>::Unmount() {
   }
   catch (const ECBFSError& error) {
     detail::ErrorMessage("Unmount", error);
-    return false;
   }
-  return true;
 }
 
 template <typename Storage>

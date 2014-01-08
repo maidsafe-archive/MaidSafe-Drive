@@ -79,7 +79,10 @@ class Launcher {
  public:
   explicit Launcher(const Options& options);
   ~Launcher();
-  void StopDriveProcess();
+  // If the attempt to stop the child process via IPC notification fails, then the child can be
+  // terminated if required.  This should not be needed if the child is monitoring the parent
+  // process (i.e. this process) and will exit if the parent process stops.
+  void StopDriveProcess(bool terminate_on_ipc_failure = false);
   boost::filesystem::path kMountPath() const { return kMountPath_; }
 
  private:

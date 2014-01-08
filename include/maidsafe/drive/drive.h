@@ -53,6 +53,8 @@ class Drive {
         const boost::filesystem::path& user_app_dir, bool create);
 
   virtual ~Drive() {}
+  virtual void Mount() = 0;
+  virtual void Unmount() = 0;
   Identity root_parent_id() const;
 
  protected:
@@ -74,6 +76,7 @@ class Drive {
   std::shared_ptr<Storage> storage_;
   const boost::filesystem::path kMountDir_;
   const boost::filesystem::path kUserAppDir_;
+  std::once_flag unmounted_once_flag_;
 
  private:
   typedef detail::FileContext::Buffer Buffer;
@@ -98,6 +101,7 @@ Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_u
     : storage_(storage),
       kMountDir_(mount_dir),
       kUserAppDir_(user_app_dir),
+      unmounted_once_flag_(),
       get_chunk_from_store_(),
       // TODO(Fraser#5#): 2013-11-27 - BEFORE_RELEASE - confirm the following 2 variables.
       default_max_buffer_memory_(Concurrency() * 1024 * 1024),  // cores * default chunk size

@@ -102,8 +102,8 @@ class FuseDrive : public Drive<Storage> {
             bool create);
 
   virtual ~FuseDrive();
-  void Mount();
-  void Unmount();
+  virtual void Mount();
+  virtual void Unmount();
 
  private:
   FuseDrive(const FuseDrive&);
@@ -197,7 +197,6 @@ FuseDrive<Storage>::FuseDrive(std::shared_ptr<Storage> storage, const Identity& 
 template <typename Storage>
 FuseDrive<Storage>::~FuseDrive() {
   Unmount();
-  fuse_event_loop_thread_.join();
   log::Logging::Instance().Flush();
 }
 
@@ -256,6 +255,9 @@ void FuseDrive<Storage>::Mount() {
   // fuse_opt_add_arg(&args, "-d");  // print debug info
   // fuse_opt_add_arg(&args, "-f");  // run in foreground
 #endif
+  // TODO(Fraser#5#): 2014-01-08 - BEFORE_RELEASE Avoid running in foreground.
+  fuse_opt_add_arg(&args, "-f");  // run in foreground
+
   fuse_opt_add_arg(&args, "-s");  // this is single threaded
 
   // if (read_only)
@@ -301,9 +303,20 @@ void FuseDrive<Storage>::Mount() {
 
 template <typename Storage>
 void FuseDrive<Storage>::Unmount() {
-  fuse_exit(fuse_);
-  fuse_unmount(fuse_mountpoint_.c_str(), fuse_channel_);
-  fuse_destroy(fuse_);
+  try {
+    std::call_once(this->unmounted_once_flag_, [&] {
+      fuse_remove_signal_handlers(fuse_get_session(fuse_));
+      fuse_unmount(fuse_mountpoint_.c_str(), fuse_channel_);
+      fuse_destroy(fuse_);
+      fuse_event_loop_thread_.join();
+    });
+  }
+  catch (const std::exception& e) {
+    LOG(kError) << "Exception in Unmount: " << e.what();
+  }
+  catch (...) {
+    LOG(kError) << "Unknown exception in Unmount";
+  }
 }
 
 // =============================== Callbacks =======================================================
@@ -717,12 +730,12 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
   if (offset == 0)
     directory->ResetChildrenCounter();
 
-  const detail::FileContext* file_context(nullptr);
-  do {
-    file_context = directory->GetChildAndIncrementCounter();
+  const detail::FileContext* file_context(directory->GetChildAndIncrementCounter());
+  while (file_context) {
     if (filler(buf, file_context->meta_data.name.c_str(), &file_context->meta_data.attributes, 0))
       break;
-  } while (file_context);
+    file_context = directory->GetChildAndIncrementCounter();
+  }
 
 //  if (file_context) {
 //    file_context->content_changed = true;
