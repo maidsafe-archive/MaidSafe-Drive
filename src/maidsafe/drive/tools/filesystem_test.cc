@@ -199,10 +199,11 @@ TEST_CASE("Append to file", "[Filesystem]") {
   auto filepath(CreateFile(g_root, 0).first);
   int test_runs = 1000;
   WriteFile(filepath, "a");
+  NonEmptyString content, updated_content;
   for (int i = 0; i < test_runs; ++i) {
-    auto content(ReadFile(filepath));
-    WriteFile(filepath, content.string() + "a");
-    auto updated_content(ReadFile(filepath));
+    REQUIRE_NOTHROW(content = ReadFile(filepath));
+    REQUIRE(WriteFile(filepath, content.string() + "a"));
+    REQUIRE_NOTHROW(updated_content = ReadFile(filepath));
     REQUIRE(updated_content.string().size() == content.string().size() + 1);
     REQUIRE(updated_content.string().size() == i + 2U);
   }
