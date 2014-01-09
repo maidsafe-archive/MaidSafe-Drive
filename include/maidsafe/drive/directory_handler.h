@@ -302,27 +302,29 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
   auto new_parent(Get(new_relative_path.parent_path()));
   PrepareNewPath(new_relative_path, new_parent);
 
-  if (old_relative_path.parent_path() == new_relative_path.parent_path()) {
+  if (old_relative_path.parent_path() == new_relative_path.parent_path())
     new_parent->RenameChild(old_relative_path.filename(), new_relative_path.filename());
-    //std::lock_guard<std::mutex> lock(cache_mutex_);
-    //auto itr(cache_.find(old_relative_path.parent_path()));
-    //if (itr != std::end(cache_))
-    // cache_.erase(old_relative_path.parent_path());
-  } else {
+  else
     RenameDifferentParent(old_relative_path, new_relative_path, new_parent);
-    //std::lock_guard<std::mutex> lock(cache_mutex_);
-    //auto itr1(cache_.find(old_relative_path.parent_path()));
-    //if (itr1 != std::end(cache_))
-    // cache_.erase(old_relative_path.parent_path());
-    //auto itr2(cache_.find(new_relative_path.parent_path()));
-    //if (itr2 != std::end(cache_))
-    // cache_.erase(new_relative_path.parent_path());
-  }
+
   if (IsDirectory(FileContext (old_relative_path, true))) {
     std::lock_guard<std::mutex> lock(cache_mutex_);
+    // Remove the old entry from the cache.
     auto itr(cache_.find(old_relative_path));
     if (itr != std::end(cache_))
-      cache_.erase(old_relative_path);
+      itr = cache_.erase(itr);
+    // Fix any children entries in the cache (effectively renaming the key part of each such entry).
+    auto old_path_size(old_relative_path.string().size());
+    while (itr != std::end(cache_)) {
+      if (itr->first.string().substr(0, old_path_size) == old_relative_path.string()) {
+        boost::filesystem::path new_path(
+            new_relative_path.string() + itr->first.string().substr(old_path_size));
+        cache_.insert(std::make_pair(new_path, std::move(itr->second)));
+        itr = cache_.erase(itr);
+      } else {
+        break;
+      }
+    }
   }
 }
 
