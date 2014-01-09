@@ -593,7 +593,7 @@ TEST_CASE("Check failures", "[Filesystem]") {
   RequireDirectoriesEqual(directory1, copied_directory1, false);
 
   // Create an empty directory in 'g_root'
-  auto directory2(CreateDirectory(g_temp));
+  auto directory2(CreateDirectory(g_root));
 
   // Rename copied directory to empty directory
   fs::rename(copied_directory1, directory2, error_code);
