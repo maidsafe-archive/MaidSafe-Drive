@@ -198,9 +198,19 @@ void Launcher::StartDriveProcess(const Options& options) {
       bp::initializers::set_cmd_line(kCommandLine),
       bp::initializers::set_on_error(error_code))));
 #else
-  drive_process_.reset(new bp::child(bp::execute(bp::initializers::run_exe(kExePath),
-                                                 bp::initializers::set_cmd_line(kCommandLine),
-                                                 bp::initializers::set_on_error(error_code))));
+  // Copy the "TERM" environment variable to the child process to allow for coloured logging.
+  auto env_ptr = std::getenv("TERM");
+  std::string term("TERM=");
+  if (env_ptr)
+    term += env_ptr;
+  const char* env[2] = { 0 };
+  env[0] = term.c_str();
+  drive_process_.reset(new bp::child(bp::execute(
+      bp::initializers::run_exe(kExePath),
+      bp::initializers::on_fork_setup(
+          [env](bp::posix::executor &executor) { executor.env = const_cast<char**>(env); }),
+      bp::initializers::set_cmd_line(kCommandLine),
+      bp::initializers::set_on_error(error_code))));
 #endif
   if (error_code) {
     LOG(kError) << "Failed to start local drive: " << error_code.message();

@@ -28,6 +28,7 @@
 #include <utility>
 
 #include "boost/filesystem/path.hpp"
+#include "boost/thread/future.hpp"
 
 #ifdef MAIDSAFE_APPLE
 #include "sys/statvfs.h"
@@ -123,6 +124,7 @@ class FuseDrive : public Drive<Storage> {
   static int OpsFsyncDir(const char* path, int isdatasync, struct fuse_file_info* file_info);
   static int OpsFtruncate(const char* path, off_t size, struct fuse_file_info* file_info);
   static int OpsGetattr(const char* path, struct stat* stbuf);
+  static void* OpsInit(struct fuse_conn_info* conn);
 //  static int OpsLink(const char* to, const char* from);
 //  static int OpsLock(const char* path, struct fuse_file_info* file_info, int cmd,
 //                     struct flock* lock);
@@ -167,6 +169,7 @@ class FuseDrive : public Drive<Storage> {
   fs::path fuse_mountpoint_;
   std::string drive_name_;
   std::thread fuse_event_loop_thread_;
+  boost::promise<void> mount_promise_;
 };
 
 const int kMaxPath(4096);
@@ -189,7 +192,8 @@ FuseDrive<Storage>::FuseDrive(std::shared_ptr<Storage> storage, const Identity& 
       fuse_channel_(nullptr),
       fuse_mountpoint_(mount_dir),
       drive_name_(drive_name.string()),
-      fuse_event_loop_thread_() {
+      fuse_event_loop_thread_(),
+      mount_promise_() {
   fs::create_directory(fuse_mountpoint_);
   Init();
 }
@@ -214,6 +218,7 @@ void FuseDrive<Storage>::Init() {
 //  maidsafe_ops_.fsyncdir = OpsFsyncDir;
   maidsafe_ops_.ftruncate = OpsFtruncate;
   maidsafe_ops_.getattr = OpsGetattr;
+  maidsafe_ops_.init = OpsInit;
 //  maidsafe_ops_.link = OpsLink;
 //  maidsafe_ops_.lock = OpsLock;
   maidsafe_ops_.mkdir = OpsMkdir;
@@ -299,6 +304,8 @@ void FuseDrive<Storage>::Mount() {
 
   cleanup_on_error.Release();
   free(mountpoint);
+  auto wait_until_mounted(mount_promise_.get_future());
+  wait_until_mounted.get();
 }
 
 template <typename Storage>
@@ -535,6 +542,18 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsGetattr(const char* path, struct stat* stbuf) {
   LOG(kInfo) << "OpsGetattr: " << path;
   return GetAttributes(path, stbuf);
+}
+
+// Quote from FUSE documentation:
+//
+// Initialize filesystem
+//
+// The return value will passed in the private_data field of fuse_context to all file operations and
+// as a parameter to the destroy() method.
+template <typename Storage>
+void* FuseDrive<Storage>::OpsInit(struct fuse_conn_info* /*conn*/) {
+  Global<Storage>::g_fuse_drive->mount_promise_.set_value();
+  return nullptr;
 }
 
 /*
