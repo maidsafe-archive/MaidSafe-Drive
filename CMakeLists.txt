@@ -60,6 +60,11 @@ set(NetworkDriveMain ${DriveSourcesDir}/network/network_drive.cc)
 set(WinServiceMain ${DriveSourcesDir}/win_service/win_service_main.cc)
 set(UnixFiles ${DriveApiDir}/unix_drive.h ${DriveSourcesDir}/unix_drive.cc)
 set(WinFiles ${DriveApiDir}/win_drive.h ${DriveSourcesDir}/win_drive.cc)
+if(Cbfs_FOUND)
+  set(CbfsKeyFile ${CMAKE_CURRENT_BINARY_DIR}/cbfs_key/maidsafe/drive/cbfs_key.h)
+  configure_file("${DriveSourcesDir}/cbfs_key.h.in" "${CbfsKeyFile}" @ONLY)
+  list(APPEND DriveAllFiles ${CbfsKeyFile})
+endif()
 
 if(WIN32)
   list(REMOVE_ITEM DriveAllFiles ${UnixFiles})
@@ -83,7 +88,7 @@ endif()
 ms_add_static_library(maidsafe_drive ${DriveAllFiles})
 target_include_directories(maidsafe_drive
   PUBLIC ${PROJECT_SOURCE_DIR}/include ${Cbfs_INCLUDE_DIR} ${Fuse_INCLUDE_DIR}
-  PRIVATE ${PROJECT_SOURCE_DIR}/src)
+  PRIVATE ${PROJECT_SOURCE_DIR}/src $<$<BOOL:${Cbfs_FOUND}>:${CMAKE_CURRENT_BINARY_DIR}/cbfs_key>)
 target_link_libraries(maidsafe_drive maidsafe_encrypt ${BoostRegexLibs})
 if(WIN32)
   if(Cbfs_FOUND)
@@ -168,12 +173,7 @@ endif()
 #==================================================================================================#
 include(standard_flags)
 
-target_compile_definitions(maidsafe_drive
-  PUBLIC
-    $<$<BOOL:${UNIX}>:FUSE_USE_VERSION=26>
-  PRIVATE
-    $<$<BOOL:${Cbfs_FOUND}>:CBFS_KEY=${Cbfs_KEY}>
-)
+target_compile_definitions(maidsafe_drive PUBLIC $<$<BOOL:${UNIX}>:FUSE_USE_VERSION=26>)
 target_compile_definitions(local_drive PRIVATE $<$<BOOL:${WIN32}>:USES_WINMAIN>)
 target_compile_definitions(network_drive PRIVATE $<$<BOOL:${WIN32}>:USES_WINMAIN>)
 
@@ -182,15 +182,15 @@ if(MaidsafeTesting)
   target_compile_definitions(filesystem_test PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
 endif()
 if(Cbfs_FOUND)
-  target_compile_definitions(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_DEFINITIONS> "CBFS_KEY=${Cbfs_KEY}")
+  target_compile_definitions(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_DEFINITIONS>)
   target_compile_options(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_OPTIONS>)
   set_property(TARGET cbfs_driver APPEND_STRING PROPERTY LINK_FLAGS " /level='requireAdministrator' /uiAccess='false' ")
   if(MaidsafeTesting)
     set_property(TARGET local_drive network_drive local_drive_console network_drive_console maidsafe_drive
-                 APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=${CbfsGUIDTesting}" "CBFS_KEY=${Cbfs_KEY}")
+                 APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=${CbfsGUIDTesting}")
   else()
-    set_property(TARGET local_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=${CbfsGUIDLocal}" "CBFS_KEY=${Cbfs_KEY}")
-    set_property(TARGET network_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=${CbfsGUIDNetwork}" "CBFS_KEY=${Cbfs_KEY}")
+    set_property(TARGET local_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=${CbfsGUIDLocal}")
+    set_property(TARGET network_drive APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_GUID=${CbfsGUIDNetwork}")
   endif()
 endif()
 

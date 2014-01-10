@@ -20,6 +20,8 @@
 
 #include "maidsafe/common/log.h"
 
+#include "maidsafe/drive/cbfs_key.h"
+
 
 namespace maidsafe {
 
