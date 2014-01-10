@@ -169,7 +169,7 @@ class FuseDrive : public Drive<Storage> {
   fs::path fuse_mountpoint_;
   std::string drive_name_;
   std::thread fuse_event_loop_thread_;
-  boost::promise<void> mount_promise_;
+  std::unique_ptr<boost::promise<void>> mount_promise_;
 };
 
 const int kMaxPath(4096);
@@ -297,6 +297,7 @@ void FuseDrive<Storage>::Mount() {
   if (fuse_set_signal_handlers(fuse_get_session(fuse_)) == -1)
     ThrowError(DriveErrors::failed_to_mount);
 
+  mount_promise_.reset(new boost::promise<void>());
   if (multithreaded)
     fuse_event_loop_thread_ = std::move(std::thread(&fuse_loop_mt, fuse_));
   else
@@ -304,7 +305,7 @@ void FuseDrive<Storage>::Mount() {
 
   cleanup_on_error.Release();
   free(mountpoint);
-  auto wait_until_mounted(mount_promise_.get_future());
+  auto wait_until_mounted(mount_promise_->get_future());
   wait_until_mounted.get();
 }
 
@@ -552,7 +553,7 @@ int FuseDrive<Storage>::OpsGetattr(const char* path, struct stat* stbuf) {
 // as a parameter to the destroy() method.
 template <typename Storage>
 void* FuseDrive<Storage>::OpsInit(struct fuse_conn_info* /*conn*/) {
-  Global<Storage>::g_fuse_drive->mount_promise_.set_value();
+  Global<Storage>::g_fuse_drive->mount_promise_->set_value();
   return nullptr;
 }
 

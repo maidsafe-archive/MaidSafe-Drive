@@ -20,14 +20,11 @@
 
 #include "maidsafe/common/log.h"
 
+#include "maidsafe/drive/cbfs_key.h"
 
 namespace maidsafe {
 
 namespace drive {
-
-#ifndef CBFS_KEY
-#  error CBFS_KEY must be defined.
-#endif
 
 namespace {
 

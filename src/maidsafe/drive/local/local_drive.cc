@@ -22,14 +22,14 @@
 #endif
 #include <csignal>
 
+#include <fstream>
 #include <functional>
 #include <iostream>
-#include <sstream>
-#include <memory>
-#include <string>
-#include <fstream>
 #include <iterator>
+#include <memory>
 #include <mutex>
+#include <sstream>
+#include <string>
 
 #ifndef MAIDSAFE_WIN32
 #include <locale>  // NOLINT
@@ -75,7 +75,7 @@ typedef FuseDrive<data_store::LocalStore> LocalDrive;
 #endif
 
 LocalDrive* g_local_drive(nullptr);
-boost::promise<void> g_unmount;
+std::unique_ptr<boost::promise<void>> g_unmount;
 std::once_flag g_unmount_flag;
 const std::string kConfigFile("maidsafe_local_drive.conf");
 std::string g_error_message;
@@ -84,7 +84,7 @@ int g_return_code(0);
 void Unmount() {
   std::call_once(g_unmount_flag, [&] {
     g_local_drive->Unmount();
-    g_unmount.set_value();
+    g_unmount->set_value();
     g_local_drive = nullptr;
   });
 }
@@ -285,7 +285,8 @@ int MountAndWaitForIpcNotification(const Options& options) {
   // Start a thread to poll the parent process' continued existence.
   std::thread poll_parent([&] { MonitorParentProcess(options); });
 
-  auto wait_until_unmounted(g_unmount.get_future());
+  g_unmount.reset(new boost::promise<void>());
+  auto wait_until_unmounted(g_unmount->get_future());
   wait_until_unmounted.get();
   NotifyUnmounted(options.mount_status_shared_object_name);
   poll_parent.join();
@@ -311,7 +312,8 @@ int MountAndWaitForSignal(const Options& options) {
                    GetUserAppDir(), options.drive_name, options.create_store);
   g_local_drive = &drive;
   drive.Mount();
-  auto wait_until_unmounted(g_unmount.get_future());
+  g_unmount.reset(new boost::promise<void>());
+  auto wait_until_unmounted(g_unmount->get_future());
   wait_until_unmounted.get();
   return 0;
 }

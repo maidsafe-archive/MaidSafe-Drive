@@ -127,11 +127,13 @@ void SetUpRootDirectory(fs::path base_dir) {
 
 void RemoveRootDirectory() {
   boost::system::error_code error_code;
-  if (fs::remove_all(g_root, error_code) == 0 || error_code) {
-    LOG(kWarning) << "Failed to remove root directory " << g_root << ": "
-                  << error_code.message();
-  } else {
-    LOG(kInfo) << "Removed " << g_root;
+  if (fs::exists(g_root, error_code)) {
+    if (fs::remove_all(g_root, error_code) == 0 || error_code) {
+      LOG(kWarning) << "Failed to remove root directory " << g_root << ": "
+                    << error_code.message();
+    } else {
+      LOG(kInfo) << "Removed " << g_root;
+    }
   }
 }
 
@@ -264,6 +266,7 @@ std::function<void()> PrepareLocalVfs() {
   return [options] {  // NOLINT
     RemoveTempDirectory();
     RemoveStorageDirectory(options.storage_path);
+    RemoveRootDirectory();
   };
 }
 
