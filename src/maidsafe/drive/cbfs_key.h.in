@@ -16,6 +16,23 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
-#ifndef CBFS_KEY
-#define CBFS_KEY @Cbfs_KEY@
-#endif
+#ifndef MAIDSAFE_DRIVE_CBFS_KEY_H_
+#define MAIDSAFE_DRIVE_CBFS_KEY_H_
+
+namespace maidsafe {
+
+namespace drive {
+
+namespace detail {
+
+const char* const GetCbfsKey() {
+  return "@Cbfs_KEY@";
+}
+
+}  // namespace detail
+
+}  // namespace drive
+
+}  // namespace maidsafe
+
+#endif  // MAIDSAFE_DRIVE_CBFS_KEY_H_

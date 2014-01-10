@@ -54,6 +54,8 @@ class CbfsDrive;
 
 namespace detail {
 
+const char* const GetCbfsKey();
+
 template <typename Storage>
 CbfsDrive<Storage>* GetDrive(CallbackFileSystem* sender) {
   return static_cast<CbfsDrive<Storage>*>(sender->GetTag());
@@ -179,7 +181,6 @@ class CbfsDrive : public Drive<Storage> {
   std::string guid_;
   LPCWSTR icon_id_;
   std::wstring drive_name_;
-  LPCSTR registration_key_;
 };
 
 template <typename Storage>
@@ -192,8 +193,7 @@ CbfsDrive<Storage>::CbfsDrive(std::shared_ptr<Storage> storage, const Identity& 
       callback_filesystem_(),
       guid_(BOOST_PP_STRINGIZE(CBFS_GUID)),
       icon_id_(L"MaidSafeDriveIcon"),
-      drive_name_(drive_name.wstring()),
-      registration_key_(BOOST_PP_STRINGIZE(CBFS_KEY)) {}
+      drive_name_(drive_name.wstring()) {}
 
 template <typename Storage>
 CbfsDrive<Storage>::~CbfsDrive() {
@@ -364,7 +364,7 @@ void CbfsDrive<Storage>::InitialiseCbfs() {
     callback_filesystem_.SetUseFileCreationFlags(true);
 
     // Methods
-    callback_filesystem_.SetRegistrationKey(registration_key_);
+    callback_filesystem_.SetRegistrationKey(detail::GetCbfsKey());
 
     // Events
     callback_filesystem_.SetOnStorageEjected(CbFsStorageEjected);
