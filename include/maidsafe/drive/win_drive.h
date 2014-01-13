@@ -702,7 +702,7 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
 // This event is fired when the OS wants to enumerate the directory entries by mask.
 //
 // The mask can (but not necessarily does) include wildcard characters ("*" and "?") and any
-// characters, allowed in file names, in any combination. Eg. you can recieve masks like
+// characters, allowed in file names, in any combination. Eg. you can receive masks like
 // "smth?*.abc?e?*" and other complex combinations.
 //
 // The application must report information about the entry (file, directory, link) in the directory
