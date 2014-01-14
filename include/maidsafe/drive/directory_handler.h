@@ -459,8 +459,8 @@ void DirectoryHandler<Storage>::Put(Directory* directory) {
   ImmutableData encrypted_data_map(SerialiseDirectory(directory));
   storage_->Put(encrypted_data_map);
   auto result(directory->AddNewVersion(encrypted_data_map.name()));
-  storage_->template PutVersion<MutableData>(MutableData::Name(std::get<0>(result)),
-                                             std::get<1>(result), std::get<2>(result));
+  storage_->PutVersion(MutableData::Name(std::get<0>(result)),
+                       std::get<1>(result), std::get<2>(result));
 }
 
 template <typename Storage>
@@ -492,8 +492,7 @@ template <typename Storage>
 std::unique_ptr<Directory> DirectoryHandler<Storage>::GetFromStorage(
     const boost::filesystem::path& relative_path, const ParentId& parent_id,
     const DirectoryId& directory_id) {
-  auto version_tip_of_trees(
-      storage_->template GetVersions<MutableData>(MutableData::Name(directory_id)).get());
+  auto version_tip_of_trees(storage_->GetVersions(MutableData::Name(directory_id)).get());
   assert(!version_tip_of_trees.empty());
   if (version_tip_of_trees.size() != 1U) {
     // TODO(Fraser#5#): 2013-12-05 - Handle multiple branches (resolve conflicts if possible or
@@ -501,8 +500,8 @@ std::unique_ptr<Directory> DirectoryHandler<Storage>::GetFromStorage(
     //                  one to keep)
     version_tip_of_trees.resize(1);
   }
-  auto versions(storage_->template GetBranch<MutableData>(MutableData::Name(directory_id),
-                                                          version_tip_of_trees.front()).get());
+  auto versions(storage_->GetBranch(MutableData::Name(directory_id),
+                                    version_tip_of_trees.front()).get());
   assert(!versions.empty());
   ImmutableData encrypted_data_map(storage_->Get(versions.front().id).get());
   return ParseDirectory(relative_path, encrypted_data_map, parent_id, directory_id,
