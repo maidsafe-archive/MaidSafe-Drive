@@ -55,6 +55,7 @@ class CbfsDrive;
 namespace detail {
 
 const char* const GetCbfsKey();
+static std::string CbfsGuid;
 
 template <typename Storage>
 CbfsDrive<Storage>* GetDrive(CallbackFileSystem* sender) {
@@ -178,7 +179,6 @@ class CbfsDrive : public Drive<Storage> {
   static void CbFsStorageEjected(CallbackFileSystem* sender);
 
   mutable CallbackFileSystem callback_filesystem_;
-  std::string guid_;
   LPCWSTR icon_id_;
   std::wstring drive_name_;
 };
@@ -191,7 +191,6 @@ CbfsDrive<Storage>::CbfsDrive(std::shared_ptr<Storage> storage, const Identity& 
                               const boost::filesystem::path& drive_name, bool create)
     : Drive(storage, unique_user_id, root_parent_id, mount_dir, user_app_dir, create),
       callback_filesystem_(),
-      guid_(BOOST_PP_STRINGIZE(CBFS_GUID)),
       icon_id_(L"MaidSafeDriveIcon"),
       drive_name_(drive_name.wstring()) {}
 
@@ -210,7 +209,7 @@ void CbfsDrive<Storage>::Mount() {
   try {
     InitialiseCbfs();
     UpdateDriverStatus();
-    callback_filesystem_.Initialize(guid_.data());
+    callback_filesystem_.Initialize(detail::CbfsGuid.data());
     callback_filesystem_.CreateStorage();
     // SetIcon can only be called after CreateStorage has successfully completed.
     callback_filesystem_.SetIcon(icon_id_);
@@ -285,8 +284,8 @@ void CbfsDrive<Storage>::UpdateDriverStatus() {
   BOOL installed = false;
   int version_high = 0, version_low = 0;
   SERVICE_STATUS status;
-  CallbackFileSystem::GetModuleStatus(guid_.data(), CBFS_MODULE_DRIVER, &installed, &version_high,
-                                      &version_low, &status);
+  CallbackFileSystem::GetModuleStatus(detail::CbfsGuid.data(), CBFS_MODULE_DRIVER, &installed,
+                                      &version_high, &version_low, &status);
   if (installed) {
     LPTSTR string_status = L"in undefined state";
     switch (status.dwCurrentState) {
@@ -419,7 +418,8 @@ int CbfsDrive<Storage>::OnCallbackFsInstall() {
     LOG(kInfo) << "CbfsDrive::OnCallbackFsInstall cabinet file: " << cab_path.string();
 
     callback_filesystem_.Install(
-      cab_path.wstring().c_str(), guid_.data(), boost::filesystem::path().wstring().c_str(), false,
+      cab_path.wstring().c_str(), detail::CbfsGuid.data(),
+      boost::filesystem::path().wstring().c_str(), false,
       CBFS_MODULE_DRIVER | CBFS_MODULE_NET_REDIRECTOR_DLL | CBFS_MODULE_MOUNT_NOTIFIER_DLL,
       &reboot);
     return reboot;

@@ -335,6 +335,7 @@ int main(int argc, char* argv[]) {
 #endif
 #ifdef MAIDSAFE_WIN32
   std::locale::global(boost::locale::generator().generate(""));
+  maidsafe::drive::detail::CbfsGuid = "MaidSafe-SureFile";
 #else
   std::locale::global(std::locale(""));
 #endif

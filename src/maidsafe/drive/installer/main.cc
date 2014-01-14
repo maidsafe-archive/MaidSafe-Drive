@@ -123,11 +123,21 @@ DWORD UninstallDriver(const fs::path& cab_path, const fs::path& dll_path,
   }
 }
 
-fs::path InstallerDllPath(fs::path cab_path) {
-  boost::system::error_code ec;
-  fs::path dll_path(fs::path(cab_path).parent_path() / "cbfsinst.dll");
-  if (!fs::exists(dll_path, ec))
+fs::path InstallerDllPath(const fs::path& cab_path) {
+  boost::system::error_code error_code;
+  if (!fs::exists(cab_path, error_code))
     return fs::path();
+  fs::path dll_path(cab_path.parent_path() / "cbfsinst.dll");
+  if (!fs::exists(dll_path, error_code)) {
+    fs::path cbfs_path(cab_path.parent_path().parent_path());
+    std::string architecture(BOOST_PP_STRINGIZE(TARGET_ARCHITECTURE));
+    if (architecture == "x86_64")
+      dll_path = cbfs_path / "HelperDLLs\\Installer\\64bit\\x64\\cbfsinst.dll";
+    else
+      dll_path = cbfs_path / "HelperDLLs\\Installer\\32bit\\cbfsinst.dll";
+    if (!fs::exists(dll_path, error_code))
+      return fs::path();
+  }
   return dll_path;
 }
 
@@ -136,11 +146,18 @@ fs::path CabinetFilePath() {
   if (!GetModuleFileName(NULL, file_name, MAX_PATH))
     return fs::path();
 
-  boost::system::error_code ec;
+  boost::system::error_code error_code;
   fs::path path(fs::path(file_name).parent_path());
   fs::path cab_path(path / "driver\\cbfs.cab");
-  if (!fs::exists(cab_path, ec))
+  if (!fs::exists(cab_path, error_code)) {
+    cab_path = BOOST_PP_STRINGIZE(CBFS_ROOT_DIR);
+    std::string cbfs("Callback File System");
+    while (fs::exists(cab_path, error_code) && cab_path.filename().string() != cbfs)
+      cab_path = cab_path.parent_path();
+    if (fs::exists(cab_path, error_code) && cab_path.filename().string() == cbfs)
+      return cab_path /= "Drivers\\cbfs.cab";
     return fs::path();
+  }
   return cab_path;
 }
 
