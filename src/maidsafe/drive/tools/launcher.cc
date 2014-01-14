@@ -205,6 +205,7 @@ void Launcher::StartDriveProcess(const Options& options) {
     term += env_ptr;
   const char* env[2] = { 0 };
   env[0] = term.c_str();
+  static_cast<void>(env);
   drive_process_.reset(new bp::child(bp::execute(
       bp::initializers::run_exe(kExePath),
       bp::initializers::on_fork_setup(
