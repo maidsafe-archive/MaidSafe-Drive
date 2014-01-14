@@ -74,7 +74,7 @@ boost::filesystem::path ChooseRelativePath(const Environment& environment) {
   std::cout << "\tChoose open file.  Enter index number, not file name";
   while (path.empty()) {
     try {
-      index = std::stoull(GetLine());
+      index = static_cast<size_t>(std::stoull(GetLine()));
       if (index >= environment.files.size())
         ThrowError(CommonErrors::invalid_parameter);
       auto itr(std::begin(environment.files));
