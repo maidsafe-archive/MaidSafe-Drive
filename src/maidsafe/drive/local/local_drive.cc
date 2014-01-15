@@ -269,8 +269,11 @@ int MountAndWaitForIpcNotification(const Options& options) {
     return error_code.value();
   }
   if (!fs::exists(GetUserAppDir(), error_code)) {
-    LOG(kError) << GetUserAppDir() << " doesn't exist.";
-    return error_code.value();
+    LOG(kError) << "Creating " << GetUserAppDir();
+    if (!fs::create_directories(GetUserAppDir(), error_code)) {
+      LOG(kError) << GetUserAppDir() << " creation failed.";
+      return error_code.value();
+    }
   }
 
   LocalDrive drive(storage, options.unique_id, options.root_parent_id, options.mount_path,
@@ -307,8 +310,11 @@ int MountAndWaitForSignal(const Options& options) {
     return error_code.value();
   }
   if (!fs::exists(GetUserAppDir(), error_code)) {
-    LOG(kError) << GetUserAppDir() << " doesn't exist.";
-    return error_code.value();
+    LOG(kError) << "Creating " << GetUserAppDir();
+    if (!fs::create_directories(GetUserAppDir(), error_code)) {
+      LOG(kError) << GetUserAppDir() << " creation failed.";
+      return error_code.value();
+    }
   }
 
   LocalDrive drive(storage, options.unique_id, options.root_parent_id, options.mount_path,
