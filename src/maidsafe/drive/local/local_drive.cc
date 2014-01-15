@@ -276,6 +276,9 @@ int MountAndWaitForIpcNotification(const Options& options) {
   LocalDrive drive(storage, options.unique_id, options.root_parent_id, options.mount_path,
                    GetUserAppDir(), options.drive_name, options.create_store);
   g_local_drive = &drive;
+#ifdef MAIDSAFE_WIN32
+  drive.SetGuid("MaidSafe-SureFile");
+#endif
   drive.Mount();
   // Start and detach a thread to wait for the parent process to signal an unmount request.
   std::thread([&] {
@@ -311,6 +314,9 @@ int MountAndWaitForSignal(const Options& options) {
   LocalDrive drive(storage, options.unique_id, options.root_parent_id, options.mount_path,
                    GetUserAppDir(), options.drive_name, options.create_store);
   g_local_drive = &drive;
+#ifdef MAIDSAFE_WIN32
+  drive.SetGuid("MaidSafe-SureFile");
+#endif
   drive.Mount();
   g_unmount.reset(new boost::promise<void>());
   auto wait_until_unmounted(g_unmount->get_future());
@@ -335,7 +341,6 @@ int main(int argc, char* argv[]) {
 #endif
 #ifdef MAIDSAFE_WIN32
   std::locale::global(boost::locale::generator().generate(""));
-  maidsafe::drive::detail::CbfsGuid = "MaidSafe-SureFile";
 #else
   std::locale::global(std::locale(""));
 #endif

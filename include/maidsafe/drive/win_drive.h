@@ -55,7 +55,6 @@ class CbfsDrive;
 namespace detail {
 
 const char* const GetCbfsKey();
-static std::string CbfsGuid;
 
 template <typename Storage>
 CbfsDrive<Storage>* GetDrive(CallbackFileSystem* sender) {
@@ -94,6 +93,8 @@ class CbfsDrive : public Drive<Storage> {
 
   virtual ~CbfsDrive();
 
+  // This must be called before 'Mount' to allow 'Mount' to succeed.
+  void SetGuid(const std::string& guid);
   virtual void Mount();
   virtual void Unmount();
   int Install();
@@ -181,6 +182,7 @@ class CbfsDrive : public Drive<Storage> {
   mutable CallbackFileSystem callback_filesystem_;
   LPCWSTR icon_id_;
   std::wstring drive_name_;
+  std::string guid_;
 };
 
 template <typename Storage>
@@ -200,16 +202,29 @@ CbfsDrive<Storage>::~CbfsDrive() {
 }
 
 template <typename Storage>
+void CbfsDrive<Storage>::SetGuid(const std::string& guid) {
+  if (!guid_.empty()) {
+    LOG(kError) << "GUID has already been set to " << guid_;
+    ThrowError(CommonErrors::unable_to_handle_request);
+  }
+  guid_ = guid;
+}
+
+template <typename Storage>
 void CbfsDrive<Storage>::Mount() {
 #ifndef NDEBUG
     int timeout_milliseconds(0);
 #else
     int timeout_milliseconds(30000);
 #endif
+  if (guid_.empty()) {
+    LOG(kError) << "GUID is empty - 'SetGuid' must be called before 'Mount'";
+    ThrowError(CommonErrors::uninitialised);
+  }
   try {
     InitialiseCbfs();
     UpdateDriverStatus();
-    callback_filesystem_.Initialize(detail::CbfsGuid.data());
+    callback_filesystem_.Initialize(guid_.c_str());
     callback_filesystem_.CreateStorage();
     // SetIcon can only be called after CreateStorage has successfully completed.
     callback_filesystem_.SetIcon(icon_id_);
@@ -284,8 +299,8 @@ void CbfsDrive<Storage>::UpdateDriverStatus() {
   BOOL installed = false;
   int version_high = 0, version_low = 0;
   SERVICE_STATUS status;
-  CallbackFileSystem::GetModuleStatus(detail::CbfsGuid.data(), CBFS_MODULE_DRIVER, &installed,
-                                      &version_high, &version_low, &status);
+  CallbackFileSystem::GetModuleStatus(guid_.c_str(), CBFS_MODULE_DRIVER, &installed, &version_high,
+                                      &version_low, &status);
   if (installed) {
     LPTSTR string_status = L"in undefined state";
     switch (status.dwCurrentState) {
