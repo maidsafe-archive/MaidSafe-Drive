@@ -262,6 +262,7 @@ void FuseDrive<Storage>::Mount() {
 #endif
   // TODO(Fraser#5#): 2014-01-08 - BEFORE_RELEASE Avoid running in foreground.
   fuse_opt_add_arg(&args, "-f");  // run in foreground
+  fuse_opt_add_arg(&args, "-olocal");  // tag the volume as "local" to make it appear on OSX Desktop
 
   fuse_opt_add_arg(&args, "-s");  // this is single threaded
 
