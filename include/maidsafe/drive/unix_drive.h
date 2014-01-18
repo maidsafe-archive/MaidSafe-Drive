@@ -254,21 +254,24 @@ void FuseDrive<Storage>::Mount() {
   fuse_args args = FUSE_ARGS_INIT(0, nullptr);
   fuse_opt_add_arg(&args, (drive_name_.c_str()));
   fuse_opt_add_arg(&args, (fuse_mountpoint_.c_str()));
+  std::string fsname_arg("-ofsname=" + drive_name_);
+  fuse_opt_add_arg(&args, (fsname_arg.c_str()));
+  std::string volname_arg("-ovolname=" + drive_name_);
+  fuse_opt_add_arg(&args, (volname_arg.c_str()));
   // NB - If we remove -odefault_permissions, we must check in OpsOpen, etc. that the operation is
   //      permitted for the given flags.  We also need to implement OpsAccess.
-  fuse_opt_add_arg(&args, "-odefault_permissions,kernel_cache");  // ,direct_io");
+  fuse_opt_add_arg(&args, "-odefault_permissions,kernel_cache");
 #ifndef NDEBUG
   // fuse_opt_add_arg(&args, "-d");  // print debug info
   // fuse_opt_add_arg(&args, "-f");  // run in foreground
 #endif
   // TODO(Fraser#5#): 2014-01-08 - BEFORE_RELEASE Avoid running in foreground.
   fuse_opt_add_arg(&args, "-f");  // run in foreground
-  fuse_opt_add_arg(&args, "-olocal");  // tag the volume as "local" to make it appear on OSX Desktop
+  fuse_opt_add_arg(&args, "-s");  // run single threaded
 
-  fuse_opt_add_arg(&args, "-s");  // this is single threaded
+  // tag the volume as "local" to make it appear on the Desktop and in Finder's sidebar.
+  // fuse_opt_add_arg(&args, "-olocal");
 
-  // if (read_only)
-  //   fuse_opt_add_arg(&args, "-oro");
   // fuse_main(args.argc, args.argv, &maidsafe_ops_, NULL);
 
   int multithreaded, foreground;
