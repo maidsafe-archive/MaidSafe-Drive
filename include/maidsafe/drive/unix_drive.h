@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <limits>
 #include <map>
 #include <memory>
 #include <string>
@@ -885,42 +886,16 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsStatfs(const char* path, struct statvfs* stbuf) {
   LOG(kInfo) << "OpsStatfs: " << path;
 
-  //   int res = statvfs(Global<Storage>::g_fuse_drive->mount_dir().parent_path().string().c_str(),
-  //                     stbuf);
-  //   if (res < 0) {
-  //     LOG(kError) << "OpsStatfs: " << path;
-  //     return -errno;
-  //   }
-
   stbuf->f_bsize = 4096;
   stbuf->f_frsize = 4096;
-//  if (Global<Storage>::g_fuse_drive->max_space_ == 0) {
-// for future ref 2^45 = 35184372088832 = 32TB
-#ifndef __USE_FILE_OFFSET64
-//    stbuf->f_blocks = 8796093022208 / stbuf->f_frsize;
-//    stbuf->f_bfree = 8796093022208/ stbuf->f_bsize;
-#else
-//    stbuf->f_blocks = 8796093022208 / stbuf->f_frsize;
-//    stbuf->f_bfree = 8796093022208 / stbuf->f_bsize;
-#endif
-  //  } else {
-  //    stbuf->f_blocks = 0;  // Global<Storage>::g_fuse_drive->max_space_ / stbuf->f_frsize;
-  //    stbuf->f_bfree = 0;  // (Global<Storage>::g_fuse_drive->max_space_ -
-  //                         // Global<Storage>::g_fuse_drive->used_space_) / stbuf->f_bsize;
-  stbuf->f_blocks = 100000 / stbuf->f_frsize;  // FIXME BEFORE_RELEASE
-  stbuf->f_bfree = 100000 / stbuf->f_bsize;
-  //  }
+  stbuf->f_blocks = (std::numeric_limits<int64_t>::max() - 10000) / stbuf->f_frsize;
+  stbuf->f_bfree = (std::numeric_limits<int64_t>::max() - 10000) / stbuf->f_bsize;
   stbuf->f_bavail = stbuf->f_bfree;
-
   /*
   stbuf->f_files = 0;    // # inodes
   stbuf->f_ffree = 0;    // # free inodes
-  stbuf->f_favail = 0;   // # free inodes for unprivileged users
-  stbuf->f_fsid = 0;     // file system ID
-  stbuf->f_flag = 0;     // mount flags
   stbuf->f_namemax = 0;  // maximum filename length
   */
-
   return 0;
 }
 

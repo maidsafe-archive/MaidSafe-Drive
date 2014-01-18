@@ -184,6 +184,15 @@ int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp) {
   return session.run();
 }
 
+TEST_CASE("Drive size", "[Filesystem]") {
+  // 1GB seems reasonable as a lower limit for all drive types (real/local/network).  It at least
+  // provides a regression check for https://github.com/maidsafe/SureFile/issues/33
+  auto space(boost::filesystem::space(g_root));
+  REQUIRE(space.available > 1073741824);
+  REQUIRE(space.capacity > 1073741824);
+  REQUIRE(space.free > 1073741824);
+}
+
 TEST_CASE("Create empty file", "[Filesystem]") {
   on_scope_exit cleanup(clean_root);
   CreateFile(g_root, 0);
@@ -466,7 +475,16 @@ TEST_CASE("Create file", "[Filesystem]") {
 TEST_CASE("Create file, modify then read", "[Filesystem]") {
   // Create a file in 'g_root'
   on_scope_exit cleanup(clean_root);
-  auto filepath_and_contents(CreateFile(g_root, RandomUint32() % 1048577));
+
+  std::pair<fs::path, std::string> filepath_and_contents;
+  SECTION("Smaller file") {
+    filepath_and_contents = CreateFile(g_root, RandomUint32() % 1048);
+  }
+  SECTION("Larger file") {
+    filepath_and_contents = CreateFile(g_root, (RandomUint32() % 1048) + 1048577);
+  }
+  if (filepath_and_contents.second.empty())  // first run-through before SECTIONs are executed.
+    return;
 
   // Modify the file
   size_t offset(RandomUint32() % filepath_and_contents.second.size());
