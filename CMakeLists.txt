@@ -89,7 +89,7 @@ ms_add_static_library(maidsafe_drive ${DriveAllFiles})
 target_include_directories(maidsafe_drive
   PUBLIC ${PROJECT_SOURCE_DIR}/include ${Cbfs_INCLUDE_DIR} ${Fuse_INCLUDE_DIR}
   PRIVATE ${PROJECT_SOURCE_DIR}/src $<$<BOOL:${Cbfs_FOUND}>:${CMAKE_CURRENT_BINARY_DIR}/cbfs_key>)
-target_link_libraries(maidsafe_drive maidsafe_encrypt ${BoostRegexLibs})
+target_link_libraries(maidsafe_drive maidsafe_encrypt)
 if(WIN32)
   if(Cbfs_FOUND)
     ms_add_executable(cbfs_driver "Production" ${InstallerAllFiles})

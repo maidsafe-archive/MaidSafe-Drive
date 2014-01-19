@@ -22,10 +22,7 @@
 #include <algorithm>
 #include <cassert>
 #include <iterator>
-#include <regex>
 #include <vector>
-
-#include "boost/algorithm/string/replace.hpp"
 
 #include "maidsafe/common/log.h"
 #include "maidsafe/common/profiler.h"
@@ -77,33 +74,54 @@ bool ExcludedFilename(const boost::filesystem::path& path) {
 
 bool MatchesMask(std::wstring mask, const boost::filesystem::path& file_name) {
   SCOPED_PROFILE
-#if defined MAIDSAFE_WIN32
-  static const std::wstring kNeedEscaped(L".[]{}()+|^$");
-#elif defined MAIDSAFE_APPLE
-  static const std::wstring kNeedEscaped(L".]{}()+|^$");
-#else
-  static const std::wstring kNeedEscaped(L".{}()+|^$");
-#endif
-  static const std::wstring kEscape(L"\\");
-  try {
-    // Apply escapes
-    std::for_each(kNeedEscaped.begin(), kNeedEscaped.end(), [&mask](wchar_t i) {
-      boost::replace_all(mask, std::wstring(1, i), kEscape + std::wstring(1, i));
-    });
-
-    // Apply wildcards
-    boost::replace_all(mask, L"*", L".*");
-    boost::replace_all(mask, L"?", L".");
-
-    // Check for match
-    std::wregex reg_ex(mask, std::regex_constants::icase);
-    return std::regex_match(file_name.wstring(), reg_ex);
+  bool result(true);
+  auto mask_ptr(mask.c_str());
+  auto name_ptr(file_name.wstring().c_str());
+  const wchar_t* last_star_ptr(nullptr);
+  int last_star_dec = 0;
+  while (result && (*name_ptr != 0)) {
+    if (*mask_ptr == L'?') {
+      ++mask_ptr;
+      ++name_ptr;
+    } else if (*mask_ptr == L'*') {
+      last_star_ptr = mask_ptr;
+      last_star_dec = 0;
+      ++mask_ptr;
+      for (;;) {
+        if (*mask_ptr == L'?') {
+          ++mask_ptr;
+          ++name_ptr;
+          ++last_star_dec;
+          if (*name_ptr == 0)
+            break;
+        } else if (*mask_ptr != L'*') {
+          break;
+        } else {
+          ++mask_ptr;
+        }
+      }
+      while ((*name_ptr != 0) && ((*mask_ptr == 0) || (*mask_ptr != *name_ptr)))
+        ++name_ptr;
+    } else {
+      result = (*mask_ptr == *name_ptr);
+      if (result) {
+        ++mask_ptr;
+        ++name_ptr;
+      } else {
+        result = last_star_ptr != nullptr;
+        if (result) {
+          mask_ptr = last_star_ptr;
+          name_ptr -= last_star_dec;
+        }
+      }
+    }
   }
-  catch(const std::exception& e) {
-    LOG(kError) << e.what() << " - file_name: " << file_name << ", mask: "
-                << std::string(mask.begin(), mask.end());
-    return false;
+  if (result) {
+    while (*mask_ptr == L'*')
+      ++mask_ptr;
+    result = (*mask_ptr == 0);
   }
+  return result;
 }
 
 }  // namespace detail
