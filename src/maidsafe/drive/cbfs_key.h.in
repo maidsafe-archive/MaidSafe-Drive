@@ -26,7 +26,7 @@ namespace drive {
 namespace detail {
 
 const char* const GetCbfsKey() {
-  return "@Cbfs_KEY@";
+  return "@CbfsKey@";
 }
 
 }  // namespace detail
