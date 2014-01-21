@@ -32,6 +32,7 @@
 
 #include "boost/filesystem/operations.hpp"
 #include "boost/filesystem/path.hpp"
+#include "boost/thread/future.hpp"
 
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
@@ -40,6 +41,7 @@
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/directory_handler.h"
 #include "maidsafe/drive/utils.h"
+#include "maidsafe/drive/tools/launcher.h"
 
 namespace maidsafe {
 
@@ -48,16 +50,19 @@ namespace drive {
 template <typename Storage>
 class Drive {
  public:
+  Identity root_parent_id() const;
+  boost::future<void> GetMountFuture();
+
+ protected:
   Drive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
         const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
-        const boost::filesystem::path& user_app_dir, bool create);
+        const boost::filesystem::path& user_app_dir,
+        const std::string& mount_status_shared_object_name, bool create);
 
   virtual ~Drive() {}
   virtual void Mount() = 0;
   virtual void Unmount() = 0;
-  Identity root_parent_id() const;
 
- protected:
   const detail::FileContext* GetContext(const boost::filesystem::path& relative_path);
   detail::FileContext* GetMutableContext(const boost::filesystem::path& relative_path);
   void Create(const boost::filesystem::path& relative_path, detail::FileContext&& file_context);
@@ -76,6 +81,8 @@ class Drive {
   std::shared_ptr<Storage> storage_;
   const boost::filesystem::path kMountDir_;
   const boost::filesystem::path kUserAppDir_;
+  const std::string kMountStatusSharedObjectName_;
+  boost::promise<void> mount_promise_;
   std::once_flag unmounted_once_flag_;
 
  private:
@@ -97,10 +104,13 @@ class Drive {
 template <typename Storage>
 Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
                       const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
-                      const boost::filesystem::path& user_app_dir, bool create)
+                      const boost::filesystem::path& user_app_dir,
+                      const std::string& mount_status_shared_object_name, bool create)
     : storage_(storage),
       kMountDir_(mount_dir),
       kUserAppDir_(user_app_dir),
+      kMountStatusSharedObjectName_(mount_status_shared_object_name),
+      mount_promise_(),
       unmounted_once_flag_(),
       get_chunk_from_store_(),
       // TODO(Fraser#5#): 2013-11-27 - BEFORE_RELEASE - confirm the following 2 variables.
@@ -119,6 +129,11 @@ Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_u
 template <typename Storage>
 Identity Drive<Storage>::root_parent_id() const {
   return directory_handler_.root_parent_id();
+}
+
+template <typename Storage>
+boost::future<void> Drive<Storage>::GetMountFuture() {
+  return mount_promise_.get_future();
 }
 
 template <typename Storage>

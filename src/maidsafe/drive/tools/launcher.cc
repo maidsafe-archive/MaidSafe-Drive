@@ -264,21 +264,23 @@ Launcher::~Launcher() {
 void Launcher::StopDriveProcess(bool terminate_on_ipc_failure) {
   if (!drive_process_)
     return;
-  bi::scoped_lock<bi::interprocess_mutex> lock(mount_status_->mutex);
-  mount_status_->unmount = true;
-  mount_status_->condition.notify_one();
-  bptime::ptime timeout(bptime::second_clock::universal_time() + bptime::seconds(10));
   boost::system::error_code error_code;
-  if (!mount_status_->condition.timed_wait(lock, timeout,
-                                           [&] { return !mount_status_->mounted; })) {
-    if (terminate_on_ipc_failure) {
-      LOG(kError) << "Failed waiting for drive to unmount - terminating drive process.";
-      bp::terminate(*drive_process_, error_code);
-    } else {
-      LOG(kError) << "Failed waiting for drive to unmount.";
+  {
+    bi::scoped_lock<bi::interprocess_mutex> lock(mount_status_->mutex);
+    mount_status_->unmount = true;
+    mount_status_->condition.notify_one();
+    bptime::ptime timeout(bptime::second_clock::universal_time() + bptime::seconds(10));
+    if (!mount_status_->condition.timed_wait(lock, timeout,
+                                             [&] { return !mount_status_->mounted; })) {
+      if (terminate_on_ipc_failure) {
+        LOG(kError) << "Failed waiting for drive to unmount - terminating drive process.";
+        bp::terminate(*drive_process_, error_code);
+      } else {
+        LOG(kError) << "Failed waiting for drive to unmount.";
+      }
+      drive_process_ = nullptr;
+      return;
     }
-    drive_process_ = nullptr;
-    return;
   }
   auto exit_code = bp::wait_for_exit(*drive_process_, error_code);
   if (error_code)

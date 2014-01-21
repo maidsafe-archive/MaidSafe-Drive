@@ -89,7 +89,6 @@ ms_add_static_library(maidsafe_drive ${DriveAllFiles})
 target_include_directories(maidsafe_drive
   PUBLIC ${PROJECT_SOURCE_DIR}/include ${Cbfs_INCLUDE_DIR} ${Fuse_INCLUDE_DIR}
   PRIVATE ${PROJECT_SOURCE_DIR}/src $<$<BOOL:${Cbfs_FOUND}>:${CMAKE_CURRENT_BINARY_DIR}/cbfs_key>)
-target_link_libraries(maidsafe_drive maidsafe_encrypt ${BoostRegexLibs})
 if(WIN32)
   if(Cbfs_FOUND)
     ms_add_executable(cbfs_driver "Production" ${InstallerAllFiles})
@@ -105,6 +104,7 @@ endif()
 
 ms_add_static_library(maidsafe_drive_launcher ${DriveLauncherFiles})
 target_include_directories(maidsafe_drive_launcher PUBLIC ${PROJECT_SOURCE_DIR}/include PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_link_libraries(maidsafe_drive maidsafe_drive_launcher maidsafe_encrypt)
 target_link_libraries(maidsafe_drive_launcher maidsafe_common)
 
 ms_add_executable(local_drive "Production" ${LocalDriveMain})
@@ -138,9 +138,11 @@ if(MaidsafeTesting)
 
   add_dependencies(filesystem_benchmark local_drive network_drive)
   add_dependencies(filesystem_test local_drive network_drive)
+  add_dependencies(filesystem_commands local_drive network_drive)
   if(WIN32)
     add_dependencies(filesystem_benchmark local_drive_console network_drive_console)
     add_dependencies(filesystem_test local_drive_console network_drive_console)
+    add_dependencies(filesystem_commands local_drive_console network_drive_console)
   endif()
   target_include_directories(filesystem_benchmark PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
   target_include_directories(filesystem_test PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)

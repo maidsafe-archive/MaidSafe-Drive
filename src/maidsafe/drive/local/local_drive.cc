@@ -75,7 +75,6 @@ typedef FuseDrive<data_store::LocalStore> LocalDrive;
 #endif
 
 LocalDrive* g_local_drive(nullptr);
-std::unique_ptr<boost::promise<void>> g_unmount;
 std::once_flag g_unmount_flag;
 const std::string kConfigFile("maidsafe_local_drive.conf");
 std::string g_error_message;
@@ -84,7 +83,6 @@ int g_return_code(0);
 void Unmount() {
   std::call_once(g_unmount_flag, [&] {
     g_local_drive->Unmount();
-    g_unmount->set_value();
     g_local_drive = nullptr;
   });
 }
@@ -269,29 +267,27 @@ int MountAndWaitForIpcNotification(const Options& options) {
     return error_code.value();
   }
   if (!fs::exists(GetUserAppDir(), error_code)) {
-    LOG(kError) << GetUserAppDir() << " doesn't exist.";
-    return error_code.value();
+    LOG(kError) << "Creating " << GetUserAppDir();
+    if (!fs::create_directories(GetUserAppDir(), error_code)) {
+      LOG(kError) << GetUserAppDir() << " creation failed.";
+      return error_code.value();
+    }
   }
 
   LocalDrive drive(storage, options.unique_id, options.root_parent_id, options.mount_path,
-                   GetUserAppDir(), options.drive_name, options.create_store);
+                   GetUserAppDir(), options.drive_name, options.mount_status_shared_object_name,
+                   options.create_store);
   g_local_drive = &drive;
 #ifdef MAIDSAFE_WIN32
   drive.SetGuid("MaidSafe-SureFile");
 #endif
-  drive.Mount();
-  // Start and detach a thread to wait for the parent process to signal an unmount request.
-  std::thread([&] {
-    NotifyMountedAndWaitForUnmountRequest(options.mount_status_shared_object_name);
-    Unmount();
-  }).detach();
-  // Start a thread to poll the parent process' continued existence.
+  // Start a thread to poll the parent process' continued existence *before* calling drive.Mount().
   std::thread poll_parent([&] { MonitorParentProcess(options); });
 
-  g_unmount.reset(new boost::promise<void>());
-  auto wait_until_unmounted(g_unmount->get_future());
-  wait_until_unmounted.get();
-  NotifyUnmounted(options.mount_status_shared_object_name);
+  drive.Mount();
+  // Drive should already be unmounted by this point, but we need to make 'g_local_drive' null to
+  // allow 'poll_parent' to join.
+  Unmount();
   poll_parent.join();
   return 0;
 }
@@ -307,20 +303,20 @@ int MountAndWaitForSignal(const Options& options) {
     return error_code.value();
   }
   if (!fs::exists(GetUserAppDir(), error_code)) {
-    LOG(kError) << GetUserAppDir() << " doesn't exist.";
-    return error_code.value();
+    LOG(kError) << "Creating " << GetUserAppDir();
+    if (!fs::create_directories(GetUserAppDir(), error_code)) {
+      LOG(kError) << GetUserAppDir() << " creation failed.";
+      return error_code.value();
+    }
   }
 
   LocalDrive drive(storage, options.unique_id, options.root_parent_id, options.mount_path,
-                   GetUserAppDir(), options.drive_name, options.create_store);
+                   GetUserAppDir(), options.drive_name, "", options.create_store);
   g_local_drive = &drive;
 #ifdef MAIDSAFE_WIN32
   drive.SetGuid("MaidSafe-SureFile");
 #endif
   drive.Mount();
-  g_unmount.reset(new boost::promise<void>());
-  auto wait_until_unmounted(g_unmount->get_future());
-  wait_until_unmounted.get();
   return 0;
 }
 

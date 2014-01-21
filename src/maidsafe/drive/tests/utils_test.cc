@@ -69,6 +69,9 @@ TEST_CASE("Mask match", "[behavioural] [drive]" ) {
   std::wstring mask(L"*");
   FilesMatchMask(kAllFiles, matching_files, mask);
 
+  mask = L"*?";
+  FilesMatchMask(kAllFiles, matching_files, mask);
+
   mask = L"*.*";
   matching_files.erase(L"btx");
   FilesMatchMask(kAllFiles, matching_files, mask);
@@ -120,11 +123,7 @@ TEST_CASE("Mask match", "[behavioural] [drive]" ) {
   matching_files.erase(L"bt.x");
   matching_files.erase(L"btx.");
   matching_files.erase(L"btx");
-#ifndef MAIDSAFE_WIN32
-#ifndef MAIDSAFE_APPLE
   matching_files.erase(L"1+.TXT");
-#endif
-#endif
   FilesMatchMask(kAllFiles, matching_files, mask);
 
   mask = L"*.?";

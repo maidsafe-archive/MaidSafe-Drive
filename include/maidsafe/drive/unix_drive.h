@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <limits>
 #include <map>
 #include <memory>
 #include <string>
@@ -100,7 +101,7 @@ class FuseDrive : public Drive<Storage> {
   FuseDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
             const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
             const boost::filesystem::path& user_app_dir, const boost::filesystem::path& drive_name,
-            bool create);
+            const std::string& mount_status_shared_object_name, bool create);
 
   virtual ~FuseDrive();
   virtual void Mount();
@@ -112,6 +113,7 @@ class FuseDrive : public Drive<Storage> {
   FuseDrive& operator=(FuseDrive);
 
   void Init();
+  void SetMounted();
 
   static int OpsAccess(const char* path, int mask);
   static int OpsChmod(const char* path, mode_t mode);
@@ -168,8 +170,8 @@ class FuseDrive : public Drive<Storage> {
   fuse_chan* fuse_channel_;
   fs::path fuse_mountpoint_;
   std::string drive_name_;
-  std::thread fuse_event_loop_thread_;
-  std::unique_ptr<boost::promise<void>> mount_promise_;
+  std::once_flag mounted_once_flag_;
+  std::thread unmount_ipc_waiter_;
 };
 
 const int kMaxPath(4096);
@@ -186,14 +188,15 @@ FuseDrive<Storage>::FuseDrive(std::shared_ptr<Storage> storage, const Identity& 
                               const boost::filesystem::path& mount_dir,
                               const boost::filesystem::path& user_app_dir,
                               const boost::filesystem::path& drive_name,
-                              bool create)
-    : Drive<Storage>(storage, unique_user_id, root_parent_id, mount_dir, user_app_dir, create),
+                              const std::string& mount_status_shared_object_name, bool create)
+    : Drive<Storage>(storage, unique_user_id, root_parent_id, mount_dir, user_app_dir,
+                     mount_status_shared_object_name, create),
       fuse_(nullptr),
       fuse_channel_(nullptr),
       fuse_mountpoint_(mount_dir),
       drive_name_(drive_name.string()),
-      fuse_event_loop_thread_(),
-      mount_promise_() {
+      mounted_once_flag_(),
+      unmount_ipc_waiter_() {
   fs::create_directory(fuse_mountpoint_);
   Init();
 }
@@ -201,6 +204,8 @@ FuseDrive<Storage>::FuseDrive(std::shared_ptr<Storage> storage, const Identity& 
 template <typename Storage>
 FuseDrive<Storage>::~FuseDrive() {
   Unmount();
+  if (unmount_ipc_waiter_.joinable())
+    unmount_ipc_waiter_.join();
   log::Logging::Instance().Flush();
 }
 
@@ -245,7 +250,20 @@ void FuseDrive<Storage>::Init() {
   maidsafe_ops_.listxattr = OpsListxattr;
   maidsafe_ops_.removexattr = OpsRemovexattr;
 #endif
-  umask(0022);
+  // umask(0022);
+}
+
+template <typename Storage>
+void FuseDrive<Storage>::SetMounted() {
+  std::call_once(mounted_once_flag_, [&] {
+    if (!this->kMountStatusSharedObjectName_.empty()) {
+      unmount_ipc_waiter_ = std::thread([&] {
+        NotifyMountedAndWaitForUnmountRequest(this->kMountStatusSharedObjectName_);
+        Unmount();
+      });
+    }
+    this->mount_promise_.set_value();
+  });
 }
 
 template <typename Storage>
@@ -253,20 +271,24 @@ void FuseDrive<Storage>::Mount() {
   fuse_args args = FUSE_ARGS_INIT(0, nullptr);
   fuse_opt_add_arg(&args, (drive_name_.c_str()));
   fuse_opt_add_arg(&args, (fuse_mountpoint_.c_str()));
+  std::string fsname_arg("-ofsname=" + drive_name_);
+  fuse_opt_add_arg(&args, (fsname_arg.c_str()));
+  std::string volname_arg("-ovolname=" + drive_name_);
+  fuse_opt_add_arg(&args, (volname_arg.c_str()));
   // NB - If we remove -odefault_permissions, we must check in OpsOpen, etc. that the operation is
   //      permitted for the given flags.  We also need to implement OpsAccess.
-  fuse_opt_add_arg(&args, "-odefault_permissions,kernel_cache");  // ,direct_io");
+  fuse_opt_add_arg(&args, "-odefault_permissions,kernel_cache");
 #ifndef NDEBUG
   // fuse_opt_add_arg(&args, "-d");  // print debug info
   // fuse_opt_add_arg(&args, "-f");  // run in foreground
 #endif
   // TODO(Fraser#5#): 2014-01-08 - BEFORE_RELEASE Avoid running in foreground.
   fuse_opt_add_arg(&args, "-f");  // run in foreground
+  fuse_opt_add_arg(&args, "-s");  // run single threaded
 
-  fuse_opt_add_arg(&args, "-s");  // this is single threaded
+  // tag the volume as "local" to make it appear on the Desktop and in Finder's sidebar.
+  // fuse_opt_add_arg(&args, "-olocal");
 
-  // if (read_only)
-  //   fuse_opt_add_arg(&args, "-oro");
   // fuse_main(args.argc, args.argv, &maidsafe_ops_, NULL);
 
   int multithreaded, foreground;
@@ -287,6 +309,7 @@ void FuseDrive<Storage>::Mount() {
     if (fuse_)
       fuse_destroy(fuse_);
     free(mountpoint);
+    this->mount_promise_.set_value();
   });
   if (!fuse_)
     ThrowError(DriveErrors::failed_to_mount);
@@ -297,16 +320,16 @@ void FuseDrive<Storage>::Mount() {
   if (fuse_set_signal_handlers(fuse_get_session(fuse_)) == -1)
     ThrowError(DriveErrors::failed_to_mount);
 
-  mount_promise_.reset(new boost::promise<void>());
-  if (multithreaded)
-    fuse_event_loop_thread_ = std::move(std::thread(&fuse_loop_mt, fuse_));
-  else
-    fuse_event_loop_thread_ = std::move(std::thread(&fuse_loop, fuse_));
+  if (multithreaded) {
+    if (fuse_loop_mt(fuse_) == -1)
+      ThrowError(DriveErrors::failed_to_mount);
+  } else {
+    if (fuse_loop(fuse_) == -1)
+      ThrowError(DriveErrors::failed_to_mount);
+  }
 
   cleanup_on_error.Release();
   free(mountpoint);
-  auto wait_until_mounted(mount_promise_->get_future());
-  wait_until_mounted.get();
 }
 
 template <typename Storage>
@@ -316,7 +339,6 @@ void FuseDrive<Storage>::Unmount() {
       fuse_remove_signal_handlers(fuse_get_session(fuse_));
       fuse_unmount(fuse_mountpoint_.c_str(), fuse_channel_);
       fuse_destroy(fuse_);
-      fuse_event_loop_thread_.join();
     });
   }
   catch (const std::exception& e) {
@@ -325,6 +347,8 @@ void FuseDrive<Storage>::Unmount() {
   catch (...) {
     LOG(kError) << "Unknown exception in Unmount";
   }
+  if (!this->kMountStatusSharedObjectName_.empty())
+    NotifyUnmounted(this->kMountStatusSharedObjectName_);
 }
 
 // =============================== Callbacks =======================================================
@@ -553,7 +577,7 @@ int FuseDrive<Storage>::OpsGetattr(const char* path, struct stat* stbuf) {
 // as a parameter to the destroy() method.
 template <typename Storage>
 void* FuseDrive<Storage>::OpsInit(struct fuse_conn_info* /*conn*/) {
-  Global<Storage>::g_fuse_drive->mount_promise_->set_value();
+  Global<Storage>::g_fuse_drive->SetMounted();
   return nullptr;
 }
 
@@ -884,42 +908,16 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsStatfs(const char* path, struct statvfs* stbuf) {
   LOG(kInfo) << "OpsStatfs: " << path;
 
-  //   int res = statvfs(Global<Storage>::g_fuse_drive->mount_dir().parent_path().string().c_str(),
-  //                     stbuf);
-  //   if (res < 0) {
-  //     LOG(kError) << "OpsStatfs: " << path;
-  //     return -errno;
-  //   }
-
   stbuf->f_bsize = 4096;
   stbuf->f_frsize = 4096;
-//  if (Global<Storage>::g_fuse_drive->max_space_ == 0) {
-// for future ref 2^45 = 35184372088832 = 32TB
-#ifndef __USE_FILE_OFFSET64
-//    stbuf->f_blocks = 8796093022208 / stbuf->f_frsize;
-//    stbuf->f_bfree = 8796093022208/ stbuf->f_bsize;
-#else
-//    stbuf->f_blocks = 8796093022208 / stbuf->f_frsize;
-//    stbuf->f_bfree = 8796093022208 / stbuf->f_bsize;
-#endif
-  //  } else {
-  //    stbuf->f_blocks = 0;  // Global<Storage>::g_fuse_drive->max_space_ / stbuf->f_frsize;
-  //    stbuf->f_bfree = 0;  // (Global<Storage>::g_fuse_drive->max_space_ -
-  //                         // Global<Storage>::g_fuse_drive->used_space_) / stbuf->f_bsize;
-  stbuf->f_blocks = 100000 / stbuf->f_frsize;  // FIXME BEFORE_RELEASE
-  stbuf->f_bfree = 100000 / stbuf->f_bsize;
-  //  }
+  stbuf->f_blocks = (std::numeric_limits<int64_t>::max() - 10000) / stbuf->f_frsize;
+  stbuf->f_bfree = (std::numeric_limits<int64_t>::max() - 10000) / stbuf->f_bsize;
   stbuf->f_bavail = stbuf->f_bfree;
-
   /*
   stbuf->f_files = 0;    // # inodes
   stbuf->f_ffree = 0;    // # free inodes
-  stbuf->f_favail = 0;   // # free inodes for unprivileged users
-  stbuf->f_fsid = 0;     // file system ID
-  stbuf->f_flag = 0;     // mount flags
   stbuf->f_namemax = 0;  // maximum filename length
   */
-
   return 0;
 }
 

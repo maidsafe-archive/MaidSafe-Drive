@@ -78,9 +78,7 @@ class DirectoryTest {
               NonEmptyString(directory->Serialise(put_chunk_functor_, increment_chunks_functor_)));
           directory->AddNewVersion(contents.name());
         }),
-        directory_(ParentId(unique_id_), parent_id_, asio_service_.service(), put_functor_, "") {
-    asio_service_.Start();
-  }
+        directory_(ParentId(unique_id_), parent_id_, asio_service_.service(), put_functor_, "") {}
 
  protected:
   void GenerateDirectoryListingEntryForDirectory(Directory& directory, fs::path const& path) {

@@ -137,7 +137,6 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
     ThrowError(CommonErrors::uninitialised);
   if (!root_parent_id.IsInitialised())
     ThrowError(CommonErrors::uninitialised);
-  asio_service_.Start();
   get_chunk_from_store_ = [this](const std::string& name)->NonEmptyString {
     auto chunk(storage_->Get(ImmutableData::Name(Identity(name))).get());
     return chunk.data();
