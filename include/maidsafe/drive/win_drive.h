@@ -89,7 +89,7 @@ class CbfsDrive : public Drive<Storage> {
   CbfsDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
             const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
             const boost::filesystem::path& user_app_dir, const boost::filesystem::path& drive_name,
-            bool create);
+            const std::string& mount_status_shared_object_name, bool create);
 
   virtual ~CbfsDrive();
 
@@ -183,6 +183,7 @@ class CbfsDrive : public Drive<Storage> {
   LPCWSTR icon_id_;
   std::wstring drive_name_;
   std::string guid_;
+  boost::promise<void> unmounted_;
 };
 
 template <typename Storage>
@@ -190,11 +191,14 @@ CbfsDrive<Storage>::CbfsDrive(std::shared_ptr<Storage> storage, const Identity& 
                               const Identity& root_parent_id,
                               const boost::filesystem::path& mount_dir,
                               const boost::filesystem::path& user_app_dir,
-                              const boost::filesystem::path& drive_name, bool create)
-    : Drive(storage, unique_user_id, root_parent_id, mount_dir, user_app_dir, create),
+                              const boost::filesystem::path& drive_name,
+                              const std::string& mount_status_shared_object_name, bool create)
+    : Drive(storage, unique_user_id, root_parent_id, mount_dir, user_app_dir,
+            mount_status_shared_object_name, create),
       callback_filesystem_(),
       icon_id_(L"MaidSafeDriveIcon"),
-      drive_name_(drive_name.wstring()) {}
+      drive_name_(drive_name.wstring()),
+      unmounted_() {}
 
 template <typename Storage>
 CbfsDrive<Storage>::~CbfsDrive() {
@@ -243,6 +247,13 @@ void CbfsDrive<Storage>::Mount() {
   }
 
   LOG(kInfo) << "Mounted.";
+  mount_promise_.set_value();
+  if (!kMountStatusSharedObjectName_.empty()) {
+    NotifyMountedAndWaitForUnmountRequest(kMountStatusSharedObjectName_);
+    Unmount();
+  }
+  auto wait_until_unmounted(unmounted_.get_future());
+  wait_until_unmounted.get();
 }
 
 template <typename Storage>
@@ -272,6 +283,9 @@ void CbfsDrive<Storage>::Unmount() {
         if (callback_filesystem_.StoragePresent())
           callback_filesystem_.DeleteStorage();
         callback_filesystem_.SetRegistrationKey(nullptr);
+        unmounted_.set_value();
+        if (!kMountStatusSharedObjectName_.empty())
+          NotifyUnmounted(kMountStatusSharedObjectName_);
     });
   }
   catch (const ECBFSError& error) {

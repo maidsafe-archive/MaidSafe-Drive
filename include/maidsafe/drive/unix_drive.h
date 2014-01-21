@@ -101,7 +101,7 @@ class FuseDrive : public Drive<Storage> {
   FuseDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
             const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
             const boost::filesystem::path& user_app_dir, const boost::filesystem::path& drive_name,
-            bool create);
+            const std::string& mount_status_shared_object_name, bool create);
 
   virtual ~FuseDrive();
   virtual void Mount();
@@ -113,6 +113,7 @@ class FuseDrive : public Drive<Storage> {
   FuseDrive& operator=(FuseDrive);
 
   void Init();
+  void SetMounted();
 
   static int OpsAccess(const char* path, int mask);
   static int OpsChmod(const char* path, mode_t mode);
@@ -169,8 +170,8 @@ class FuseDrive : public Drive<Storage> {
   fuse_chan* fuse_channel_;
   fs::path fuse_mountpoint_;
   std::string drive_name_;
-  std::thread fuse_event_loop_thread_;
-  std::unique_ptr<boost::promise<void>> mount_promise_;
+  std::once_flag mounted_once_flag_;
+  std::thread unmount_ipc_waiter_;
 };
 
 const int kMaxPath(4096);
@@ -187,14 +188,15 @@ FuseDrive<Storage>::FuseDrive(std::shared_ptr<Storage> storage, const Identity& 
                               const boost::filesystem::path& mount_dir,
                               const boost::filesystem::path& user_app_dir,
                               const boost::filesystem::path& drive_name,
-                              bool create)
-    : Drive<Storage>(storage, unique_user_id, root_parent_id, mount_dir, user_app_dir, create),
+                              const std::string& mount_status_shared_object_name, bool create)
+    : Drive<Storage>(storage, unique_user_id, root_parent_id, mount_dir, user_app_dir,
+                     mount_status_shared_object_name, create),
       fuse_(nullptr),
       fuse_channel_(nullptr),
       fuse_mountpoint_(mount_dir),
       drive_name_(drive_name.string()),
-      fuse_event_loop_thread_(),
-      mount_promise_() {
+      mounted_once_flag_(),
+      unmount_ipc_waiter_() {
   fs::create_directory(fuse_mountpoint_);
   Init();
 }
@@ -202,6 +204,8 @@ FuseDrive<Storage>::FuseDrive(std::shared_ptr<Storage> storage, const Identity& 
 template <typename Storage>
 FuseDrive<Storage>::~FuseDrive() {
   Unmount();
+  if (unmount_ipc_waiter_.joinable())
+    unmount_ipc_waiter_.join();
   log::Logging::Instance().Flush();
 }
 
@@ -246,7 +250,20 @@ void FuseDrive<Storage>::Init() {
   maidsafe_ops_.listxattr = OpsListxattr;
   maidsafe_ops_.removexattr = OpsRemovexattr;
 #endif
-  umask(0022);
+  // umask(0022);
+}
+
+template <typename Storage>
+void FuseDrive<Storage>::SetMounted() {
+  std::call_once(mounted_once_flag_, [&] {
+    if (!kMountStatusSharedObjectName_.empty()) {
+      unmount_ipc_waiter_ = std::thread([&] {
+        NotifyMountedAndWaitForUnmountRequest(kMountStatusSharedObjectName_);
+        Unmount();
+      });
+    }
+    mount_promise_.set_value();
+  });
 }
 
 template <typename Storage>
@@ -292,6 +309,7 @@ void FuseDrive<Storage>::Mount() {
     if (fuse_)
       fuse_destroy(fuse_);
     free(mountpoint);
+    mount_promise_.set_value();
   });
   if (!fuse_)
     ThrowError(DriveErrors::failed_to_mount);
@@ -302,16 +320,16 @@ void FuseDrive<Storage>::Mount() {
   if (fuse_set_signal_handlers(fuse_get_session(fuse_)) == -1)
     ThrowError(DriveErrors::failed_to_mount);
 
-  mount_promise_.reset(new boost::promise<void>());
-  if (multithreaded)
-    fuse_event_loop_thread_ = std::move(std::thread(&fuse_loop_mt, fuse_));
-  else
-    fuse_event_loop_thread_ = std::move(std::thread(&fuse_loop, fuse_));
+  if (multithreaded) {
+    if (fuse_loop_mt(fuse_) == -1)
+      ThrowError(DriveErrors::failed_to_mount);
+  } else {
+    if (fuse_loop(fuse_) == -1)
+      ThrowError(DriveErrors::failed_to_mount);
+  }
 
   cleanup_on_error.Release();
   free(mountpoint);
-  auto wait_until_mounted(mount_promise_->get_future());
-  wait_until_mounted.get();
 }
 
 template <typename Storage>
@@ -321,7 +339,6 @@ void FuseDrive<Storage>::Unmount() {
       fuse_remove_signal_handlers(fuse_get_session(fuse_));
       fuse_unmount(fuse_mountpoint_.c_str(), fuse_channel_);
       fuse_destroy(fuse_);
-      fuse_event_loop_thread_.join();
     });
   }
   catch (const std::exception& e) {
@@ -330,6 +347,8 @@ void FuseDrive<Storage>::Unmount() {
   catch (...) {
     LOG(kError) << "Unknown exception in Unmount";
   }
+  if (!kMountStatusSharedObjectName_.empty())
+    NotifyUnmounted(this->kMountStatusSharedObjectName_);
 }
 
 // =============================== Callbacks =======================================================
@@ -558,7 +577,7 @@ int FuseDrive<Storage>::OpsGetattr(const char* path, struct stat* stbuf) {
 // as a parameter to the destroy() method.
 template <typename Storage>
 void* FuseDrive<Storage>::OpsInit(struct fuse_conn_info* /*conn*/) {
-  Global<Storage>::g_fuse_drive->mount_promise_->set_value();
+  Global<Storage>::g_fuse_drive->SetMounted();
   return nullptr;
 }
 
