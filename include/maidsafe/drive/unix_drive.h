@@ -256,13 +256,13 @@ void FuseDrive<Storage>::Init() {
 template <typename Storage>
 void FuseDrive<Storage>::SetMounted() {
   std::call_once(mounted_once_flag_, [&] {
-    if (!kMountStatusSharedObjectName_.empty()) {
+    if (!this->kMountStatusSharedObjectName_.empty()) {
       unmount_ipc_waiter_ = std::thread([&] {
-        NotifyMountedAndWaitForUnmountRequest(kMountStatusSharedObjectName_);
+        NotifyMountedAndWaitForUnmountRequest(this->kMountStatusSharedObjectName_);
         Unmount();
       });
     }
-    mount_promise_.set_value();
+    this->mount_promise_.set_value();
   });
 }
 
@@ -309,7 +309,7 @@ void FuseDrive<Storage>::Mount() {
     if (fuse_)
       fuse_destroy(fuse_);
     free(mountpoint);
-    mount_promise_.set_value();
+    this->mount_promise_.set_value();
   });
   if (!fuse_)
     ThrowError(DriveErrors::failed_to_mount);
@@ -347,7 +347,7 @@ void FuseDrive<Storage>::Unmount() {
   catch (...) {
     LOG(kError) << "Unknown exception in Unmount";
   }
-  if (!kMountStatusSharedObjectName_.empty())
+  if (!this->kMountStatusSharedObjectName_.empty())
     NotifyUnmounted(this->kMountStatusSharedObjectName_);
 }
 
