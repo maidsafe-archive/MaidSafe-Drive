@@ -385,13 +385,13 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
   assert(old_parent.first && old_parent.second && new_parent);
   auto file_context(old_parent.first->RemoveChild(old_relative_path.filename()));
 
-//#ifndef MAIDSAFE_WIN32
-//  struct stat old;
-//  old.st_ctime = meta_data.attributes.st_ctime;
-//  old.st_mtime = meta_data.attributes.st_mtime;
-//  time(&meta_data.attributes.st_mtime);
-//  meta_data.attributes.st_ctime = meta_data.attributes.st_mtime;
-//#endif
+// #ifndef MAIDSAFE_WIN32
+//   struct stat old;
+//   old.st_ctime = meta_data.attributes.st_ctime;
+//   old.st_mtime = meta_data.attributes.st_mtime;
+//   time(&meta_data.attributes.st_mtime);
+//   meta_data.attributes.st_ctime = meta_data.attributes.st_mtime;
+// #endif
   if (IsDirectory(file_context)) {
     auto directory(Get(old_relative_path));
     DeleteAllVersions(directory);
@@ -420,10 +420,10 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
 //      new_parent.listing->GetChild(new_relative_path.filename(), old_meta_data);
 //    }
 //    catch(const std::exception& exception) {
-//#ifndef MAIDSAFE_WIN32
+// #ifndef MAIDSAFE_WIN32
 //      meta_data.attributes.st_ctime = old.st_ctime;
 //      meta_data.attributes.st_mtime = old.st_mtime;
-//#endif
+// #endif
 //      boost::throw_exception(exception);
 //    }
 //    new_parent.listing->RemoveChild(old_meta_data);
@@ -433,23 +433,23 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
 
 #ifdef MAIDSAFE_WIN32
   GetSystemTimeAsFileTime(&old_parent.second->meta_data.last_write_time);
-  //if (new_relative_path.parent_path() != old_relative_path.parent_path().parent_path()) {
-  //  try {
-  //    if (old_grandparent.listing)
-  //      old_grandparent.listing->UpdateChild(old_parent_meta_data);
-  //  }
-  //  catch (const std::exception&) {}  // Non-critical
-  //  Put(old_grandparent, old_relative_path.parent_path().parent_path());
-  //}
+  // if (new_relative_path.parent_path() != old_relative_path.parent_path().parent_path()) {
+  //   try {
+  //     if (old_grandparent.listing)
+  //       old_grandparent.listing->UpdateChild(old_parent_meta_data);
+  //   }
+  //   catch (const std::exception&) {}  // Non-critical
+  //   Put(old_grandparent, old_relative_path.parent_path().parent_path());
+  // }
 #else
-  //old_parent_meta_data.attributes.st_ctime = old_parent_meta_data.attributes.st_mtime =
-  //    meta_data.attributes.st_mtime;
-  //if (IsDirectory(file_context)) {
-  //  --old_parent_meta_data.attributes.st_nlink;
-  //  ++new_parent_meta_data.attributes.st_nlink;
-  //  new_parent_meta_data.attributes.st_ctime = new_parent_meta_data.attributes.st_mtime =
-  //      old_parent_meta_data.attributes.st_mtime;
-  //}
+  // old_parent_meta_data.attributes.st_ctime = old_parent_meta_data.attributes.st_mtime =
+  //     meta_data.attributes.st_mtime;
+  // if (IsDirectory(file_context)) {
+  //   --old_parent_meta_data.attributes.st_nlink;
+  //   ++new_parent_meta_data.attributes.st_nlink;
+  //   new_parent_meta_data.attributes.st_ctime = new_parent_meta_data.attributes.st_mtime =
+  //       old_parent_meta_data.attributes.st_mtime;
+  // }
 #endif
 }
 
