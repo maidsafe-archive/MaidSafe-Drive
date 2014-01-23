@@ -273,8 +273,10 @@ void FuseDrive<Storage>::Mount() {
   fuse_opt_add_arg(&args, (fuse_mountpoint_.c_str()));
   std::string fsname_arg("-ofsname=" + drive_name_);
   fuse_opt_add_arg(&args, (fsname_arg.c_str()));
+#ifdef MAIDSAFE_APPLE
   std::string volname_arg("-ovolname=" + drive_name_);
   fuse_opt_add_arg(&args, (volname_arg.c_str()));
+#endif
   // NB - If we remove -odefault_permissions, we must check in OpsOpen, etc. that the operation is
   //      permitted for the given flags.  We also need to implement OpsAccess.
   fuse_opt_add_arg(&args, "-odefault_permissions,kernel_cache");
