@@ -712,13 +712,13 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
   *creation_time = file_context->meta_data.creation_time;
   *last_access_time = file_context->meta_data.last_access_time;
   *last_write_time = file_context->meta_data.last_write_time;
-  //if (file_context->meta_data.end_of_file < file_context->meta_data.allocation_size)
-  //  file_context->meta_data.end_of_file = file_context->meta_data.allocation_size;
-  //else if (file_context->meta_data.allocation_size < file_context->meta_data.end_of_file)
-  //  file_context->meta_data.allocation_size = file_context->meta_data.end_of_file;
+  // if (file_context->meta_data.end_of_file < file_context->meta_data.allocation_size)
+  //   file_context->meta_data.end_of_file = file_context->meta_data.allocation_size;
+  // else if (file_context->meta_data.allocation_size < file_context->meta_data.end_of_file)
+  //   file_context->meta_data.allocation_size = file_context->meta_data.end_of_file;
   *end_of_file = file_context->meta_data.end_of_file;
   *allocation_size = file_context->meta_data.allocation_size;
-  //*file_id = 0;
+  // *file_id = 0;
   *file_attributes = file_context->meta_data.attributes;
   if (real_file_name) {
     wcscpy(real_file_name, file_context->meta_data.name.wstring().c_str());
@@ -862,16 +862,16 @@ void CbfsDrive<Storage>::CbFsSetAllocationSize(CallbackFileSystem* sender, CbFsF
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
-  //if (file_context->meta_data.allocation_size == file_context->meta_data.end_of_file)
-  //  return;
+  // if (file_context->meta_data.allocation_size == file_context->meta_data.end_of_file)
+  //   return;
 
-  //if (cbfs_drive->TruncateFile(file_context, allocation_size)) {
-  //  file_context->meta_data.allocation_size = allocation_size;
-  //  if (!file_context->self_encryptor->Flush()) {
-  //    LOG(kError) << "CbFsSetAllocationSize: " << relative_path << ", failed to flush";
-  //  }
-  //}
-  //file_context->content_changed = true;
+  // if (cbfs_drive->TruncateFile(file_context, allocation_size)) {
+  //   file_context->meta_data.allocation_size = allocation_size;
+  //   if (!file_context->self_encryptor->Flush()) {
+  //     LOG(kError) << "CbFsSetAllocationSize: " << relative_path << ", failed to flush";
+  //   }
+  // }
+  // file_context->content_changed = true;
 }
 
 // Quote from CBFS documentation:
@@ -894,20 +894,20 @@ void CbfsDrive<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileIn
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
-  //if (cbfs_drive->TruncateFile(file_context, end_of_file)) {
-  //  file_context->meta_data.end_of_file = end_of_file;
-  //  if (!file_context->self_encryptor->Flush()) {
-  //    LOG(kError) << "CbFsSetEndOfFile: " << relative_path << ", failed to flush";
-  //  }
-  //} else {
-  //  LOG(kError) << "Truncate failed for " << file_context->meta_data.name;
-  //}
+  // if (cbfs_drive->TruncateFile(file_context, end_of_file)) {
+  //   file_context->meta_data.end_of_file = end_of_file;
+  //   if (!file_context->self_encryptor->Flush()) {
+  //     LOG(kError) << "CbFsSetEndOfFile: " << relative_path << ", failed to flush";
+  //   }
+  // } else {
+  //   LOG(kError) << "Truncate failed for " << file_context->meta_data.name;
+  // }
 
-  //if (file_context->meta_data.allocation_size == static_cast<uint64_t>(end_of_file))
-  //  return;
+  // if (file_context->meta_data.allocation_size == static_cast<uint64_t>(end_of_file))
+  //   return;
 
-  //file_context->meta_data.allocation_size = end_of_file;
-  //file_context->content_changed = true;
+  // file_context->meta_data.allocation_size = end_of_file;
+  // file_context->content_changed = true;
 }
 
 // Quote from CBFS documentation:
