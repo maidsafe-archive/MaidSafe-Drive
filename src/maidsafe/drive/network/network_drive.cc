@@ -56,11 +56,11 @@ namespace drive {
 
 namespace {
 
-//std::function<void()> g_unmount_functor;
+// std::function<void()> g_unmount_functor;
 
-//void CtrlCHandler(int /*value*/) {
-//  g_unmount_functor();
-//}
+// void CtrlCHandler(int /*value*/) {
+//   g_unmount_functor();
+// }
 
 }  // unnamed namespace
 
@@ -95,19 +95,19 @@ int Mount(const fs::path &/*mount_dir*/, const fs::path &chunk_dir) {
   Identity root_parent_id(root_parent_id_str.empty() ? Identity() : Identity(root_parent_id_str));
   std::string product_id;
 
-  //typedef GetDrive<maidsafe::data_store::LocalStore>::type Drive;
-  //Drive drive(storage,
-  //            unique_user_id,
-  //            root_parent_id,
-  //            mount_dir,
-  //            product_id,
-  //            "MaidSafeDrive");
-  //if (first_run)
-  //  BOOST_VERIFY(WriteFile(id_path, drive.root_parent_id().string()));
+  // typedef GetDrive<maidsafe::data_store::LocalStore>::type Drive;
+  // Drive drive(storage,
+  //             unique_user_id,
+  //             root_parent_id,
+  //             mount_dir,
+  //             product_id,
+  //             "MaidSafeDrive");
+  // if (first_run)
+  //   BOOST_VERIFY(WriteFile(id_path, drive.root_parent_id().string()));
 
-  //g_unmount_functor = [&] { drive.Unmount(); };  // NOLINT
-  //signal(SIGINT, CtrlCHandler);
-  //drive.Mount();
+  // g_unmount_functor = [&] { drive.Unmount(); };  // NOLINT
+  // signal(SIGINT, CtrlCHandler);
+  // drive.Mount();
 
   return 0;
 }
