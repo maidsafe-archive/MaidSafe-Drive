@@ -195,6 +195,33 @@ endif()
 if(MaidsafeTesting)
   ms_add_style_test()
   ms_add_catch_tests(test_drive)
+  add_test(NAME "\"Real Disk Filesystem Test\""
+           COMMAND filesystem_test --durations yes --warn NoAssertions --disk
+                   --name "filesystem_test ($<CONFIGURATION> build)")
+  if(WIN32)
+    set(Console _console)
+  endif()
+  add_test(NAME "\"Local Drive Filesystem Test\""
+           COMMAND filesystem_test --durations yes --warn NoAssertions --local${Console}
+                   --name "filesystem_test ($<CONFIGURATION> build)")
+  set_tests_properties("\"Real Disk Filesystem Test\"" "\"Local Drive Filesystem Test\"" PROPERTIES
+                       FAIL_REGULAR_EXPRESSION "No tests ran"
+                       TIMEOUT 120
+                       LABELS "Drive;Filesystem")
+
+  if(WEEKLY)
+    add_test(NAME "\"Real Disk Benchmark\""
+             COMMAND filesystem_benchmark --durations yes --warn NoAssertions --disk
+                     --name "filesystem_benchmark ($<CONFIGURATION> build)")
+    add_test(NAME "\"Local Drive Benchmark\""
+             COMMAND filesystem_benchmark --durations yes --warn NoAssertions --local${Console}
+                     --name "filesystem_benchmark ($<CONFIGURATION> build)")
+    set_tests_properties("\"Real Disk Benchmark\"" "\"Local Drive Benchmark\"" PROPERTIES
+                         FAIL_REGULAR_EXPRESSION "No tests ran"
+                         TIMEOUT 300
+                         LABELS "Drive;Filesystem;Benchmark")
+  endif()
+
   ms_add_project_experimental()
   ms_test_summary_output()
 endif()
