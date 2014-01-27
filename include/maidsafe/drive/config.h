@@ -47,7 +47,9 @@ namespace detail {
 extern const boost::filesystem::path kRoot;
 extern const MaxVersions kMaxVersions;
 // The delay between the last update to a directory and the creation of the corresponding version.
-extern const std::chrono::steady_clock::duration kInactivityDelay;
+extern const std::chrono::steady_clock::duration kDirectoryInactivityDelay;
+// The delay between the last close on a file and the deletion of its buffer and encryptor.
+extern const std::chrono::steady_clock::duration kFileInactivityDelay;
 
 }  // namespace detail
 
