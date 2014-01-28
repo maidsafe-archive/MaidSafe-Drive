@@ -284,9 +284,9 @@ void Launcher::StopDriveProcess(bool terminate_on_ipc_failure) {
   }
   auto exit_code = bp::wait_for_exit(*drive_process_, error_code);
   if (error_code)
-    LOG(kError) << "Error waiting for drive process to exit: " << error_code.message();
+    std::cout << "Error waiting for drive process to exit: " << error_code.message() << '\n';
   else
-    LOG(kInfo) << "Drive process has completed with exit code " << exit_code;
+    std::cout << "Drive process has completed with exit code " << exit_code << '\n';
   drive_process_ = nullptr;
 }
 

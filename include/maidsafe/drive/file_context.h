@@ -22,6 +22,7 @@
 #include <memory>
 #include <string>
 
+#include "boost/asio/steady_timer.hpp"
 #include "boost/filesystem/path.hpp"
 
 #include "maidsafe/common/config.h"
@@ -50,7 +51,8 @@ struct FileContext {
   MetaData meta_data;
   std::unique_ptr<Buffer> buffer;
   std::unique_ptr<encrypt::SelfEncryptor> self_encryptor;
-  int open_count;
+  std::unique_ptr<boost::asio::steady_timer> timer;
+  std::unique_ptr<std::atomic<int>> open_count;
   Directory* parent;
 };
 

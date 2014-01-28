@@ -66,17 +66,7 @@ void FlushEncryptor(FileContext* file_context,
       put_chunk_functor(ImmutableData(content));
     }
   }
-  if (file_context->open_count == 0) {
-    file_context->self_encryptor.reset();
-    file_context->buffer.reset();
-  }
 }
-
-/*
-bool FileContextHasName(const FileContext* file_context, const fs::path& name) {
-  return GetLowerCase(file_context->meta_data.name.string()) == GetLowerCase(name.string());
-}
-*/
 
 }  // unnamed namespace
 
@@ -116,7 +106,7 @@ Directory::Directory(ParentId parent_id, const std::string& serialised_directory
 Directory::~Directory() {
   std::unique_lock<std::mutex> lock(mutex_);
   DoScheduleForStoring(false);
-  bool result(cond_var_.wait_for(lock, kInactivityDelay + std::chrono::milliseconds(500),
+  bool result(cond_var_.wait_for(lock, kDirectoryInactivityDelay + std::chrono::milliseconds(500),
                                  [&] { return store_state_ == StoreState::kComplete; }));
   assert(result);
   static_cast<void>(result);
@@ -190,7 +180,7 @@ void Directory::SortAndResetChildrenCounter() {
 
 void Directory::DoScheduleForStoring(bool use_delay) {
   if (use_delay) {
-    auto cancelled_count(timer_.expires_from_now(kInactivityDelay));
+    auto cancelled_count(timer_.expires_from_now(kDirectoryInactivityDelay));
 #ifndef NDEBUG
     if (cancelled_count > 0 && store_state_ != StoreState::kComplete) {
       LOG(kInfo) << "Successfully cancelled " << cancelled_count << " store functor.";
