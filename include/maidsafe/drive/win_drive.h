@@ -305,7 +305,7 @@ std::wstring CbfsDrive<Storage>::drive_name() const {
 
 template <typename Storage>
 void CbfsDrive<Storage>::FlushAll() {
-  directory_handler_->FlushAll();
+  directory_handler_.FlushAll();
 }
 
 template <typename Storage>
@@ -781,7 +781,7 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
 
   detail::Directory* directory(nullptr);
   try {
-    directory = cbfs_drive->directory_handler_->Get(relative_path);
+    directory = cbfs_drive->directory_handler_.Get(relative_path);
     if (restart)
       directory->ResetChildrenCounter();
   }
@@ -1061,7 +1061,7 @@ void CbfsDrive<Storage>::CbFsIsDirectoryEmpty(CallbackFileSystem* sender,
   LOG(kInfo) << "CbFsIsDirectoryEmpty - " << boost::filesystem::path(file_name);
   try {
     auto cbfs_drive(detail::GetDrive<Storage>(sender));
-    *is_empty = cbfs_drive->directory_handler_->Get(file_name)->empty();
+    *is_empty = cbfs_drive->directory_handler_.Get(file_name)->empty();
   }
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);

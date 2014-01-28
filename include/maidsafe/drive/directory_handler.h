@@ -128,7 +128,7 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
       // All chunks of serialised dirs should comfortably have been stored well before being popped
       // out of buffer, so allow pop_functor to be a no-op.
       disk_buffer_(MemoryUsage(Concurrency() * 1024 * 1024), DiskUsage(30 * 1024 * 1024),
-                   [](const std::string&, const NonEmptyString&) {}, disk_buffer_path),
+                   [](const std::string&, const NonEmptyString&) {}, disk_buffer_path, true),
       get_chunk_from_store_(),
       put_functor_([this](Directory* directory) { Put(directory); }),
       cache_mutex_(),
