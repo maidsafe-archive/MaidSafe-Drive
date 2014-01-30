@@ -58,19 +58,24 @@ class DirectoryTest;
 class Directory {
  public:
   Directory(ParentId parent_id, DirectoryId directory_id, boost::asio::io_service& io_service,
-            std::function<void(Directory*)> put_functor, const boost::filesystem::path& path);  // NOLINT
+            std::function<void(Directory*)> put_functor,  // NOLINT
+            std::function<void(const ImmutableData&)> put_chunk_functor,
+            std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
+            const boost::filesystem::path& path);  // NOLINT
   Directory(ParentId parent_id, const std::string& serialised_directory,
             const std::vector<StructuredDataVersions::VersionName>& versions,
             boost::asio::io_service& io_service, std::function<void(Directory*)> put_functor,  // NOLINT
+            std::function<void(const ImmutableData&)> put_chunk_functor,
+            std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
             const boost::filesystem::path& path);
   ~Directory();
   // This marks the start of an attempt to store the directory.  It serialises the appropriate
   // member data (critically parent_id_ must never be serialised), and sets 'store_state_' to
-  // kOngoing.  It also stores all new chunks from all children, increments all the other chunks,
-  // and resets all self_encryptors & buffers.
-  std::string Serialise(
-      std::function<void(const ImmutableData&)> put_chunk_functor,
-      std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor);
+  // kOngoing.  It also calls 'FlushChild' on all children (see below).
+  std::string Serialise();
+  // Stores all new chunks from 'child', increments all the other chunks, and resets child's
+  // self_encryptor & buffer.
+  void FlushChildAndDeleteEncryptor(FileContext* child);
   // This marks the end of an attempt to store the directory.  It returns directory_id and most
   // recent 2 version names (including the one passed in), and sets 'store_state_' to kComplete.
   std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
@@ -97,6 +102,9 @@ class Directory {
   friend void test::DirectoriesMatch(const Directory& lhs, const Directory& rhs);
   friend class test::DirectoryTest;
 
+  // TODO(Fraser#5#): 2014-01-30 - BEFORE_RELEASE - Make mutex_ private.
+  mutable std::mutex mutex_;
+
  private:
   Directory(const Directory& other);
   Directory(Directory&& other);
@@ -109,12 +117,14 @@ class Directory {
   void SortAndResetChildrenCounter();
   void DoScheduleForStoring(bool use_delay = true);
 
-  mutable std::mutex mutex_;
   std::condition_variable cond_var_;
   ParentId parent_id_;
   DirectoryId directory_id_;
   boost::asio::steady_timer timer_;
   std::function<void(const boost::system::error_code&)> store_functor_;
+  std::function<void(const ImmutableData&)> put_chunk_functor_;
+  std::function<void(std::vector<ImmutableData::Name>)> increment_chunks_functor_;
+  std::vector<ImmutableData::Name> chunks_to_be_incremented_;
   std::deque<StructuredDataVersions::VersionName> versions_;
   MaxVersions max_versions_;
   Children children_;

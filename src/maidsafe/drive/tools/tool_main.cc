@@ -258,7 +258,7 @@ std::function<void()> PrepareLocalVfs() {
   options.create_store = true;
   options.drive_type = static_cast<drive::DriveType>(g_test_type);
   if (g_enable_vfs_logging)
-    options.drive_logging_args = "--log_* I --log_colour_mode 2";
+    options.drive_logging_args = "--log_* V --log_colour_mode 2 --log_no_async";
 
   g_launcher.reset(new drive::Launcher(options));
   g_root = g_launcher->kMountPath();

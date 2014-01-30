@@ -28,20 +28,20 @@ namespace detail {
 
 FileContext::FileContext()
     : meta_data(), buffer(), self_encryptor(), timer(), open_count(new std::atomic<int>(0)),
-      parent(nullptr) {}
+      parent(nullptr), flushed(false) {}
 
 FileContext::FileContext(FileContext&& other)
     : meta_data(std::move(other.meta_data)), buffer(std::move(other.buffer)),
       self_encryptor(std::move(other.self_encryptor)), timer(std::move(other.timer)),
-      open_count(std::move(other.open_count)), parent(other.parent) {}
+      open_count(std::move(other.open_count)), parent(other.parent), flushed(other.flushed) {}
 
 FileContext::FileContext(MetaData meta_data_in, Directory* parent_in)
     : meta_data(std::move(meta_data_in)), buffer(), self_encryptor(), timer(),
-      open_count(new std::atomic<int>(0)), parent(parent_in) {}
+      open_count(new std::atomic<int>(0)), parent(parent_in), flushed(false) {}
 
 FileContext::FileContext(const boost::filesystem::path& name, bool is_directory)
     : meta_data(name, is_directory), buffer(), self_encryptor(), timer(),
-      open_count(new std::atomic<int>(0)), parent(nullptr) {}
+      open_count(new std::atomic<int>(0)), parent(nullptr), flushed(false) {}
 
 FileContext& FileContext::operator=(FileContext other) {
   swap(*this, other);
@@ -56,6 +56,7 @@ void swap(FileContext& lhs, FileContext& rhs) MAIDSAFE_NOEXCEPT {
   swap(lhs.timer, rhs.timer);
   swap(lhs.open_count, rhs.open_count);
   swap(lhs.parent, rhs.parent);
+  swap(lhs.flushed, rhs.flushed);
 }
 
 bool operator<(const FileContext& lhs, const FileContext& rhs) {

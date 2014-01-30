@@ -138,8 +138,14 @@ Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_u
           boost::filesystem::unique_path(*kBufferRoot_ / "%%%%%-%%%%%-%%%%%-%%%%%"),
           create, asio_service_.service()) {
   get_chunk_from_store_ = [this](const std::string& name)->NonEmptyString {
-    auto chunk(storage_->Get(ImmutableData::Name(Identity(name))).get());
-    return chunk.data();
+    try {
+      auto chunk(storage_->Get(ImmutableData::Name(Identity(name))).get());
+      return chunk.data();
+    }
+    catch (const std::exception& e) {
+      LOG(kError) << "Failed to get chunk from storage: " << e.what();
+      throw;
+    }
   };
 }
 
@@ -200,8 +206,7 @@ void Drive<Storage>::ScheduleDeletionOfEncryptor(detail::FileContext* file_conte
 #ifndef NDEBUG
           LOG(kInfo) << "Deleting encryptor and buffer for " << name;
 #endif
-          file_context->self_encryptor.reset();
-          file_context->buffer.reset();
+          file_context->parent->FlushChildAndDeleteEncryptor(file_context);
         } else {
           LOG(kWarning) << "About to delete encryptor and buffer for "
                         << file_context->meta_data.name << " but open_count > 0";
@@ -218,13 +223,7 @@ template <typename Storage>
 const detail::FileContext* Drive<Storage>::GetContext(
     const boost::filesystem::path& relative_path) {
   detail::Directory* parent(directory_handler_.Get(relative_path.parent_path()));
-  auto file_context(parent->GetChild(relative_path.filename()));
-  // The open_count must be >=0.  If > 0 and the context doesn't represent a directory, the buffer
-  // and encryptor should be non-null.
-  assert(*file_context->open_count == 0 || (*file_context->open_count > 0 &&
-            (file_context->meta_data.directory_id ||
-                (file_context->buffer && file_context->self_encryptor && file_context->timer))));
-  return file_context;
+  return parent->GetChild(relative_path.filename());
 }
 
 template <typename Storage>
@@ -232,13 +231,7 @@ detail::FileContext* Drive<Storage>::GetMutableContext(
     const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
   detail::Directory* parent(directory_handler_.Get(relative_path.parent_path()));
-  auto file_context(parent->GetMutableChild(relative_path.filename()));
-  // The open_count must be >=0.  If > 0 and the context doesn't represent a directory, the buffer
-  // and encryptor should be non-null.
-  assert(*file_context->open_count == 0 || (*file_context->open_count > 0 &&
-              (file_context->meta_data.directory_id ||
-                   (file_context->buffer && file_context->self_encryptor && file_context->timer))));
-  return file_context;
+  return parent->GetMutableChild(relative_path.filename());
 }
 
 template <typename Storage>
@@ -253,10 +246,14 @@ void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
 
 template <typename Storage>
 void Drive<Storage>::Open(const boost::filesystem::path& relative_path) {
-  auto file_context(GetMutableContext(relative_path));
+  detail::Directory* parent(directory_handler_.Get(relative_path.parent_path()));
+  auto file_context(parent->GetMutableChild(relative_path.filename()));
   if (!file_context->meta_data.directory_id) {
-    if (++(*file_context->open_count) == 1)
+    LOG(kInfo) << "Opening " << relative_path << " open count: " << *file_context->open_count + 1;
+    if (++(*file_context->open_count) == 1) {
+      std::lock_guard<std::mutex> lock(parent->mutex_);
       InitialiseEncryptor(relative_path, *file_context);
+    }
   }
 }
 
@@ -274,9 +271,8 @@ void Drive<Storage>::Release(const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
   auto file_context(GetMutableContext(relative_path));
   if (!file_context->meta_data.directory_id) {
+    LOG(kInfo) << "Releasing " << relative_path << " open count: " << *file_context->open_count - 1;
     --(*file_context->open_count);
-    if (file_context->self_encryptor && !file_context->self_encryptor->Flush())
-      LOG(kError) << "Failed to flush " << relative_path << " during Release";
     if (*file_context->open_count == 0)
       ScheduleDeletionOfEncryptor(file_context);
   }

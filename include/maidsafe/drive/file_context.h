@@ -54,6 +54,7 @@ struct FileContext {
   std::unique_ptr<boost::asio::steady_timer> timer;
   std::unique_ptr<std::atomic<int>> open_count;
   Directory* parent;
+  bool flushed;
 };
 
 void swap(FileContext& lhs, FileContext& rhs) MAIDSAFE_NOEXCEPT;
