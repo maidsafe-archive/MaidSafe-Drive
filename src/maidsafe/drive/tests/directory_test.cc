@@ -74,11 +74,11 @@ class DirectoryTest {
         }),
         put_functor_([&](Directory* directory) {
           LOG(kInfo) << "Putting directory.";
-          ImmutableData contents(
-              NonEmptyString(directory->Serialise(put_chunk_functor_, increment_chunks_functor_)));
+          ImmutableData contents(NonEmptyString(directory->Serialise()));
           directory->AddNewVersion(contents.name());
         }),
-        directory_(ParentId(unique_id_), parent_id_, asio_service_.service(), put_functor_, "") {}
+        directory_(ParentId(unique_id_), parent_id_, asio_service_.service(), put_functor_,
+                   put_chunk_functor_, increment_chunks_functor_, "") {}
 
  protected:
   void GenerateDirectoryListingEntryForDirectory(Directory& directory, fs::path const& path) {
@@ -103,7 +103,7 @@ class DirectoryTest {
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
     DirectoryId directory_id(crypto::Hash<crypto::SHA512>(absolute_path.string()));
     Directory directory(parent_id, directory_id, asio_service_.service(), put_functor_,
-                        relative_path);
+                        put_chunk_functor_, increment_chunks_functor_, relative_path);
     fs::directory_iterator itr(path), end;
     try {
       for (; itr != end; ++itr) {
@@ -121,8 +121,7 @@ class DirectoryTest {
           return false;
         }
       }
-      ImmutableData contents(
-          NonEmptyString(directory.Serialise(put_chunk_functor_, increment_chunks_functor_)));
+      ImmutableData contents(NonEmptyString(directory.Serialise()));
       CHECK(WriteFile(path / "msdir.listing", contents.data().string()));
       directory.AddNewVersion(contents.name());
     }
@@ -140,7 +139,7 @@ class DirectoryTest {
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
     Directory directory(parent_id, serialised_directory, versions, asio_service_.service(),
-                        put_functor_, relative_path);
+                        put_functor_, put_chunk_functor_, increment_chunks_functor_, relative_path);
 
     FileContext* file_context(nullptr);
     // Remove the directory listing file
@@ -185,7 +184,7 @@ class DirectoryTest {
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
     Directory directory(parent_id, serialised_directory, versions, asio_service_.service(),
-                        put_functor_, relative_path);
+                        put_functor_, put_chunk_functor_, increment_chunks_functor_, relative_path);
 
     FileContext* file_context(nullptr);
     std::string listing("msdir.listing");
@@ -237,7 +236,7 @@ class DirectoryTest {
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
     Directory directory(parent_id, serialised_directory, versions, asio_service_.service(),
-                        put_functor_, relative_path);
+                        put_functor_, put_chunk_functor_, increment_chunks_functor_, relative_path);
 
     std::string listing("msdir.listing");
     fs::directory_iterator itr(path), end;
@@ -274,7 +273,7 @@ class DirectoryTest {
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
     Directory directory(parent_id, serialised_directory, versions, asio_service_.service(),
-                        put_functor_, relative_path);
+                        put_functor_, put_chunk_functor_, increment_chunks_functor_, relative_path);
 
     const FileContext* file_context(nullptr);
     std::string listing("msdir.listing");
@@ -487,15 +486,14 @@ TEST_CASE_METHOD(DirectoryTest, "Serialise and parse", "[Directory][behavioural]
     CHECK_NOTHROW(directory_.AddChild(std::move(file_context)));
   }
 
-  std::string serialised_directory(directory_.Serialise(put_chunk_functor_,
-                                   increment_chunks_functor_));
-  ImmutableData contents(
-      NonEmptyString(directory_.Serialise(put_chunk_functor_, increment_chunks_functor_)));
+  std::string serialised_directory(directory_.Serialise());
+  ImmutableData contents(NonEmptyString(directory_.Serialise()));
   directory_.AddNewVersion(contents.name());
 
   std::vector<StructuredDataVersions::VersionName> versions;
   Directory recovered_directory(directory_.parent_id(), serialised_directory, versions,
-                                asio_service_.service(), put_functor_, "");
+                                asio_service_.service(), put_functor_, put_chunk_functor_,
+                                increment_chunks_functor_, "");
   DirectoriesMatch(directory_, recovered_directory);
 }
 
