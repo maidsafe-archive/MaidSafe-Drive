@@ -632,6 +632,7 @@ int FuseDrive<Storage>::OpsLink(const char* to, const char* from) {
 // be false. To obtain the correct directory type bits use mode|S_IFDIR
 template <typename Storage>
 int FuseDrive<Storage>::OpsMkdir(const char* path, mode_t mode) {
+  mode |= S_IFDIR;
   LOG(kInfo) << "OpsMkdir: " << path << " (" << detail::GetFileType(mode) << "), mode: " << std::oct
              << mode;
   return Global<Storage>::g_fuse_drive->CreateNew(path, mode);
