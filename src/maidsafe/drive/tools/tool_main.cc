@@ -273,7 +273,7 @@ std::function<void()> PrepareLocalVfs() {
 std::function<void()> PrepareNetworkVfs() {
   g_error_message = "Network test is unimplemented just now.";
   g_return_code = 10;
-  BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+  return [] {};  // NOLINT
 }
 
 std::function<void()> PrepareTest() {
@@ -285,7 +285,7 @@ std::function<void()> PrepareTest() {
       return PrepareLocalVfs();
     case TestType::kNetwork:
     case TestType::kNetworkConsole:
-      return PrepareNetworkVfs();
+      PrepareNetworkVfs();
     default:
       BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
   }
