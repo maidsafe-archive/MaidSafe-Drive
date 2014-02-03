@@ -93,7 +93,7 @@ Directory::Directory(ParentId parent_id, const std::string& serialised_directory
       children_count_position_(0), store_state_(StoreState::kComplete) {
   protobuf::Directory proto_directory;
   if (!proto_directory.ParseFromString(serialised_directory))
-    ThrowError(CommonErrors::parsing_error);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
 
   directory_id_ = Identity(proto_directory.directory_id());
   max_versions_ = MaxVersions(proto_directory.max_versions());
@@ -224,7 +224,7 @@ const FileContext* Directory::GetChild(const fs::path& name) const {
   std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(name));
   if (itr == std::end(children_))
-    ThrowError(DriveErrors::no_such_file);
+    BOOST_THROW_EXCEPTION(MakeError(DriveErrors::no_such_file));
   return itr->get();
 }
 
@@ -233,7 +233,7 @@ FileContext* Directory::GetMutableChild(const fs::path& name) {
   std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(name));
   if (itr == std::end(children_))
-    ThrowError(DriveErrors::no_such_file);
+    BOOST_THROW_EXCEPTION(MakeError(DriveErrors::no_such_file));
   return itr->get();
 }
 
@@ -251,7 +251,7 @@ void Directory::AddChild(FileContext&& child) {
   std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(child.meta_data.name));
   if (itr != std::end(children_))
-    ThrowError(DriveErrors::file_exists);
+    BOOST_THROW_EXCEPTION(MakeError(DriveErrors::file_exists));
   child.parent = this;
   children_.emplace_back(new FileContext(std::move(child)));
   SortAndResetChildrenCounter();
@@ -262,7 +262,7 @@ FileContext Directory::RemoveChild(const fs::path& name) {
   std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(name));
   if (itr == std::end(children_))
-    ThrowError(DriveErrors::no_such_file);
+    BOOST_THROW_EXCEPTION(MakeError(DriveErrors::no_such_file));
   std::unique_ptr<FileContext> file_context(std::move(*itr));
   children_.erase(itr);
   SortAndResetChildrenCounter();
@@ -275,7 +275,7 @@ void Directory::RenameChild(const fs::path& old_name, const fs::path& new_name) 
   assert(Find(new_name) == std::end(children_));
   auto itr(Find(old_name));
   if (itr == std::end(children_))
-    ThrowError(DriveErrors::no_such_file);
+    BOOST_THROW_EXCEPTION(MakeError(DriveErrors::no_such_file));
   (*itr)->meta_data.name = new_name;
   SortAndResetChildrenCounter();
   DoScheduleForStoring();

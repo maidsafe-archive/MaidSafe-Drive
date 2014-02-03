@@ -265,7 +265,7 @@ void Drive<Storage>::Flush(const boost::filesystem::path& relative_path) {
   auto file_context(GetMutableContext(relative_path));
   if (file_context->self_encryptor && !file_context->self_encryptor->Flush()) {
     LOG(kError) << "Failed to flush " << relative_path;
-    ThrowError(CommonErrors::unknown);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
   }
 }
 
@@ -308,7 +308,7 @@ uint32_t Drive<Storage>::Read(const boost::filesystem::path& relative_path, char
   LOG(kInfo) << "For "  << relative_path << ", reading " << size << " of "
              << file_context->self_encryptor->size() << " bytes at offset " << offset;
   if (!file_context->self_encryptor->Read(data, size, offset))
-    ThrowError(CommonErrors::unknown);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
   // TODO(Fraser#5#): 2013-12-02 - Update last access time?
   if (offset + size > file_context->self_encryptor->size()) {
     return offset > file_context->self_encryptor->size() ? 0 :
@@ -325,7 +325,7 @@ uint32_t Drive<Storage>::Write(const boost::filesystem::path& relative_path, con
   assert(file_context->self_encryptor);
   LOG(kInfo) << "For "  << relative_path << ", writing " << size << " bytes at offset " << offset;
   if (!file_context->self_encryptor->Write(data, size, offset))
-    ThrowError(CommonErrors::unknown);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
   // TODO(Fraser#5#): 2013-12-02 - Update last write time?
 #ifndef MAIDSAFE_WIN32
   int64_t max_size(

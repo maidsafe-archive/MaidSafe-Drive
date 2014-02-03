@@ -102,7 +102,7 @@ void GetAndExecuteCommand() {
         case CloseFileCommand::kTypeId:
           return Run<CloseFileCommand>();
         default:
-          ThrowError(CommonErrors::invalid_parameter);
+          BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
       }
     }
     catch (const Restart&) { return; }

@@ -296,12 +296,12 @@ void FuseDrive<Storage>::Mount() {
   int multithreaded, foreground;
   char *mountpoint(nullptr);
   if (fuse_parse_cmdline(&args, &mountpoint, &multithreaded, &foreground) == -1)
-    ThrowError(DriveErrors::failed_to_mount);
+    BOOST_THROW_EXCEPTION(MakeError(DriveErrors::failed_to_mount));
 
   fuse_channel_ = fuse_mount(mountpoint, &args);
   if (!fuse_channel_) {
     fuse_opt_free_args(&args);
-    ThrowError(DriveErrors::failed_to_mount);
+    BOOST_THROW_EXCEPTION(MakeError(DriveErrors::failed_to_mount));
   }
 
   fuse_ = fuse_new(fuse_channel_, &args, &maidsafe_ops_, sizeof(maidsafe_ops_), nullptr);
@@ -314,20 +314,20 @@ void FuseDrive<Storage>::Mount() {
     this->mount_promise_.set_value();
   });
   if (!fuse_)
-    ThrowError(DriveErrors::failed_to_mount);
+    BOOST_THROW_EXCEPTION(MakeError(DriveErrors::failed_to_mount));
 
   if (fuse_daemonize(foreground) == -1)
-    ThrowError(DriveErrors::failed_to_mount);
+    BOOST_THROW_EXCEPTION(MakeError(DriveErrors::failed_to_mount));
 
   if (fuse_set_signal_handlers(fuse_get_session(fuse_)) == -1)
-    ThrowError(DriveErrors::failed_to_mount);
+    BOOST_THROW_EXCEPTION(MakeError(DriveErrors::failed_to_mount));
 
   if (multithreaded) {
     if (fuse_loop_mt(fuse_) == -1)
-      ThrowError(DriveErrors::failed_to_mount);
+      BOOST_THROW_EXCEPTION(MakeError(DriveErrors::failed_to_mount));
   } else {
     if (fuse_loop(fuse_) == -1)
-      ThrowError(DriveErrors::failed_to_mount);
+      BOOST_THROW_EXCEPTION(MakeError(DriveErrors::failed_to_mount));
   }
 
   cleanup_on_error.Release();

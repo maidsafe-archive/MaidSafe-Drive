@@ -209,7 +209,7 @@ template <typename Storage>
 void CbfsDrive<Storage>::SetGuid(const std::string& guid) {
   if (!guid_.empty()) {
     LOG(kError) << "GUID has already been set to " << guid_;
-    ThrowError(CommonErrors::unable_to_handle_request);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unable_to_handle_request));
   }
   guid_ = guid;
 }
@@ -223,7 +223,7 @@ void CbfsDrive<Storage>::Mount() {
 #endif
   if (guid_.empty()) {
     LOG(kError) << "GUID is empty - 'SetGuid' must be called before 'Mount'";
-    ThrowError(CommonErrors::uninitialised);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::uninitialised));
   }
   try {
     InitialiseCbfs();
@@ -239,11 +239,11 @@ void CbfsDrive<Storage>::Mount() {
   }
   catch (const ECBFSError& error) {
     detail::ErrorMessage("Mount: ", error);
-    ThrowError(CommonErrors::uninitialised);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::uninitialised));
   }
   catch (const std::exception& e) {
     LOG(kError) << "Mount: " << e.what();
-    ThrowError(CommonErrors::uninitialised);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::uninitialised));
   }
 
   LOG(kInfo) << "Mounted.";

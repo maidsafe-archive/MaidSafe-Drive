@@ -50,7 +50,7 @@ boost::filesystem::path GetRelativePath(const Environment& environment) {
     try {
       path = fs::path(GetLine());
       if (path.empty())
-        ThrowError(CommonErrors::invalid_parameter);
+        BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
     }
     catch (const std::exception&) {
       std::cout << "\tInvalid choice.  Enter path relative to " << environment.root;
@@ -76,7 +76,7 @@ boost::filesystem::path ChooseRelativePath(const Environment& environment) {
     try {
       index = static_cast<size_t>(std::stoull(GetLine()));
       if (index >= environment.files.size())
-        ThrowError(CommonErrors::invalid_parameter);
+        BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
       auto itr(std::begin(environment.files));
       std::advance(itr, index);
       path = itr->first;

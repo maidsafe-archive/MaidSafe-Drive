@@ -91,7 +91,7 @@ void CreateDir(const fs::path& dir) {
   if (!fs::create_directories(dir, error_code) || error_code) {
     g_error_message = std::string("Failed to create ") + dir.string() + ": " + error_code.message();
     g_return_code = error_code.value();
-    ThrowError(CommonErrors::filesystem_io_error);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
   }
 }
 
@@ -233,7 +233,7 @@ void GetTestType(const po::variables_map& variables_map) {
     stream << kHelpInfo << "'.  For all options, run '--help'\n\n";
     g_error_message = stream.str();
     g_return_code = 1;
-    ThrowError(CommonErrors::invalid_parameter);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
   }
 }
 
@@ -273,8 +273,7 @@ std::function<void()> PrepareLocalVfs() {
 std::function<void()> PrepareNetworkVfs() {
   g_error_message = "Network test is unimplemented just now.";
   g_return_code = 10;
-  ThrowError(CommonErrors::invalid_parameter);
-  return [] {};  // NOLINT
+  BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
 }
 
 std::function<void()> PrepareTest() {
@@ -288,9 +287,8 @@ std::function<void()> PrepareTest() {
     case TestType::kNetworkConsole:
       return PrepareNetworkVfs();
     default:
-      ThrowError(CommonErrors::invalid_parameter);
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
   }
-  return [] {};  // NOLINT
 }
 
 }  // unnamed namespace
