@@ -60,13 +60,13 @@ std::function<void()> clean_root([] {
 
 fs::path GenerateFile(const fs::path& parent, size_t size) {
   if (size == 0)
-    ThrowError(CommonErrors::invalid_parameter);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
 
   auto file_name(parent / (RandomAlphaNumericString((RandomUint32() % 4) + 4) + ".txt"));
 
   std::ofstream output_stream(file_name.c_str(), std::ios::binary);
   if (!output_stream.is_open() || output_stream.bad())
-    ThrowError(CommonErrors::filesystem_io_error);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
 
   auto random_string(RandomString(1024 * 1024));
   size_t written(0);
@@ -85,7 +85,7 @@ fs::path GenerateDirectory(const fs::path& parent) {
   boost::system::error_code ec;
   fs::create_directory(directory_name, ec);
   if (ec)
-    ThrowError(CommonErrors::filesystem_io_error);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
   return directory_name;
 }
 
@@ -135,14 +135,14 @@ void CopyRecursiveDirectory(const fs::path& src, const fs::path& dest) {
     boost::algorithm::replace_last(str2, src.filename().string(), "");
     boost::algorithm::replace_first(str, str2, dest.string() + "/");
     if (!fs::exists(current->path()))
-      ThrowError(CommonErrors::filesystem_io_error);
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
     if (fs::is_directory(*current)) {
       fs::copy_directory(current->path(), str, ec);
     } else {
       fs::copy_file(current->path(), str, fs::copy_option::overwrite_if_exists, ec);
     }
     if (!fs::exists(str))
-      ThrowError(CommonErrors::filesystem_io_error);
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
   }
 }
 
@@ -181,7 +181,7 @@ void CopyThenReadLargeFile() {
   size_t size = 300 * 1024 * 1024;
   fs::path file(GenerateFile(g_temp, size));
   if (!fs::exists(file) || fs::file_size(file) != size)
-    ThrowError(CommonErrors::filesystem_io_error);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
 
   // Copy file to virtual drive
   auto copy_start_time(std::chrono::high_resolution_clock::now());
@@ -189,7 +189,7 @@ void CopyThenReadLargeFile() {
   auto copy_stop_time(std::chrono::high_resolution_clock::now());
   PrintResult(copy_start_time, copy_stop_time, size, "Copied");
   if (!fs::exists(g_root / file.filename()))
-    ThrowError(CommonErrors::filesystem_io_error);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
 
   // Read the file back to a disk file
   // Because of the system caching, the pure read can't reflect the real speed
@@ -199,14 +199,14 @@ void CopyThenReadLargeFile() {
   auto read_stop_time(std::chrono::high_resolution_clock::now());
   PrintResult(read_start_time, read_stop_time, size, "Read");
   if (!fs::exists(test_file))
-    ThrowError(CommonErrors::filesystem_io_error);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
 
   // Compare content in the two files
   if (fs::file_size(g_root / file.filename()) != fs::file_size(file))
-    ThrowError(CommonErrors::filesystem_io_error);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
   auto compare_start_time(std::chrono::high_resolution_clock::now());
   if (!CompareFileContents(g_root / file.filename(), file))
-    ThrowError(CommonErrors::filesystem_io_error);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
   auto compare_stop_time(std::chrono::high_resolution_clock::now());
   PrintResult(compare_start_time, compare_stop_time, size, "Compared");
 }
@@ -251,9 +251,9 @@ void CopyThenReadManySmallFiles() {
     if (!fs::exists(str))
       Sleep(std::chrono::seconds(1));
     if (!fs::exists(str))
-      ThrowError(CommonErrors::filesystem_io_error);
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
     if (!CompareFileContents(file, str))
-      ThrowError(CommonErrors::filesystem_io_error);
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
   }
   auto compare_stop_time(std::chrono::high_resolution_clock::now());
   PrintResult(compare_start_time, compare_stop_time, total_data_size, "Compared");
@@ -262,7 +262,7 @@ void CopyThenReadManySmallFiles() {
     auto str = directory.string();
     boost::algorithm::replace_first(str, g_temp.string(), g_root.string());
     if (!fs::exists(str))
-      ThrowError(CommonErrors::filesystem_io_error);
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
   }
 }
 

@@ -52,7 +52,7 @@ boost::filesystem::path GetNextAvailableDrivePath() {
     ++path[0];
   }
   if (path[0] > 'Z')
-    ThrowError(DriveErrors::no_drive_letter_available);
+    BOOST_THROW_EXCEPTION(MakeError(DriveErrors::no_drive_letter_available));
   return boost::filesystem::path(path);
 }
 
@@ -66,7 +66,7 @@ void* GetHandleToThisProcess() {
   auto this_process(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, TRUE, GetCurrentProcessId()));
   if (this_process == NULL) {
     LOG(kError) << "Failed to get a handle to this process.  Windows error: " << GetLastError();
-    ThrowError(CommonErrors::unknown);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
   }
   return this_process;
 }
@@ -215,7 +215,7 @@ void Launcher::StartDriveProcess(const Options& options) {
 #endif
   if (error_code) {
     LOG(kError) << "Failed to start local drive: " << error_code.message();
-    ThrowError(CommonErrors::uninitialised);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::uninitialised));
   }
 }
 
@@ -230,9 +230,8 @@ fs::path Launcher::GetDriveExecutablePath(DriveType drive_type) {
     case DriveType::kNetworkConsole:
       return process::GetOtherExecutablePath("network_drive_console");
     default:
-      ThrowError(CommonErrors::invalid_parameter);
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
   }
-  return "";
 }
 
 void Launcher::WaitForDriveToMount() {
@@ -240,7 +239,7 @@ void Launcher::WaitForDriveToMount() {
   auto timeout(bptime::second_clock::universal_time() + bptime::seconds(10));
   if (!mount_status_->condition.timed_wait(lock, timeout, [&] { return mount_status_->mounted; })) {
     LOG(kError) << "Failed waiting for drive to mount.";
-    ThrowError(DriveErrors::failed_to_mount);
+    BOOST_THROW_EXCEPTION(MakeError(DriveErrors::failed_to_mount));
   }
 }
 

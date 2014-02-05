@@ -226,11 +226,11 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
 
   if (protobuf_meta_data.has_serialised_data_map()) {
     if (directory_id)
-      ThrowError(CommonErrors::parsing_error);
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
     data_map.reset(new encrypt::DataMap());
     encrypt::ParseDataMap(protobuf_meta_data.serialised_data_map(), *data_map);
   } else if (!directory_id) {
-    ThrowError(CommonErrors::parsing_error);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
   }
 }
 

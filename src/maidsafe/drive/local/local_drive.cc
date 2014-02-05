@@ -105,7 +105,7 @@ void SetSignalHandler() {
   if (!SetConsoleCtrlHandler(reinterpret_cast<PHANDLER_ROUTINE>(&CtrlHandler), TRUE)) {
     g_error_message = "Failed to set control handler.\n\n";
     g_return_code = 16;
-    ThrowError(CommonErrors::unknown);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
   }
 }
 
@@ -186,7 +186,7 @@ po::variables_map ParseAllOptions(int argc, Char* argv[],
     g_error_message = "Fatal error:\n  " + std::string(e.what()) +
                       "\nRun with -h to see all options.\n\n";
     g_return_code = 32;
-    ThrowError(CommonErrors::invalid_parameter);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
   }
   return variables_map;
 }
@@ -245,7 +245,7 @@ void ValidateOptions(const Options& options) {
 
   if (g_return_code) {
     g_error_message = "Fatal error:\n" + error_message + "\nRun with -h to see all options.\n\n";
-    ThrowError(CommonErrors::invalid_parameter);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
   }
 }
 

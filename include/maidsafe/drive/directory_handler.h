@@ -141,9 +141,9 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
       asio_service_(asio_service),
       cache_() {
   if (!unique_user_id.IsInitialised())
-    ThrowError(CommonErrors::uninitialised);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::uninitialised));
   if (!root_parent_id.IsInitialised())
-    ThrowError(CommonErrors::uninitialised);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::uninitialised));
   get_chunk_from_store_ = [this](const std::string& name)->NonEmptyString {
     try {
       auto chunk(storage_->Get(ImmutableData::Name(Identity(name))).get());
@@ -243,7 +243,7 @@ Directory* DirectoryHandler<Storage>::Get(const boost::filesystem::path& relativ
     }
 
     if (!file_context->meta_data.directory_id)
-      ThrowError(CommonErrors::invalid_parameter);
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
     auto directory(GetFromStorage(antecedent, ParentId(parent->directory_id()),
                                   *file_context->meta_data.directory_id));
     {
@@ -277,7 +277,7 @@ void DirectoryHandler<Storage>::FlushAll() {
     dir.second->StoreImmediatelyIfPending();
   }
   if (error)
-    ThrowError(CommonErrors::unknown);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
 }
 
 template <typename Storage>
@@ -353,7 +353,7 @@ std::pair<Directory*, FileContext*> DirectoryHandler<Storage>::GetParent(
   auto grandparent(Get(relative_path.parent_path().parent_path()));
   auto parent_context(grandparent->GetMutableChild(relative_path.parent_path().filename()));
   if (!(parent_context->meta_data.directory_id))
-    ThrowError(CommonErrors::invalid_parameter);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
   return std::make_pair(Get(relative_path.parent_path()), parent_context);
 }
 
@@ -369,7 +369,7 @@ void DirectoryHandler<Storage>::PrepareNewPath(const boost::filesystem::path& ne
     auto existing_child(new_parent->GetChild(new_relative_path.filename()));
     if (IsDirectory(*existing_child)) {
 #ifdef MAIDSAFE_WIN32
-      ThrowError(DriveErrors::file_exists);
+      BOOST_THROW_EXCEPTION(MakeError(DriveErrors::file_exists));
 #else
       auto existing_directory(Get(new_relative_path));
       if (existing_directory->empty()) {
@@ -378,7 +378,7 @@ void DirectoryHandler<Storage>::PrepareNewPath(const boost::filesystem::path& ne
         std::lock_guard<std::mutex> lock(cache_mutex_);
         cache_.erase(new_relative_path);
       } else {
-        ThrowError(DriveErrors::file_exists);
+        BOOST_THROW_EXCEPTION(MakeError(DriveErrors::file_exists));
       }
 #endif
     } else {
@@ -486,7 +486,7 @@ ImmutableData DirectoryHandler<Storage>::SerialiseDirectory(Directory* directory
     assert(serialised_directory.size() <= std::numeric_limits<uint32_t>::max());
     if (!self_encryptor.Write(serialised_directory.c_str(),
                               static_cast<uint32_t>(serialised_directory.size()), 0)) {
-      ThrowError(CommonErrors::invalid_parameter);
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
     }
   }
   for (const auto& chunk : data_map.chunks) {
@@ -536,7 +536,7 @@ std::unique_ptr<Directory> DirectoryHandler<Storage>::ParseDirectory(
   std::string serialised_listing(data_map_size, 0);
 
   if (!self_encryptor.Read(const_cast<char*>(serialised_listing.c_str()), data_map_size, 0))
-    ThrowError(CommonErrors::parsing_error);
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
 
   std::unique_ptr<Directory> directory(new Directory(parent_id, serialised_listing,
       std::move(versions), asio_service_, put_functor_, put_chunk_functor_,
@@ -576,7 +576,7 @@ void DirectoryHandler<Storage>::HandleDataPoppedFromBuffer(
   ImmutableData data(content);
   assert(data.name()->string() == name);
 //  storage_->Put(data);
-  ThrowError(CommonErrors::file_too_large);
+  BOOST_THROW_EXCEPTION(MakeError(CommonErrors::file_too_large));
 }
 
 }  // namespace detail
