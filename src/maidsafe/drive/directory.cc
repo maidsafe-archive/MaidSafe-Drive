@@ -170,7 +170,6 @@ void Directory::FlushChildAndDeleteEncryptor(FileContext* child) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (child->self_encryptor)  // Child could already have been flushed via 'Directory::Serialise'
     FlushEncryptor(child, put_chunk_functor_, chunks_to_be_incremented_);
-  auto itr = Find(child->meta_data.name);
 }
 
 std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
