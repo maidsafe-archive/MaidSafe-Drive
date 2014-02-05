@@ -171,10 +171,6 @@ void Directory::FlushChildAndDeleteEncryptor(FileContext* child) {
   if (child->self_encryptor)  // Child could already have been flushed via 'Directory::Serialise'
     FlushEncryptor(child, put_chunk_functor_, chunks_to_be_incremented_);
   auto itr = Find(child->meta_data.name);
-  if (itr == std::end(children_))
-    LOG(kInfo) << "DIDN'T FIND CHILD";
-  else
-    LOG(kInfo) << "Found child has encryptor: " << std::boolalpha << (!!(*itr)->self_encryptor);
 }
 
 std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>

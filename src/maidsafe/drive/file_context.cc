@@ -20,6 +20,8 @@
 
 #include <utility>
 
+#include "maidsafe/drive/directory.h"
+
 namespace maidsafe {
 
 namespace drive {
@@ -46,6 +48,13 @@ FileContext::FileContext(const boost::filesystem::path& name, bool is_directory)
 FileContext& FileContext::operator=(FileContext other) {
   swap(*this, other);
   return *this;
+}
+
+FileContext::~FileContext() {
+  if (timer) {
+    timer->cancel();
+    parent->FlushChildAndDeleteEncryptor(this);
+  }
 }
 
 void swap(FileContext& lhs, FileContext& rhs) MAIDSAFE_NOEXCEPT {

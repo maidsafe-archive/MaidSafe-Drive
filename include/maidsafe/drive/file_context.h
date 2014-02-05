@@ -47,6 +47,7 @@ struct FileContext {
   FileContext(MetaData meta_data_in, Directory* parent_in);
   FileContext(const boost::filesystem::path& name, bool is_directory);
   FileContext& operator=(FileContext other);
+  ~FileContext();
 
   MetaData meta_data;
   std::unique_ptr<Buffer> buffer;

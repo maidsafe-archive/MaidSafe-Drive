@@ -321,14 +321,12 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
   else
     RenameDifferentParent(old_relative_path, new_relative_path, new_parent);
 
-  if (IsDirectory(FileContext (old_relative_path, true))) {
+  if (IsDirectory(FileContext(old_relative_path, true))) {
     std::lock_guard<std::mutex> lock(cache_mutex_);
-    // Remove the old entry from the cache.
-    auto itr(cache_.find(old_relative_path));
-    if (itr != std::end(cache_))
-      itr = cache_.erase(itr);
-    // Fix any children entries in the cache (effectively renaming the key part of each such entry).
+    // Fix old entry and any children entries in the cache (effectively renaming the key part of
+    // each such entry).
     auto old_path_size(old_relative_path.string().size());
+    auto itr(cache_.find(old_relative_path));
     while (itr != std::end(cache_)) {
       if (itr->first.string().substr(0, old_path_size) == old_relative_path.string()) {
         boost::filesystem::path new_path(
