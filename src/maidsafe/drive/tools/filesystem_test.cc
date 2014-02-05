@@ -566,6 +566,50 @@ TEST_CASE("Rename directory hierarchy keeping same parent", "[Filesystem]") {
   RequireDirectoriesEqual(directory, renamed_directory, true);
 }
 
+TEST_CASE("Rename directory hierarchy to different parent", "[Filesystem]") {
+  // Create a new directory in 'g_temp'
+  on_scope_exit cleanup(clean_root);
+  std::vector<fs::path> directories;
+  auto directory(CreateDirectory(g_temp));
+  directories.push_back(directory);
+
+  // Add further directories 3 levels deep
+  for (int i(0); i != 3; ++i) {
+    std::vector<fs::path> nested;
+    for (const auto& dir : directories) {
+      auto dir_count((RandomUint32() % 3) + 1);
+      for (uint32_t j(0); j != dir_count; ++j)
+        nested.push_back(CreateDirectory(dir));
+    }
+    directories.insert(std::end(directories), std::begin(nested), std::end(nested));
+    nested.clear();
+  }
+
+  // Add files to all directories
+  for (const auto& dir : directories) {
+    auto file_count((RandomUint32() % 4) + 2);
+    for (uint32_t k(0); k != file_count; ++k)
+      CreateFile(dir, (RandomUint32() % 1024) + 1);
+  }
+
+  // Copy hierarchy to 'g_root'
+  REQUIRE(CopyDirectory(directory, g_root));
+  auto copied_directory(g_root / directory.filename());
+  RequireExists(copied_directory);
+  boost::system::error_code error_code;
+  REQUIRE(!fs::is_empty(copied_directory, error_code));
+  REQUIRE(error_code.value() == 0);
+  RequireDirectoriesEqual(directory, copied_directory, true);
+
+  // Rename the directory
+  auto new_parent(CreateDirectory(g_root));
+  auto renamed_directory(new_parent / maidsafe::RandomAlphaNumericString(5));
+  fs::rename(copied_directory, renamed_directory, error_code);
+  REQUIRE(error_code.value() == 0);
+  RequireDoesNotExist(copied_directory);
+  RequireDirectoriesEqual(directory, renamed_directory, true);
+}
+
 TEST_CASE("Check failures", "[Filesystem]") {
   // Create a file in 'g_temp'
   on_scope_exit cleanup(clean_root);
