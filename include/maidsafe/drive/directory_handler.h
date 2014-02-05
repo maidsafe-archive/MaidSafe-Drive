@@ -323,10 +323,10 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
 
   if (IsDirectory(FileContext(old_relative_path, true))) {
     std::lock_guard<std::mutex> lock(cache_mutex_);
-    // Fix old entry and any children entries in the cache (effectively renaming the key part of
-    // each such entry).
+    // Fix old entry (if it's still there) and any children entries in the cache (effectively
+    // renaming the key part of each such entry).
     auto old_path_size(old_relative_path.string().size());
-    auto itr(cache_.find(old_relative_path));
+    auto itr(cache_.lower_bound(old_relative_path));
     while (itr != std::end(cache_)) {
       if (itr->first.string().substr(0, old_path_size) == old_relative_path.string()) {
         boost::filesystem::path new_path(
@@ -422,27 +422,9 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
     directory->ScheduleForStoring();
   }
 
+  file_context.meta_data.name = new_relative_path.filename();
+  file_context.parent = new_parent;
   new_parent->AddChild(std::move(file_context));
-
-//  if (!new_parent.listing->HasChild(new_relative_path.filename())) {
-//    meta_data.name = new_relative_path.filename();
-//    new_parent.listing->AddChild(meta_data);
-//  } else {
-//    MetaData old_meta_data;
-//    try {
-//      new_parent.listing->GetChild(new_relative_path.filename(), old_meta_data);
-//    }
-//    catch(const std::exception& exception) {
-// #ifndef MAIDSAFE_WIN32
-//      meta_data.attributes.st_ctime = old.st_ctime;
-//      meta_data.attributes.st_mtime = old.st_mtime;
-// #endif
-//      boost::throw_exception(exception);
-//    }
-//    new_parent.listing->RemoveChild(old_meta_data);
-//    meta_data.name = new_relative_path.filename();
-//    new_parent.listing->AddChild(meta_data);
-//  }
 
 #ifdef MAIDSAFE_WIN32
   GetSystemTimeAsFileTime(&old_parent.second->meta_data.last_write_time);
