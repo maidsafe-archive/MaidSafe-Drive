@@ -47,7 +47,7 @@ namespace test {
 
 namespace {
 
-fs::path g_root, g_temp;
+fs::path g_root, g_temp, g_storage;
 
 std::function<void()> clean_root([] {
   // On Windows, this frequently fails on the first attempt due to lingering open handles in the
@@ -171,11 +171,26 @@ fs::path CreateDirectoryContainingFiles(const fs::path& parent) {
   return directory;
 }
 
+void GetUsedSpace(const fs::path& path, uintmax_t& size) {
+  fs::directory_iterator it(path), end;
+  while (it != end) {
+    if (fs::is_regular_file(it->path()))
+      size += fs::file_size(it->path());
+    else if (fs::is_directory(it->path()))
+      GetUsedSpace(it->path(), size);
+    else
+      boost::throw_exception(std::invalid_argument("Invalid Path Element"));
+    ++it;
+  }
+}
+
 }  // unnamed namespace
 
-int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp) {
+int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
+            const fs::path& storage) {
   g_root = root;
   g_temp = temp;
+  g_storage = storage;
   Catch::Session session;
   auto command_line_result(
       session.applyCommandLine(argc, argv, Catch::Session::OnUnusedOptions::Ignore));
@@ -730,6 +745,23 @@ TEST_CASE("Check failures", "[Filesystem]") {
   REQUIRE(!fs::remove(copied_directory0, error_code));
   REQUIRE(error_code.value() == 0);
   RequireDoesNotExist(copied_directory0);
+}
+
+TEST_CASE("Storage path chunks not deleted", "[Filesystem][behavioural]") {
+  // Related to SureFile Issue#50, the test should be reworked/removed when the implementation of
+  // versions is complete and some form of communication is available to handle them. The test is
+  // currently setup to highlight the issue and thus to fail.
+  on_scope_exit cleanup(clean_root);
+  boost::system::error_code error_code;
+  size_t file_size(1024 * 1024);
+  uintmax_t initial_size(0), first_update_size(0), second_update_size(0);
+  GetUsedSpace(g_storage, initial_size);
+  auto test_file(CreateFile(g_root, file_size));
+  GetUsedSpace(g_storage, first_update_size);
+  fs::remove(test_file.first, error_code);
+  GetUsedSpace(g_storage, second_update_size);
+  CHECK(second_update_size < first_update_size);
+  CHECK(initial_size == second_update_size);
 }
 
 }  // namespace test

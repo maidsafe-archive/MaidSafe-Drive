@@ -166,7 +166,7 @@ class CbfsDrive : public Drive<Storage> {
   static void CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo* file_info, int64_t position,
                             PVOID buffer, DWORD bytes_to_write, PDWORD bytes_written);
   static void CbFsIsDirectoryEmpty(CallbackFileSystem* sender, CbFsFileInfo* directory_info,
-                                   LPWSTR file_name, LPBOOL is_empty);
+                                   LPCWSTR file_name, LPBOOL is_empty);
   static void CbFsSetFileSecurity(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                   PVOID file_handle_context,
                                   SECURITY_INFORMATION security_information,
@@ -388,7 +388,7 @@ void CbfsDrive<Storage>::InitialiseCbfs() {
 //    callback_filesystem_.SetStorageType(CallbackFileSystem::stDiskPnP);
     callback_filesystem_.SetStorageType(CallbackFileSystem::stDisk);
     callback_filesystem_.SetTag(static_cast<void*>(this));
-    callback_filesystem_.SetThreadPoolSize(Concurrency());
+//    callback_filesystem_.SetMaxWorkerThreadCount(Concurrency());
     callback_filesystem_.SetUseFileCreationFlags(true);
 
     // Methods
@@ -1055,7 +1055,7 @@ void CbfsDrive<Storage>::CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo*
 // files.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsIsDirectoryEmpty(CallbackFileSystem* sender,
-                                              CbFsFileInfo* /*directory_info*/, LPWSTR file_name,
+                                              CbFsFileInfo* /*directory_info*/, LPCWSTR file_name,
                                               LPBOOL is_empty) {
   SCOPED_PROFILE
   LOG(kInfo) << "CbFsIsDirectoryEmpty - " << boost::filesystem::path(file_name);

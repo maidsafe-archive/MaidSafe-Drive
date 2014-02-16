@@ -54,7 +54,8 @@ namespace maidsafe {
 
 namespace test {
 
-int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp);
+int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
+            const fs::path& storage);
 
 namespace {
 
@@ -67,7 +68,7 @@ void UseUnreferenced() {
 }
 #endif
 
-fs::path g_root, g_temp;
+fs::path g_root, g_temp, g_storage;
 std::unique_ptr<drive::Launcher> g_launcher;
 std::string g_error_message;
 int g_return_code(0);
@@ -142,6 +143,7 @@ fs::path SetUpStorageDirectory() {
   fs::path storage_path(
       fs::unique_path(fs::temp_directory_path() / "MaidSafe_Test_ChunkStore_%%%%-%%%%-%%%%"));
   CreateDir(storage_path);
+  g_storage = storage_path;
   LOG(kInfo) << "Created storage_path " << storage_path;
   return storage_path;
 }
@@ -311,7 +313,7 @@ int main(int argc, char** argv) {
     maidsafe::on_scope_exit cleanup_on_exit(cleanup_functor);
 
     auto tests_result(maidsafe::test::RunTool(argc, argv, maidsafe::test::g_root,
-                                              maidsafe::test::g_temp));
+                                              maidsafe::test::g_temp, maidsafe::test::g_storage));
     if (maidsafe::test::g_launcher)
       maidsafe::test::g_launcher->StopDriveProcess();
     return tests_result;

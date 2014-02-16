@@ -17,13 +17,31 @@
     use of the MaidSafe Software.                                                                 */
 
 #include <Windows.h>
+#include <iostream>
 #include <string>
+
 #include "boost/filesystem/path.hpp"
 #include "boost/filesystem/operations.hpp"
+#include "boost/program_options.hpp"
+#include "boost/preprocessor/stringize.hpp"
 #include "boost/system/error_code.hpp"
+
+#include "maidsafe/common/error.h"
+
 #include "CbFs.h"  // NOLINT
 
 namespace fs = boost::filesystem;
+namespace po = boost::program_options;
+
+namespace maidsafe {
+namespace drive {
+namespace {
+
+struct DriverOptions {
+  std::string operation;
+  std::string product_id;
+  std::string cbfs_root;
+};
 
 bool DriverStatus(const fs::path& dll_path, const std::string& product_id, PBOOL installed,
                   PDWORD version_high, PDWORD version_low) {
@@ -161,28 +179,108 @@ fs::path CabinetFilePath() {
   return cab_path;
 }
 
-int main(int argc, char* argv[]) {
-  DWORD reboot(0);
-  if (argc == 3) {
-    std::string argument(argv[1]);
-    std::string product_id(argv[2]);
-    fs::path cab_path(CabinetFilePath());
-    fs::path dll_path(InstallerDllPath(cab_path));
+po::options_description AvailableOptions() {
+  po::options_description installer_options("Installer options");
+  installer_options.add_options()("help,h", "Print this help message")
+      ("op,O", po::value<std::string>(), "Either 'install' or 'uninstall' the filesystem driver")
+      ("id,I", po::value<std::string>(), "Unique product identifier associated with the un/installation")
+      ("cbfs_root,P", po::value<std::string>(),
+          "Path to root of CBFS installation folder, e.g., C:\\Program Files\\Eldos\\Callback File System");
+  return installer_options;
+}
 
-    if ((fs::path() == cab_path) || (fs::path() == dll_path) || product_id.empty())
+po::variables_map ParseOptions(int argc, char* argv[],
+                               const po::options_description& installer_options) {
+  po::variables_map variables_map;
+  try {
+    po::store(po::command_line_parser(argc, argv).options(installer_options).run(),
+              variables_map);
+    po::notify(variables_map);
+  }
+  catch (const std::exception& e) {
+    std::cout << "Parser error:\n " + std::string(e.what()) +
+                 "\nRun with -h to see all options.\n\n";
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+  }
+  return variables_map;
+}
+
+void HandleHelp() {
+  std::ostringstream stream;
+  stream << AvailableOptions() << "\n\n";
+  std::cout << stream.str();
+}
+
+std::string GetStringFromProgramOption(const std::string& option_name,
+                                       const po::variables_map& variables_map) {
+  if (variables_map.count(option_name)) {
+    std::string option_string(variables_map.at(option_name).as<std::string>());
+    return option_string;
+  } else {
+    return "";
+  }
+}
+
+DriverOptions GetOptions(const po::variables_map& variables_map) {
+  DriverOptions options;
+  if (variables_map.count("help")) {
+    HandleHelp();
+    return options;
+  }
+  options.product_id = GetStringFromProgramOption("id", variables_map);
+  if (options.product_id.empty())
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+  options.operation = GetStringFromProgramOption("op", variables_map);
+  if (options.operation != "install" && options.operation != "uninstall")
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+  options.cbfs_root = GetStringFromProgramOption("cbfs_root", variables_map);
+  return options;
+}
+
+}  // unnamed namespace
+}  // namespace drive
+}  // namespace maidsafe
+
+int main(int argc, char* argv[]) {
+  try {
+    auto installer_options(maidsafe::drive::AvailableOptions());
+    auto variables_map(maidsafe::drive::ParseOptions(argc, argv, installer_options));
+    maidsafe::drive::DriverOptions options(maidsafe::drive::GetOptions(variables_map));
+
+    if (options.operation.empty() || options.product_id.empty())
       return 0;
 
-    if (argument == "install") {
-      DWORD installed = InstallDriver(cab_path, dll_path, product_id, &reboot);
-      if (installed != 0)
-        return 0;
-    } else if (argument == "uninstall") {
-      DWORD uninstalled = UninstallDriver(cab_path, dll_path, product_id, &reboot);
-      if (uninstalled != 0)
-        return 0;
-    } else {
+    fs::path cab_path;
+    if (options.cbfs_root.empty())
+      cab_path = maidsafe::drive::CabinetFilePath();
+    else
+      cab_path = fs::path(options.cbfs_root) / "Drivers\\cbfs.cab";
+    fs::path dll_path(maidsafe::drive::InstallerDllPath(cab_path));
+
+    if ((fs::path() == cab_path) || (fs::path() == dll_path)) {
+      std::cout << "CbFs cab file or dll not found.";
       return 0;
     }
+
+    DWORD reboot(0);
+    if (options.operation == "install") {
+      DWORD installed = maidsafe::drive::InstallDriver(cab_path, dll_path, options.product_id,
+                                                       &reboot);
+      if (installed != 0)
+        return 0;
+    } else {
+      DWORD uninstalled = maidsafe::drive::UninstallDriver(cab_path, dll_path, options.product_id,
+                                                           &reboot);
+      if (uninstalled != 0)
+        return 0;
+    }
+    return reboot;
   }
-  return reboot;
+  catch (const std::exception& e) {
+    std::cout << "Exception: " + std::string(e.what()) << std::endl;
+  }
+  catch (...) {
+    std::cout << "Exception of unknown type!" << std::endl;
+  }
+  return 0;
 }
