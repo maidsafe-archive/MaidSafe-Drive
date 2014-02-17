@@ -121,10 +121,12 @@ void GetAndExecuteCommand() {
 
 namespace test {
 
-int RunTool(int /*argc*/, char** /*argv*/, const fs::path& root, const fs::path& temp) {
+int RunTool(int /*argc*/, char** /*argv*/, const fs::path& root, const fs::path& temp,
+            const fs::path& storage) {
 //  std::vector<std::string> arguments(argv, argv + argc);
   drive::tools::g_environment.root = root;
   drive::tools::g_environment.temp = temp;
+  drive::tools::g_environment.storage = storage;
   on_scope_exit cleanup(drive::tools::clean_root);
 
   while (drive::tools::g_environment.running) {
