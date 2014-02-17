@@ -181,11 +181,14 @@ fs::path CabinetFilePath() {
 
 po::options_description AvailableOptions() {
   po::options_description installer_options("Installer options");
+  std::string op_text("Either 'install' or 'uninstall' the filesystem driver");
+  std::string id_text("Unique product identifier associated with the un/installation");
+  std::string cbfs_text("Path to root of CBFS installation folder, e.g., ");
+  cbfs_text += "C:\\Program Files\\Eldos\\Callback File System";
   installer_options.add_options()("help,h", "Print this help message")
-      ("op,O", po::value<std::string>(), "Either 'install' or 'uninstall' the filesystem driver")
-      ("id,I", po::value<std::string>(), "Unique product identifier associated with the un/installation")
-      ("cbfs_root,P", po::value<std::string>(),
-          "Path to root of CBFS installation folder, e.g., C:\\Program Files\\Eldos\\Callback File System");
+                                 ("op,O", po::value<std::string>(), op_text.c_str())
+                                 ("id,I", po::value<std::string>(), id_text.c_str())
+                                 ("cbfs_root,P", po::value<std::string>(), cbfs_text.c_str());
   return installer_options;
 }
 
