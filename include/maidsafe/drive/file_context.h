@@ -26,7 +26,7 @@
 #include "boost/filesystem/path.hpp"
 
 #include "maidsafe/common/config.h"
-#include "maidsafe/data_store/data_buffer.h"
+#include "maidsafe/common/data_stores/data_buffer.h"
 #include "maidsafe/encrypt/self_encryptor.h"
 
 #include "maidsafe/drive/meta_data.h"

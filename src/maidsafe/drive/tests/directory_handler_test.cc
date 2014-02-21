@@ -34,8 +34,7 @@
 #include "maidsafe/common/test.h"
 #include "maidsafe/common/utils.h"
 #include "maidsafe/common/application_support_directories.h"
-
-#include "maidsafe/data_store/local_store.h"
+#include "maidsafe/common/data_stores/local_store.h"
 
 #include "maidsafe/encrypt/data_map.h"
 

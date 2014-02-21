@@ -49,8 +49,7 @@
 #include "maidsafe/common/utils.h"
 #include "maidsafe/common/application_support_directories.h"
 #include "maidsafe/common/types.h"
-
-#include "maidsafe/data_store/local_store.h"
+#include "maidsafe/common/data_stores/local_store.h"
 
 #ifdef MAIDSAFE_WIN32
 #include "maidsafe/drive/win_drive.h"

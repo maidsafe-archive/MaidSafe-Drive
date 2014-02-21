@@ -38,8 +38,7 @@
 #include "maidsafe/common/log.h"
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
-
-#include "maidsafe/data_store/local_store.h"
+#include "maidsafe/common/data_stores/local_store.h"
 
 #ifdef MAIDSAFE_WIN32
 #include "maidsafe/drive/win_drive.h"
