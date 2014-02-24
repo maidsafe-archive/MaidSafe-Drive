@@ -68,9 +68,9 @@ namespace drive {
 namespace {
 
 #ifdef MAIDSAFE_WIN32
-typedef CbfsDrive<data_store::LocalStore> LocalDrive;
+typedef CbfsDrive<data_stores::LocalStore> LocalDrive;
 #else
-typedef FuseDrive<data_store::LocalStore> LocalDrive;
+typedef FuseDrive<data_stores::LocalStore> LocalDrive;
 #endif
 
 LocalDrive* g_local_drive(nullptr);
@@ -258,7 +258,7 @@ void MonitorParentProcess(const Options& options) {
 int MountAndWaitForIpcNotification(const Options& options) {
   fs::path storage_path(options.storage_path / "local_store");
   DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
-  auto storage(std::make_shared<data_store::LocalStore>(storage_path, disk_usage));
+  auto storage(std::make_shared<data_stores::LocalStore>(storage_path, disk_usage));
 
   boost::system::error_code error_code;
   if (!fs::exists(options.storage_path, error_code)) {
@@ -294,7 +294,7 @@ int MountAndWaitForIpcNotification(const Options& options) {
 int MountAndWaitForSignal(const Options& options) {
   fs::path storage_path(options.storage_path / "local_store");
   DiskUsage disk_usage(std::numeric_limits<uint64_t>().max());
-  auto storage(std::make_shared<data_store::LocalStore>(storage_path, disk_usage));
+  auto storage(std::make_shared<data_stores::LocalStore>(storage_path, disk_usage));
 
   boost::system::error_code error_code;
   if (!fs::exists(options.storage_path, error_code)) {
