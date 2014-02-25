@@ -49,7 +49,7 @@ void UseUnreferenced() {
 }
 #endif
 
-fs::path g_root, g_temp;
+fs::path g_root, g_temp, g_storage;
 
 std::function<void()> clean_root([] {
   boost::system::error_code error_code;
@@ -266,7 +266,8 @@ void CopyThenReadManySmallFiles() {
   }
 }
 
-int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp) {
+int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
+            const fs::path& storage) {
   std::vector<std::string> arguments(argv, argv + argc);
   bool no_big_test(std::any_of(std::begin(arguments), std::end(arguments),
                                [](const std::string& arg) { return arg == "--no_big_test"; }));
@@ -274,6 +275,7 @@ int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp) {
                                  [](const std::string& arg) { return arg == "--no_small_test"; }));
   g_root = root;
   g_temp = temp;
+  g_storage = storage;
   if (!no_big_test)
     CopyThenReadLargeFile();
   if (!no_small_test)

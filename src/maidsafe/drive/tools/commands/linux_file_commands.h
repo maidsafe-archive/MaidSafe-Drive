@@ -16,57 +16,18 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
-#ifndef MAIDSAFE_DRIVE_TOOLS_COMMANDS_COMMAND_UTILS_H_
-#define MAIDSAFE_DRIVE_TOOLS_COMMANDS_COMMAND_UTILS_H_
+#ifndef MAIDSAFE_DRIVE_TOOLS_COMMANDS_LINUX_FILE_COMMANDS_H_
+#define MAIDSAFE_DRIVE_TOOLS_COMMANDS_LINUX_FILE_COMMANDS_H_
 
-#ifdef MAIDSAFE_WIN32
-#include <Windows.h>
-#else
-#include <sys/stat.h>
-#include <fcntl.h>
-#endif
-
-#include <map>
-#include <string>
-#include <utility>
-
-#include "boost/filesystem/path.hpp"
 
 namespace maidsafe {
-
 namespace drive {
-
 namespace tools {
+namespace commands {
 
-struct Environment {
-  Environment() : running(true), root(), temp(), storage() {}
-
-  bool running;
-  boost::filesystem::path root, temp, storage;
-#ifdef MAIDSAFE_WIN32
-  std::map<boost::filesystem::path, std::pair<HANDLE, HANDLE>> files;
-#else
-  std::map<boost::filesystem::path, std::pair<int, int>> files;
-#endif
-
- private:
-  Environment(const Environment&);
-  Environment(Environment&&);
-  Environment& operator=(Environment);
-};
-
-struct Restart {};
-
-extern const std::string kRestart;
-
-std::string GetLine();
-boost::filesystem::path GetRelativePath(const Environment& environment);
-boost::filesystem::path ChooseRelativePath(const Environment& environment);
-
+}  // namespace commands
 }  // namespace tools
-
 }  // namespace drive
-
 }  // namespace maidsafe
 
-#endif  // MAIDSAFE_DRIVE_TOOLS_COMMANDS_COMMAND_UTILS_H_
+#endif  // MAIDSAFE_DRIVE_TOOLS_COMMANDS_LINUX_FILE_COMMANDS_H_

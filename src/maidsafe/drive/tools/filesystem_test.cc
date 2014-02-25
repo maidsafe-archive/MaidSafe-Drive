@@ -31,6 +31,11 @@
 #include "boost/filesystem/path.hpp"
 #include "boost/filesystem/operations.hpp"
 #include "boost/system/error_code.hpp"
+#ifdef MAIDSAFE_WIN32
+#include "boost/locale/generator.hpp"
+#else
+#include <locale>  // NOLINT
+#endif
 
 #define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
@@ -38,8 +43,15 @@
 #include "maidsafe/common/log.h"
 #include "maidsafe/common/on_scope_exit.h"
 #include "maidsafe/common/utils.h"
+#include "maidsafe/common/process.h"
+#ifdef MAIDSAFE_WIN32
+#include "maidsafe/drive/tools/commands/windows_file_commands.h"
+#else
+#include "maidsafe/drive/tools/commands/linux_file_commands.h"
+#endif
 
 namespace fs = boost::filesystem;
+namespace dtc = maidsafe::drive::tools::commands;
 
 namespace maidsafe {
 
@@ -157,8 +169,8 @@ void RequireDirectoriesEqual(const fs::path& lhs, const fs::path& rhs, bool chec
         REQUIRE(!fs::is_regular_file(rhs / (*rhs_itr++)));
         continue;
       }
-        REQUIRE(fs::is_regular_file(rhs / *rhs_itr));
-        REQUIRE((ReadFile(lhs / lhs_file)) == (ReadFile(rhs / (*rhs_itr++))));
+      REQUIRE(fs::is_regular_file(rhs / *rhs_itr));
+      REQUIRE((ReadFile(lhs / lhs_file)) == (ReadFile(rhs / (*rhs_itr++))));
     }
   }
 }
@@ -762,6 +774,143 @@ TEST_CASE("Storage path chunks not deleted", "[Filesystem][behavioural]") {
   GetUsedSpace(g_storage, second_update_size);
   CHECK(second_update_size < first_update_size);
   CHECK(initial_size == second_update_size);
+}
+
+TEST_CASE("Read only attribute", "[Filesystem][behavioural]") {
+  on_scope_exit cleanup(clean_root);
+#ifdef MAIDSAFE_WIN32
+  HANDLE handle(nullptr);
+  fs::path path(g_root / RandomAlphaNumericString(8));
+  const size_t buffer_size(1024);
+  std::string buffer(RandomString(buffer_size));
+  DWORD position(0), size(0), attributes(0);
+  BOOL success(0);
+  OVERLAPPED overlapped;
+
+  // create a file
+  CHECK_NOTHROW(handle = dtc::CreateFileCommand(path, GENERIC_ALL, CREATE_NEW,
+                                                FILE_ATTRIBUTE_ARCHIVE));
+  REQUIRE(handle);
+  CHECK_NOTHROW(success = dtc::WriteFileCommand(handle, path, buffer, &position, nullptr));
+  CHECK((size = dtc::GetFileSizeCommand(handle, nullptr)) == buffer_size);
+  CHECK_NOTHROW(success = dtc::CloseHandleCommand(handle));
+  // check we can open and write to the file
+  CHECK_NOTHROW(handle = dtc::CreateFileCommand(path, GENERIC_ALL, OPEN_EXISTING, attributes));
+  REQUIRE(handle);
+  buffer = RandomString(buffer_size);
+  success = 0;
+  position = 1;
+  FillMemory(&overlapped, sizeof(overlapped), 0);
+  overlapped.Offset = position & 0xFFFFFFFF;
+  overlapped.OffsetHigh = 0;
+  CHECK_NOTHROW(success = dtc::WriteFileCommand(handle, path, buffer, &position, &overlapped));
+  size = 0;
+  CHECK((size = dtc::GetFileSizeCommand(handle, nullptr)) == buffer_size + 1);
+  CHECK_NOTHROW(success = dtc::CloseHandleCommand(handle));
+  // add read-only to the attributes
+  CHECK_NOTHROW(attributes = dtc::GetFileAttributesCommand(path));
+  CHECK((attributes & FILE_ATTRIBUTE_ARCHIVE) == FILE_ATTRIBUTE_ARCHIVE);
+  CHECK_NOTHROW(success = dtc::SetFileAttributesCommand(
+      path, FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_READONLY));
+  CHECK_NOTHROW(attributes = dtc::GetFileAttributesCommand(path));
+  CHECK((attributes & FILE_ATTRIBUTE_ARCHIVE) == FILE_ATTRIBUTE_ARCHIVE);
+  CHECK((attributes & FILE_ATTRIBUTE_READONLY) == FILE_ATTRIBUTE_READONLY);
+  // check we can open for reading but can't write to the file
+  CHECK_THROWS_AS(handle = dtc::CreateFileCommand(path, GENERIC_ALL, OPEN_EXISTING, attributes),
+                  std::exception);
+  CHECK_NOTHROW(handle = dtc::CreateFileCommand(path, GENERIC_READ, OPEN_EXISTING, attributes));
+  REQUIRE(handle);
+  buffer = RandomString(buffer_size);
+  success = 0;
+  position = 2;
+  FillMemory(&overlapped, sizeof(overlapped), 0);
+  overlapped.Offset = position & 0xFFFFFFFF;
+  overlapped.OffsetHigh = 0;
+  CHECK_THROWS_AS(success = dtc::WriteFileCommand(handle, path, buffer, &position, &overlapped),
+                  std::exception);
+  size = 0;
+  CHECK((size = dtc::GetFileSizeCommand(handle, nullptr)) == buffer_size + 1);
+  CHECK_NOTHROW(success = dtc::CloseHandleCommand(handle));
+#else
+  // linux
+#endif
+}
+
+TEST_CASE("Delete on close", "[Filesystem][behavioural]") {
+  on_scope_exit cleanup(clean_root);
+#ifdef MAIDSAFE_WIN32
+  HANDLE handle(nullptr);
+  fs::path path(g_root / RandomAlphaNumericString(8));
+  CHECK_NOTHROW(handle = dtc::CreateFileCommand(path, GENERIC_ALL, CREATE_NEW,
+                                                FILE_FLAG_DELETE_ON_CLOSE));
+  REQUIRE(handle);
+  const size_t buffer_size(1024);
+  std::string buffer(RandomString(buffer_size));
+  DWORD position(0);
+  BOOL success(0);
+  CHECK_NOTHROW(success = dtc::WriteFileCommand(handle, path, buffer, &position, nullptr));
+  DWORD attributes(0);
+  CHECK_NOTHROW(attributes = dtc::GetFileAttributesCommand(path));
+  CHECK((attributes & FILE_FLAG_DELETE_ON_CLOSE) == FILE_FLAG_DELETE_ON_CLOSE);
+  CHECK_NOTHROW(success = dtc::CloseHandleCommand(handle));
+  attributes = 0;
+  CHECK_THROWS_AS(attributes = dtc::GetFileAttributesCommand(path), std::exception);
+  CHECK(attributes == 0);
+#else
+  // linux
+#endif
+}
+
+TEST_CASE("Hidden attribute", "[Filesystem][behavioural]") {
+  on_scope_exit cleanup(clean_root);
+#ifdef MAIDSAFE_WIN32
+  HANDLE handle(nullptr);
+  fs::path directory(g_root / RandomAlphaNumericString(5)),
+           file(directory / RandomAlphaNumericString(8));
+  const size_t buffer_size(1024);
+  std::string buffer(RandomString(buffer_size));
+  DWORD position(0), attributes(0);
+  BOOL success(0);
+
+  CHECK_NOTHROW(success = dtc::CreateDirectoryCommand(directory));
+  CHECK(success);
+  CHECK_NOTHROW(handle = dtc::CreateFileCommand(file, GENERIC_ALL, CREATE_NEW,
+                                                FILE_ATTRIBUTE_HIDDEN));
+  REQUIRE(handle);
+  CHECK_NOTHROW(success = dtc::WriteFileCommand(handle, file, buffer, &position, nullptr));
+  CHECK_NOTHROW(attributes = dtc::GetFileAttributesCommand(file));
+  CHECK((attributes & FILE_ATTRIBUTE_HIDDEN) == FILE_ATTRIBUTE_HIDDEN);
+  CHECK_NOTHROW(success = dtc::CloseHandleCommand(handle));
+
+  std::vector<WIN32_FIND_DATA> files(dtc::EnumerateDirectoryCommand(directory));
+  CHECK(files.size() == 1);
+  CHECK((files.begin()->dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) == FILE_ATTRIBUTE_HIDDEN);
+  CHECK(files.begin()->nFileSizeLow == buffer_size);
+  CHECK(files.begin()->nFileSizeHigh == 0);
+#else
+  // linux
+#endif
+}
+
+TEST_CASE("Locale", "[Filesystem][behavioural]") {
+  on_scope_exit cleanup(clean_root);
+#ifdef MAIDSAFE_WIN32
+  std::locale::global(boost::locale::generator().generate(""));
+#else
+  std::locale::global(std::locale(""));
+#endif
+  fs::path::imbue(std::locale());
+  fs::path file(process::GetOtherExecutablePath("filesystem_test"));
+  while (file.filename().string() != "MaidSafe" && file.filename().string() != "")
+    file = file.parent_path();
+  if (file.filename().string() == "")
+    REQUIRE(false);
+  file /= "\\src\\drive\\src\\maidsafe\\drive\\tools\\UTF-8";
+  fs::path directory(g_root / ReadFile(file).string());
+  CreateDirectory(directory);
+  RequireExists(directory);
+  fs::directory_iterator it(g_root);
+  CHECK(it->path().filename() == ReadFile(file).string());
 }
 
 }  // namespace test

@@ -125,9 +125,19 @@ if(MaidsafeTesting)
   ms_add_executable(filesystem_benchmark "Tools/Drive"
                     ${DriveSourcesDir}/tools/filesystem_benchmark.cc
                     ${DriveSourcesDir}/tools/tool_main.cc)
-  ms_add_executable(filesystem_test "Tools/Drive"
-                    ${DriveSourcesDir}/tools/filesystem_test.cc
-                    ${DriveSourcesDir}/tools/tool_main.cc)
+  if(WIN32)
+    ms_add_executable(filesystem_test "Tools/Drive"
+                      ${DriveSourcesDir}/tools/filesystem_test.cc
+                      ${DriveSourcesDir}/tools/tool_main.cc
+                      ${DriveSourcesDir}/tools/commands/windows_file_commands.h
+                      ${DriveSourcesDir}/tools/commands/windows_file_commands.cc)
+  else()
+    ms_add_executable(filesystem_test "Tools/Drive"
+                      ${DriveSourcesDir}/tools/filesystem_test.cc
+                      ${DriveSourcesDir}/tools/tool_main.cc
+                      ${DriveSourcesDir}/tools/commands/linux_file_commands.h
+                      ${DriveSourcesDir}/tools/commands/linux_file_commands.cc)
+  endif()
   ms_add_executable(filesystem_commands "Tools/Drive"
                     ${DriveSourcesDir}/tools/filesystem_commands.h
                     ${DriveSourcesDir}/tools/filesystem_commands.cc
@@ -146,6 +156,7 @@ if(MaidsafeTesting)
   endif()
   target_include_directories(filesystem_benchmark PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
   target_include_directories(filesystem_test PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
+  target_include_directories(filesystem_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
   target_include_directories(filesystem_commands PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
   target_link_libraries(filesystem_benchmark maidsafe_drive_launcher)
