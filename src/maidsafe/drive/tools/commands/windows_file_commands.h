@@ -19,9 +19,9 @@
 #ifndef MAIDSAFE_DRIVE_TOOLS_COMMANDS_WINDOWS_FILE_COMMANDS_H_
 #define MAIDSAFE_DRIVE_TOOLS_COMMANDS_WINDOWS_FILE_COMMANDS_H_
 
+#include <Windows.h>
 #include <vector>
 #include <string>
-#include <Windows.h>
 
 #include "boost/filesystem/path.hpp"
 
@@ -38,6 +38,8 @@ DWORD GetFileAttributesCommand(const boost::filesystem::path& path);
 BOOL SetFileAttributesCommand(const boost::filesystem::path& path, DWORD attributes);
 BOOL WriteFileCommand(HANDLE handle, const boost::filesystem::path& path,
                       const std::string& buffer, LPDWORD bytes_written, LPOVERLAPPED overlapped);
+BOOL DeleteFileCommand(const boost::filesystem::path& path);
+BOOL RemoveDirectoryCommand(const boost::filesystem::path& path);
 BOOL CloseHandleCommand(HANDLE handle);
 DWORD GetFileSizeCommand(HANDLE handle, LPDWORD file_size_high);
 std::vector<WIN32_FIND_DATA> EnumerateDirectoryCommand(const boost::filesystem::path& path);

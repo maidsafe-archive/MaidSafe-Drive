@@ -75,6 +75,24 @@ BOOL WriteFileCommand(HANDLE handle, const boost::filesystem::path& path,
   return result;
 }
 
+BOOL DeleteFileCommand(const boost::filesystem::path& path) {
+  BOOL result(DeleteFile(path.wstring().c_str()));
+  if (!result) {
+    LOG(kError) << "Failed to delete " << path.string();
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
+  }
+  return result;
+}
+
+BOOL RemoveDirectoryCommand(const boost::filesystem::path& path) {
+  BOOL result(RemoveDirectory(path.wstring().c_str()));
+  if (!result) {
+    LOG(kError) << "Failed to delete " << path.string();
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
+  }
+  return result;
+}
+
 BOOL CloseHandleCommand(HANDLE handle) {
   BOOL result(CloseHandle(handle));
   if (!result) {
@@ -90,22 +108,22 @@ DWORD GetFileSizeCommand(HANDLE handle, LPDWORD file_size_high) {
 
 std::vector<WIN32_FIND_DATA> EnumerateDirectoryCommand(const boost::filesystem::path& path) {
   WIN32_FIND_DATA file_data;
-  HANDLE search_handle(nullptr);   
-  BOOL done = FALSE; 
+  HANDLE search_handle(nullptr);
+  BOOL done = FALSE;
   std::vector<WIN32_FIND_DATA> files;
   std::wstring dot(L"."), double_dot(L".."), filename;
 
-  search_handle = FindFirstFile((path / "\\*").wstring().c_str(), &file_data); 
-  if (search_handle == INVALID_HANDLE_VALUE) { 
+  search_handle = FindFirstFile((path / "\\*").wstring().c_str(), &file_data);
+  if (search_handle == INVALID_HANDLE_VALUE) {
     LOG(kError) << "No files found at " << path.string();
     return files;
-  } 
-  
+  }
+
   filename = file_data.cFileName;
   if (filename != dot && filename != double_dot)
     files.push_back(file_data);
 
-  while (!done) {   
+  while (!done) {
     if (!FindNextFile(search_handle, &file_data)) {
       if (GetLastError() == ERROR_NO_MORE_FILES) {
         done = TRUE;
