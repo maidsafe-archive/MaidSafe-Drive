@@ -33,7 +33,8 @@ namespace commands {
 
 BOOL CreateDirectoryCommand(const boost::filesystem::path& path);
 HANDLE CreateFileCommand(const boost::filesystem::path& path, DWORD desired_access,
-                         DWORD creation_disposition, DWORD flags_and_attributes);
+                         DWORD share_mode, DWORD creation_disposition,
+                         DWORD flags_and_attributes);
 DWORD GetFileAttributesCommand(const boost::filesystem::path& path);
 BOOL SetFileAttributesCommand(const boost::filesystem::path& path, DWORD attributes);
 BOOL WriteFileCommand(HANDLE handle, const boost::filesystem::path& path,

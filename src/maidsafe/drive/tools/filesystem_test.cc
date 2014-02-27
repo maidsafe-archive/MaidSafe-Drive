@@ -790,14 +790,14 @@ TEST_CASE("Read only attribute", "[Filesystem][behavioural]") {
   OVERLAPPED overlapped;
 
   // create a file
-  CHECK_NOTHROW(handle = dtc::CreateFileCommand(path, GENERIC_ALL, CREATE_NEW,
+  CHECK_NOTHROW(handle = dtc::CreateFileCommand(path, GENERIC_ALL, 0, CREATE_NEW,
                                                 FILE_ATTRIBUTE_ARCHIVE));
   REQUIRE(handle);
   CHECK_NOTHROW(success = dtc::WriteFileCommand(handle, path, buffer, &position, nullptr));
   CHECK((size = dtc::GetFileSizeCommand(handle, nullptr)) == buffer_size);
   CHECK_NOTHROW(success = dtc::CloseHandleCommand(handle));
   // check we can open and write to the file
-  CHECK_NOTHROW(handle = dtc::CreateFileCommand(path, GENERIC_ALL, OPEN_EXISTING, attributes));
+  CHECK_NOTHROW(handle = dtc::CreateFileCommand(path, GENERIC_ALL, 0, OPEN_EXISTING, attributes));
   REQUIRE(handle);
   buffer = RandomString(buffer_size);
   success = 0;
@@ -818,9 +818,9 @@ TEST_CASE("Read only attribute", "[Filesystem][behavioural]") {
   CHECK((attributes & FILE_ATTRIBUTE_ARCHIVE) == FILE_ATTRIBUTE_ARCHIVE);
   CHECK((attributes & FILE_ATTRIBUTE_READONLY) == FILE_ATTRIBUTE_READONLY);
   // check we can open for reading but can't write to the file
-  CHECK_THROWS_AS(handle = dtc::CreateFileCommand(path, GENERIC_ALL, OPEN_EXISTING, attributes),
+  CHECK_THROWS_AS(handle = dtc::CreateFileCommand(path, GENERIC_ALL, 0, OPEN_EXISTING, attributes),
                   std::exception);
-  CHECK_NOTHROW(handle = dtc::CreateFileCommand(path, GENERIC_READ, OPEN_EXISTING, attributes));
+  CHECK_NOTHROW(handle = dtc::CreateFileCommand(path, GENERIC_READ, 0, OPEN_EXISTING, attributes));
   REQUIRE(handle);
   buffer = RandomString(buffer_size);
   success = 0;
@@ -897,7 +897,7 @@ TEST_CASE("Delete on close", "[Filesystem][behavioural]") {
 #ifdef MAIDSAFE_WIN32
   HANDLE handle(nullptr);
   fs::path path(g_root / RandomAlphaNumericString(8));
-  CHECK_NOTHROW(handle = dtc::CreateFileCommand(path, GENERIC_ALL, CREATE_NEW,
+  CHECK_NOTHROW(handle = dtc::CreateFileCommand(path, GENERIC_ALL, 0, CREATE_NEW,
                                                 FILE_FLAG_DELETE_ON_CLOSE));
   REQUIRE(handle);
   const size_t buffer_size(1024);
@@ -952,7 +952,7 @@ TEST_CASE("Hidden attribute", "[Filesystem][behavioural]") {
 
   CHECK_NOTHROW(success = dtc::CreateDirectoryCommand(directory));
   CHECK(success);
-  CHECK_NOTHROW(handle = dtc::CreateFileCommand(file, GENERIC_ALL, CREATE_NEW,
+  CHECK_NOTHROW(handle = dtc::CreateFileCommand(file, GENERIC_ALL, 0, CREATE_NEW,
                                                 FILE_ATTRIBUTE_HIDDEN));
   REQUIRE(handle);
   CHECK_NOTHROW(success = dtc::WriteFileCommand(handle, file, buffer, &position, nullptr));
@@ -995,6 +995,65 @@ TEST_CASE("Hidden attribute", "[Filesystem][behavioural]") {
   CHECK_FALSE(boost::filesystem::exists(file));
   CHECK_NOTHROW(dtc::RemoveDirectoryCommand(directory));
   CHECK_FALSE(boost::filesystem::exists(directory));
+#endif
+}
+
+TEST_CASE("Check attributes for concurrent open instances", "[Filesystem][behavioural]") {
+  on_scope_exit cleanup(clean_root);
+#ifdef MAIDSAFE_WIN32
+  HANDLE first_handle(nullptr), second_handle(nullptr);
+  fs::path path(g_root / RandomAlphaNumericString(5));
+  const size_t buffer_size(1024);
+  std::string buffer(RandomString(buffer_size));
+  DWORD position(0), attributes(FILE_ATTRIBUTE_ARCHIVE), size(0);
+  BOOL success(0);
+  OVERLAPPED overlapped;
+
+  // create file
+  CHECK_NOTHROW(first_handle = dtc::CreateFileCommand(
+      path, GENERIC_ALL, 0, CREATE_NEW, attributes));
+  REQUIRE(first_handle);
+  // write data using first instance
+  CHECK_NOTHROW(success = dtc::WriteFileCommand(first_handle, path, buffer, &position, nullptr));
+  // verify opening a second instance throws
+  CHECK_THROWS_AS(second_handle = dtc::CreateFileCommand(
+      path, GENERIC_ALL, 0, OPEN_EXISTING, attributes), std::exception);
+  REQUIRE(!second_handle);
+  // close first instance
+  CHECK_NOTHROW(success = dtc::CloseHandleCommand(first_handle));
+  // reopen a first instance with shared read/write access
+  CHECK_NOTHROW(first_handle = dtc::CreateFileCommand(path, GENERIC_READ | GENERIC_WRITE,
+      FILE_SHARE_READ | FILE_SHARE_WRITE, OPEN_EXISTING, attributes));
+  REQUIRE(first_handle);
+  // open a second instance with shared read/write access
+  CHECK_NOTHROW(second_handle = dtc::CreateFileCommand(path, GENERIC_READ | GENERIC_WRITE,
+      FILE_SHARE_READ | FILE_SHARE_WRITE, OPEN_EXISTING, attributes));
+  REQUIRE(second_handle);
+  // write to file using first instance
+  buffer = RandomString(buffer_size);
+  success = 0;
+  position = 1;
+  FillMemory(&overlapped, sizeof(overlapped), 0);
+  overlapped.Offset = position & 0xFFFFFFFF;
+  CHECK_NOTHROW(success = dtc::WriteFileCommand(
+      first_handle, path, buffer, &position, &overlapped));
+  // check the file size with the second instance
+  CHECK((size = dtc::GetFileSizeCommand(second_handle, nullptr)) == buffer_size + 1);
+  // write to file using second instance
+  buffer = RandomString(buffer_size);
+  success = 0;
+  position = 2;
+  FillMemory(&overlapped, sizeof(overlapped), 0);
+  overlapped.Offset = position & 0xFFFFFFFF;
+  CHECK_NOTHROW(success = dtc::WriteFileCommand(
+      second_handle, path, buffer, &position, &overlapped));
+  // check the file size with the first instance
+  CHECK((size = dtc::GetFileSizeCommand(first_handle, nullptr)) == buffer_size + 2);
+  // close both instances
+  CHECK_NOTHROW(success = dtc::CloseHandleCommand(first_handle));
+  CHECK_NOTHROW(success = dtc::CloseHandleCommand(second_handle));
+#else
+  // linux
 #endif
 }
 

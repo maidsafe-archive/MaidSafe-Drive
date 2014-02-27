@@ -36,9 +36,10 @@ BOOL CreateDirectoryCommand(const boost::filesystem::path& path) {
 }
 
 HANDLE CreateFileCommand(const boost::filesystem::path& path, DWORD desired_access,
-                         DWORD creation_disposition, DWORD flags_and_attributes) {
-  HANDLE handle(CreateFile(path.wstring().c_str(), desired_access, 0, NULL, creation_disposition,
-                           flags_and_attributes, NULL));
+                         DWORD share_mode, DWORD creation_disposition,
+                         DWORD flags_and_attributes) {
+  HANDLE handle(CreateFile(path.wstring().c_str(), desired_access, share_mode, NULL,
+                           creation_disposition, flags_and_attributes, NULL));
   if (handle == INVALID_HANDLE_VALUE) {
     LOG(kError) << "Failed to create file " << path.string();
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
