@@ -19,11 +19,37 @@
 #ifndef MAIDSAFE_DRIVE_TOOLS_COMMANDS_LINUX_FILE_COMMANDS_H_
 #define MAIDSAFE_DRIVE_TOOLS_COMMANDS_LINUX_FILE_COMMANDS_H_
 
+#include <unistd.h>
+#include <vector>
+#include <string>
+
+#include "boost/filesystem/path.hpp"
+
 
 namespace maidsafe {
 namespace drive {
 namespace tools {
 namespace commands {
+
+void CreateDirectoryCommand(const boost::filesystem::path& path, mode_t mode);
+int CreateFileCommand(const boost::filesystem::path& path, int flags);
+int CreateFileCommand(const boost::filesystem::path& path, int flags, mode_t mode);
+int CreateFileCommand(const boost::filesystem::path& path, mode_t mode);
+int GetFilePermissionsCommand(const boost::filesystem::path& path);
+ssize_t WriteFileCommand(int file_descriptor, const std::string& buffer);
+ssize_t WriteFileCommand(int file_descriptor, const std::string& buffer, off_t offset);
+int GetFileSizeCommand(int file_descriptor);
+int GetFileSizeCommand(const boost::filesystem::path& path);
+mode_t GetModeCommand(int file_descriptor);
+mode_t GetModeCommand(const boost::filesystem::path& path);
+void SetModeCommand(int file_descriptor, mode_t mode);
+void SetModeCommand(const boost::filesystem::path& path, mode_t mode);
+void CloseFileCommand(int file_descriptor);
+void UnlinkFileCommand(const boost::filesystem::path& path);
+void RemoveDirectoryCommand(const boost::filesystem::path& path);
+void SyncFileCommand(int file_descriptor);
+off_t SetFileOffsetCommand(int file_descriptor, off_t offset, int whence);
+std::vector<boost::filesystem::path> EnumerateDirectoryCommand(const boost::filesystem::path& path);
 
 }  // namespace commands
 }  // namespace tools

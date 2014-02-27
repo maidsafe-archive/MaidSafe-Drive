@@ -47,6 +47,7 @@
 #ifdef MAIDSAFE_WIN32
 #include "maidsafe/drive/tools/commands/windows_file_commands.h"
 #else
+#include <sys/stat.h>
 #include "maidsafe/drive/tools/commands/linux_file_commands.h"
 #endif
 
@@ -836,7 +837,58 @@ TEST_CASE("Read only attribute", "[Filesystem][behavioural]") {
   CHECK_NOTHROW(success = dtc::SetFileAttributesCommand(path, FILE_ATTRIBUTE_ARCHIVE));
   CHECK_NOTHROW(success = dtc::DeleteFileCommand(path));
 #else
-  // linux
+  int file_descriptor(-1);
+  fs::path path(g_root / RandomAlphaNumericString(8));
+  const size_t buffer_size(1024);
+  std::string buffer(RandomString(buffer_size));
+  int flags(O_CREAT | O_RDWR), size(0);
+  ssize_t result(0);
+  mode_t mode(S_IRWXU);
+  off_t offset(0);
+
+  // create a file
+  CHECK_NOTHROW(file_descriptor = dtc::CreateFileCommand(path, flags, mode));
+  CHECK_NOTHROW(result = dtc::WriteFileCommand(file_descriptor, buffer));
+  CHECK(result == buffer_size);
+  CHECK_NOTHROW(dtc::SyncFileCommand(file_descriptor));
+  CHECK_NOTHROW(size = dtc::GetFileSizeCommand(file_descriptor));
+  CHECK(size == buffer_size);
+  CHECK_NOTHROW(dtc::CloseFileCommand(file_descriptor));
+  // check we can open and write to the file
+  flags = O_RDWR;
+  CHECK_NOTHROW(file_descriptor = dtc::CreateFileCommand(path, flags));
+  buffer = RandomString(buffer_size);
+  offset = 1;
+  CHECK_NOTHROW(result = dtc::WriteFileCommand(file_descriptor, buffer, offset));
+  CHECK_NOTHROW(dtc::CloseFileCommand(file_descriptor));
+  size = 0;
+  CHECK_NOTHROW(size = dtc::GetFileSizeCommand(path));
+  CHECK(size == buffer_size + 1);
+  // add read-only to the attributes
+  CHECK_NOTHROW(mode = dtc::GetModeCommand(path));
+  CHECK((mode & S_IFREG) == S_IFREG);
+  CHECK((mode & S_IRUSR) == S_IRUSR);
+  CHECK((mode & S_IWUSR) == S_IWUSR);
+  mode = S_IRUSR;
+  CHECK_NOTHROW(dtc::SetModeCommand(path, mode));
+  CHECK_NOTHROW(mode = dtc::GetModeCommand(path));
+  CHECK((mode & S_IFREG) == S_IFREG);
+  CHECK((mode & S_IRUSR) == S_IRUSR);
+  CHECK((mode & S_IWUSR) == 0);
+  // check we can open for reading but can't write to the file
+  CHECK_THROWS_AS(file_descriptor = dtc::CreateFileCommand(path, flags), std::exception);
+  flags = O_RDONLY;
+  CHECK_NOTHROW(file_descriptor = dtc::CreateFileCommand(path, flags));
+  buffer = RandomString(buffer_size);
+  offset = 2;
+  CHECK_THROWS_AS(result = dtc::WriteFileCommand(file_descriptor, buffer, offset), std::exception);
+  size = 0;
+  CHECK_NOTHROW(size = dtc::GetFileSizeCommand(file_descriptor));
+  CHECK(size == buffer_size + 1);
+  CHECK_NOTHROW(dtc::CloseFileCommand(file_descriptor));
+  // remove the read-only attribute so the file can be deleted ???
+  mode = S_IRWXU;
+  CHECK_NOTHROW(dtc::SetModeCommand(path, mode));
 #endif
 }
 
@@ -861,7 +913,29 @@ TEST_CASE("Delete on close", "[Filesystem][behavioural]") {
   CHECK_THROWS_AS(attributes = dtc::GetFileAttributesCommand(path), std::exception);
   CHECK(attributes == 0);
 #else
-  // linux
+  // TODO(Brian) look further into failing O_TMPFILE flag, basically a waste of time at the moment,
+  // simply unlinks the created file before closing
+  int file_descriptor(-1);
+  fs::path path(g_root / RandomAlphaNumericString(8));
+  const size_t buffer_size(1024);
+  std::string buffer(RandomString(buffer_size));
+  int flags(O_CREAT | O_EXCL | O_RDWR), size(0);
+  ssize_t result(0);
+  mode_t mode(S_IRWXU);
+
+  CHECK_NOTHROW(file_descriptor = dtc::CreateFileCommand(path, flags, mode));
+  CHECK_NOTHROW(result = dtc::WriteFileCommand(file_descriptor, buffer));
+  CHECK(result == buffer_size);
+  CHECK_NOTHROW(size = dtc::GetFileSizeCommand(file_descriptor));
+  CHECK(size == buffer_size);
+  CHECK_NOTHROW(mode = dtc::GetModeCommand(path));
+  CHECK((mode & S_IFREG) == S_IFREG);
+  CHECK((mode & S_IRUSR) == S_IRUSR);
+  CHECK((mode & S_IWUSR) == S_IWUSR);
+  CHECK(boost::filesystem::exists(path));
+  CHECK_NOTHROW(dtc::UnlinkFileCommand(path));
+  CHECK_FALSE(boost::filesystem::exists(path));
+  CHECK_NOTHROW(dtc::CloseFileCommand(file_descriptor));
 #endif
 }
 
@@ -894,7 +968,33 @@ TEST_CASE("Hidden attribute", "[Filesystem][behavioural]") {
   CHECK_NOTHROW(success = dtc::DeleteFileCommand(file));
   CHECK_NOTHROW(success = dtc::RemoveDirectoryCommand(directory));
 #else
-  // linux
+  int file_descriptor(-1);
+  std::string dot(".");
+  fs::path directory(g_root / RandomAlphaNumericString(5)),
+           file(directory / (dot + RandomAlphaNumericString(8)));
+  const size_t buffer_size(1024);
+  std::string buffer(RandomString(buffer_size));
+  int flags(O_CREAT | O_EXCL | O_RDWR), size(0);
+  ssize_t result(0);
+  mode_t directory_mode = 0777, file_mode(S_IRWXU | S_IRGRP | S_IROTH);
+
+  CHECK_NOTHROW(dtc::CreateDirectoryCommand(directory, directory_mode));
+  CHECK(boost::filesystem::exists(directory));
+  CHECK_NOTHROW(file_descriptor = dtc::CreateFileCommand(file, flags, file_mode));
+  CHECK(boost::filesystem::exists(file));
+  CHECK_NOTHROW(result = dtc::WriteFileCommand(file_descriptor, buffer));
+  CHECK(result == buffer_size);
+  CHECK_NOTHROW(size = dtc::GetFileSizeCommand(file_descriptor));
+  CHECK(size == buffer_size);
+  CHECK_NOTHROW(dtc::CloseFileCommand(file_descriptor));
+
+  std::vector<boost::filesystem::path> files(dtc::EnumerateDirectoryCommand(directory));
+  CHECK(files.size() == 1);
+  CHECK(files[0] == file.filename().string());
+  CHECK_NOTHROW(dtc::UnlinkFileCommand(file));
+  CHECK_FALSE(boost::filesystem::exists(file));
+  CHECK_NOTHROW(dtc::RemoveDirectoryCommand(directory));
+  CHECK_FALSE(boost::filesystem::exists(directory));
 #endif
 }
 
