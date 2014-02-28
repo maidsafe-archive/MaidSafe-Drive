@@ -65,6 +65,15 @@ int CreateFileCommand(const boost::filesystem::path& path, mode_t mode) {
   return file_descriptor;
 }
 
+int CreateTempFileCommand(boost::filesystem::path& path_template) {
+  int file_descriptor(mkstemp(const_cast<char*>(path_template.string().c_str())));
+  if (file_descriptor == -1) {
+    LOG(kError) << "Failed to create temp file " << path_template;
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
+  }
+  return file_descriptor;
+}
+
 ssize_t WriteFileCommand(int file_descriptor, const std::string& buffer) {
   ssize_t bytes_written(write(file_descriptor, buffer.c_str(), buffer.size()));
   if (bytes_written == -1) {

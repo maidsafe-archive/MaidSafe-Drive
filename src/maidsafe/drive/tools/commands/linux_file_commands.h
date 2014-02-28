@@ -35,6 +35,7 @@ void CreateDirectoryCommand(const boost::filesystem::path& path, mode_t mode);
 int CreateFileCommand(const boost::filesystem::path& path, int flags);
 int CreateFileCommand(const boost::filesystem::path& path, int flags, mode_t mode);
 int CreateFileCommand(const boost::filesystem::path& path, mode_t mode);
+int CreateTempFileCommand(boost::filesystem::path& path_template);
 int GetFilePermissionsCommand(const boost::filesystem::path& path);
 ssize_t WriteFileCommand(int file_descriptor, const std::string& buffer);
 ssize_t WriteFileCommand(int file_descriptor, const std::string& buffer, off_t offset);
