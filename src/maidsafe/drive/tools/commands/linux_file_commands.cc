@@ -85,6 +85,25 @@ ssize_t WriteFileCommand(int file_descriptor, const std::string& buffer, off_t o
   return bytes_written;
 }
 
+ssize_t ReadFileCommand(int file_descriptor, const std::string& buffer) {
+  ssize_t bytes_read(read(file_descriptor, const_cast<char*>(buffer.c_str()), buffer.size()));
+  if (bytes_read == -1) {
+    LOG(kError) << "Failed to readfrom file with descriptor " << file_descriptor;
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
+  }
+  return bytes_read;
+}
+
+ssize_t ReadFileCommand(int file_descriptor, const std::string& buffer, off_t offset) {
+  ssize_t bytes_read(pread(file_descriptor, const_cast<char*>(buffer.c_str()), buffer.size(),
+                           offset));
+  if (bytes_read == -1) {
+    LOG(kError) << "Failed to read from file with descriptor " << file_descriptor;
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
+  }
+  return bytes_read;
+}
+
 int GetFileSizeCommand(int file_descriptor) {
   struct stat stbuf;
   int result(fstat(file_descriptor, &stbuf));

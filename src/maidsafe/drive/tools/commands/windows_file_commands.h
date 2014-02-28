@@ -39,6 +39,8 @@ DWORD GetFileAttributesCommand(const boost::filesystem::path& path);
 BOOL SetFileAttributesCommand(const boost::filesystem::path& path, DWORD attributes);
 BOOL WriteFileCommand(HANDLE handle, const boost::filesystem::path& path,
                       const std::string& buffer, LPDWORD bytes_written, LPOVERLAPPED overlapped);
+BOOL ReadFileCommand(HANDLE handle, const boost::filesystem::path& path,
+                     const std::string& buffer, LPDWORD bytes_read, LPOVERLAPPED overlapped);
 BOOL DeleteFileCommand(const boost::filesystem::path& path);
 BOOL RemoveDirectoryCommand(const boost::filesystem::path& path);
 BOOL CloseHandleCommand(HANDLE handle);

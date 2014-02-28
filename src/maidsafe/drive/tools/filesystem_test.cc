@@ -1002,58 +1002,104 @@ TEST_CASE("Check attributes for concurrent open instances", "[Filesystem][behavi
   on_scope_exit cleanup(clean_root);
 #ifdef MAIDSAFE_WIN32
   HANDLE first_handle(nullptr), second_handle(nullptr);
+    fs::path path(g_root / RandomAlphaNumericString(5));
+    const size_t buffer_size(1024);
+    std::string buffer(RandomString(buffer_size)), recovered(buffer_size, 0);
+    DWORD position(0), attributes(FILE_ATTRIBUTE_ARCHIVE), size(0), count;
+    BOOL success(0);
+    OVERLAPPED overlapped;
+
+    // create file
+    CHECK_NOTHROW(first_handle = dtc::CreateFileCommand(
+        path, GENERIC_ALL, 0, CREATE_NEW, attributes));
+    REQUIRE(first_handle);
+    // write data using first instance
+    CHECK_NOTHROW(success = dtc::WriteFileCommand(first_handle, path, buffer, &count, nullptr));
+    // verify opening a second instance throws
+    CHECK_THROWS_AS(second_handle = dtc::CreateFileCommand(
+        path, GENERIC_ALL, 0, OPEN_EXISTING, attributes), std::exception);
+    REQUIRE(!second_handle);
+    // close first instance
+    CHECK_NOTHROW(success = dtc::CloseHandleCommand(first_handle));
+    // reopen a first instance with shared read/write access
+    CHECK_NOTHROW(first_handle = dtc::CreateFileCommand(path, GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE, OPEN_EXISTING, attributes));
+    REQUIRE(first_handle);
+    // open a second instance with shared read/write access
+    CHECK_NOTHROW(second_handle = dtc::CreateFileCommand(path, GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE, OPEN_EXISTING, attributes));
+    REQUIRE(second_handle);
+    // write to file using first instance
+    buffer = RandomString(buffer_size);
+    success = 0;
+    position = 1;
+    FillMemory(&overlapped, sizeof(overlapped), 0);
+    overlapped.Offset = position & 0xFFFFFFFF;
+    CHECK_NOTHROW(success = dtc::WriteFileCommand(
+        first_handle, path, buffer, &count, &overlapped));
+    // check the file size with the second instance
+    CHECK((size = dtc::GetFileSizeCommand(second_handle, nullptr)) == buffer_size + 1);
+    // check content with the second instance
+    CHECK_NOTHROW(success = dtc::ReadFileCommand(second_handle, path, recovered, &count,
+                                                 &overlapped));
+    CHECK(recovered.compare(buffer) == 0);
+    CHECK(count == buffer_size);
+    // write to file using second instance
+    buffer = RandomString(buffer_size);
+    success = 0;
+    position = 2;
+    FillMemory(&overlapped, sizeof(overlapped), 0);
+    overlapped.Offset = position & 0xFFFFFFFF;
+    CHECK_NOTHROW(success = dtc::WriteFileCommand(
+        second_handle, path, buffer, &count, &overlapped));
+    // check the file size with the first instance
+    CHECK((size = dtc::GetFileSizeCommand(first_handle, nullptr)) == buffer_size + 2);
+    // check content with the first instance
+    CHECK_NOTHROW(success = dtc::ReadFileCommand(first_handle, path, recovered, &count,
+                                                 &overlapped));
+    CHECK(recovered.compare(buffer) == 0);
+    CHECK(count == buffer_size);
+    // close both instances
+    CHECK_NOTHROW(success = dtc::CloseHandleCommand(first_handle));
+    CHECK_NOTHROW(success = dtc::CloseHandleCommand(second_handle));
+#else
+  int first_file_descriptor(-1), second_file_descriptor(-1);
   fs::path path(g_root / RandomAlphaNumericString(5));
   const size_t buffer_size(1024);
-  std::string buffer(RandomString(buffer_size));
-  DWORD position(0), attributes(FILE_ATTRIBUTE_ARCHIVE), size(0);
-  BOOL success(0);
-  OVERLAPPED overlapped;
+  std::string buffer(RandomString(buffer_size)), recovered(buffer_size, 0);
+  int flags(O_CREAT | O_RDWR), size(0);
+  ssize_t result(0);
+  mode_t mode(S_IRWXU);
+  off_t offset(0);
 
   // create file
-  CHECK_NOTHROW(first_handle = dtc::CreateFileCommand(
-      path, GENERIC_ALL, 0, CREATE_NEW, attributes));
-  REQUIRE(first_handle);
-  // write data using first instance
-  CHECK_NOTHROW(success = dtc::WriteFileCommand(first_handle, path, buffer, &position, nullptr));
-  // verify opening a second instance throws
-  CHECK_THROWS_AS(second_handle = dtc::CreateFileCommand(
-      path, GENERIC_ALL, 0, OPEN_EXISTING, attributes), std::exception);
-  REQUIRE(!second_handle);
-  // close first instance
-  CHECK_NOTHROW(success = dtc::CloseHandleCommand(first_handle));
-  // reopen a first instance with shared read/write access
-  CHECK_NOTHROW(first_handle = dtc::CreateFileCommand(path, GENERIC_READ | GENERIC_WRITE,
-      FILE_SHARE_READ | FILE_SHARE_WRITE, OPEN_EXISTING, attributes));
-  REQUIRE(first_handle);
-  // open a second instance with shared read/write access
-  CHECK_NOTHROW(second_handle = dtc::CreateFileCommand(path, GENERIC_READ | GENERIC_WRITE,
-      FILE_SHARE_READ | FILE_SHARE_WRITE, OPEN_EXISTING, attributes));
-  REQUIRE(second_handle);
+  CHECK_NOTHROW(first_file_descriptor = dtc::CreateFileCommand(path, flags, mode));
+  // open a second instance
+  flags = O_RDWR;
+  CHECK_NOTHROW(second_file_descriptor = dtc::CreateFileCommand(path, flags));
   // write to file using first instance
-  buffer = RandomString(buffer_size);
-  success = 0;
-  position = 1;
-  FillMemory(&overlapped, sizeof(overlapped), 0);
-  overlapped.Offset = position & 0xFFFFFFFF;
-  CHECK_NOTHROW(success = dtc::WriteFileCommand(
-      first_handle, path, buffer, &position, &overlapped));
-  // check the file size with the second instance
-  CHECK((size = dtc::GetFileSizeCommand(second_handle, nullptr)) == buffer_size + 1);
+  CHECK_NOTHROW(result = dtc::WriteFileCommand(first_file_descriptor, buffer));
+  CHECK(result == buffer_size);
+  // check data using second instance
+  CHECK_NOTHROW(size = dtc::GetFileSizeCommand(second_file_descriptor));
+  CHECK(size == buffer_size);
+  CHECK_NOTHROW(result = dtc::ReadFileCommand(second_file_descriptor, recovered));
+  CHECK(result == buffer_size);
+  CHECK(recovered.compare(buffer) == 0);
   // write to file using second instance
   buffer = RandomString(buffer_size);
-  success = 0;
-  position = 2;
-  FillMemory(&overlapped, sizeof(overlapped), 0);
-  overlapped.Offset = position & 0xFFFFFFFF;
-  CHECK_NOTHROW(success = dtc::WriteFileCommand(
-      second_handle, path, buffer, &position, &overlapped));
-  // check the file size with the first instance
-  CHECK((size = dtc::GetFileSizeCommand(first_handle, nullptr)) == buffer_size + 2);
+  offset = 1;
+  CHECK_NOTHROW(result = dtc::WriteFileCommand(second_file_descriptor, buffer, offset));
+  CHECK(result == buffer_size);
+  // check data using first instance
+  CHECK_NOTHROW(size = dtc::GetFileSizeCommand(first_file_descriptor));
+  CHECK(size == buffer_size + 1);
+  CHECK_NOTHROW(result = dtc::ReadFileCommand(first_file_descriptor, recovered, offset));
+  CHECK(result == buffer_size);
+  CHECK(recovered.compare(buffer) == 0);
   // close both instances
-  CHECK_NOTHROW(success = dtc::CloseHandleCommand(first_handle));
-  CHECK_NOTHROW(success = dtc::CloseHandleCommand(second_handle));
-#else
-  // linux
+  CHECK_NOTHROW(dtc::CloseFileCommand(first_file_descriptor));
+  CHECK_NOTHROW(dtc::CloseFileCommand(second_file_descriptor));
 #endif
 }
 
@@ -1066,11 +1112,16 @@ TEST_CASE("Locale", "[Filesystem][behavioural]") {
 #endif
   fs::path::imbue(std::locale());
   fs::path file(process::GetOtherExecutablePath("filesystem_test"));
+  std::cout << "The path " << file.string() << std::endl;
   while (file.filename().string() != "MaidSafe" && file.filename().string() != "")
     file = file.parent_path();
   if (file.filename().string() == "")
     REQUIRE(false);
+#ifdef MAIDSAFE_WIN32
   file /= "\\src\\drive\\src\\maidsafe\\drive\\tools\\UTF-8";
+#else
+  file /= "src/drive/src/maidsafe/drive/tools/UTF-8";
+#endif
   fs::path directory(g_root / ReadFile(file).string());
   CreateDirectory(directory);
   RequireExists(directory);

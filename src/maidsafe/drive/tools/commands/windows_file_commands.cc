@@ -76,6 +76,17 @@ BOOL WriteFileCommand(HANDLE handle, const boost::filesystem::path& path,
   return result;
 }
 
+BOOL ReadFileCommand(HANDLE handle, const boost::filesystem::path& path, const std::string& buffer,
+                     LPDWORD bytes_read, LPOVERLAPPED overlapped) {
+  BOOL result(::ReadFile(handle, const_cast<char*>(buffer.c_str()),
+                         static_cast<DWORD>(buffer.size()), bytes_read, overlapped));
+  if (!result) {
+    LOG(kError) << "Failed to read from " << path.string();
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
+  }
+  return result;
+}
+
 BOOL DeleteFileCommand(const boost::filesystem::path& path) {
   BOOL result(DeleteFile(path.wstring().c_str()));
   if (!result) {

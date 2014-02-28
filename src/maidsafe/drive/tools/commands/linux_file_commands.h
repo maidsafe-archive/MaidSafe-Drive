@@ -38,6 +38,8 @@ int CreateFileCommand(const boost::filesystem::path& path, mode_t mode);
 int GetFilePermissionsCommand(const boost::filesystem::path& path);
 ssize_t WriteFileCommand(int file_descriptor, const std::string& buffer);
 ssize_t WriteFileCommand(int file_descriptor, const std::string& buffer, off_t offset);
+ssize_t ReadFileCommand(int file_descriptor, const std::string& buffer);
+ssize_t ReadFileCommand(int file_descriptor, const std::string& buffer, off_t offset);
 int GetFileSizeCommand(int file_descriptor);
 int GetFileSizeCommand(const boost::filesystem::path& path);
 mode_t GetModeCommand(int file_descriptor);
