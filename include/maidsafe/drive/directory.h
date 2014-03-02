@@ -34,8 +34,8 @@
 
 #include "maidsafe/common/tagged_value.h"
 #include "maidsafe/common/types.h"
-#include "maidsafe/data_types/immutable_data.h"
-#include "maidsafe/data_types/structured_data_versions.h"
+#include "maidsafe/common/data_types/immutable_data.h"
+#include "maidsafe/common/data_types/structured_data_versions.h"
 
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/file_context.h"

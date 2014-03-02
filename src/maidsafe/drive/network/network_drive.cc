@@ -38,8 +38,7 @@
 #include "maidsafe/common/log.h"
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/utils.h"
-
-#include "maidsafe/data_store/local_store.h"
+#include "maidsafe/common/data_stores/local_store.h"
 
 #ifdef MAIDSAFE_WIN32
 #include "maidsafe/drive/win_drive.h"
@@ -77,8 +76,8 @@ int Mount(const fs::path &/*mount_dir*/, const fs::path &chunk_dir) {
   fs::path storage_path(chunk_dir / "store");
   DiskUsage disk_usage(1048576000);
   MemoryUsage memory_usage(0);
-  std::shared_ptr<maidsafe::data_store::LocalStore>
-      storage(new maidsafe::data_store::LocalStore(storage_path, disk_usage));
+  std::shared_ptr<maidsafe::data_stores::LocalStore>
+      storage(new maidsafe::data_stores::LocalStore(storage_path, disk_usage));
 
   boost::system::error_code error_code;
   if (!fs::exists(chunk_dir, error_code))
@@ -95,7 +94,7 @@ int Mount(const fs::path &/*mount_dir*/, const fs::path &chunk_dir) {
   Identity root_parent_id(root_parent_id_str.empty() ? Identity() : Identity(root_parent_id_str));
   std::string product_id;
 
-  // typedef GetDrive<maidsafe::data_store::LocalStore>::type Drive;
+  // typedef GetDrive<maidsafe::data_stores::LocalStore>::type Drive;
   // Drive drive(storage,
   //             unique_user_id,
   //             root_parent_id,

@@ -41,9 +41,8 @@
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/types.h"
 #include "maidsafe/common/utils.h"
-
-#include "maidsafe/data_types/data_type_values.h"
-#include "maidsafe/data_types/mutable_data.h"
+#include "maidsafe/common/data_types/data_type_values.h"
+#include "maidsafe/common/data_types/mutable_data.h"
 
 #include "maidsafe/encrypt/self_encryptor.h"
 

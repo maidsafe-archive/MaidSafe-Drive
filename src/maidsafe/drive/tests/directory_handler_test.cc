@@ -34,8 +34,7 @@
 #include "maidsafe/common/test.h"
 #include "maidsafe/common/utils.h"
 #include "maidsafe/common/application_support_directories.h"
-
-#include "maidsafe/data_store/local_store.h"
+#include "maidsafe/common/data_stores/local_store.h"
 
 #include "maidsafe/encrypt/data_map.h"
 
@@ -59,7 +58,7 @@ class DirectoryHandlerTest {
  public:
   DirectoryHandlerTest()
       : main_test_dir_(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive")),
-        data_store_(new data_store::LocalStore(*main_test_dir_, DiskUsage(1 << 30))),
+        data_store_(new data_stores::LocalStore(*main_test_dir_, DiskUsage(1 << 30))),
         unique_user_id_(RandomString(64)),
         root_parent_id_(RandomString(64)),
         asio_service_(2),
@@ -68,10 +67,10 @@ class DirectoryHandlerTest {
 
  protected:
   maidsafe::test::TestPath main_test_dir_;
-  std::shared_ptr<data_store::LocalStore> data_store_;
+  std::shared_ptr<data_stores::LocalStore> data_store_;
   Identity unique_user_id_, root_parent_id_;
   AsioService asio_service_;
-  std::shared_ptr<detail::DirectoryHandler<data_store::LocalStore>> listing_handler_;
+  std::shared_ptr<detail::DirectoryHandler<data_stores::LocalStore>> listing_handler_;
 
  private:
   DirectoryHandlerTest(const DirectoryHandlerTest&);
@@ -79,7 +78,7 @@ class DirectoryHandlerTest {
 };
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "Construct", "[DirectoryHandler][behavioural]") {
-  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+  listing_handler_.reset(new detail::DirectoryHandler<data_stores::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true, asio_service_.service()));
   Directory* recovered_directory(nullptr);
@@ -96,7 +95,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Construct", "[DirectoryHandler][behaviou
 }
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "Add directory", "[DirectoryHandler][behavioural]") {
-  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+  listing_handler_.reset(new detail::DirectoryHandler<data_stores::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true, asio_service_.service()));
   std::string directory_name("Directory");
@@ -113,7 +112,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Add directory", "[DirectoryHandler][beha
 }
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "Add same directory", "[DirectoryHandler][behavioural]") {
-  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+  listing_handler_.reset(new detail::DirectoryHandler<data_stores::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true, asio_service_.service()));
   std::string directory_name("Directory");
@@ -136,7 +135,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Add same directory", "[DirectoryHandler]
 }
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "Add file", "[DirectoryHandler][behavioural]") {
-  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+  listing_handler_.reset(new detail::DirectoryHandler<data_stores::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true, asio_service_.service()));
   std::string file_name("File");
@@ -153,7 +152,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Add file", "[DirectoryHandler][behaviour
 }
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "Add same file", "[DirectoryHandler][behavioural]") {
-  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+  listing_handler_.reset(new detail::DirectoryHandler<data_stores::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true, asio_service_.service()));
   std::string file_name("File");
@@ -174,7 +173,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Add same file", "[DirectoryHandler][beha
 }
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "Delete directory", "[DirectoryHandler][behavioural]") {
-  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+  listing_handler_.reset(new detail::DirectoryHandler<data_stores::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true, asio_service_.service()));
   std::string directory_name("Directory");
@@ -198,7 +197,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Delete directory", "[DirectoryHandler][b
 }
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "Delete same directory", "[DirectoryHandler][behavioural]") {
-  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+  listing_handler_.reset(new detail::DirectoryHandler<data_stores::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true, asio_service_.service()));
   std::string directory_name("Directory");
@@ -223,7 +222,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Delete same directory", "[DirectoryHandl
 }
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "Delete file", "[DirectoryHandler][behavioural]") {
-  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+  listing_handler_.reset(new detail::DirectoryHandler<data_stores::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true, asio_service_.service()));
   std::string file_name("File");
@@ -243,7 +242,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Delete file", "[DirectoryHandler][behavi
 }
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "Delete same file", "[DirectoryHandler][behavioural]") {
-  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+  listing_handler_.reset(new detail::DirectoryHandler<data_stores::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true, asio_service_.service()));
   std::string file_name("File");
@@ -266,7 +265,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Delete same file", "[DirectoryHandler][b
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "Rename and move directory",
                  "[DirectoryHandler][behavioural]") {
-  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+  listing_handler_.reset(new detail::DirectoryHandler<data_stores::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true, asio_service_.service()));
   std::string first_directory_name("Directory1"), second_directory_name("Directory2"),
@@ -361,7 +360,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Rename and move directory",
 }
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "Rename and move file", "[DirectoryHandler][behavioural]") {
-  listing_handler_.reset(new detail::DirectoryHandler<data_store::LocalStore>(
+  listing_handler_.reset(new detail::DirectoryHandler<data_stores::LocalStore>(
       data_store_, unique_user_id_, root_parent_id_, boost::filesystem::unique_path(GetUserAppDir()
       / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true, asio_service_.service()));
   std::string first_directory_name("Directory1"), second_directory_name("Directory2"),
