@@ -231,7 +231,7 @@ std::pair<fs::path, fs::path> CreateMinimalCppProject(const fs::path& path) {
 
   fs::path shell_path = boost::process::shell_path();
   std::vector<std::string> process_args;
-  process_args.push_back(shell_path.string());
+  process_args.emplace_back(shell_path.string());
   process_args.emplace_back(command_args);
   const auto command_line(process::ConstructCommandLine(process_args));
   boost::process::child child = boost::process::execute(
