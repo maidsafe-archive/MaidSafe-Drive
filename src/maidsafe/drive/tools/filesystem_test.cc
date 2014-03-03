@@ -28,6 +28,10 @@
 #include <string>
 #include <vector>
 
+#ifndef MAIDSAFE_WIN32
+#include <sys/stat.h>
+#endif
+
 #include "boost/filesystem/path.hpp"
 #include "boost/filesystem/operations.hpp"
 #include "boost/system/error_code.hpp"
@@ -49,8 +53,7 @@
 #ifdef MAIDSAFE_WIN32
 #include "maidsafe/drive/tools/commands/windows_file_commands.h"
 #else
-#include <sys/stat.h>
-#include "maidsafe/drive/tools/commands/linux_file_commands.h"
+#include "maidsafe/drive/tools/commands/unix_file_commands.h"
 #endif
 
 namespace fs = boost::filesystem;

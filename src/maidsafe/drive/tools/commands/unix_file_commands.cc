@@ -16,11 +16,11 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
-#include "maidsafe/drive/tools/commands/linux_file_commands.h"
+#include "maidsafe/drive/tools/commands/unix_file_commands.h"
 
+#include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <dirent.h>
 
 #include "maidsafe/common/utils.h"
 
@@ -217,6 +217,7 @@ std::vector<boost::filesystem::path> EnumerateDirectoryCommand(
   struct dirent* dir;
   directory = opendir(path.string().c_str());
   if (directory) {
+    // TODO(Brian) change to use readdir_r
     while ((dir = readdir(directory)) != nullptr) {
       if (dir->d_type == DT_REG) {
          files.push_back(dir->d_name);

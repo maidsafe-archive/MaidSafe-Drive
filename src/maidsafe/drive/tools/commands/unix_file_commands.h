@@ -16,8 +16,8 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
-#ifndef MAIDSAFE_DRIVE_TOOLS_COMMANDS_LINUX_FILE_COMMANDS_H_
-#define MAIDSAFE_DRIVE_TOOLS_COMMANDS_LINUX_FILE_COMMANDS_H_
+#ifndef MAIDSAFE_DRIVE_TOOLS_COMMANDS_UNIX_FILE_COMMANDS_H_
+#define MAIDSAFE_DRIVE_TOOLS_COMMANDS_UNIX_FILE_COMMANDS_H_
 
 #include <unistd.h>
 #include <vector>
@@ -59,4 +59,4 @@ std::vector<boost::filesystem::path> EnumerateDirectoryCommand(const boost::file
 }  // namespace drive
 }  // namespace maidsafe
 
-#endif  // MAIDSAFE_DRIVE_TOOLS_COMMANDS_LINUX_FILE_COMMANDS_H_
+#endif  // MAIDSAFE_DRIVE_TOOLS_COMMANDS_UNIX_FILE_COMMANDS_H_

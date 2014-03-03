@@ -67,6 +67,10 @@ set(NetworkDriveMain ${DriveSourcesDir}/network/network_drive.cc)
 set(WinServiceMain ${DriveSourcesDir}/win_service/win_service_main.cc)
 set(UnixFiles ${DriveApiDir}/unix_drive.h ${DriveSourcesDir}/unix_drive.cc)
 set(WinFiles ${DriveApiDir}/win_drive.h ${DriveSourcesDir}/win_drive.cc)
+set(UnixFileCommands ${DriveSourcesDir}/tools/commands/unix_file_commands.h
+                     ${DriveSourcesDir}/tools/commands/unix_file_commands.cc)
+set(WindowsFileCommands ${DriveSourcesDir}/tools/commands/windows_file_commands.h
+                        ${DriveSourcesDir}/tools/commands/windows_file_commands.cc)
 if(CbfsFound)
   set(CbfsKeyFile ${CMAKE_CURRENT_BINARY_DIR}/cbfs_key/maidsafe/drive/cbfs_key.h)
   configure_file("${DriveSourcesDir}/cbfs_key.h.in" "${CbfsKeyFile}" @ONLY)
@@ -136,14 +140,14 @@ if(MaidsafeTesting)
     ms_add_executable(filesystem_test "Tools/Drive"
                       ${DriveSourcesDir}/tools/filesystem_test.cc
                       ${DriveSourcesDir}/tools/tool_main.cc
-                      ${DriveSourcesDir}/tools/commands/windows_file_commands.h
-                      ${DriveSourcesDir}/tools/commands/windows_file_commands.cc)
+                      ${WindowsFileCommands})
+    list(REMOVE_ITEM DriveToolsCommandsAllFiles ${UnixFileCommands})
   else()
     ms_add_executable(filesystem_test "Tools/Drive"
                       ${DriveSourcesDir}/tools/filesystem_test.cc
                       ${DriveSourcesDir}/tools/tool_main.cc
-                      ${DriveSourcesDir}/tools/commands/linux_file_commands.h
-                      ${DriveSourcesDir}/tools/commands/linux_file_commands.cc)
+                      ${UnixFileCommands})
+    list(REMOVE_ITEM DriveToolsCommandsAllFiles ${WindowsFileCommands})
   endif()
   ms_add_executable(filesystem_commands "Tools/Drive"
                     ${DriveSourcesDir}/tools/filesystem_commands.h
