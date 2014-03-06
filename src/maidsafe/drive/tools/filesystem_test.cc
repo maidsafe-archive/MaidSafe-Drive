@@ -202,205 +202,192 @@ void GetUsedSpace(const fs::path& path, uintmax_t& size) {
   }
 }
 
-std::pair<fs::path, fs::path> CreateMinimalCppProject(const fs::path& path) {
+void CreateAndBuildMinimalCppProject(const fs::path& path) {
   boost::system::error_code error_code;
-  fs::path project_root(CreateDirectory(path));
-  fs::path project(CreateDirectory(project_root));
-  fs::path build(CreateDirectory(project_root));
-  std::string project_name(project.filename().string());
-  auto main_cmake_file(project_root / "CMakeLists.txt");
-  std::string content("cmake_minimum_required(VERSION 2.8.12.1 FATAL_ERROR)\n");
-  content += "project(" + project_name + ")\n";
-  content += "add_subdirectory(" + project_name + ")";
-  REQUIRE(WriteFile(main_cmake_file, content));
-  REQUIRE(fs::exists(main_cmake_file, error_code));
-  auto project_cmake_file(project / "CMakeLists.txt");
-  content = "add_executable(" + project_name + " " + project_name + ".cc)";
-  REQUIRE(WriteFile(project_cmake_file, content));
-  REQUIRE(fs::exists(project_cmake_file, error_code));
-  auto project_cc_file(project / (project_name + ".cc"));
-  content = "int main() {\n  return 0;\n}";
-  REQUIRE(WriteFile(project_cc_file, content));
-  REQUIRE(fs::exists(project_cc_file, error_code));
-
-#ifdef MAIDSAFE_WIN32
-  std::string architecture(BOOST_PP_STRINGIZE(TARGET_ARCHITECTURE)), command_args;
-  if (architecture == "x86_64")
-    command_args = " /k cmake .. -G\"Visual Studio 11 Win64\" 2>nul 1>nul & exit";
-  else
-    command_args = " /k cmake .. -G\"Visual Studio 11\" 2>nul 1>nul & exit";
-#else
-#endif
-
-  fs::path shell_path = boost::process::shell_path();
-  std::vector<std::string> process_args;
-  process_args.emplace_back(shell_path.string());
-  process_args.emplace_back(command_args);
-  const auto command_line(process::ConstructCommandLine(process_args));
-  boost::process::child child = boost::process::execute(
-      boost::process::initializers::start_in_dir(build),
-      boost::process::initializers::run_exe(shell_path),
-      boost::process::initializers::set_cmd_line(command_line),
-      boost::process::initializers::set_on_error(error_code));
-
-  REQUIRE(error_code.value() == 0);
-  boost::process::wait_for_exit(child, error_code);
-  REQUIRE(error_code.value() == 0);
-
-  std::string slash(fs::path("/").make_preferred().string());
-  INFO("Failed to find " << build.string() + slash + project_name + ".sln");
-#ifdef MAIDSAFE_WIN32
-  REQUIRE(fs::exists(build / (project_name + ".sln")));
-#else
-#endif
-
-  return std::make_pair(project, build);
-}
-
-void BuildMinimalCppProject(const fs::path& project, const fs::path& build) {
-  boost::system::error_code error_code;
-  std::string command_args;
-  fs::path shell_path = boost::process::shell_path();
-
+  fs::path project_main(CreateDirectory(path)), project(CreateDirectory(project_main)),
+           build(CreateDirectory(project_main)), shell_path(boost::process::shell_path());
+  std::string project_name(project.filename().string()), command_args, content, project_file,
+              cmake_generator(BOOST_PP_STRINGIZE(CMAKE_GENERATOR)),
+              slash(fs::path("/").make_preferred().string());
   {
-    // release
+    // cmake
+    content = "cmake_minimum_required(VERSION 2.8.11.2 FATAL_ERROR)\nproject("
+            + project_name + ")\nadd_subdirectory(" + project_name + ")";
+
+    auto main_cmake_file(project_main / "CMakeLists.txt");
+    REQUIRE(WriteFile(main_cmake_file, content));
+    REQUIRE(fs::exists(main_cmake_file, error_code));
+
+    content = "add_executable(" + project_name + " " + project_name + ".cc)";
+
+    auto project_cmake_file(project / "CMakeLists.txt");
+    REQUIRE(WriteFile(project_cmake_file, content));
+    REQUIRE(fs::exists(project_cmake_file, error_code));
+
+    content = "int main() {\n  return 0;\n}";
+
+    auto project_cc_file(project / (project_name + ".cc"));
+    REQUIRE(WriteFile(project_cc_file, content));
+    REQUIRE(fs::exists(project_cc_file, error_code));
+
+#ifdef MAIDSAFE_WIN32
+    command_args = " /k cmake .. -G" + cmake_generator + " & exit";
+    project_file = build.string() + slash + project_name + ".sln";
+#else
+    auto script_file(build / "cmake.sh");
+    content = "#!/bin/bash\ncmake .. -G" + cmake_generator + " ; exit";
+    REQUIRE(WriteFile(script_file, content));
+    REQUIRE(fs::exists(script_file, error_code));
+    command_args = script_file.filename().string();
+    project_file = build.string() + slash + "Makefile";
+#endif
+
     std::vector<std::string> process_args;
-    process_args.emplace_back(shell_path.string());
-    command_args = " /k cmake . && cmake --build . --config Release 2>nul 1>nul & exit";
+    process_args.emplace_back(shell_path.filename().string());
     process_args.emplace_back(command_args);
     const auto command_line(process::ConstructCommandLine(process_args));
 
     boost::process::child child = boost::process::execute(
-        boost::process::initializers::start_in_dir(build),
+        boost::process::initializers::start_in_dir(build.string()),
         boost::process::initializers::run_exe(shell_path),
         boost::process::initializers::set_cmd_line(command_line),
+        boost::process::initializers::inherit_env(),
         boost::process::initializers::set_on_error(error_code));
 
     REQUIRE(error_code.value() == 0);
     boost::process::wait_for_exit(child, error_code);
     REQUIRE(error_code.value() == 0);
 
-    std::string slash(fs::path("/").make_preferred().string());
-    std::string project_name(project.filename().string());
-    fs::path project_exe(build / project_name / "Release" / (project_name + ".exe"));
-    INFO("Failed to build " << project_exe.string());
+    INFO("Failed to find " << project_file);
+    REQUIRE(fs::exists(project_file));
+  }
+  {
+    // release
 #ifdef MAIDSAFE_WIN32
-    REQUIRE(fs::exists(project_exe));
+    command_args = " /k cmake --build . --config Release & exit";
+    project_file = build.string() + slash + project_name + slash + "Release" + slash + project_name
+                 + ".exe";
 #else
+    auto script_file(build / "release_build.sh");
+    content = "#!/bin/bash\ncmake --build . --config Release ; exit";
+    REQUIRE(WriteFile(script_file, content));
+    REQUIRE(fs::exists(script_file, error_code));
+    command_args = script_file.filename().string();
+    project_file = build.string() + slash + project_name + slash + project_name;
 #endif
+
+    std::vector<std::string> process_args;
+    process_args.emplace_back(shell_path.string());
+    process_args.emplace_back(command_args);
+    const auto command_line(process::ConstructCommandLine(process_args));
+
+    boost::process::child child = boost::process::execute(
+        boost::process::initializers::start_in_dir(build.string()),
+        boost::process::initializers::run_exe(shell_path),
+        boost::process::initializers::set_cmd_line(command_line),
+        boost::process::initializers::inherit_env(),
+        boost::process::initializers::set_on_error(error_code));
+
+    REQUIRE(error_code.value() == 0);
+    boost::process::wait_for_exit(child, error_code);
+    REQUIRE(error_code.value() == 0);
+
+    INFO("Failed to build " << project_file);
+    REQUIRE(fs::exists(project_file));
   }
   {
     // debug
+#ifdef MAIDSAFE_WIN32
+    command_args = " /k cmake --build . --config Debug & exit";
+    project_file = build.string() + slash + project_name + slash + "Debug" + slash + project_name
+                 + ".exe";
+#else
+    auto script_file(build / "debug_build.sh");
+    content = "#!/bin/bash\ncmake . && cmake --build . --config Debug ; exit";
+    REQUIRE(WriteFile(script_file, content));
+    REQUIRE(fs::exists(script_file, error_code));
+    command_args = script_file.filename().string();
+    project_file = build.string() + slash + project_name + slash + project_name;
+#endif
+
     std::vector<std::string> process_args;
     process_args.emplace_back(shell_path.string());
-    command_args = " /k cmake . && cmake --build . --config Debug 2>nul 1>nul & exit";
     process_args.emplace_back(command_args);
     const auto command_line(process::ConstructCommandLine(process_args));
 
     boost::process::child child = boost::process::execute(
-        boost::process::initializers::start_in_dir(build),
+        boost::process::initializers::start_in_dir(build.string()),
         boost::process::initializers::run_exe(shell_path),
         boost::process::initializers::set_cmd_line(command_line),
+        boost::process::initializers::inherit_env(),
         boost::process::initializers::set_on_error(error_code));
 
     REQUIRE(error_code.value() == 0);
     boost::process::wait_for_exit(child, error_code);
     REQUIRE(error_code.value() == 0);
 
-    std::string slash(fs::path("/").make_preferred().string());
-    std::string project_name(project.filename().string());
-    fs::path project_exe(build / project_name / "Debug" / (project_name + ".exe"));
-    INFO("Failed to build " << project_exe.string());
-#ifdef MAIDSAFE_WIN32
-    REQUIRE(fs::exists(project_exe));
-#else
-#endif
+    INFO("Failed to build " << project_file);
+    REQUIRE(fs::exists(project_file));
   }
 }
 
-void CloneProject(const fs::path& start_directory, const std::string& url) {
+void CloneMaidSafeAndBuildDefaults(const fs::path& start_directory) {
   boost::system::error_code error_code;
-  std::string command_args;
+  std::string content, script, command_args, cmake_generator(BOOST_PP_STRINGIZE(CMAKE_GENERATOR));
   fs::path shell_path = boost::process::shell_path();
+
+#ifdef MAIDSAFE_WIN32
+  content = "call " + std::string(BOOST_PP_STRINGIZE(VS_DEV_CMD)) + "\n"
+          + "git clone git@github.com:maidsafe/MaidSafe.git\n"
+          + "cd MaidSafe\n"
+          + "git submodule update --init\n"
+          + "git checkout next\n"
+          + "git pull\n"
+          + "git submodule foreach 'git checkout next && git pull'\n"
+          + "mkdir build\n"
+          + "cd build\n"
+          + "cmake .. -G" + cmake_generator + "\n"
+          + "cmake --build . --config Release\n"
+          + "cmake --build . --config Debug\n"
+          + "exit";
+  script = "maidsafe.bat";
+  command_args = "/C " + script;
+#else
+  content = "#!/bin/bash\n"
+          + "git clone git@github.com:maidsafe/MaidSafe.git\n"
+          + "cd MaidSafe\n"
+          + "git submodule update --init\n"
+          + "git checkout next\n"
+          + "git pull\n"
+          + "git submodule foreach 'git checkout next && git pull'\n"
+          + "mkdir release_build\n"
+          + "cd release_build\n"
+          + "cmake .. -G" + cmake_generator + " -DCMAKE_BUILD_TYPE=Release\n"
+          + "cmake --build . --config Release\n"
+          + "cd ..\n"
+          + "mkdir debug_build\n"
+          + "cd debug_build\n"
+          + "cmake .. -G" + cmake_generator + " -DCMAKE_BUILD_TYPE=Debug\n"
+          + "cmake --build . --config Debug\n"
+          + "exit";
+  script = "maidsafe.sh";
+  command_args = script;
+#endif
+
+  auto script_file(start_directory / script);
+  REQUIRE(WriteFile(script_file, content));
+  REQUIRE(fs::exists(script_file, error_code));
 
   std::vector<std::string> process_args;
   process_args.emplace_back(shell_path.string());
-  command_args = " /k git clone " + url + " 2>nul 1>nul & exit";
   process_args.emplace_back(command_args);
   const auto command_line(process::ConstructCommandLine(process_args));
 
   boost::process::child child = boost::process::execute(
-      boost::process::initializers::start_in_dir(start_directory),
+      boost::process::initializers::start_in_dir(start_directory.string()),
       boost::process::initializers::run_exe(shell_path),
       boost::process::initializers::set_cmd_line(command_line),
-      boost::process::initializers::set_on_error(error_code));
-
-  REQUIRE(error_code.value() == 0);
-  boost::process::wait_for_exit(child, error_code);
-  REQUIRE(error_code.value() == 0);
-}
-
-void InitialiseSubmodulesInProject(const fs::path& start_directory) {
-  boost::system::error_code error_code;
-  std::string command_args;
-  fs::path shell_path = boost::process::shell_path();
-
-  std::vector<std::string> process_args;
-  process_args.emplace_back(shell_path.string());
-  command_args = " /k git submodule init 2>nul 1>nul & exit";
-  process_args.emplace_back(command_args);
-  const auto command_line(process::ConstructCommandLine(process_args));
-
-  boost::process::child child = boost::process::execute(
-      boost::process::initializers::start_in_dir(start_directory),
-      boost::process::initializers::run_exe(shell_path),
-      boost::process::initializers::set_cmd_line(command_line),
-      boost::process::initializers::set_on_error(error_code));
-
-  REQUIRE(error_code.value() == 0);
-  boost::process::wait_for_exit(child, error_code);
-  REQUIRE(error_code.value() == 0);
-}
-
-void UpdateSubmodulesInProject(const fs::path& start_directory) {
-  boost::system::error_code error_code;
-  std::string command_args;
-  fs::path shell_path = boost::process::shell_path();
-
-  std::vector<std::string> process_args;
-  process_args.emplace_back(shell_path.string());
-  command_args = " /k git submodule update 2>nul 1>nul & exit";
-  process_args.emplace_back(command_args);
-  const auto command_line(process::ConstructCommandLine(process_args));
-
-  boost::process::child child = boost::process::execute(
-      boost::process::initializers::start_in_dir(start_directory),
-      boost::process::initializers::run_exe(shell_path),
-      boost::process::initializers::set_cmd_line(command_line),
-      boost::process::initializers::set_on_error(error_code));
-
-  REQUIRE(error_code.value() == 0);
-  boost::process::wait_for_exit(child, error_code);
-  REQUIRE(error_code.value() == 0);
-}
-
-void CheckoutNextBranchesForWholeProject(const fs::path& start_directory) {
-  boost::system::error_code error_code;
-  std::string command_args;
-  fs::path shell_path = boost::process::shell_path();
-
-  std::vector<std::string> process_args;
-  process_args.emplace_back(shell_path.string());
-  command_args = " /k git checkout next 2>nul 1>nul & git pull 2>nul 1>nul";
-  command_args += " & git submodule foreach git checkout next 2>nul 1>nul";
-  command_args += " & git submodule foreach git pull 2>nul 1>nul & exit";
-  process_args.emplace_back(command_args);
-  const auto command_line(process::ConstructCommandLine(process_args));
-
-  boost::process::child child = boost::process::execute(
-      boost::process::initializers::start_in_dir(start_directory),
-      boost::process::initializers::run_exe(shell_path),
-      boost::process::initializers::set_cmd_line(command_line),
+      boost::process::initializers::inherit_env(),
       boost::process::initializers::set_on_error(error_code));
 
   REQUIRE(error_code.value() == 0);
@@ -1342,42 +1329,23 @@ TEST_CASE("Storage path chunks not deleted", "[Filesystem][behavioural]") {
   CHECK(initial_size == second_update_size);
 }
 
-TEST_CASE("Create a minimal C++ project", "[Filesystem][functional]") {
+TEST_CASE("Create and build minimal C++ project", "[Filesystem][functional]") {
   on_scope_exit cleanup(clean_root);
-  // create in temp directory...
-  REQUIRE_NOTHROW(CreateMinimalCppProject(g_temp));
-  // ...now in drive root
-  REQUIRE_NOTHROW(CreateMinimalCppProject(g_root));
+  // drive root
+  REQUIRE_NOTHROW(CreateAndBuildMinimalCppProject(g_root));
+  // temp directory
+  REQUIRE_NOTHROW(CreateAndBuildMinimalCppProject(g_temp));
 }
 
-TEST_CASE("Build a minimal C++ project", "[Filesystem][functional]") {
+TEST_CASE("Clone MaidSafe and build defaults", "[Filesystem][functional]") {
   on_scope_exit cleanup(clean_root);
-  std::pair<fs::path, fs::path> project_paths;
-  // first in temp directory...
-  REQUIRE_NOTHROW(project_paths = CreateMinimalCppProject(g_temp));
-  REQUIRE_NOTHROW(BuildMinimalCppProject(project_paths.first, project_paths.second));
-  // ...now in drive root
-  REQUIRE_NOTHROW(project_paths = CreateMinimalCppProject(g_root));
-  REQUIRE_NOTHROW(BuildMinimalCppProject(project_paths.first, project_paths.second));
-}
+  // drive root
+  REQUIRE_NOTHROW(CloneMaidSafeAndBuildDefaults(g_root));
+  // temp directory
+  REQUIRE_NOTHROW(CloneMaidSafeAndBuildDefaults(g_temp));
 
-TEST_CASE("Clone MaidSafe", "[Filesystem][functional]") {
-  on_scope_exit cleanup(clean_root);
-  std::string url("git@github.com:maidsafe/MaidSafe.git");
-  fs::path temp_maidsafe_directory(g_temp / "MaidSafe"),
-           root_maidsafe_directory(g_root / "MaidSafe");
-  // first to temp directory...
-  REQUIRE_NOTHROW(CloneProject(g_temp, url));
-  REQUIRE_NOTHROW(InitialiseSubmodulesInProject(temp_maidsafe_directory));
-  REQUIRE_NOTHROW(UpdateSubmodulesInProject(temp_maidsafe_directory));
-  REQUIRE_NOTHROW(CheckoutNextBranchesForWholeProject(temp_maidsafe_directory));
-  // ...now to drive root
-  REQUIRE_NOTHROW(CloneProject(g_root, url));
-  REQUIRE_NOTHROW(InitialiseSubmodulesInProject(root_maidsafe_directory));
-  REQUIRE_NOTHROW(UpdateSubmodulesInProject(root_maidsafe_directory));
-  REQUIRE_NOTHROW(CheckoutNextBranchesForWholeProject(root_maidsafe_directory));
   // compare repositories, may fail if next has been updated during the test
-  RequireDirectoriesEqual(temp_maidsafe_directory, root_maidsafe_directory, false);
+  RequireDirectoriesEqual(g_root, g_temp, false);
 }
 
 }  // namespace test
