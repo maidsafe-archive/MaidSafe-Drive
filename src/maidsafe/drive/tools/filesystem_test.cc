@@ -164,7 +164,10 @@ void RequireDirectoriesEqual(const fs::path& lhs, const fs::path& rhs, bool chec
   std::vector<std::string> difference;
   std::set_symmetric_difference(std::begin(lhs_files), std::end(lhs_files), std::begin(rhs_files),
                                 std::end(rhs_files), std::back_inserter(difference));
-  REQUIRE(difference.empty());
+  if (!difference.empty()) {
+    INFO("At least one difference exists: " + difference[0]);
+    REQUIRE(difference.empty());
+  }
 
   if (check_file_contents) {
     auto rhs_itr(std::begin(rhs_files));
@@ -212,7 +215,7 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
   {
     // cmake
     content = "cmake_minimum_required(VERSION 2.8.11.2 FATAL_ERROR)\nproject("
-            + project_name + ")\nadd_subdirectory(" + project_name + ")";
+             + project_name + ")\nadd_subdirectory(" + project_name + ")";
 
     auto main_cmake_file(project_main / "CMakeLists.txt");
     REQUIRE(WriteFile(main_cmake_file, content));
@@ -234,11 +237,11 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
     command_args = " /k cmake .. -G" + cmake_generator + " & exit";
     project_file = build.string() + slash + project_name + ".sln";
 #else
-    auto script_file(build / "cmake.sh");
+    auto script(build / "cmake.sh");
     content = "#!/bin/bash\ncmake .. -G" + cmake_generator + " ; exit";
-    REQUIRE(WriteFile(script_file, content));
-    REQUIRE(fs::exists(script_file, error_code));
-    command_args = script_file.filename().string();
+    REQUIRE(WriteFile(script, content));
+    REQUIRE(fs::exists(script, error_code));
+    command_args = script.filename().string();
     project_file = build.string() + slash + "Makefile";
 #endif
 
@@ -266,13 +269,13 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
 #ifdef MAIDSAFE_WIN32
     command_args = " /k cmake --build . --config Release & exit";
     project_file = build.string() + slash + project_name + slash + "Release" + slash + project_name
-                 + ".exe";
+                  + ".exe";
 #else
-    auto script_file(build / "release_build.sh");
+    auto script(build / "release_build.sh");
     content = "#!/bin/bash\ncmake --build . --config Release ; exit";
-    REQUIRE(WriteFile(script_file, content));
-    REQUIRE(fs::exists(script_file, error_code));
-    command_args = script_file.filename().string();
+    REQUIRE(WriteFile(script, content));
+    REQUIRE(fs::exists(script, error_code));
+    command_args = script.filename().string();
     project_file = build.string() + slash + project_name + slash + project_name;
 #endif
 
@@ -300,13 +303,13 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
 #ifdef MAIDSAFE_WIN32
     command_args = " /k cmake --build . --config Debug & exit";
     project_file = build.string() + slash + project_name + slash + "Debug" + slash + project_name
-                 + ".exe";
+                  + ".exe";
 #else
-    auto script_file(build / "debug_build.sh");
+    auto script(build / "debug_build.sh");
     content = "#!/bin/bash\ncmake . && cmake --build . --config Debug ; exit";
-    REQUIRE(WriteFile(script_file, content));
-    REQUIRE(fs::exists(script_file, error_code));
-    command_args = script_file.filename().string();
+    REQUIRE(WriteFile(script, content));
+    REQUIRE(fs::exists(script, error_code));
+    command_args = script.filename().string();
     project_file = build.string() + slash + project_name + slash + project_name;
 #endif
 
@@ -331,46 +334,45 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
   }
 }
 
-void CloneMaidSafeAndBuildDefaults(const fs::path& start_directory) {
+void DownloadAndBuildPocoFoundationTwice(const fs::path& start_directory) {
   boost::system::error_code error_code;
-  std::string content, script, command_args, cmake_generator(BOOST_PP_STRINGIZE(CMAKE_GENERATOR));
-  fs::path shell_path = boost::process::shell_path();
+  fs::path resources_path(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)), poco_py,
+           shell_path(boost::process::shell_path());
+  std::string content, script, command_args, project_file;
 
 #ifdef MAIDSAFE_WIN32
-  content = "call " + std::string(BOOST_PP_STRINGIZE(VS_DEV_CMD)) + "\n"
-          + "git clone git@github.com:maidsafe/MaidSafe.git\n"
-          + "cd MaidSafe\n"
-          + "git submodule update --init\n"
-          + "git checkout next\n"
-          + "git pull\n"
-          + "git submodule foreach 'git checkout next && git pull'\n"
-          + "mkdir build\n"
-          + "cd build\n"
-          + "cmake .. -G" + cmake_generator + "\n"
-          + "cmake --build . --config Release\n"
-          + "cmake --build . --config Debug\n"
-          + "exit";
-  script = "maidsafe.bat";
+  DWORD exit_code;
+  fs::directory_iterator itr(resources_path), end;
+  while (itr != end) {
+    if (itr->path().filename().string() == "poco.py") {
+      poco_py = itr->path();
+      break;
+    }
+    ++itr;
+  }
+  if (itr == end)
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::no_such_element));
+
+  std::string architecture(BOOST_PP_STRINGIZE(TARGET_ARCHITECTURE));
+  if (architecture == "x86_64")
+    project_file = "Foundation_x64_vs110.sln";
+  else
+    project_file = "Foundation_vs110.sln";
+
+  script = "poco.bat";
+  content += ("call " + std::string(BOOST_PP_STRINGIZE(VS_DEV_CMD)) + "\n"
+            + "python " + poco_py.string() + " -l " + start_directory.string() + "\n"
+            + "cd poco-1.4.6p2\\poco-1.4.6p2\\Foundation\n"
+            + "msbuild " + project_file + " /t:Foundation\n"
+            + "cd ../../..\n"
+            + "python " + poco_py.string() + " -l " + start_directory.string() + "\n"
+            + "cd poco-1.4.6p2\\poco-1.4.6p2\\Foundation\n"
+            + "msbuild " + project_file + " /t:Foundation\n"
+            + "exit\n");
   command_args = "/C " + script;
 #else
-  content = "#!/bin/bash\n"
-          + "git clone git@github.com:maidsafe/MaidSafe.git\n"
-          + "cd MaidSafe\n"
-          + "git submodule update --init\n"
-          + "git checkout next\n"
-          + "git pull\n"
-          + "git submodule foreach 'git checkout next && git pull'\n"
-          + "mkdir release_build\n"
-          + "cd release_build\n"
-          + "cmake .. -G" + cmake_generator + " -DCMAKE_BUILD_TYPE=Release\n"
-          + "cmake --build . --config Release\n"
-          + "cd ..\n"
-          + "mkdir debug_build\n"
-          + "cd debug_build\n"
-          + "cmake .. -G" + cmake_generator + " -DCMAKE_BUILD_TYPE=Debug\n"
-          + "cmake --build . --config Debug\n"
-          + "exit";
-  script = "maidsafe.sh";
+  content = "#!/bin/bash\n";
+  script = "poco.sh";
   command_args = script;
 #endif
 
@@ -391,7 +393,137 @@ void CloneMaidSafeAndBuildDefaults(const fs::path& start_directory) {
       boost::process::initializers::set_on_error(error_code));
 
   REQUIRE(error_code.value() == 0);
-  boost::process::wait_for_exit(child, error_code);
+  exit_code = boost::process::wait_for_exit(child, error_code);
+  REQUIRE(error_code.value() == 0);
+  REQUIRE(exit_code == 0);
+}
+
+void DownloadAndBuildPoco(const fs::path& start_directory) {
+  boost::system::error_code error_code;
+  fs::path resources_path(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)), poco_py,
+           shell_path(boost::process::shell_path());
+  std::string content, script, command_args;
+
+#ifdef MAIDSAFE_WIN32
+  DWORD exit_code;
+  fs::directory_iterator itr(resources_path), end;
+  while (itr != end) {
+    if (itr->path().filename().string() == "poco.py") {
+      poco_py = itr->path();
+      break;
+    }
+    ++itr;
+  }
+  if (itr == end)
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::no_such_element));
+
+  std::string architecture(BOOST_PP_STRINGIZE(TARGET_ARCHITECTURE));
+  if (architecture == "x86_64")
+    architecture = "x64";
+  else
+    architecture = "Win32";
+
+  script = "poco.bat";
+  content += ("call " + std::string(BOOST_PP_STRINGIZE(VS_DEV_CMD)) + "\n"
+            + "set errorlevel=0\n"
+            + "python " + poco_py.string() + " -l " + start_directory.string() + "\n"
+            + "if %errorlevel% neq 0 goto end\n"
+            + "cd poco-1.4.6p2\\poco-1.4.6p2\n"
+            + "buildwin.cmd 110 build shared both " + architecture + " nosamples\n"
+            + ":end\n"
+            + "exit %errorlevel%");
+  command_args = "/C " + script;
+#else
+  content = "#!/bin/bash\n";
+  script = "poco.sh";
+  command_args = script;
+#endif
+
+  auto script_file(start_directory / script);
+  REQUIRE(WriteFile(script_file, content));
+  REQUIRE(fs::exists(script_file, error_code));
+
+  std::vector<std::string> process_args;
+  process_args.emplace_back(shell_path.string());
+  process_args.emplace_back(command_args);
+  const auto command_line(process::ConstructCommandLine(process_args));
+
+  boost::process::child child = boost::process::execute(
+      boost::process::initializers::start_in_dir(start_directory.string()),
+      boost::process::initializers::run_exe(shell_path),
+      boost::process::initializers::set_cmd_line(command_line),
+      boost::process::initializers::inherit_env(),
+      boost::process::initializers::set_on_error(error_code));
+
+  REQUIRE(error_code.value() == 0);
+  exit_code = boost::process::wait_for_exit(child, error_code);
+  REQUIRE(error_code.value() == 0);
+  REQUIRE(exit_code == 0);
+}
+
+void ExtractBoost(const fs::path& start_directory) {
+  boost::system::error_code error_code;
+  fs::path build_path(process::GetOtherExecutablePath("filesystem_test").parent_path()
+                      .parent_path()), shell_path(boost::process::shell_path()), boost_zip;
+  std::string content, script, command_args;
+  fs::directory_iterator itr(build_path), end;
+  while (itr != end) {
+    if (itr->path().string().compare(0, 5, "boost") && itr->path().extension() == ".bz2") {
+      boost_zip = itr->path();
+      break;
+    }
+    ++itr;
+  }
+  if (itr == end) {
+    REQUIRE(false);
+    return;
+  }
+
+  fs::copy_file(boost_zip, start_directory / boost_zip.filename().string(),
+                fs::copy_option::fail_if_exists);
+  REQUIRE(fs::exists(start_directory / boost_zip.filename().string(), error_code));
+
+#ifdef MAIDSAFE_WIN32
+  script = "extract_boost.bat";
+  command_args = "/C " + script;
+#else
+  script = "extract_boost.sh";
+  content = "#!/bin/bash\n";
+  command_args = script;
+#endif
+
+  content += "cmake -E tar xzf " + boost_zip.filename().string() + " .\nexit";
+
+  auto script_file(start_directory / script);
+  REQUIRE(WriteFile(script_file, content));
+  REQUIRE(fs::exists(script_file, error_code));
+
+  std::vector<std::string> process_args;
+  process_args.emplace_back(shell_path.string());
+  process_args.emplace_back(command_args);
+  const auto command_line(process::ConstructCommandLine(process_args));
+
+  boost::process::child child = boost::process::execute(
+      boost::process::initializers::start_in_dir(start_directory.string()),
+      boost::process::initializers::run_exe(shell_path),
+      boost::process::initializers::set_cmd_line(command_line),
+      boost::process::initializers::inherit_env(),
+      boost::process::initializers::set_on_error(error_code));
+
+  REQUIRE(error_code.value() == 0);
+  {
+    std::mutex mutex;
+    std::unique_lock<std::mutex> lock(mutex);
+    std::condition_variable condition;
+    auto now = std::chrono::system_clock::now();
+    condition.wait_until(lock, now + std::chrono::minutes(3),
+                         [&child, &error_code]{
+                            boost::process::wait_for_exit(child, error_code);
+                            return (error_code.value() == 0);
+                         });
+  }
+  if (error_code.value() != 0)
+    boost::process::terminate(child);
   REQUIRE(error_code.value() == 0);
 }
 
@@ -1331,21 +1463,40 @@ TEST_CASE("Storage path chunks not deleted", "[Filesystem][behavioural]") {
 
 TEST_CASE("Create and build minimal C++ project", "[Filesystem][functional]") {
   on_scope_exit cleanup(clean_root);
-  // drive root
+  // drive
   REQUIRE_NOTHROW(CreateAndBuildMinimalCppProject(g_root));
-  // temp directory
+  // temp
   REQUIRE_NOTHROW(CreateAndBuildMinimalCppProject(g_temp));
 }
 
-TEST_CASE("Clone MaidSafe and build defaults", "[Filesystem][functional]") {
+TEST_CASE("Download and build poco foundation twice with no deletions",
+          "[Filesystem][functional]") {
   on_scope_exit cleanup(clean_root);
-  // drive root
-  REQUIRE_NOTHROW(CloneMaidSafeAndBuildDefaults(g_root));
-  // temp directory
-  REQUIRE_NOTHROW(CloneMaidSafeAndBuildDefaults(g_temp));
+  REQUIRE_NOTHROW(DownloadAndBuildPocoFoundationTwice(g_root));
+}
 
-  // compare repositories, may fail if next has been updated during the test
-  RequireDirectoriesEqual(g_root, g_temp, false);
+TEST_CASE("Download and build poco", "[Filesystem][functional]") {
+  on_scope_exit cleanup(clean_root);
+  // drive
+  fs::path directory;
+  REQUIRE_NOTHROW(directory = CreateDirectory(g_root));
+  REQUIRE_NOTHROW(DownloadAndBuildPoco(directory));
+  // temp
+  REQUIRE_NOTHROW(DownloadAndBuildPoco(g_temp));
+  // compare
+  RequireDirectoriesEqual(directory, g_temp, false);
+}
+
+TEST_CASE("Extract boost", "[Filesystem][functional]") {
+  on_scope_exit cleanup(clean_root);
+  // drive
+  fs::path directory;
+  REQUIRE_NOTHROW(directory = CreateDirectory(g_root));
+  REQUIRE_NOTHROW(ExtractBoost(directory));
+  // temp
+  REQUIRE_NOTHROW(ExtractBoost(g_temp));
+  // compare
+  RequireDirectoriesEqual(g_root, g_temp, true);
 }
 
 }  // namespace test

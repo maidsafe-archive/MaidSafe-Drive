@@ -25,11 +25,14 @@
 #include "boost/filesystem/path.hpp"
 #include "boost/filesystem/operations.hpp"
 #include "boost/program_options.hpp"
+#include "boost/process.hpp"
+#include "boost/process/initializers.hpp"
 
 #include "maidsafe/common/error.h"
 #include "maidsafe/common/log.h"
 #include "maidsafe/common/on_scope_exit.h"
 #include "maidsafe/common/utils.h"
+#include "maidsafe/common/process.h"
 
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
@@ -266,6 +269,74 @@ void CopyThenReadManySmallFiles() {
   }
 }
 
+void CloneMaidSafeAndBuildDefaults(const fs::path& start_directory) {
+  boost::system::error_code error_code;
+  std::string command_args, cmake_generator(BOOST_PP_STRINGIZE(CMAKE_GENERATOR));
+  fs::path resources_path(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)), script,
+           shell_path(boost::process::shell_path());
+
+#ifdef MAIDSAFE_WIN32
+  DWORD exit_code(0);
+  fs::directory_iterator itr(resources_path), end;
+  while (itr != end) {
+    if (itr->path().filename().string() == "maidsafe.bat") {
+      script = itr->path();
+      break;
+    }
+    ++itr;
+  }
+  if (itr == end)
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::no_such_element));
+
+  std::string vs_dev_cmd(BOOST_PP_STRINGIZE(VS_DEV_CMD));
+  command_args = "/C " + script.filename().string() + " " + vs_dev_cmd + " " + cmake_generator;
+#else
+  fs::directory_iterator itr(resources_path), end;
+  while (itr != end) {
+    if (itr->path().filename().string() == "maidsafe.sh") {
+      script = itr->path();
+      break;
+    }
+    ++itr;
+  }
+  if (itr == end)
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::no_such_element));
+
+  command_args = script + " " + cmake_generator;
+#endif
+
+  fs::copy_file(script, start_directory / script.filename().string(),
+                fs::copy_option::fail_if_exists);
+  if (!fs::exists(start_directory / script.filename().string(), error_code))
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
+
+  std::vector<std::string> process_args;
+  process_args.emplace_back(shell_path.string());
+  process_args.emplace_back(command_args);
+  const auto command_line(process::ConstructCommandLine(process_args));
+
+  std::chrono::time_point<std::chrono::system_clock> start, stop;
+  start = std::chrono::system_clock::now();
+
+  boost::process::child child = boost::process::execute(
+      boost::process::initializers::start_in_dir(start_directory.string()),
+      boost::process::initializers::run_exe(shell_path),
+      boost::process::initializers::set_cmd_line(command_line),
+      boost::process::initializers::inherit_env(),
+      boost::process::initializers::set_on_error(error_code));
+
+  stop = std::chrono::system_clock::now();
+
+  if (error_code.value() != 0)
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
+  boost::process::wait_for_exit(child, error_code);
+  if (error_code.value() != 0 || exit_code != 0)
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
+
+  std::chrono::duration<double> duration = stop - start;
+  std::cout << "Test duration: " << duration.count() << " secs" << std::endl;
+}
+
 int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
             const fs::path& storage) {
   std::vector<std::string> arguments(argv, argv + argc);
@@ -273,6 +344,8 @@ int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
                                [](const std::string& arg) { return arg == "--no_big_test"; }));
   bool no_small_test(std::any_of(std::begin(arguments), std::end(arguments),
                                  [](const std::string& arg) { return arg == "--no_small_test"; }));
+  bool no_clone_and_build_maidsafe_test(std::any_of(std::begin(arguments), std::end(arguments),
+              [](const std::string& arg) { return arg == "--no_clone_and_build_maidsafe_test"; }));
   g_root = root;
   g_temp = temp;
   g_storage = storage;
@@ -280,6 +353,11 @@ int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
     CopyThenReadLargeFile();
   if (!no_small_test)
     CopyThenReadManySmallFiles();
+  if(!no_clone_and_build_maidsafe_test) {
+    CloneMaidSafeAndBuildDefaults(g_temp);
+    CloneMaidSafeAndBuildDefaults(g_root);
+    // RequireDirectoriesEqual(g_root, g_temp, false);
+  }
   return 0;
 }
 
