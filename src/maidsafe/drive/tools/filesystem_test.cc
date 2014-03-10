@@ -358,7 +358,7 @@ void DownloadAndBuildPocoFoundation(const fs::path& start_directory) {
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::no_such_element));
 
 #ifdef MAIDSAFE_WIN32
-  DWORD exit_code(0);
+  // DWORD exit_code(0);
   std::string architecture(BOOST_PP_STRINGIZE(TARGET_ARCHITECTURE));
   if (architecture == "x86_64")
     project_file = "Foundation_x64_vs110.sln";
@@ -367,7 +367,7 @@ void DownloadAndBuildPocoFoundation(const fs::path& start_directory) {
 
   fs::path url("http://pocoproject.org/releases/poco-1.4.6/poco-1.4.6p2.zip");
   script = "poco.bat";
-  content += ("call " + std::string(BOOST_PP_STRINGIZE(VS_DEV_CMD)) + "\n"
+  content += "call " + std::string(BOOST_PP_STRINGIZE(VS_DEV_CMD)) + "\n"
            + "python " + download_py.string()
            + " -u " + url.string()
            + " -l " + start_directory.string() + "\n"
@@ -376,23 +376,23 @@ void DownloadAndBuildPocoFoundation(const fs::path& start_directory) {
            + " -l " + start_directory.string() + "\n"
            + "cd poco-1.4.6p2\\Foundation\n"
            + "msbuild " + project_file + " /t:Foundation\n"
-           + "exit\n");
+           + "exit\n";
   command_args = "/C " + script;
 #else
-  int exit_code(0);
+  // int exit_code(0);
   fs::path url("http://pocoproject.org/releases/poco-1.4.6/poco-1.4.6p2.tar.gz");
   script = "poco.sh";
-  content += "#!/bin/bash\n"
+  content += std::string("#!/bin/bash\n")
            + "python " + download_py.string()
            + " -u " + url.string()
            + " -l " + start_directory.string() + "\n"
            + "python " + extract_py.string()
            + " -f " + (start_directory / url.filename()).string()
            + " -l " + start_directory.string() + "\n"
+           + "cd poco-1.4.6p2\n"
            + "./configure\n"
-           + "cd poco-1.4.6p2\\Foundation\n"
-           + "make\n"
-           + "exit\n");
+           + "make Foundation-libexec\n"
+           + "exit\n";
   command_args = script;
 #endif
 
@@ -413,14 +413,10 @@ void DownloadAndBuildPocoFoundation(const fs::path& start_directory) {
       boost::process::initializers::set_on_error(error_code));
 
   REQUIRE(error_code.value() == 0);
-  exit_code = boost::process::wait_for_exit(child, error_code);
+  // exit_code = boost::process::wait_for_exit(child, error_code);
+  boost::process::wait_for_exit(child, error_code);
   REQUIRE(error_code.value() == 0);
   // REQUIRE(exit_code == 0);
-
-  REQUIRE(fs::remove(script_file, error_code));
-  REQUIRE(error_code.value() == 0);
-  REQUIRE(!fs::exists(script_file, error_code));
-  REQUIRE(error_code.value() == 0);
 }
 
 void DownloadAndBuildPoco(const fs::path& start_directory) {
@@ -447,7 +443,7 @@ void DownloadAndBuildPoco(const fs::path& start_directory) {
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::no_such_element));
 
 #ifdef MAIDSAFE_WIN32
-  DWORD exit_code(0);
+//  DWORD exit_code(0);
   std::string architecture(BOOST_PP_STRINGIZE(TARGET_ARCHITECTURE));
   if (architecture == "x86_64")
     architecture = "x64";
@@ -456,7 +452,7 @@ void DownloadAndBuildPoco(const fs::path& start_directory) {
 
   fs::path url("http://pocoproject.org/releases/poco-1.4.6/poco-1.4.6p2.zip");
   script = "poco.bat";
-  content += ("call " + std::string(BOOST_PP_STRINGIZE(VS_DEV_CMD)) + "\n"
+  content += "call " + std::string(BOOST_PP_STRINGIZE(VS_DEV_CMD)) + "\n"
            + "python " + download_py.string()
            + " -u " + url.string()
            + " -l " + start_directory.string() + "\n"
@@ -465,13 +461,13 @@ void DownloadAndBuildPoco(const fs::path& start_directory) {
            + " -l " + start_directory.string() + "\n"
            + "cd poco-1.4.6p2\n"
            + "buildwin.cmd 110 build shared both " + architecture + " nosamples\n"
-           + "exit");
+           + "exit";
   command_args = "/C " + script;
 #else
-  int exit_code(0);
+  // int exit_code(0);
   fs::path url("http://pocoproject.org/releases/poco-1.4.6/poco-1.4.6p2.tar.gz");
   script = "poco.sh";
-  content += "#!/bin/bash\n"
+  content += std::string("#!/bin/bash\n")
            + "python " + download_py.string()
            + " -u " + url.string()
            + " -l " + start_directory.string() + "\n"
@@ -481,7 +477,7 @@ void DownloadAndBuildPoco(const fs::path& start_directory) {
            + "cd poco-1.4.6p2\n"
            + "./configure\n"
            + "make\n"
-           + "exit\n");
+           + "exit\n";
   command_args = script;
 #endif
 
@@ -502,14 +498,10 @@ void DownloadAndBuildPoco(const fs::path& start_directory) {
       boost::process::initializers::set_on_error(error_code));
 
   REQUIRE(error_code.value() == 0);
-  exit_code = boost::process::wait_for_exit(child, error_code);
+  // exit_code = boost::process::wait_for_exit(child, error_code);
+  boost::process::wait_for_exit(child, error_code);
   REQUIRE(error_code.value() == 0);
   // REQUIRE(exit_code == 0);
-
-  REQUIRE(fs::remove(script_file, error_code));
-  REQUIRE(error_code.value() == 0);
-  REQUIRE(!fs::exists(script_file, error_code));
-  REQUIRE(error_code.value() == 0);
 }
 
 void DownloadAndExtractBoost(const fs::path& start_directory) {
@@ -541,6 +533,7 @@ void DownloadAndExtractBoost(const fs::path& start_directory) {
   script = "boost.bat";
   command_args = "/C " + script;
 #else
+  int exit_code(0);
   script = "boost.sh";
   content = "#!/bin/bash\n";
   command_args = script;
@@ -574,11 +567,6 @@ void DownloadAndExtractBoost(const fs::path& start_directory) {
   exit_code = boost::process::wait_for_exit(child, error_code);
   REQUIRE(error_code.value() == 0);
   REQUIRE(exit_code == 0);
-
-  REQUIRE(fs::remove(script_file, error_code));
-  REQUIRE(error_code.value() == 0);
-  REQUIRE(!fs::exists(script_file, error_code));
-  REQUIRE(error_code.value() == 0);
 }
 
 }  // unnamed namespace
@@ -1544,14 +1532,7 @@ TEST_CASE("Download and build poco", "[Filesystem][functional]") {
 
 TEST_CASE("Download and extract boost", "[Filesystem][functional]") {
   on_scope_exit cleanup(clean_root);
-  // drive
-//  fs::path directory;
-//  REQUIRE_NOTHROW(directory = CreateDirectory(g_root));
-//  REQUIRE_NOTHROW(DownloadAndExtractBoost(directory));
-  // temp
-  REQUIRE_NOTHROW(DownloadAndExtractBoost("C:\\test"));
-  // compare
-//  RequireDirectoriesEqual(directory, g_temp, true);
+  REQUIRE_NOTHROW(DownloadAndExtractBoost(g_root));
 }
 
 }  // namespace test
