@@ -45,17 +45,19 @@ def extract(url, location):
     file.extractall(os.path.join(location, os.path.splitext(file_name)[0]))
 
 def main(argv):
-  url = "http://pocoproject.org/releases/poco-1.4.6/poco-1.4.6p2.zip"
+  url = ""
   location = ""
   try:
-    opts, args = getopt.getopt(argv, "hl:", "location=")
+    opts, args = getopt.getopt(argv, "hu:l:", ["url","location="])
   except getopt.GetoptError:
-      print 'poco.py -l <location>'
+      print 'zip.py -u <url> -l <location>'
       sys.exit(1)
   for opt, arg in opts:
     if opt == '-h':
-      print 'poco.py -l <location>'
+      print 'zip.py -u <url> -l <location>'
       sys.exit()
+    elif opt in ("-u", "--url"):
+      url = arg
     elif opt in ("-l", "--location"):
       location = arg
     else:
