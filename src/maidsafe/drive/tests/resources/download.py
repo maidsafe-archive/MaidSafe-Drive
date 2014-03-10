@@ -4,25 +4,14 @@ import sys
 import getopt
 import os
 import urllib2
-import zipfile
-import time
-
-def timed_function(function):
-  def wrapper(*arg):
-    t1 = time.time()
-    result = function(*arg)
-    t2 = time.time()
-    print "%s took %0.3f ms" % (function.func_name, (t2-t1)*1000.0)
-    return result
-  return wrapper
 
 def download(url_string, location):
   file_name = url_string.split('/')[-1]
   url = urllib2.urlopen(url_string)
-  file = open(os.path.join(location, file_name), 'wb')
+  file = open(location + os.sep + file_name, 'wb')
   meta = url.info()
   file_size = int(meta.getheaders("Content-Length")[0])
-  print "downloading %s: size = %s bytes" % (file_name, file_size)
+  print "downloading %s: size = %s bytes" % (url_string, file_size)
   downloaded = 0
   block_sz = 65536
   while True:
@@ -36,13 +25,6 @@ def download(url_string, location):
       print status,
   file.close()
   url.close()
-
-@timed_function
-def extract(url, location):
-  file_name = url.split('/')[-1]
-  print "extracting %s" % (file_name)
-  with zipfile.ZipFile(os.path.join(location, file_name), 'r') as file:
-    file.extractall(os.path.join(location, os.path.splitext(file_name)[0]))
 
 def main(argv):
   url = ""
@@ -63,7 +45,6 @@ def main(argv):
     else:
       sys.exit(1)
   download(url, location)
-  extract(url, location)  
 
 if __name__ == "__main__":
   sys.exit(main(sys.argv[1:]))
