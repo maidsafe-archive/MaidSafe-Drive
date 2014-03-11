@@ -16,6 +16,9 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
+#ifndef MAIDSAFE_WIN32
+#include <sys/stat.h>
+#endif
 
 #include <algorithm>
 #include <cstdio>
@@ -29,17 +32,13 @@
 #include <vector>
 
 #ifndef MAIDSAFE_WIN32
-#include <sys/stat.h>
+#include <locale>  // NOLINT
+#else
+#include "boost/locale/generator.hpp"
 #endif
-
 #include "boost/filesystem/path.hpp"
 #include "boost/filesystem/operations.hpp"
 #include "boost/system/error_code.hpp"
-#ifdef MAIDSAFE_WIN32
-#include "boost/locale/generator.hpp"
-#else
-#include <locale>  // NOLINT
-#endif
 #include "boost/process.hpp"
 #include "boost/process/initializers.hpp"
 
@@ -234,14 +233,14 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
     REQUIRE(fs::exists(project_cc_file, error_code));
 
 #ifdef MAIDSAFE_WIN32
-    command_args = " /k cmake .. -G" + cmake_generator + " & exit";
+    command_args = " /k cmake .. -G" + cmake_generator + " 2>nul 1>nul & exit 2>nul 1>nul";
     project_file = build.string() + slash + project_name + ".sln";
 #else
     auto script(build / "cmake.sh");
     content = "#!/bin/bash\ncmake .. -G" + cmake_generator + " ; exit";
     REQUIRE(WriteFile(script, content));
     REQUIRE(fs::exists(script, error_code));
-    command_args = script.filename().string();
+    command_args = script.filename().string() + " > /dev/null 2>&1";
     project_file = build.string() + slash + "Makefile";
 #endif
 
@@ -267,7 +266,7 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
   {
     // release
 #ifdef MAIDSAFE_WIN32
-    command_args = " /k cmake --build . --config Release & exit";
+    command_args = " /k cmake --build . --config Release 2>nul 1>nul & exit 2>nul 1>nul";
     project_file = build.string() + slash + project_name + slash + "Release" + slash + project_name
                   + ".exe";
 #else
@@ -275,7 +274,7 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
     content = "#!/bin/bash\ncmake --build . --config Release ; exit";
     REQUIRE(WriteFile(script, content));
     REQUIRE(fs::exists(script, error_code));
-    command_args = script.filename().string();
+    command_args = script.filename().string() + " > /dev/null 2>&1";
     project_file = build.string() + slash + project_name + slash + project_name;
 #endif
 
@@ -301,7 +300,7 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
   {
     // debug
 #ifdef MAIDSAFE_WIN32
-    command_args = " /k cmake --build . --config Debug & exit";
+    command_args = " /k cmake --build . --config Debug 2>nul 1>nul & exit 2>nul 1>nul";
     project_file = build.string() + slash + project_name + slash + "Debug" + slash + project_name
                   + ".exe";
 #else
@@ -309,7 +308,7 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
     content = "#!/bin/bash\ncmake . && cmake --build . --config Debug ; exit";
     REQUIRE(WriteFile(script, content));
     REQUIRE(fs::exists(script, error_code));
-    command_args = script.filename().string();
+    command_args = script.filename().string() + " > /dev/null 2>&1";
     project_file = build.string() + slash + project_name + slash + project_name;
 #endif
 
@@ -377,7 +376,7 @@ void DownloadAndBuildPocoFoundation(const fs::path& start_directory) {
            + "cd poco-1.4.6p2\\Foundation\n"
            + "msbuild " + project_file + " /t:Foundation\n"
            + "exit\n";
-  command_args = "/C " + script;
+  command_args = "/C " + script + " 2>nul 1>nul";
 #else
   // int exit_code(0);
   fs::path url("http://pocoproject.org/releases/poco-1.4.6/poco-1.4.6p2.tar.gz");
@@ -393,7 +392,7 @@ void DownloadAndBuildPocoFoundation(const fs::path& start_directory) {
            + "./configure\n"
            + "make Foundation-libexec\n"
            + "exit\n";
-  command_args = script;
+  command_args = script + " > /dev/null 2>&1";
 #endif
 
   auto script_file(start_directory / script);
@@ -462,7 +461,7 @@ void DownloadAndBuildPoco(const fs::path& start_directory) {
            + "cd poco-1.4.6p2\n"
            + "buildwin.cmd 110 build shared both " + architecture + " nosamples\n"
            + "exit";
-  command_args = "/C " + script;
+  command_args = "/C " + script + " 2>nul 1>nul";
 #else
   // int exit_code(0);
   fs::path url("http://pocoproject.org/releases/poco-1.4.6/poco-1.4.6p2.tar.gz");
@@ -478,7 +477,7 @@ void DownloadAndBuildPoco(const fs::path& start_directory) {
            + "./configure\n"
            + "make\n"
            + "exit\n";
-  command_args = script;
+  command_args = script + " > /dev/null 2>&1";
 #endif
 
   auto script_file(start_directory / script);
@@ -531,12 +530,12 @@ void DownloadAndExtractBoost(const fs::path& start_directory) {
 #ifdef MAIDSAFE_WIN32
   DWORD exit_code(0);
   script = "boost.bat";
-  command_args = "/C " + script;
+  command_args = "/C " + script + " 2>nul 1>nul";
 #else
   int exit_code(0);
   script = "boost.sh";
   content = "#!/bin/bash\n";
-  command_args = script;
+  command_args = script + " > /dev/null 2>&1";
 #endif
 
   content += "python " + download_py.string()

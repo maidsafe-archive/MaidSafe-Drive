@@ -353,7 +353,7 @@ int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
     CopyThenReadLargeFile();
   if (!no_small_test)
     CopyThenReadManySmallFiles();
-  if(!no_clone_and_build_maidsafe_test) {
+  if (!no_clone_and_build_maidsafe_test) {
     CloneMaidSafeAndBuildDefaults(g_temp);
     CloneMaidSafeAndBuildDefaults(g_root);
     // RequireDirectoriesEqual(g_root, g_temp, false);

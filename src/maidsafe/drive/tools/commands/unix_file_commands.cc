@@ -218,7 +218,7 @@ std::vector<boost::filesystem::path> EnumerateDirectoryCommand(
   directory = opendir(path.string().c_str());
   if (directory) {
     // TODO(Brian) change to use readdir_r
-    while ((dir = readdir(directory)) != nullptr) {
+    while ((dir = readdir(directory)) != nullptr) {  // NOLINT
       if (dir->d_type == DT_REG) {
          files.push_back(dir->d_name);
       }
