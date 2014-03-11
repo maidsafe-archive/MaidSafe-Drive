@@ -213,8 +213,9 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
               slash(fs::path("/").make_preferred().string());
   {
     // cmake
-    content = "cmake_minimum_required(VERSION 2.8.11.2 FATAL_ERROR)\nproject("
-             + project_name + ")\nadd_subdirectory(" + project_name + ")";
+    content = std::string("cmake_minimum_required(VERSION 2.8.11.2 FATAL_ERROR)\n")
+            + "project(" + project_name + ")\n"
+            + "add_subdirectory(" + project_name + ")";
 
     auto main_cmake_file(project_main / "CMakeLists.txt");
     REQUIRE(WriteFile(main_cmake_file, content));
@@ -237,10 +238,10 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
     project_file = build.string() + slash + project_name + ".sln";
 #else
     auto script(build / "cmake.sh");
-    content = "#!/bin/bash\ncmake .. -G" + cmake_generator + " ; exit";
+    content = "#!/bin/bash\ncmake .. -G" + cmake_generator + " 1>/dev/null 2>/dev/null ; exit";
     REQUIRE(WriteFile(script, content));
     REQUIRE(fs::exists(script, error_code));
-    command_args = script.filename().string() + " > /dev/null 2>&1";
+    command_args = script.filename().string();
     project_file = build.string() + slash + "Makefile";
 #endif
 
@@ -271,10 +272,10 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
                   + ".exe";
 #else
     auto script(build / "release_build.sh");
-    content = "#!/bin/bash\ncmake --build . --config Release ; exit";
+    content = "#!/bin/bash\ncmake --build . --config Release 1>/dev/null 2>/dev/null ; exit";
     REQUIRE(WriteFile(script, content));
     REQUIRE(fs::exists(script, error_code));
-    command_args = script.filename().string() + " > /dev/null 2>&1";
+    command_args = script.filename().string();
     project_file = build.string() + slash + project_name + slash + project_name;
 #endif
 
@@ -305,10 +306,10 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
                   + ".exe";
 #else
     auto script(build / "debug_build.sh");
-    content = "#!/bin/bash\ncmake . && cmake --build . --config Debug ; exit";
+    content = "#!/bin/bash\ncmake --build . --config Debug 1>/dev/null 2>/dev/null ; exit";
     REQUIRE(WriteFile(script, content));
     REQUIRE(fs::exists(script, error_code));
-    command_args = script.filename().string() + " > /dev/null 2>&1";
+    command_args = script.filename().string();
     project_file = build.string() + slash + project_name + slash + project_name;
 #endif
 
@@ -384,15 +385,15 @@ void DownloadAndBuildPocoFoundation(const fs::path& start_directory) {
   content += std::string("#!/bin/bash\n")
            + "python " + download_py.string()
            + " -u " + url.string()
-           + " -l " + start_directory.string() + "\n"
+           + " -l " + start_directory.string() + " 1>/dev/null 2>/dev/null\n"
            + "python " + extract_py.string()
            + " -f " + (start_directory / url.filename()).string()
-           + " -l " + start_directory.string() + "\n"
+           + " -l " + start_directory.string() + " 1>/dev/null 2>/dev/null\n"
            + "cd poco-1.4.6p2\n"
-           + "./configure\n"
-           + "make Foundation-libexec\n"
+           + "./configure 1>/dev/null 2>/dev/null\n"
+           + "make Foundation-libexec 1>/dev/null 2>/dev/null\n"
            + "exit\n";
-  command_args = script + " > /dev/null 2>&1";
+  command_args = script;
 #endif
 
   auto script_file(start_directory / script);
@@ -469,15 +470,15 @@ void DownloadAndBuildPoco(const fs::path& start_directory) {
   content += std::string("#!/bin/bash\n")
            + "python " + download_py.string()
            + " -u " + url.string()
-           + " -l " + start_directory.string() + "\n"
+           + " -l " + start_directory.string() + " 1>/dev/null 2>/dev/null\n"
            + "python " + extract_py.string()
            + " -f " + (start_directory / url.filename()).string()
-           + " -l " + start_directory.string() + "\n"
+           + " -l " + start_directory.string() + " 1>/dev/null 2>/dev/null\n"
            + "cd poco-1.4.6p2\n"
-           + "./configure\n"
-           + "make\n"
+           + "./configure 1>/dev/null 2>/dev/null\n"
+           + "make 1>/dev/null 2>/dev/null\n"
            + "exit\n";
-  command_args = script + " > /dev/null 2>&1";
+  command_args = script;
 #endif
 
   auto script_file(start_directory / script);
@@ -530,21 +531,27 @@ void DownloadAndExtractBoost(const fs::path& start_directory) {
 #ifdef MAIDSAFE_WIN32
   DWORD exit_code(0);
   script = "boost.bat";
+  content = "python " + download_py.string()
+          + " -u " + url.string()
+          + " -l " + start_directory.string() + "\n"
+          + "python " + extract_py.string()
+          + " -f " + (start_directory / url.filename()).string()
+          + " -l " + start_directory.string() + "\n"
+          + "exit";
   command_args = "/C " + script + " 1>nul 2>nul";
 #else
   int exit_code(0);
   script = "boost.sh";
-  content = "#!/bin/bash\n";
-  command_args = script + " > /dev/null 2>&1";
+  content = std::string("#!/bin/bash\n")
+          + "python " + download_py.string()
+          + " -u " + url.string()
+          + " -l " + start_directory.string() + " 1>/dev/null 2>/dev/null\n"
+          + "python " + extract_py.string()
+          + " -f " + (start_directory / url.filename()).string()
+          + " -l " + start_directory.string() + " 1>/dev/null 2>/dev/null\n"
+          + "exit";
+  command_args = script;
 #endif
-
-  content += "python " + download_py.string()
-           + " -u " + url.string()
-           + " -l " + start_directory.string() + "\n"
-           + "python " + extract_py.string()
-           + " -f " + (start_directory / url.filename()).string()
-           + " -l " + start_directory.string() + "\n"
-           + "exit";
 
   auto script_file(start_directory / script);
   REQUIRE(WriteFile(script_file, content));
