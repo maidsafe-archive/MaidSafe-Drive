@@ -233,7 +233,7 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
     REQUIRE(fs::exists(project_cc_file, error_code));
 
 #ifdef MAIDSAFE_WIN32
-    command_args = " /k cmake .. -G" + cmake_generator + " 2>nul 1>nul & exit 2>nul 1>nul";
+    command_args = " /k cmake .. -G" + cmake_generator + " 1>nul 2>nul & exit";
     project_file = build.string() + slash + project_name + ".sln";
 #else
     auto script(build / "cmake.sh");
@@ -266,7 +266,7 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
   {
     // release
 #ifdef MAIDSAFE_WIN32
-    command_args = " /k cmake --build . --config Release 2>nul 1>nul & exit 2>nul 1>nul";
+    command_args = " /k cmake --build . --config Release 1>nul 2>nul & exit";
     project_file = build.string() + slash + project_name + slash + "Release" + slash + project_name
                   + ".exe";
 #else
@@ -300,7 +300,7 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
   {
     // debug
 #ifdef MAIDSAFE_WIN32
-    command_args = " /k cmake --build . --config Debug 2>nul 1>nul & exit 2>nul 1>nul";
+    command_args = " /k cmake --build . --config Debug 1>nul 2>nul & exit";
     project_file = build.string() + slash + project_name + slash + "Debug" + slash + project_name
                   + ".exe";
 #else
@@ -376,7 +376,7 @@ void DownloadAndBuildPocoFoundation(const fs::path& start_directory) {
            + "cd poco-1.4.6p2\\Foundation\n"
            + "msbuild " + project_file + " /t:Foundation\n"
            + "exit\n";
-  command_args = "/C " + script + " 2>nul 1>nul";
+  command_args = "/C " + script + " 1>nul 2>nul";
 #else
   // int exit_code(0);
   fs::path url("http://pocoproject.org/releases/poco-1.4.6/poco-1.4.6p2.tar.gz");
@@ -461,7 +461,7 @@ void DownloadAndBuildPoco(const fs::path& start_directory) {
            + "cd poco-1.4.6p2\n"
            + "buildwin.cmd 110 build shared both " + architecture + " nosamples\n"
            + "exit";
-  command_args = "/C " + script + " 2>nul 1>nul";
+  command_args = "/C " + script + " 1>nul 2>nul";
 #else
   // int exit_code(0);
   fs::path url("http://pocoproject.org/releases/poco-1.4.6/poco-1.4.6p2.tar.gz");
@@ -530,7 +530,7 @@ void DownloadAndExtractBoost(const fs::path& start_directory) {
 #ifdef MAIDSAFE_WIN32
   DWORD exit_code(0);
   script = "boost.bat";
-  command_args = "/C " + script + " 2>nul 1>nul";
+  command_args = "/C " + script + " 1>nul 2>nul";
 #else
   int exit_code(0);
   script = "boost.sh";
