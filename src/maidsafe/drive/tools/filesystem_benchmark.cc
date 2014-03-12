@@ -276,7 +276,6 @@ void CloneMaidSafeAndBuildDefaults(const fs::path& start_directory) {
            shell_path(boost::process::shell_path());
 
 #ifdef MAIDSAFE_WIN32
-  DWORD exit_code(0);
   fs::directory_iterator itr(resources_path), end;
   while (itr != end) {
     if (itr->path().filename().string() == "maidsafe.bat") {
@@ -302,7 +301,7 @@ void CloneMaidSafeAndBuildDefaults(const fs::path& start_directory) {
   if (itr == end)
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::no_such_element));
 
-  command_args = script + " " + cmake_generator;
+  command_args = script.filename().string() + " " + cmake_generator;
 #endif
 
   fs::copy_file(script, start_directory / script.filename().string(),
@@ -329,7 +328,7 @@ void CloneMaidSafeAndBuildDefaults(const fs::path& start_directory) {
 
   if (error_code.value() != 0)
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
-  boost::process::wait_for_exit(child, error_code);
+  auto exit_code = boost::process::wait_for_exit(child, error_code);
   if (error_code.value() != 0 || exit_code != 0)
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
 
