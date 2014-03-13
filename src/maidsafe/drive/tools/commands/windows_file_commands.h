@@ -45,6 +45,8 @@ BOOL DeleteFileCommand(const boost::filesystem::path& path);
 BOOL RemoveDirectoryCommand(const boost::filesystem::path& path);
 BOOL CloseHandleCommand(HANDLE handle);
 DWORD GetFileSizeCommand(HANDLE handle, LPDWORD file_size_high);
+BOOL SetFilePointerCommand(HANDLE handle, const LARGE_INTEGER& distance_from_start);
+BOOL SetEndOfFileCommand(HANDLE handle);
 std::vector<WIN32_FIND_DATA> EnumerateDirectoryCommand(const boost::filesystem::path& path);
 
 }  // namespace commands

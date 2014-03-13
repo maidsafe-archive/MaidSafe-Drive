@@ -1475,16 +1475,9 @@ TEST_CASE("Locale", "[Filesystem][behavioural]") {
   std::locale::global(std::locale(""));
 #endif
   fs::path::imbue(std::locale());
-  fs::path file(process::GetOtherExecutablePath("filesystem_test"));
-  while (file.filename().string() != "MaidSafe" && file.filename().string() != "")
-    file = file.parent_path();
-  if (file.filename().string() == "")
-    REQUIRE(false);
-#ifdef MAIDSAFE_WIN32
-  file /= "\\src\\drive\\src\\maidsafe\\drive\\tools\\UTF-8";
-#else
-  file /= "src/drive/src/maidsafe/drive/tools/UTF-8";
-#endif
+  fs::path resources_path(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES));
+  fs::path file(resources_path / "utf8");
+  RequireExists(file);
   fs::path directory(g_root / ReadFile(file).string());
   CreateDirectory(directory);
   RequireExists(directory);
@@ -1539,6 +1532,125 @@ TEST_CASE("Download and build poco", "[Filesystem][functional]") {
 TEST_CASE("Download and extract boost", "[Filesystem][functional]") {
   on_scope_exit cleanup(clean_root);
   REQUIRE_NOTHROW(DownloadAndExtractBoost(g_root));
+}
+
+TEST_CASE("Write 256Mb file to temp and copy to drive", "[Filesystem][functional]") {
+  on_scope_exit cleanup(clean_root);
+#ifdef MAIDSAFE_WIN32
+  HANDLE handle(nullptr);
+  std::string filename(RandomAlphaNumericString(8));
+  fs::path temp_file(g_temp / filename), root_file(g_root / filename);
+  const size_t size(1 << 16);
+  std::string original(size, 0), recovered(size, 0);
+  DWORD position(0), file_size(0), count(0), attributes(FILE_ATTRIBUTE_ARCHIVE);
+  BOOL success(0);
+  OVERLAPPED overlapped;
+
+  CHECK_NOTHROW(handle = dtc::CreateFileCommand(
+      temp_file, GENERIC_ALL, 0, CREATE_NEW, attributes));
+  REQUIRE(handle);
+
+  for (uint32_t i = 0; i != (1 << 12); ++i) {
+    original = RandomString(size);
+    success = 0, count = 0, position = i * size;
+    FillMemory(&overlapped, sizeof(overlapped), 0);
+    overlapped.Offset = position & 0xFFFFFFFF;
+    overlapped.OffsetHigh = 0;
+    CHECK_NOTHROW(success = dtc::WriteFileCommand(
+        handle, temp_file, original, &count, &overlapped));
+    REQUIRE(success);
+    REQUIRE(count == size);
+  }
+
+  CHECK((file_size = dtc::GetFileSizeCommand(handle, nullptr)) == (1 << 28));
+  CHECK_NOTHROW(success = dtc::CloseHandleCommand(handle));
+
+  REQUIRE_NOTHROW(fs::copy_file(temp_file, root_file));
+  REQUIRE(fs::exists(root_file));
+
+  HANDLE temp_handle(nullptr), root_handle(nullptr);
+  CHECK_NOTHROW(temp_handle = dtc::CreateFileCommand(
+      temp_file, GENERIC_ALL, 0, OPEN_EXISTING, attributes));
+  REQUIRE(temp_handle);
+  CHECK_NOTHROW(root_handle = dtc::CreateFileCommand(
+      root_file, GENERIC_ALL, 0, OPEN_EXISTING, attributes));
+  REQUIRE(root_handle);
+
+  for (uint32_t i = 0; i != (1 << 12); ++i) {
+    success = 0, count = 0, position = i * size;
+    FillMemory(&overlapped, sizeof(overlapped), 0);
+    overlapped.Offset = position & 0xFFFFFFFF;
+    overlapped.OffsetHigh = 0;
+    CHECK_NOTHROW(success = dtc::ReadFileCommand(
+        temp_handle, temp_file, original, &count, &overlapped));
+    REQUIRE(success);
+    REQUIRE(count == size);
+    success = 0, count = 0;
+    CHECK_NOTHROW(success = dtc::ReadFileCommand(
+        root_handle, root_file, recovered, &count, &overlapped));
+    REQUIRE(success);
+    REQUIRE(count == size);
+    REQUIRE(original == recovered);
+  }
+
+  success = 1;
+  CHECK_NOTHROW(success = dtc::CloseHandleCommand(temp_handle));
+  REQUIRE(success);
+  success = 1;
+  CHECK_NOTHROW(success = dtc::CloseHandleCommand(root_handle));
+  REQUIRE(success);
+#endif
+}
+
+TEST_CASE("Write utf-8 file to drive and edit", "[Filesystem][behavioural]") {
+  on_scope_exit cleanup(clean_root);
+  fs::path resources_path(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)),
+           utf8_resource(resources_path / "utf-8.txt"), utf8_drive;
+  std::string content;
+
+  RequireExists(utf8_resource);
+  utf8_drive = g_root / utf8_resource.filename();
+  REQUIRE_NOTHROW(fs::copy_file(utf8_resource, utf8_drive));
+  RequireExists(utf8_drive);
+
+#ifdef MAIDSAFE_WIN32
+  HANDLE handle(nullptr);
+  DWORD size(0), remove(1760), count(0);
+  BOOL success(0);
+  LARGE_INTEGER file_end;
+  OVERLAPPED overlapped;
+
+  REQUIRE_NOTHROW(handle = dtc::CreateFileCommand(
+      utf8_drive, GENERIC_ALL, 0, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE));
+  REQUIRE(handle);
+  REQUIRE_NOTHROW(size = dtc::GetFileSizeCommand(handle, nullptr));
+  content.resize(size);
+  REQUIRE_NOTHROW(success = dtc::ReadFileCommand(handle, utf8_drive, content, &count, nullptr));
+  REQUIRE(success);
+  REQUIRE(size >= remove);
+  file_end.LowPart = 0; file_end.HighPart = 0;
+  REQUIRE_NOTHROW(success = dtc::SetFilePointerCommand(handle, file_end));
+  auto itr(content.erase(content.begin(), content.begin() + remove));
+  REQUIRE_NOTHROW(success = dtc::WriteFileCommand(handle, utf8_drive, content, &count, nullptr));
+  REQUIRE(success);
+  file_end.LowPart = size - remove; file_end.HighPart = 0;
+  REQUIRE_NOTHROW(success = dtc::SetFilePointerCommand(handle, file_end));
+  REQUIRE(success);
+  REQUIRE_NOTHROW(success = dtc::SetEndOfFileCommand(handle));
+  REQUIRE(success);
+  REQUIRE_NOTHROW(success = dtc::CloseHandleCommand(handle));
+  REQUIRE_NOTHROW(handle = dtc::CreateFileCommand(
+      utf8_drive, GENERIC_ALL, 0, OPEN_EXISTING, FILE_ATTRIBUTE_ARCHIVE));
+  REQUIRE_NOTHROW(size = dtc::GetFileSizeCommand(handle, nullptr));
+  FillMemory(&overlapped, sizeof(overlapped), 0);
+  overlapped.Offset = (size - 220);
+  content.resize(220);
+  REQUIRE_NOTHROW(success = dtc::ReadFileCommand(handle, utf8_drive, content, &count, &overlapped));
+  REQUIRE_NOTHROW(success = dtc::CloseHandleCommand(handle));
+  REQUIRE(success);
+#else
+  // Linux
+#endif
 }
 
 }  // namespace test
