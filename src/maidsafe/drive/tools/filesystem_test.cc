@@ -631,9 +631,9 @@ void WriteUtf8FileAndEdit(const fs::path& start_directory) {
   REQUIRE(sub_menu);
   UINT id(GetMenuItemID(sub_menu, 2));
 
-  BOOL command(SendMessage(notepad, WM_COMMAND, id, reinterpret_cast<LPARAM>(menu)));
+  LRESULT command(SendMessage(notepad, WM_COMMAND, id, reinterpret_cast<LPARAM>(menu)));
   REQUIRE(command == 0);
-  BOOL close(SendMessage(notepad, WM_CLOSE, 0, 0));
+  LRESULT close(SendMessage(notepad, WM_CLOSE, 0, 0));
   REQUIRE(close == 0);
 #else
   int exit_code(0);
