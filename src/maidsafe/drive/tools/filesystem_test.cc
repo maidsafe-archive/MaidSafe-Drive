@@ -589,7 +589,6 @@ void DownloadAndExtractBoost(const fs::path& start_directory) {
 void WriteUtf8FileAndEdit(const fs::path& start_directory) {
   fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)),
            utf8_txt(resources / "utf-8.txt"), utf8_file;
-  uintmax_t remove(1265);
 
   RequireExists(utf8_txt);
   utf8_file = start_directory / utf8_txt.filename();
@@ -597,6 +596,9 @@ void WriteUtf8FileAndEdit(const fs::path& start_directory) {
   RequireExists(utf8_file);
 
   boost::system::error_code error_code;
+
+#ifdef MAIDSAFE_WIN32
+  uintmax_t remove(1265);
   fs::path path(boost::process::search_path(L"notepad.exe"));
   std::vector<std::string> process_args;
   process_args.emplace_back(path.string());
@@ -604,7 +606,7 @@ void WriteUtf8FileAndEdit(const fs::path& start_directory) {
   const auto command_line(process::ConstructCommandLine(process_args));
 
   boost::process::child child = boost::process::execute(
-      boost::process::initializers::start_in_dir(start_directory),
+      boost::process::initializers::start_in_dir(start_directory.string()),
       boost::process::initializers::run_exe(path.string()),
       boost::process::initializers::set_cmd_line(command_line),
       boost::process::initializers::inherit_env(),
@@ -613,7 +615,6 @@ void WriteUtf8FileAndEdit(const fs::path& start_directory) {
   REQUIRE(error_code.value() == 0);
   Sleep(std::chrono::seconds(1));
 
-#ifdef MAIDSAFE_WIN32
   HWND notepad(FindWindow(L"notepad", (utf8_file.filename().wstring() + L" - notepad").c_str()));
   REQUIRE(notepad);
   HWND edit(FindWindowEx(notepad, nullptr, L"edit", nullptr));
@@ -635,7 +636,34 @@ void WriteUtf8FileAndEdit(const fs::path& start_directory) {
   BOOL close(SendMessage(notepad, WM_CLOSE, 0, 0));
   REQUIRE(close == 0);
 #else
-  // Linux
+  int exit_code(0);
+  fs::path shell_path(boost::process::shell_path());
+  std::string script("utf.sh"),
+              content = std::string("#!/bin/bash\n")
+                      + "sed -i '1,38d' " + utf8_file.string() + " 1>/dev/null 2>/dev/null\n"
+                      + "exit";
+
+  auto script_file(start_directory / script);
+  REQUIRE(WriteFile(script_file, content));
+  REQUIRE(fs::exists(script_file, error_code));
+
+  std::vector<std::string> process_args;
+  process_args.emplace_back(shell_path.string());
+  process_args.emplace_back(script);
+  const auto command_line(process::ConstructCommandLine(process_args));
+
+  boost::process::child child = boost::process::execute(
+      boost::process::initializers::start_in_dir(start_directory.string()),
+      boost::process::initializers::run_exe(shell_path.string()),
+      boost::process::initializers::set_cmd_line(command_line),
+      boost::process::initializers::inherit_env(),
+      boost::process::initializers::set_on_error(error_code));
+
+  REQUIRE(error_code.value() == 0);
+  exit_code = boost::process::wait_for_exit(child, error_code);
+  REQUIRE(error_code.value() == 0);
+  REQUIRE(exit_code == 0);
+  REQUIRE(fs::remove(start_directory / script));
 #endif
   INFO("Failed to find " + utf8_file.string());
   RequireExists(utf8_file);
