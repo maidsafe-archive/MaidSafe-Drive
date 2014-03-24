@@ -118,6 +118,24 @@ DWORD GetFileSizeCommand(HANDLE handle, LPDWORD file_size_high) {
   return GetFileSize(handle, file_size_high);
 }
 
+BOOL SetFilePointerCommand(HANDLE handle, const LARGE_INTEGER& distance_from_start) {
+  BOOL result(SetFilePointerEx(handle, distance_from_start, nullptr, FILE_BEGIN));
+  if (!result) {
+    LOG(kError) << "Failed to set file pointer";
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
+  }
+  return result;
+}
+
+BOOL SetEndOfFileCommand(HANDLE handle) {
+  BOOL result(SetEndOfFile(handle));
+  if (!result) {
+    LOG(kError) << "Failed to set end of file";
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
+  }
+  return result;
+}
+
 std::vector<WIN32_FIND_DATA> EnumerateDirectoryCommand(const boost::filesystem::path& path) {
   WIN32_FIND_DATA file_data;
   HANDLE search_handle(nullptr);

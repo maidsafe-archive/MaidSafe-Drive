@@ -204,6 +204,56 @@ void GetUsedSpace(const fs::path& path, uintmax_t& size) {
   }
 }
 
+void DownloadFile(const fs::path& start_directory, const std::string& url) {
+  boost::system::error_code error_code;
+  fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)),
+           download_py(resources / "download.py"),
+           shell_path(boost::process::shell_path());
+  std::string content, script, command_args;
+
+  RequireExists(download_py);
+
+#ifdef MAIDSAFE_WIN32
+  DWORD exit_code(0);
+  script = "download.bat";
+  content += "python " + download_py.string()
+           + " -u " + url
+           + " -l " + start_directory.string() + "\n"
+           + "exit\n";
+  command_args = "/C " + script + " 1>nul 2>nul";
+#else
+  int exit_code(0);
+  script = "download.sh";
+  content += std::string("#!/bin/bash\n")
+           + "python " + download_py.string()
+           + " -u " + url
+           + " -l " + start_directory.string() + " 1>/dev/null 2>/dev/null\n"
+           + "exit\n";
+  command_args = script;
+#endif
+
+  auto script_file(start_directory / script);
+  REQUIRE(WriteFile(script_file, content));
+  REQUIRE(fs::exists(script_file, error_code));
+
+  std::vector<std::string> process_args;
+  process_args.emplace_back(shell_path.string());
+  process_args.emplace_back(command_args);
+  const auto command_line(process::ConstructCommandLine(process_args));
+
+  boost::process::child child = boost::process::execute(
+      boost::process::initializers::start_in_dir(start_directory.string()),
+      boost::process::initializers::run_exe(shell_path),
+      boost::process::initializers::set_cmd_line(command_line),
+      boost::process::initializers::inherit_env(),
+      boost::process::initializers::set_on_error(error_code));
+
+  REQUIRE(error_code.value() == 0);
+  exit_code = boost::process::wait_for_exit(child, error_code);
+  REQUIRE(error_code.value() == 0);
+  REQUIRE(exit_code == 0);
+}
+
 void CreateAndBuildMinimalCppProject(const fs::path& path) {
   boost::system::error_code error_code;
   fs::path project_main(CreateDirectory(path)), project(CreateDirectory(project_main)),
@@ -336,26 +386,13 @@ void CreateAndBuildMinimalCppProject(const fs::path& path) {
 
 void DownloadAndBuildPocoFoundation(const fs::path& start_directory) {
   boost::system::error_code error_code;
-  fs::path resources_path(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)), download_py, extract_py,
+  fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)),
+           download_py(resources / "download.py"), extract_py(resources / "extract.py"),
            shell_path(boost::process::shell_path());
   std::string content, script, command_args, project_file;
 
-  fs::directory_iterator itr(resources_path), end;
-  while (itr != end) {
-    if (itr->path().filename().string() == "download.py") {
-      download_py = itr->path();
-      if (extract_py != fs::path())
-        break;
-    }
-    if (itr->path().filename().string() == "extract.py") {
-      extract_py = itr->path();
-      if (download_py != fs::path())
-        break;
-    }
-    ++itr;
-  }
-  if (itr == end || download_py == fs::path() || extract_py == fs::path())
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::no_such_element));
+  RequireExists(download_py);
+  RequireExists(extract_py);
 
 #ifdef MAIDSAFE_WIN32
   // DWORD exit_code(0);
@@ -421,26 +458,13 @@ void DownloadAndBuildPocoFoundation(const fs::path& start_directory) {
 
 void DownloadAndBuildPoco(const fs::path& start_directory) {
   boost::system::error_code error_code;
-  fs::path resources_path(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)), download_py, extract_py,
+  fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)),
+           download_py(resources / "download.py"), extract_py(resources / "extract.py"),
            shell_path(boost::process::shell_path());
   std::string content, script, command_args;
 
-  fs::directory_iterator itr(resources_path), end;
-  while (itr != end) {
-    if (itr->path().filename().string() == "download.py") {
-      download_py = itr->path();
-      if (extract_py != fs::path())
-        break;
-    }
-    if (itr->path().filename().string() == "extract.py") {
-      extract_py = itr->path();
-      if (download_py != fs::path())
-        break;
-    }
-    ++itr;
-  }
-  if (itr == end || download_py == fs::path() || extract_py == fs::path())
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::no_such_element));
+  RequireExists(download_py);
+  RequireExists(extract_py);
 
 #ifdef MAIDSAFE_WIN32
 //  DWORD exit_code(0);
@@ -506,27 +530,14 @@ void DownloadAndBuildPoco(const fs::path& start_directory) {
 
 void DownloadAndExtractBoost(const fs::path& start_directory) {
   boost::system::error_code error_code;
-  fs::path resources_path(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)), download_py, extract_py,
+  fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)),
+           download_py(resources / "download.py"), extract_py(resources / "extract.py"),
            shell_path(boost::process::shell_path()),
            url("http://sourceforge.net/projects/boost/files/boost/1.55.0/boost_1_55_0.tar.bz2");
   std::string content, script, command_args;
 
-  fs::directory_iterator itr(resources_path), end;
-  while (itr != end) {
-    if (itr->path().filename().string() == "download.py") {
-      download_py = itr->path();
-      if (extract_py != fs::path())
-        break;
-    }
-    if (itr->path().filename().string() == "extract.py") {
-      extract_py = itr->path();
-      if (download_py != fs::path())
-        break;
-    }
-    ++itr;
-  }
-  if (itr == end || download_py == fs::path() || extract_py == fs::path())
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::no_such_element));
+  RequireExists(download_py);
+  RequireExists(extract_py);
 
 #ifdef MAIDSAFE_WIN32
   DWORD exit_code(0);
@@ -573,6 +584,89 @@ void DownloadAndExtractBoost(const fs::path& start_directory) {
   exit_code = boost::process::wait_for_exit(child, error_code);
   REQUIRE(error_code.value() == 0);
   REQUIRE(exit_code == 0);
+}
+
+void WriteUtf8FileAndEdit(const fs::path& start_directory) {
+  fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)),
+           utf8_txt(resources / "utf-8.txt"), utf8_file;
+
+  RequireExists(utf8_txt);
+  utf8_file = start_directory / utf8_txt.filename();
+  REQUIRE_NOTHROW(fs::copy_file(utf8_txt, utf8_file));
+  RequireExists(utf8_file);
+
+  boost::system::error_code error_code;
+
+#ifdef MAIDSAFE_WIN32
+  uintmax_t remove(1265);
+  fs::path path(boost::process::search_path(L"notepad.exe"));
+  std::vector<std::string> process_args;
+  process_args.emplace_back(path.string());
+  process_args.emplace_back(utf8_file.string());
+  const auto command_line(process::ConstructCommandLine(process_args));
+
+  boost::process::child child = boost::process::execute(
+      boost::process::initializers::start_in_dir(start_directory.string()),
+      boost::process::initializers::run_exe(path.string()),
+      boost::process::initializers::set_cmd_line(command_line),
+      boost::process::initializers::inherit_env(),
+      boost::process::initializers::set_on_error(error_code));
+
+  REQUIRE(error_code.value() == 0);
+  Sleep(std::chrono::seconds(1));
+
+  HWND notepad(FindWindow(L"notepad", (utf8_file.filename().wstring() + L" - notepad").c_str()));
+  REQUIRE(notepad);
+  HWND edit(FindWindowEx(notepad, nullptr, L"edit", nullptr));
+  REQUIRE(edit);
+
+  SendMessage(edit, EM_SETSEL, 0, static_cast<LPARAM>(remove));
+  SendMessage(edit, EM_REPLACESEL, 0, reinterpret_cast<LPARAM>(L""));
+
+  Sleep(std::chrono::seconds(3));
+
+  HMENU menu(GetMenu(notepad));
+  REQUIRE(menu);
+  HMENU sub_menu(GetSubMenu(menu, 0));
+  REQUIRE(sub_menu);
+  UINT id(GetMenuItemID(sub_menu, 2));
+
+  LRESULT command(SendMessage(notepad, WM_COMMAND, id, reinterpret_cast<LPARAM>(menu)));
+  REQUIRE(command == 0);
+  LRESULT close(SendMessage(notepad, WM_CLOSE, 0, 0));
+  REQUIRE(close == 0);
+#else
+  int exit_code(0);
+  fs::path shell_path(boost::process::shell_path());
+  std::string script("utf.sh"),
+              content = std::string("#!/bin/bash\n")
+                      + "sed -i '1,38d' " + utf8_file.string() + " 1>/dev/null 2>/dev/null\n"
+                      + "exit";
+
+  auto script_file(start_directory / script);
+  REQUIRE(WriteFile(script_file, content));
+  REQUIRE(fs::exists(script_file, error_code));
+
+  std::vector<std::string> process_args;
+  process_args.emplace_back(shell_path.string());
+  process_args.emplace_back(script);
+  const auto command_line(process::ConstructCommandLine(process_args));
+
+  boost::process::child child = boost::process::execute(
+      boost::process::initializers::start_in_dir(start_directory.string()),
+      boost::process::initializers::run_exe(shell_path.string()),
+      boost::process::initializers::set_cmd_line(command_line),
+      boost::process::initializers::inherit_env(),
+      boost::process::initializers::set_on_error(error_code));
+
+  REQUIRE(error_code.value() == 0);
+  exit_code = boost::process::wait_for_exit(child, error_code);
+  REQUIRE(error_code.value() == 0);
+  REQUIRE(exit_code == 0);
+  REQUIRE(fs::remove(start_directory / script));
+#endif
+  INFO("Failed to find " + utf8_file.string());
+  RequireExists(utf8_file);
 }
 
 }  // unnamed namespace
@@ -1475,16 +1569,9 @@ TEST_CASE("Locale", "[Filesystem][behavioural]") {
   std::locale::global(std::locale(""));
 #endif
   fs::path::imbue(std::locale());
-  fs::path file(process::GetOtherExecutablePath("filesystem_test"));
-  while (file.filename().string() != "MaidSafe" && file.filename().string() != "")
-    file = file.parent_path();
-  if (file.filename().string() == "")
-    REQUIRE(false);
-#ifdef MAIDSAFE_WIN32
-  file /= "\\src\\drive\\src\\maidsafe\\drive\\tools\\UTF-8";
-#else
-  file /= "src/drive/src/maidsafe/drive/tools/UTF-8";
-#endif
+  fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES));
+  fs::path file(resources / "utf8");
+  RequireExists(file);
   fs::path directory(g_root / ReadFile(file).string());
   CreateDirectory(directory);
   RequireExists(directory);
@@ -1511,9 +1598,7 @@ TEST_CASE("Storage path chunks not deleted", "[Filesystem][behavioural]") {
 
 TEST_CASE("Create and build minimal C++ project", "[Filesystem][functional]") {
   on_scope_exit cleanup(clean_root);
-  // drive
   REQUIRE_NOTHROW(CreateAndBuildMinimalCppProject(g_root));
-  // temp
   REQUIRE_NOTHROW(CreateAndBuildMinimalCppProject(g_temp));
 }
 
@@ -1526,19 +1611,102 @@ TEST_CASE("Download and build poco foundation twice with no deletions",
 
 TEST_CASE("Download and build poco", "[Filesystem][functional]") {
   on_scope_exit cleanup(clean_root);
-  // drive
   fs::path directory;
   REQUIRE_NOTHROW(directory = CreateDirectory(g_root));
   REQUIRE_NOTHROW(DownloadAndBuildPoco(directory));
-  // temp
+
   REQUIRE_NOTHROW(DownloadAndBuildPoco(g_temp));
-  // compare
+
   RequireDirectoriesEqual(directory, g_temp, false);
 }
 
 TEST_CASE("Download and extract boost", "[Filesystem][functional]") {
   on_scope_exit cleanup(clean_root);
   REQUIRE_NOTHROW(DownloadAndExtractBoost(g_root));
+}
+
+TEST_CASE("Write 256Mb file to temp and copy to drive", "[Filesystem][functional]") {
+  on_scope_exit cleanup(clean_root);
+#ifdef MAIDSAFE_WIN32
+  HANDLE handle(nullptr);
+  std::string filename(RandomAlphaNumericString(8));
+  fs::path temp_file(g_temp / filename), root_file(g_root / filename);
+  const size_t size(1 << 16);
+  std::string original(size, 0), recovered(size, 0);
+  DWORD position(0), file_size(0), count(0), attributes(FILE_ATTRIBUTE_ARCHIVE);
+  BOOL success(0);
+  OVERLAPPED overlapped;
+
+  CHECK_NOTHROW(handle = dtc::CreateFileCommand(
+      temp_file, GENERIC_ALL, 0, CREATE_NEW, attributes));
+  REQUIRE(handle);
+
+  for (uint32_t i = 0; i != (1 << 12); ++i) {
+    original = RandomString(size);
+    success = 0, count = 0, position = i * size;
+    FillMemory(&overlapped, sizeof(overlapped), 0);
+    overlapped.Offset = position & 0xFFFFFFFF;
+    overlapped.OffsetHigh = 0;
+    CHECK_NOTHROW(success = dtc::WriteFileCommand(
+        handle, temp_file, original, &count, &overlapped));
+    REQUIRE(success);
+    REQUIRE(count == size);
+  }
+
+  CHECK((file_size = dtc::GetFileSizeCommand(handle, nullptr)) == (1 << 28));
+  CHECK_NOTHROW(success = dtc::CloseHandleCommand(handle));
+
+  REQUIRE_NOTHROW(fs::copy_file(temp_file, root_file));
+  REQUIRE(fs::exists(root_file));
+
+  HANDLE temp_handle(nullptr), root_handle(nullptr);
+  CHECK_NOTHROW(temp_handle = dtc::CreateFileCommand(
+      temp_file, GENERIC_ALL, 0, OPEN_EXISTING, attributes));
+  REQUIRE(temp_handle);
+  REQUIRE_NOTHROW(root_handle = dtc::CreateFileCommand(
+      root_file, GENERIC_ALL, 0, OPEN_EXISTING, attributes));
+  REQUIRE(root_handle);
+
+  for (uint32_t i = 0; i != (1 << 12); ++i) {
+    success = 0, count = 0, position = i * size;
+    FillMemory(&overlapped, sizeof(overlapped), 0);
+    overlapped.Offset = position & 0xFFFFFFFF;
+    overlapped.OffsetHigh = 0;
+    REQUIRE_NOTHROW(success = dtc::ReadFileCommand(
+        temp_handle, temp_file, original, &count, &overlapped));
+    REQUIRE(success);
+    REQUIRE(count == size);
+    success = 0, count = 0;
+    REQUIRE_NOTHROW(success = dtc::ReadFileCommand(
+        root_handle, root_file, recovered, &count, &overlapped));
+    REQUIRE(success);
+    REQUIRE(count == size);
+    REQUIRE(original == recovered);
+  }
+
+  success = 1;
+  REQUIRE_NOTHROW(success = dtc::CloseHandleCommand(temp_handle));
+  REQUIRE(success);
+  success = 1;
+  REQUIRE_NOTHROW(success = dtc::CloseHandleCommand(root_handle));
+  REQUIRE(success);
+#endif
+}
+
+TEST_CASE("Write utf-8 file and edit", "[Filesystem][behavioural]") {
+  on_scope_exit cleanup(clean_root);
+  REQUIRE_NOTHROW(WriteUtf8FileAndEdit(g_temp));
+  REQUIRE_NOTHROW(WriteUtf8FileAndEdit(g_root));
+}
+
+TEST_CASE("Download movie then copy to drive", "[Filesystem][behavioural]") {
+  on_scope_exit cleanup(clean_root);
+  std::string movie("TheKid_512kb.mp4");
+  REQUIRE_NOTHROW(DownloadFile(
+      g_temp, "https://ia700508.us.archive.org/12/items/TheKid_179/" + movie));
+  REQUIRE_NOTHROW(fs::copy_file(g_temp / movie, g_root / movie));
+  INFO("Failed to find " << (g_root / movie).string());
+  REQUIRE(fs::exists(g_root / movie));
 }
 
 }  // namespace test
