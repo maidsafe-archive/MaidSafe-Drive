@@ -81,6 +81,8 @@ std::once_flag g_unmount_flag;
 const std::string kConfigFile("maidsafe_network_drive.conf");
 std::string g_error_message;
 int g_return_code(0);
+bool g_call_once_(false);
+std::vector<passport::PublicPmid> g_pmids_from_file_;
 
 void Unmount() {
   std::call_once(g_unmount_flag, [&] {
@@ -258,27 +260,129 @@ void MonitorParentProcess(const Options& options) {
   Unmount();
 }
 
+void RoutingJoin(std::shared_ptr<nfs_client::MaidNodeNfs> client_nfs_, routing::Routing& routing,
+                 const std::vector<boost::asio::ip::udp::endpoint>& peer_endpoints) {
+  std::shared_ptr<std::promise<bool>> join_promise(std::make_shared<std::promise<bool>>());
+  routing::Functors functors_;
+  functors_.network_status = [join_promise](int result) {
+    LOG(kVerbose) << "Network health: " << result;
+    if ((result == 100) && (!g_call_once_)) {
+          g_call_once_ = true;
+          join_promise->set_value(true);
+    }
+  };
+  functors_.typed_message_and_caching.group_to_group.message_received =
+      [&](const routing::GroupToGroupMessage &msg) { client_nfs_->HandleMessage(msg); };  // NOLINT
+  functors_.typed_message_and_caching.group_to_single.message_received =
+      [&](const routing::GroupToSingleMessage &msg) { client_nfs_->HandleMessage(msg); };  // NOLINT
+  functors_.typed_message_and_caching.single_to_group.message_received =
+      [&](const routing::SingleToGroupMessage &msg) { client_nfs_->HandleMessage(msg); };  // NOLINT
+  functors_.typed_message_and_caching.single_to_single.message_received =
+      [&](const routing::SingleToSingleMessage &msg) { client_nfs_->HandleMessage(msg); };  // NOLINT
+  functors_.request_public_key =
+      [&](const NodeId & node_id, const routing::GivePublicKeyFunctor & give_key) {
+        nfs::detail::PublicPmidHelper temp_helper;
+        nfs::detail::DoGetPublicKey(*client_nfs_, node_id, give_key,
+                                    g_pmids_from_file_, temp_helper);
+      };
+  routing.Join(functors_, peer_endpoints);
+  auto future(std::move(join_promise->get_future()));
+  auto status(future.wait_for(std::chrono::seconds(10)));
+  if (status == std::future_status::timeout || !future.get()) {
+    LOG(kError) << "can't join routing network";
+    BOOST_THROW_EXCEPTION(MakeError(RoutingErrors::not_connected));
+  }
+  LOG(kInfo) << "Client node joined routing network";
+}
+
 int MountAndWaitForIpcNotification(const Options& options) {
   std::vector<passport::detail::AnmaidToPmid> all_keychains_ =
       maidsafe::passport::detail::ReadKeyChainList(options.keys_path);
+  for (auto& key_chain : all_keychains_)
+    g_pmids_from_file_.push_back(passport::PublicPmid(key_chain.pmid));
   AsioService asio_service_(2);
-  routing::Routing client_routing_(all_keychains_[10].maid);
-  passport::PublicPmid::Name pmid_name(Identity(all_keychains_[10].pmid.name().value));
+  passport::detail::AnmaidToPmid key_chain(all_keychains_[10]);
+  routing::Routing client_routing_(key_chain.maid);
+  passport::PublicPmid::Name pmid_name(Identity(key_chain.pmid.name().value));
   std::shared_ptr<nfs_client::MaidNodeNfs> client_nfs_;
   client_nfs_.reset(new nfs_client::MaidNodeNfs(asio_service_, client_routing_, pmid_name));
 
-  boost::system::error_code error_code;
-  if (!fs::exists(options.storage_path, error_code)) {
-    LOG(kError) << options.storage_path << " doesn't exist.";
-    return error_code.value();
-  }
-  if (!fs::exists(GetUserAppDir(), error_code)) {
-    LOG(kError) << "Creating " << GetUserAppDir();
-    if (!fs::create_directories(GetUserAppDir(), error_code)) {
-      LOG(kError) << GetUserAppDir() << " creation failed.";
-      return error_code.value();
+  boost::asio::ip::udp::endpoint ep;
+  ep.port(5483);
+  ep.address(boost::asio::ip::address::from_string("192.168.0.36"));
+  std::vector<boost::asio::ip::udp::endpoint> peer_endpoints;
+  peer_endpoints.push_back(ep);
+  RoutingJoin(client_nfs_, client_routing_, peer_endpoints);
+
+  bool account_exists(false);
+  passport::PublicMaid public_maid(key_chain.maid);
+  {
+    passport::PublicAnmaid public_anmaid(key_chain.anmaid);
+    auto future(client_nfs_->CreateAccount(nfs_vault::AccountCreation(public_maid,
+                                                                      public_anmaid)));
+    auto status(future.wait_for(boost::chrono::seconds(10)));
+    if (status == boost::future_status::timeout) {
+      LOG(kError) << "can't create account";
+      BOOST_THROW_EXCEPTION(MakeError(VaultErrors::failed_to_handle_request));
+    }
+    if (future.has_exception()) {
+      LOG(kError) << "having error during create account";
+      try {
+        future.get();
+      } catch (const maidsafe_error& error) {
+        LOG(kError) << "caught a maidsafe_error : " << error.what();
+        if (error.code() == make_error_code(VaultErrors::account_already_exists))
+          account_exists = true;
+      } catch (...) {
+        LOG(kError) << "caught an unknown exception";
+      }
     }
   }
+  bool register_pmid_for_client(true);
+  if (account_exists) {
+    std::cout << "Account exists for maid " << HexSubstr(public_maid.name()->string())
+              << std::endl;
+    register_pmid_for_client = false;
+  } else {
+    // waiting for syncs resolved
+    boost::this_thread::sleep_for(boost::chrono::seconds(2));
+    std::cout << "Account created for maid " << HexSubstr(public_maid.name()->string())
+              << std::endl;
+    // before register pmid, need to store pmid to network first
+    client_nfs_->Put(passport::PublicPmid(key_chain.pmid));
+    boost::this_thread::sleep_for(boost::chrono::seconds(2));
+  }
+
+  if (register_pmid_for_client) {
+    {
+      client_nfs_->RegisterPmid(nfs_vault::PmidRegistration(key_chain.maid, key_chain.pmid, false));
+      boost::this_thread::sleep_for(boost::chrono::seconds(3));
+      auto future(client_nfs_->GetPmidHealth(pmid_name));
+      auto status(future.wait_for(boost::chrono::seconds(10)));
+      if (status == boost::future_status::timeout) {
+        LOG(kError) << "can't fetch pmid health";
+        BOOST_THROW_EXCEPTION(MakeError(VaultErrors::failed_to_handle_request));
+      }
+      std::cout << "The fetched PmidHealth for pmid_name " << HexSubstr(pmid_name.value.string())
+                << " is " << future.get() << std::endl;
+    }
+    // waiting for the GetPmidHealth updating corresponding accounts
+    boost::this_thread::sleep_for(boost::chrono::seconds(3));
+    LOG(kInfo) << "Pmid Registered created for the client node to store chunks";
+  }
+
+//   boost::system::error_code error_code;
+//   if (!fs::exists(options.storage_path, error_code)) {
+//     LOG(kError) << options.storage_path << " doesn't exist.";
+//     return error_code.value();
+//   }
+//   if (!fs::exists(GetUserAppDir(), error_code)) {
+//     LOG(kError) << "Creating " << GetUserAppDir();
+//     if (!fs::create_directories(GetUserAppDir(), error_code)) {
+//       LOG(kError) << GetUserAppDir() << " creation failed.";
+//       return error_code.value();
+//     }
+//   }
 
   NetworkDrive drive(client_nfs_, options.unique_id, options.root_parent_id, options.mount_path,
                      GetUserAppDir(), options.drive_name, options.mount_status_shared_object_name,
