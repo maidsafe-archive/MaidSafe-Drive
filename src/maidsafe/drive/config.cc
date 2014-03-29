@@ -26,7 +26,7 @@ namespace detail {
 
 const boost::filesystem::path kRoot(boost::filesystem::path("/").make_preferred());
 
-const MaxVersions kMaxVersions(21);
+const MaxVersions kMaxVersions(1);
 
 const std::chrono::steady_clock::duration kDirectoryInactivityDelay(std::chrono::seconds(3));
 const std::chrono::steady_clock::duration kFileInactivityDelay(std::chrono::seconds(2));
