@@ -254,6 +254,7 @@ std::function<void()> PrepareLocalVfs() {
   SetUpRootDirectory(GetHomeDir());
   options.mount_path = g_root;
   options.storage_path = SetUpStorageDirectory();
+  options.keys_path = fs::path(fs::temp_directory_path() / "key_directory.dat");
   options.drive_name = RandomAlphaNumericString(10);
   options.unique_id = Identity(RandomString(64));
   options.root_parent_id = Identity(RandomString(64));
@@ -273,9 +274,29 @@ std::function<void()> PrepareLocalVfs() {
 }
 
 std::function<void()> PrepareNetworkVfs() {
-  g_error_message = "Network test is unimplemented just now.";
-  g_return_code = 10;
-  return [] {};  // NOLINT
+  SetUpTempDirectory();
+  drive::Options options;
+  SetUpRootDirectory(GetHomeDir());
+  options.mount_path = g_root;
+  options.storage_path = SetUpStorageDirectory();
+  options.keys_path = fs::path(fs::temp_directory_path() / "key_directory.dat");
+std::cout << "PrepareNetworkVfs " << options.keys_path << std::endl;
+  options.drive_name = RandomAlphaNumericString(10);
+  options.unique_id = Identity(RandomString(64));
+  options.root_parent_id = Identity(RandomString(64));
+  options.create_store = true;
+  options.drive_type = static_cast<drive::DriveType>(g_test_type);
+  if (g_enable_vfs_logging)
+    options.drive_logging_args = "--log_* V --log_colour_mode 2 --log_no_async";
+
+  g_launcher.reset(new drive::Launcher(options));
+  g_root = g_launcher->kMountPath();
+
+  return [options] {  // NOLINT
+    RemoveTempDirectory();
+    RemoveStorageDirectory(options.storage_path);
+    RemoveRootDirectory();
+  };
 }
 
 std::function<void()> PrepareTest() {

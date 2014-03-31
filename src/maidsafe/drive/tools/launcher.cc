@@ -94,6 +94,7 @@ void CloseHandleToThisProcess(void* /*this_process*/) {}
 enum SharedMemoryArgIndex {
   kMountPathArg = 0,
   kStoragePathArg,
+  kKeysPathArg,
   kUniqueIdArg,
   kRootParentIdArg,
   kDriveNameArg,
@@ -125,6 +126,7 @@ void ReadAndRemoveInitialSharedMemory(const std::string& initial_shared_memory_n
   auto shared_memory_args = ipc::ReadSharedMemory(initial_shared_memory_name.c_str(), kMaxArgIndex);
   options.mount_path = shared_memory_args[kMountPathArg];
   options.storage_path = shared_memory_args[kStoragePathArg];
+  options.keys_path = shared_memory_args[kKeysPathArg];
   options.unique_id = maidsafe::Identity(shared_memory_args[kUniqueIdArg]);
   options.root_parent_id = maidsafe::Identity(shared_memory_args[kRootParentIdArg]);
   options.drive_name = shared_memory_args[kDriveNameArg];
@@ -149,6 +151,7 @@ Launcher::Launcher(const Options& options)
       kMountPath_(AdjustMountPath(options.mount_path)), mount_status_shared_object_(),
       mount_status_mapped_region_(), mount_status_(nullptr),
       this_process_handle_(GetHandleToThisProcess()), drive_process_() {
+std::cout << "launcher" << std::endl;
   maidsafe::on_scope_exit cleanup_on_throw([&] { Cleanup(); });
   CreateInitialSharedMemory(options);
   CreateMountStatusSharedMemory();
@@ -161,6 +164,7 @@ void Launcher::CreateInitialSharedMemory(const Options& options) {
   std::vector<std::string> shared_memory_args(kMaxArgIndex);
   shared_memory_args[kMountPathArg] = options.mount_path.string();
   shared_memory_args[kStoragePathArg] = options.storage_path.string();
+  shared_memory_args[kKeysPathArg] = options.keys_path.string();
   shared_memory_args[kUniqueIdArg] = options.unique_id.string();
   shared_memory_args[kRootParentIdArg] = options.root_parent_id.string();
   shared_memory_args[kDriveNameArg] = options.drive_name.string();
@@ -179,6 +183,7 @@ void Launcher::CreateMountStatusSharedMemory() {
 }
 
 void Launcher::StartDriveProcess(const Options& options) {
+std::cout << "StartDriveProcess 1" << std::endl;
   // Set up boost::process args
   std::vector<std::string> process_args;
   const auto kExePath(GetDriveExecutablePath(options.drive_type).string());
@@ -187,7 +192,7 @@ void Launcher::StartDriveProcess(const Options& options) {
   if (!options.drive_logging_args.empty())
     process_args.push_back(options.drive_logging_args);
   const auto kCommandLine(process::ConstructCommandLine(process_args));
-
+std::cout << "StartDriveProcess 2" << std::endl;
   // Start drive process
   boost::system::error_code error_code;
 #ifdef MAIDSAFE_WIN32
@@ -206,6 +211,7 @@ void Launcher::StartDriveProcess(const Options& options) {
   const char* env[2] = { 0 };
   env[0] = term.c_str();
   static_cast<void>(env);
+std::cout << "StartDriveProcess 3" << std::endl;
   drive_process_.reset(new bp::child(bp::execute(
       bp::initializers::run_exe(kExePath),
       bp::initializers::on_fork_setup(
@@ -214,7 +220,7 @@ void Launcher::StartDriveProcess(const Options& options) {
       bp::initializers::set_on_error(error_code))));
 #endif
   if (error_code) {
-    LOG(kError) << "Failed to start local drive: " << error_code.message();
+    std::cout << "Failed to start local drive: " << error_code.message() << std::endl;
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::uninitialised));
   }
 }
@@ -236,9 +242,9 @@ fs::path Launcher::GetDriveExecutablePath(DriveType drive_type) {
 
 void Launcher::WaitForDriveToMount() {
   bi::scoped_lock<bi::interprocess_mutex> lock(mount_status_->mutex);
-  auto timeout(bptime::second_clock::universal_time() + bptime::seconds(10));
+  auto timeout(bptime::second_clock::universal_time() + bptime::seconds(100));
   if (!mount_status_->condition.timed_wait(lock, timeout, [&] { return mount_status_->mounted; })) {
-    LOG(kError) << "Failed waiting for drive to mount.";
+    std::cout << "Failed waiting for drive to mount." << std::endl;
     BOOST_THROW_EXCEPTION(MakeError(DriveErrors::failed_to_mount));
   }
 }

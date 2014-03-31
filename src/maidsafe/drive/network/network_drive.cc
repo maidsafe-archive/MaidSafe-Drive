@@ -83,6 +83,7 @@ std::string g_error_message;
 int g_return_code(0);
 bool g_call_once_(false);
 std::vector<passport::PublicPmid> g_pmids_from_file_;
+AsioService g_asio_service_(2);
 
 void Unmount() {
   std::call_once(g_unmount_flag, [&] {
@@ -265,79 +266,97 @@ void RoutingJoin(std::shared_ptr<nfs_client::MaidNodeNfs> client_nfs_, routing::
   std::shared_ptr<std::promise<bool>> join_promise(std::make_shared<std::promise<bool>>());
   routing::Functors functors_;
   functors_.network_status = [join_promise](int result) {
-    LOG(kVerbose) << "Network health: " << result;
+    std::cout << "Network health: " << result << std::endl;
     if ((result == 100) && (!g_call_once_)) {
+      std::cout << "Network health setting promise value " << std::endl;
           g_call_once_ = true;
           join_promise->set_value(true);
     }
   };
   functors_.typed_message_and_caching.group_to_group.message_received =
-      [&](const routing::GroupToGroupMessage &msg) { client_nfs_->HandleMessage(msg); };  // NOLINT
+      [&, client_nfs_](const routing::GroupToGroupMessage &msg) { 
+std::cout << "RoutingJoin group_to_group" << std::endl;
+        client_nfs_->HandleMessage(msg); };  // NOLINT
   functors_.typed_message_and_caching.group_to_single.message_received =
-      [&](const routing::GroupToSingleMessage &msg) { client_nfs_->HandleMessage(msg); };  // NOLINT
+      [&](const routing::GroupToSingleMessage &msg) {
+std::cout << "RoutingJoin group_to_single" << std::endl;
+        client_nfs_->HandleMessage(msg); 
+std::cout << "RoutingJoin group_to_single finsihed" << std::endl;
+      };  // NOLINT
   functors_.typed_message_and_caching.single_to_group.message_received =
-      [&](const routing::SingleToGroupMessage &msg) { client_nfs_->HandleMessage(msg); };  // NOLINT
+      [&](const routing::SingleToGroupMessage &msg) { 
+std::cout << "RoutingJoin single_to_group" << std::endl;
+        client_nfs_->HandleMessage(msg); };  // NOLINT
   functors_.typed_message_and_caching.single_to_single.message_received =
-      [&](const routing::SingleToSingleMessage &msg) { client_nfs_->HandleMessage(msg); };  // NOLINT
+      [&](const routing::SingleToSingleMessage &msg) { 
+std::cout << "RoutingJoin single_to_single" << std::endl;
+        client_nfs_->HandleMessage(msg); };  // NOLINT
   functors_.request_public_key =
       [&](const NodeId & node_id, const routing::GivePublicKeyFunctor & give_key) {
+std::cout << "RoutingJoin request_public_key 1" << std::endl;
         nfs::detail::PublicPmidHelper temp_helper;
         nfs::detail::DoGetPublicKey(*client_nfs_, node_id, give_key,
                                     g_pmids_from_file_, temp_helper);
+std::cout << "RoutingJoin request_public_key 2" << std::endl;
       };
+std::cout << "RoutingJoin " << peer_endpoints.size() << std::endl;
   routing.Join(functors_, peer_endpoints);
   auto future(std::move(join_promise->get_future()));
   auto status(future.wait_for(std::chrono::seconds(10)));
   if (status == std::future_status::timeout || !future.get()) {
-    LOG(kError) << "can't join routing network";
+    std::cout << "can't join routing network" << std::endl;
     BOOST_THROW_EXCEPTION(MakeError(RoutingErrors::not_connected));
   }
-  LOG(kInfo) << "Client node joined routing network";
+  std::cout << "Client node joined routing network" << std::endl;
 }
 
 int MountAndWaitForIpcNotification(const Options& options) {
+std::cout << "MountAndWaitForIpcNotification 1 " << options.keys_path << std::endl;
   std::vector<passport::detail::AnmaidToPmid> all_keychains_ =
       maidsafe::passport::detail::ReadKeyChainList(options.keys_path);
+std::cout << "MountAndWaitForIpcNotification 1A " << all_keychains_.size() << std::endl;
   for (auto& key_chain : all_keychains_)
     g_pmids_from_file_.push_back(passport::PublicPmid(key_chain.pmid));
-  AsioService asio_service_(2);
   passport::detail::AnmaidToPmid key_chain(all_keychains_[10]);
+std::cout << "MountAndWaitForIpcNotification 1B " << std::endl;
   routing::Routing client_routing_(key_chain.maid);
   passport::PublicPmid::Name pmid_name(Identity(key_chain.pmid.name().value));
   std::shared_ptr<nfs_client::MaidNodeNfs> client_nfs_;
-  client_nfs_.reset(new nfs_client::MaidNodeNfs(asio_service_, client_routing_, pmid_name));
-
+  std::cout << "MountAndWaitForIpcNotification 1C " << std::endl;
+  client_nfs_.reset(new nfs_client::MaidNodeNfs(g_asio_service_, client_routing_, pmid_name));
+std::cout << "MountAndWaitForIpcNotification 1D" << std::endl;
   boost::asio::ip::udp::endpoint ep;
   ep.port(5483);
   ep.address(boost::asio::ip::address::from_string("192.168.0.36"));
   std::vector<boost::asio::ip::udp::endpoint> peer_endpoints;
   peer_endpoints.push_back(ep);
   RoutingJoin(client_nfs_, client_routing_, peer_endpoints);
-
+std::cout << "MountAndWaitForIpcNotification 2" << std::endl;
   bool account_exists(false);
   passport::PublicMaid public_maid(key_chain.maid);
   {
     passport::PublicAnmaid public_anmaid(key_chain.anmaid);
     auto future(client_nfs_->CreateAccount(nfs_vault::AccountCreation(public_maid,
                                                                       public_anmaid)));
-    auto status(future.wait_for(boost::chrono::seconds(10)));
+    auto status(future.wait_for(boost::chrono::seconds(3)));
     if (status == boost::future_status::timeout) {
-      LOG(kError) << "can't create account";
-      BOOST_THROW_EXCEPTION(MakeError(VaultErrors::failed_to_handle_request));
+      std::cout << "can't create account" << std::endl;
+//       BOOST_THROW_EXCEPTION(MakeError(VaultErrors::failed_to_handle_request));
     }
     if (future.has_exception()) {
-      LOG(kError) << "having error during create account";
+      std::cout << "having error during create account" << std::endl;
       try {
         future.get();
       } catch (const maidsafe_error& error) {
-        LOG(kError) << "caught a maidsafe_error : " << error.what();
+        std::cout << "caught a maidsafe_error : " << error.what() << std::endl;
         if (error.code() == make_error_code(VaultErrors::account_already_exists))
           account_exists = true;
       } catch (...) {
-        LOG(kError) << "caught an unknown exception";
+        std::cout << "caught an unknown exception" << std::endl;
       }
     }
   }
+std::cout << "MountAndWaitForIpcNotification 3" << std::endl;
   bool register_pmid_for_client(true);
   if (account_exists) {
     std::cout << "Account exists for maid " << HexSubstr(public_maid.name()->string())
@@ -352,25 +371,27 @@ int MountAndWaitForIpcNotification(const Options& options) {
     client_nfs_->Put(passport::PublicPmid(key_chain.pmid));
     boost::this_thread::sleep_for(boost::chrono::seconds(2));
   }
-
+std::cout << "MountAndWaitForIpcNotification 4" << std::endl;
   if (register_pmid_for_client) {
     {
       client_nfs_->RegisterPmid(nfs_vault::PmidRegistration(key_chain.maid, key_chain.pmid, false));
       boost::this_thread::sleep_for(boost::chrono::seconds(3));
+std::cout << "MountAndWaitForIpcNotification 4 AAAAAAAAAAAAAA" << std::endl;
       auto future(client_nfs_->GetPmidHealth(pmid_name));
-      auto status(future.wait_for(boost::chrono::seconds(10)));
+      auto status(future.wait_for(boost::chrono::seconds(3)));
+std::cout << "MountAndWaitForIpcNotification 4 BBBBBBBBBBBBBB" << std::endl;
       if (status == boost::future_status::timeout) {
-        LOG(kError) << "can't fetch pmid health";
-        BOOST_THROW_EXCEPTION(MakeError(VaultErrors::failed_to_handle_request));
+        std::cout << "can't fetch pmid health" << std::endl;
+//         BOOST_THROW_EXCEPTION(MakeError(VaultErrors::failed_to_handle_request));
       }
-      std::cout << "The fetched PmidHealth for pmid_name " << HexSubstr(pmid_name.value.string())
-                << " is " << future.get() << std::endl;
+//       std::cout << "The fetched PmidHealth for pmid_name " << HexSubstr(pmid_name.value.string())
+//                 << " is " << future.get() << std::endl;
     }
     // waiting for the GetPmidHealth updating corresponding accounts
     boost::this_thread::sleep_for(boost::chrono::seconds(3));
     LOG(kInfo) << "Pmid Registered created for the client node to store chunks";
   }
-
+std::cout << "MountAndWaitForIpcNotification 5" << std::endl;
 //   boost::system::error_code error_code;
 //   if (!fs::exists(options.storage_path, error_code)) {
 //     LOG(kError) << options.storage_path << " doesn't exist.";
