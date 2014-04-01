@@ -54,6 +54,8 @@
 #else
 #include "maidsafe/drive/tools/commands/unix_file_commands.h"
 #endif
+#include "maidsafe/drive/drive.h"
+#include "maidsafe/drive/tools/launcher.h"
 
 namespace fs = boost::filesystem;
 namespace dtc = maidsafe::drive::tools::commands;
@@ -65,6 +67,7 @@ namespace test {
 namespace {
 
 fs::path g_root, g_temp, g_storage;
+drive::DriveType g_test_type;
 
 std::function<void()> clean_root([] {
   // On Windows, this frequently fails on the first attempt due to lingering open handles in the
@@ -717,10 +720,12 @@ void RunFsTest(const fs::path& start_directory) {
 }  // unnamed namespace
 
 int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
-            const fs::path& storage) {
+            const fs::path& storage, int test_type) {
   g_root = root;
   g_temp = temp;
   g_storage = storage;
+  g_test_type = static_cast<drive::DriveType>(test_type);
+
   Catch::Session session;
   auto command_line_result(
       session.applyCommandLine(argc, argv, Catch::Session::OnUnusedOptions::Ignore));
@@ -1761,6 +1766,81 @@ TEST_CASE("Run fstest", "[Filesystem][behavioural]") {
   REQUIRE_NOTHROW(RunFsTest(g_root));
 }
 #endif
+
+TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
+  on_scope_exit cleanup(clean_root);
+  fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)), root,
+           cross_platform(resources / "cross_platform"), ids(cross_platform / "ids");
+  std::string content;
+
+  REQUIRE((fs::exists(cross_platform) && fs::is_directory(cross_platform)));
+  bool is_empty(fs::is_empty(cross_platform));
+
+  drive::Options options;
+
+#ifdef MAIDSAFE_WIN32
+  root = drive::GetNextAvailableDrivePath();
+#else
+  root = g_root;
+#endif
+
+  options.mount_path = root;
+  options.storage_path = cross_platform;
+  options.drive_name = RandomAlphaNumericString(10);
+
+  if (is_empty) {
+    options.unique_id = Identity(RandomAlphaNumericString(64));
+    options.root_parent_id = Identity(RandomAlphaNumericString(64));
+    options.create_store = true;
+    content = options.unique_id.string() + ";" + options.root_parent_id.string();
+    REQUIRE(WriteFile(ids, content));
+    REQUIRE(fs::exists(ids));
+  }
+  else {
+    REQUIRE(fs::exists(ids));
+    REQUIRE_NOTHROW(content = ReadFile(ids).string());
+    REQUIRE(content.size() == 2 * 64 + 1);
+    size_t offset(content.find(std::string(";").c_str(), 0, 1));
+    REQUIRE(offset != std::string::npos);
+    options.unique_id = Identity(std::string(content.begin(), content.begin() + offset));
+    options.root_parent_id = Identity(std::string(content.begin() + offset + 1, content.end()));
+    REQUIRE(options.unique_id.string().size() == 64);
+    REQUIRE(options.root_parent_id.string().size() == 64);
+  }
+
+  options.drive_type = g_test_type;
+
+  std::unique_ptr<drive::Launcher> launcher;
+  launcher.reset(new drive::Launcher(options));
+  root = launcher->kMountPath();
+
+  fs::path file(root / "file");
+
+  if (is_empty) {
+    REQUIRE(!fs::exists(file));
+    content = "1";
+    REQUIRE(WriteFile(file, content));
+    REQUIRE(fs::exists(file));
+  }
+  else {
+    REQUIRE(fs::exists(file));
+    REQUIRE_NOTHROW(content = ReadFile(file).string());
+    uint32_t value(0);
+    REQUIRE_NOTHROW(value = std::stoul(content));
+    REQUIRE((value == 1 || value == 2));
+
+    if (value == 1) {
+      content = "2";
+      REQUIRE(WriteFile(file, content));
+      REQUIRE(fs::exists(file));
+    }
+    else {
+      content = "1";
+      REQUIRE(WriteFile(file, content));
+      REQUIRE(fs::exists(file));
+    }
+  }
+}
 
 }  // namespace test
 
