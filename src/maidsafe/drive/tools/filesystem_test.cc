@@ -45,6 +45,7 @@
 #define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
 
+#include "maidsafe/common/application_support_directories.h"
 #include "maidsafe/common/log.h"
 #include "maidsafe/common/on_scope_exit.h"
 #include "maidsafe/common/utils.h"
@@ -1770,9 +1771,11 @@ TEST_CASE("Run fstest", "[Filesystem][behavioural]") {
 TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
   on_scope_exit cleanup(clean_root);
   fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)), root,
-           cross_platform(resources / "cross_platform"), ids(cross_platform / "ids");
-  std::string content;
+           cross_platform(resources / "cross_platform"), ids(cross_platform / "ids"),
+           utf8_file(resources / "utf-8.txt");
+  std::string content, recovered;
 
+  REQUIRE(fs::exists(utf8_file));
   REQUIRE((fs::exists(cross_platform) && fs::is_directory(cross_platform)));
   bool is_empty(fs::is_empty(cross_platform));
 
@@ -1781,7 +1784,9 @@ TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
 #ifdef MAIDSAFE_WIN32
   root = drive::GetNextAvailableDrivePath();
 #else
-  root = g_root;
+  root = fs::unique_path(GetHomeDir() / "MaidSafe_Root_Filesystem_%%%%-%%%%-%%%%");
+  REQUIRE_NOTHROW(fs::create_directories(root));
+  REQUIRE(fs::exists(root));
 #endif
 
   options.mount_path = root;
@@ -1814,32 +1819,46 @@ TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
   launcher.reset(new drive::Launcher(options));
   root = launcher->kMountPath();
 
+  Sleep(std::chrono::seconds(1));
+
   fs::path file(root / "file");
 
   if (is_empty) {
     REQUIRE(!fs::exists(file));
-    content = "1";
-    REQUIRE(WriteFile(file, content));
+    REQUIRE_NOTHROW(fs::copy_file(utf8_file, file));
     REQUIRE(fs::exists(file));
   }
   else {
     REQUIRE(fs::exists(file));
-    REQUIRE_NOTHROW(content = ReadFile(file).string());
-    uint32_t value(0);
-    REQUIRE_NOTHROW(value = std::stoul(content));
-    REQUIRE((value == 1 || value == 2));
-
-    if (value == 1) {
-      content = "2";
-      REQUIRE(WriteFile(file, content));
-      REQUIRE(fs::exists(file));
-    }
-    else {
-      content = "1";
-      REQUIRE(WriteFile(file, content));
-      REQUIRE(fs::exists(file));
-    }
+    REQUIRE_NOTHROW(content = ReadFile(utf8_file).string());
+    REQUIRE_NOTHROW(recovered = ReadFile(file).string());
+    REQUIRE(recovered == content);
   }
+
+//  if (is_empty) {
+//    REQUIRE(!fs::exists(file));
+//    content = "1";
+//    REQUIRE(WriteFile(file, content));
+//    REQUIRE(fs::exists(file));
+//  }
+//  else {
+//    REQUIRE(fs::exists(file));
+//    REQUIRE_NOTHROW(content = ReadFile(file).string());
+//    uint32_t value(0);
+//    REQUIRE_NOTHROW(value = std::stoul(content));
+//    REQUIRE((value == 1 || value == 2));
+
+//    if (value == 1) {
+//      content = "2";
+//      REQUIRE(WriteFile(file, content));
+//      REQUIRE(fs::exists(file));
+//    }
+//    else {
+//      content = "1";
+//      REQUIRE(WriteFile(file, content));
+//      REQUIRE(fs::exists(file));
+//    }
+//  }
 }
 
 }  // namespace test
