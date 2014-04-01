@@ -689,7 +689,9 @@ void RunFsTest(const fs::path& start_directory) {
   REQUIRE(fs::exists(script_file, error_code));
 
   int result(setuid(0));
+#ifndef MAIDSAFE_APPLE
   clearenv();
+#endif
   result = system((start_directory.string() + script).c_str());
   static_cast<void>(result);
 
