@@ -172,6 +172,27 @@ void Directory::FlushChildAndDeleteEncryptor(FileContext* child) {
     FlushEncryptor(child, put_chunk_functor_, chunks_to_be_incremented_);
 }
 
+size_t Directory::VersionsCount() const {
+  return versions_.size();
+}
+
+std::tuple<DirectoryId, StructuredDataVersions::VersionName>
+    Directory::InitialiseVersions(ImmutableData::Name version_id) {
+  std::tuple<DirectoryId, StructuredDataVersions::VersionName> result;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    store_state_ = StoreState::kComplete;
+    if (versions_.empty()) {
+      versions_.emplace_back(0, version_id);
+      result = std::make_tuple(directory_id_, versions_[0]);
+    } else {
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::uninitialised));
+    }
+  }
+  cond_var_.notify_one();
+  return result;
+}
+
 std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
     Directory::AddNewVersion(ImmutableData::Name version_id) {
   std::tuple<DirectoryId, StructuredDataVersions::VersionName,
@@ -186,6 +207,8 @@ std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersi
       versions_.emplace_front(versions_.front().index + 1, version_id);
       auto itr(std::begin(versions_));
       result = std::make_tuple(directory_id_, *(itr + 1), *itr);
+      if (versions_.size() > max_versions_)
+        versions_.pop_back();
     }
   }
   cond_var_.notify_one();

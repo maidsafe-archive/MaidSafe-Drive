@@ -76,6 +76,10 @@ class Directory {
   // Stores all new chunks from 'child', increments all the other chunks, and resets child's
   // self_encryptor & buffer.
   void FlushChildAndDeleteEncryptor(FileContext* child);
+
+  size_t VersionsCount() const;
+  std::tuple<DirectoryId, StructuredDataVersions::VersionName>
+      InitialiseVersions(ImmutableData::Name version_id);
   // This marks the end of an attempt to store the directory.  It returns directory_id and most
   // recent 2 version names (including the one passed in), and sets 'store_state_' to kComplete.
   std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
