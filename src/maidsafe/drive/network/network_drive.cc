@@ -340,11 +340,10 @@ void RoutingJoin(routing::Routing& routing,
   std::shared_ptr<std::promise<bool>> join_promise(std::make_shared<std::promise<bool>>());
   routing::Functors functors_;
   functors_.network_status = [join_promise](int result) {
-    std::cout << "Network health: " << result << std::endl;
+//     std::cout << "Network health: " << result << std::endl;
     if ((result == 100) && (!g_call_once_)) {
-      std::cout << "Network health setting promise value " << std::endl;
-          g_call_once_ = true;
-          join_promise->set_value(true);
+      g_call_once_ = true;
+      join_promise->set_value(true);
     }
   };
   functors_.typed_message_and_caching.group_to_group.message_received =
@@ -410,11 +409,11 @@ std::cout << "MountAndWaitForIpcNotification 2" << std::endl;
       BOOST_THROW_EXCEPTION(MakeError(VaultErrors::failed_to_handle_request));
     }
     if (future.has_exception()) {
-      std::cout << "having error during create account" << std::endl;
+//       std::cout << "having error during create account" << std::endl;
       try {
         future.get();
       } catch (const maidsafe_error& error) {
-        std::cout << "caught a maidsafe_error : " << error.what() << std::endl;
+//         std::cout << "caught a maidsafe_error : " << error.what() << std::endl;
         if (error.code() == make_error_code(VaultErrors::account_already_exists))
           account_exists = true;
       } catch (...) {
@@ -515,11 +514,11 @@ int MountAndWaitForSignal(const Options& options) {
                                                                         public_anmaid)));
     auto status(future.wait_for(boost::chrono::seconds(3)));
     if (status == boost::future_status::timeout) {
-      std::cout << "can't create account" << std::endl;
+//       std::cout << "can't create account" << std::endl;
       BOOST_THROW_EXCEPTION(MakeError(VaultErrors::failed_to_handle_request));
     }
     if (future.has_exception()) {
-      std::cout << "having error during create account" << std::endl;
+//       std::cout << "having error during create account" << std::endl;
       try {
         future.get();
       } catch (const maidsafe_error& error) {
@@ -578,9 +577,18 @@ int MountAndWaitForSignal(const Options& options) {
 //   }
 //   std::shared_ptr<nfs_client::MaidNodeNfs> client_nfs;
 //   client_nfs.reset(std::move(g_client_nfs_));
-  NetworkDrive drive(g_client_nfs_, options.unique_id, options.root_parent_id, options.mount_path,
+
+  maidsafe::Identity unique_id(crypto::Hash<crypto::SHA512>(public_maid.name()->string()));
+  maidsafe::Identity root_parent_id(crypto::Hash<crypto::SHA512>(unique_id.string()));
+  std::cout << "unique_id : " << HexSubstr(unique_id.string()) << std::endl;
+  std::cout << "root_parent_id : " << HexSubstr(root_parent_id.string()) << std::endl;
+  bool create_store(true);
+  if (account_exists)
+    create_store = false;
+
+  NetworkDrive drive(g_client_nfs_, unique_id, root_parent_id, options.mount_path,
                      GetUserAppDir(), options.drive_name, options.mount_status_shared_object_name,
-                     options.create_store);
+                     create_store);
 
   g_network_drive = &drive;
 #ifdef MAIDSAFE_WIN32
