@@ -688,9 +688,10 @@ void RunFsTest(const fs::path& start_directory) {
   REQUIRE(WriteFile(script_file, content));
   REQUIRE(fs::exists(script_file, error_code));
 
-  setuid(0);
+  int result(setuid(0));
   clearenv();
-  system((start_directory.string() + script).c_str());
+  result = system((start_directory.string() + script).c_str());
+  static_cast<void>(result);
 
   std::vector<std::string> process_args;
   process_args.emplace_back(shell_path.string());
