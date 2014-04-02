@@ -1837,7 +1837,7 @@ TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
 
 #ifndef MAIDSAFE_WIN32
   launcher.reset();
-  REQUIRE(fs::remove(root));
+  REQUIRE(fs::remove(lroot));
   REQUIRE(!fs::exists(root));
 #endif
 
