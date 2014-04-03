@@ -1819,6 +1819,7 @@ TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
   launcher.reset(new drive::Launcher(options));
   root = launcher->kMountPath();
 
+  // allow time for mount
   Sleep(std::chrono::seconds(1));
 
   fs::path file(root / "file");
@@ -1834,6 +1835,9 @@ TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
     REQUIRE_NOTHROW(recovered = ReadFile(file).string());
     REQUIRE(recovered == content);
   }
+
+  // allow time for the version to store!
+  Sleep(std::chrono::seconds(3));
 
 #ifndef MAIDSAFE_WIN32
   launcher.reset();

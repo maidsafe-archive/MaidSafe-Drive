@@ -337,7 +337,7 @@ void CloneMaidSafeAndBuildDefaults(const fs::path& start_directory) {
 }
 
 int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
-            const fs::path& storage) {
+            const fs::path& storage, int /*test_type*/) {
   std::vector<std::string> arguments(argv, argv + argc);
   bool no_big_test(std::any_of(std::begin(arguments), std::end(arguments),
                                [](const std::string& arg) { return arg == "--no_big_test"; }));

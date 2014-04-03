@@ -88,6 +88,7 @@ ms_glob_dir(DriveTools ${DriveSourcesDir}/tools Tools)
 set(DriveLauncherFiles ${DriveApiDir}/tools/launcher.h ${DriveSourcesDir}/tools/launcher.cc)
 list(REMOVE_ITEM DriveToolsAllFiles ${DriveLauncherFiles})
 ms_glob_dir(DriveToolsCommands ${DriveSourcesDir}/tools/commands Commands)
+list(REMOVE_ITEM DriveToolsCommandsAllFiles ${UnixFileCommands} ${WindowsFileCommands})
 if(WIN32)
   ms_glob_dir(Installer ${DriveSourcesDir}/installer Installer)
 endif()
@@ -141,13 +142,11 @@ if(MaidsafeTesting)
                       ${DriveSourcesDir}/tools/filesystem_test.cc
                       ${DriveSourcesDir}/tools/tool_main.cc
                       ${WindowsFileCommands})
-    list(REMOVE_ITEM DriveToolsCommandsAllFiles ${UnixFileCommands})
   else()
     ms_add_executable(filesystem_test "Tools/Drive"
                       ${DriveSourcesDir}/tools/filesystem_test.cc
                       ${DriveSourcesDir}/tools/tool_main.cc
                       ${UnixFileCommands})
-    list(REMOVE_ITEM DriveToolsCommandsAllFiles ${WindowsFileCommands})
   endif()
   ms_add_executable(filesystem_commands "Tools/Drive"
                     ${DriveSourcesDir}/tools/filesystem_commands.h
