@@ -280,7 +280,6 @@ std::function<void()> PrepareNetworkVfs() {
   options.mount_path = g_root;
   options.storage_path = SetUpStorageDirectory();
   options.keys_path = fs::path(fs::temp_directory_path() / "key_directory.dat");
-std::cout << "PrepareNetworkVfs " << options.keys_path << std::endl;
   options.drive_name = RandomAlphaNumericString(10);
   options.unique_id = Identity(RandomString(64));
   options.root_parent_id = Identity(RandomString(64));
@@ -308,7 +307,7 @@ std::function<void()> PrepareTest() {
       return PrepareLocalVfs();
     case TestType::kNetwork:
     case TestType::kNetworkConsole:
-      PrepareNetworkVfs();
+      return PrepareNetworkVfs();
     default:
       BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
   }

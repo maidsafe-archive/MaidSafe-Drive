@@ -104,15 +104,20 @@ enum SharedMemoryArgIndex {
 };
 
 void DoNotifyMountStatus(const std::string& mount_status_shared_object_name, bool mount_and_wait) {
-  bi::shared_memory_object shared_object(bi::open_only, mount_status_shared_object_name.c_str(),
-                                         bi::read_write);
-  bi::mapped_region region(shared_object, bi::read_write);
-  auto mount_status = static_cast<MountStatus*>(region.get_address());
-  bi::scoped_lock<bi::interprocess_mutex> lock(mount_status->mutex);
-  mount_status->mounted = mount_and_wait;
-  mount_status->condition.notify_one();
-  if (mount_and_wait)
-    mount_status->condition.wait(lock, [&] { return mount_status->unmount; });
+  try {
+    bi::shared_memory_object shared_object(bi::open_only, mount_status_shared_object_name.c_str(),
+                                           bi::read_write);
+    bi::mapped_region region(shared_object, bi::read_write);
+    auto mount_status = static_cast<MountStatus*>(region.get_address());
+    bi::scoped_lock<bi::interprocess_mutex> lock(mount_status->mutex);
+    mount_status->mounted = mount_and_wait;
+    mount_status->condition.notify_one();
+    if (mount_and_wait)
+      mount_status->condition.wait(lock, [&] { return !mount_status->mounted; });
+  } catch (...) {
+    // in case parent process is gone, try to access shared_memory will raise exception of
+    // 'boost::interprocess::interprocess_exception'
+  }
 }
 
 }  // unnamed namespace
@@ -151,7 +156,7 @@ Launcher::Launcher(const Options& options)
       kMountPath_(AdjustMountPath(options.mount_path)), mount_status_shared_object_(),
       mount_status_mapped_region_(), mount_status_(nullptr),
       this_process_handle_(GetHandleToThisProcess()), drive_process_() {
-std::cout << "launcher" << std::endl;
+  LOG(kVerbose) << "launcher initial_shared_memory_name_ : " << initial_shared_memory_name_;
   maidsafe::on_scope_exit cleanup_on_throw([&] { Cleanup(); });
   CreateInitialSharedMemory(options);
   CreateMountStatusSharedMemory();
@@ -183,7 +188,6 @@ void Launcher::CreateMountStatusSharedMemory() {
 }
 
 void Launcher::StartDriveProcess(const Options& options) {
-std::cout << "StartDriveProcess 1" << std::endl;
   // Set up boost::process args
   std::vector<std::string> process_args;
   const auto kExePath(GetDriveExecutablePath(options.drive_type).string());
@@ -192,7 +196,7 @@ std::cout << "StartDriveProcess 1" << std::endl;
   if (!options.drive_logging_args.empty())
     process_args.push_back(options.drive_logging_args);
   const auto kCommandLine(process::ConstructCommandLine(process_args));
-std::cout << "StartDriveProcess 2" << std::endl;
+
   // Start drive process
   boost::system::error_code error_code;
 #ifdef MAIDSAFE_WIN32
@@ -211,7 +215,6 @@ std::cout << "StartDriveProcess 2" << std::endl;
   const char* env[2] = { 0 };
   env[0] = term.c_str();
   static_cast<void>(env);
-std::cout << "StartDriveProcess 3" << std::endl;
   drive_process_.reset(new bp::child(bp::execute(
       bp::initializers::run_exe(kExePath),
       bp::initializers::on_fork_setup(

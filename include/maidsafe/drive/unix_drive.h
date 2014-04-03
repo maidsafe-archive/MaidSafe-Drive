@@ -257,6 +257,8 @@ template <typename Storage>
 void FuseDrive<Storage>::SetMounted() {
   std::call_once(mounted_once_flag_, [&] {
     if (!this->kMountStatusSharedObjectName_.empty()) {
+      LOG(kVerbose) << "FuseDrive<Storage>::SetMounted() kMountStatusSharedObjectName_ : "
+                    << this->kMountStatusSharedObjectName_;
       unmount_ipc_waiter_ = std::thread([&] {
         NotifyMountedAndWaitForUnmountRequest(this->kMountStatusSharedObjectName_);
         Unmount();
