@@ -1770,14 +1770,64 @@ TEST_CASE("Run fstest", "[Filesystem][behavioural]") {
 
 TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
   on_scope_exit cleanup(clean_root);
-  fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)), root,
+  fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)), root, prefix_path(g_temp),
            cross_platform(resources / "cross_platform"), ids(cross_platform / "ids"),
-           utf8_file(resources / "utf-8.txt");
-  std::string content, recovered;
+           utf8_file(resources / "utf-8.txt"), shell_path(boost::process::shell_path());
+  std::string content, recovered, script, command_args, utf8_file_name;
+  boost::system::error_code error_code;
 
   REQUIRE(fs::exists(utf8_file));
   REQUIRE((fs::exists(cross_platform) && fs::is_directory(cross_platform)));
   bool is_empty(fs::is_empty(cross_platform));
+
+  utf8_file_name = utf8_file.filename().string();
+  REQUIRE_NOTHROW(fs::copy_file(utf8_file, prefix_path / utf8_file_name));
+  REQUIRE(fs::exists(prefix_path / utf8_file_name));
+
+  utf8_file = prefix_path / utf8_file_name;
+  content = std::string("cmake_minimum_required(VERSION 2.8.11.2 FATAL_ERROR)\n")
+          + "configure_file(\"${CMAKE_PREFIX_PATH}/"
+          + utf8_file_name
+          + "\" \"${CMAKE_PREFIX_PATH}/"
+          + utf8_file_name
+          + "\" NEWLINE_STYLE WIN32)";
+
+  auto cmake_file(prefix_path / "CMakeLists.txt");
+  REQUIRE(WriteFile(cmake_file, content));
+  REQUIRE(fs::exists(cmake_file));
+
+#ifdef MAIDSAFE_WIN32
+  DWORD exit_code(0);
+  script = "configure_file.bat";
+  command_args = "/C " + script; // + " 1>nul 2>nul";
+#else
+  int exit_code(0);
+  script = "configure_file.bat";
+  command_args = script;
+#endif
+
+  content = "cmake -DCMAKE_PREFIX_PATH=" + prefix_path.string() + "\nexit\n";
+
+  auto script_file(prefix_path / script);
+  REQUIRE(WriteFile(script_file, content));
+  REQUIRE(fs::exists(script_file, error_code));
+
+  std::vector<std::string> process_args;
+  process_args.emplace_back(shell_path.filename().string());
+  process_args.emplace_back(command_args);
+  const auto command_line(process::ConstructCommandLine(process_args));
+
+  boost::process::child child = boost::process::execute(
+      boost::process::initializers::start_in_dir(prefix_path.string()),
+      boost::process::initializers::run_exe(shell_path),
+      boost::process::initializers::set_cmd_line(command_line),
+      boost::process::initializers::inherit_env(),
+      boost::process::initializers::set_on_error(error_code));
+
+  REQUIRE(error_code.value() == 0);
+  exit_code = boost::process::wait_for_exit(child, error_code);
+  REQUIRE(error_code.value() == 0);
+  REQUIRE(exit_code == 0);
 
   drive::Options options;
 

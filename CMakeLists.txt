@@ -92,6 +92,7 @@ list(REMOVE_ITEM DriveToolsCommandsAllFiles ${UnixFileCommands} ${WindowsFileCom
 if(WIN32)
   ms_glob_dir(Installer ${DriveSourcesDir}/installer Installer)
 endif()
+set(DriveTestsResourcesDir ${DriveSourcesDir}/tests/resources)
 
 
 #==================================================================================================#
@@ -201,8 +202,8 @@ if(MaidsafeTesting)
   target_compile_definitions(filesystem_test PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
   set_property(TARGET filesystem_benchmark APPEND PROPERTY COMPILE_DEFINITIONS "CMAKE_GENERATOR=\"${CMAKE_GENERATOR}\"")
   set_property(TARGET filesystem_test APPEND PROPERTY COMPILE_DEFINITIONS "CMAKE_GENERATOR=\"${CMAKE_GENERATOR}\"")
-  set_property(TARGET filesystem_benchmark APPEND PROPERTY COMPILE_DEFINITIONS "DRIVE_TESTS_RESOURCES=${DriveSourcesDir}/tests/resources")
-  set_property(TARGET filesystem_test APPEND PROPERTY COMPILE_DEFINITIONS "DRIVE_TESTS_RESOURCES=${DriveSourcesDir}/tests/resources")
+  set_property(TARGET filesystem_benchmark APPEND PROPERTY COMPILE_DEFINITIONS "DRIVE_TESTS_RESOURCES=${DriveTestsResourcesDir}")
+  set_property(TARGET filesystem_test APPEND PROPERTY COMPILE_DEFINITIONS "DRIVE_TESTS_RESOURCES=${DriveTestsResourcesDir}")
   if(WIN32)
     if(CMAKE_CL_64)
       set_property(TARGET filesystem_benchmark APPEND PROPERTY COMPILE_DEFINITIONS "VS_DEV_CMD=\"$ENV{VCInstallDir}vcvarsall.bat\" x86_amd64")
