@@ -210,6 +210,7 @@ std::string GetStringFromProgramOption(const std::string& option_name,
 }
 
 po::options_description VisibleOptions() {
+  boost::system::error_code error_code;
   po::options_description options("NetworkDrive options");
   options.add_options()
 #ifdef MAIDSAFE_WIN32
@@ -220,9 +221,17 @@ po::options_description VisibleOptions() {
       ("storage_dir,S", po::value<std::string>(), " directory to store chunks (required)")
       ("unique_id,U", po::value<std::string>(), " unique identifier (required)")
       ("parent_id,R", po::value<std::string>(), " root parent directory identifier (required)")
-      ("drive_name,N", po::value<std::string>(), " virtual drive name")
+      ("drive_name,N", po::value<std::string>()->default_value(
+                            maidsafe::RandomAlphaNumericString(10)),
+                       " virtual drive name")
       ("create,C", " Must be called on first run")
-      ("check_data,Z", " check all data in chunkstore");
+      ("check_data,Z", " check all data in chunkstore")
+      ("peer", po::value<std::string>(), "Endpoint of peer, if using network VFS.")
+      ("key_index,k", po::value<int>()->default_value(10),
+                      "The index of key to be used as client")
+      ("keys_path", po::value<std::string>()->default_value(fs::path(
+                       fs::temp_directory_path(error_code) / "key_directory.dat").string()),
+                    "Path to keys file");
   return options;
 }
 
@@ -295,11 +304,19 @@ void GetFromProgramOptions(const po::variables_map& variables_map, Options& opti
   auto unique_id(GetStringFromProgramOption("unique_id", variables_map));
   if (!unique_id.empty())
     options.unique_id = Identity(unique_id);
+  else
+    options.unique_id = maidsafe::Identity(maidsafe::RandomString(64));
   auto parent_id(GetStringFromProgramOption("parent_id", variables_map));
   if (!parent_id.empty())
     options.root_parent_id = Identity(parent_id);
+  else
+    options.root_parent_id = maidsafe::Identity(maidsafe::RandomString(64));
+
   options.drive_name = GetStringFromProgramOption("drive_name", variables_map);
   options.create_store = (variables_map.count("create") != 0);
+  options.keys_path = GetStringFromProgramOption("keys_path", variables_map);
+  options.peer_endpoint = GetStringFromProgramOption("peer", variables_map);
+  options.key_index = variables_map.at("key_index").as<int>();
 }
 
 void ValidateOptions(const Options& options) {
@@ -476,22 +493,29 @@ int MountAndWaitForIpcNotification(const Options& options) {
   return 0;
 }
 
+boost::asio::ip::udp::endpoint GetBootstrapEndpoint(const std::string& peer) {
+  size_t delim = peer.rfind(':');
+  boost::asio::ip::udp::endpoint ep;
+  ep.port(boost::lexical_cast<uint16_t>(peer.substr(delim + 1)));
+  ep.address(boost::asio::ip::address::from_string(peer.substr(0, delim)));
+  LOG(kInfo) << "Going to bootstrap off endpoint " << ep;
+  return ep;
+}
+
 int MountAndWaitForSignal(const Options& options) {
   std::vector<passport::detail::AnmaidToPmid> all_keychains_ =
       maidsafe::passport::detail::ReadKeyChainList(options.keys_path);
   for (auto& key_chain : all_keychains_)
     g_pmids_from_file_.push_back(passport::PublicPmid(key_chain.pmid));
-  passport::detail::AnmaidToPmid key_chain(all_keychains_[10]);
+  passport::detail::AnmaidToPmid key_chain(all_keychains_[options.key_index]);
   routing::Routing client_routing_(key_chain.maid);
   passport::PublicPmid::Name pmid_name(Identity(key_chain.pmid.name().value));
 
   g_client_nfs_.reset(new nfs_client::MaidNodeNfs(g_asio_service_, client_routing_, pmid_name));
 
-  boost::asio::ip::udp::endpoint ep;
-  ep.port(5483);
-  ep.address(boost::asio::ip::address::from_string("192.168.0.36"));
   std::vector<boost::asio::ip::udp::endpoint> peer_endpoints;
-  peer_endpoints.push_back(ep);
+  if (!options.peer_endpoint.empty())
+    peer_endpoints.push_back(GetBootstrapEndpoint(options.peer_endpoint));
   RoutingJoin(client_routing_, peer_endpoints);
 
   bool account_exists(false);
@@ -617,13 +641,7 @@ int main(int argc, char* argv[]) {
       maidsafe::drive::SetUpRootDirectory(maidsafe::GetHomeDir());
       options.mount_path = maidsafe::drive::g_root;
       options.storage_path = maidsafe::drive::SetUpStorageDirectory();
-      options.keys_path = fs::path(fs::temp_directory_path() / "key_directory.dat");
-      options.drive_name = maidsafe::RandomAlphaNumericString(10);
-      options.unique_id = maidsafe::Identity(maidsafe::RandomString(64));
-      options.root_parent_id = maidsafe::Identity(maidsafe::RandomString(64));
-      options.create_store = true;
     }
-
 
     // Validate options and run the Drive
     maidsafe::drive::ValidateOptions(options);
