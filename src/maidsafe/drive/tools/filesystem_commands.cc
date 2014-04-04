@@ -127,7 +127,7 @@ int RunTool(int /*argc*/, char** /*argv*/, const fs::path& root, const fs::path&
   drive::tools::g_environment.root = root;
   drive::tools::g_environment.temp = temp;
   drive::tools::g_environment.storage = storage;
-  on_scope_exit cleanup(drive::tools::clean_root);
+//  on_scope_exit cleanup(drive::tools::clean_root);
 
   while (drive::tools::g_environment.running) {
     drive::tools::PrintAvailableCommands();
