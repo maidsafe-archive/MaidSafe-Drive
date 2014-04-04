@@ -392,21 +392,29 @@ void RoutingJoin(routing::Routing& routing,
   std::cout << "Client node joined routing network" << std::endl;
 }
 
+boost::asio::ip::udp::endpoint GetBootstrapEndpoint(const std::string& peer) {
+  size_t delim = peer.rfind(':');
+  boost::asio::ip::udp::endpoint ep;
+  ep.port(boost::lexical_cast<uint16_t>(peer.substr(delim + 1)));
+  ep.address(boost::asio::ip::address::from_string(peer.substr(0, delim)));
+  LOG(kInfo) << "Going to bootstrap off endpoint " << ep;
+  return ep;
+}
+
 int MountAndWaitForIpcNotification(const Options& options) {
   std::vector<passport::detail::AnmaidToPmid> all_keychains_ =
       maidsafe::passport::detail::ReadKeyChainList(options.keys_path);
   for (auto& key_chain : all_keychains_)
     g_pmids_from_file_.push_back(passport::PublicPmid(key_chain.pmid));
-  passport::detail::AnmaidToPmid key_chain(all_keychains_[10]);
+  passport::detail::AnmaidToPmid key_chain(all_keychains_[options.key_index]);
   routing::Routing client_routing_(key_chain.maid);
   passport::PublicPmid::Name pmid_name(Identity(key_chain.pmid.name().value));
 
   g_client_nfs_.reset(new nfs_client::MaidNodeNfs(g_asio_service_, client_routing_, pmid_name));
-  boost::asio::ip::udp::endpoint ep;
-  ep.port(5483);
-  ep.address(boost::asio::ip::address::from_string("192.168.0.36"));
+
   std::vector<boost::asio::ip::udp::endpoint> peer_endpoints;
-  peer_endpoints.push_back(ep);
+  if (!options.peer_endpoint.empty())
+    peer_endpoints.push_back(GetBootstrapEndpoint(options.peer_endpoint));
   RoutingJoin(client_routing_, peer_endpoints);
 
   bool account_exists(false);
@@ -491,15 +499,6 @@ int MountAndWaitForIpcNotification(const Options& options) {
 //   Unmount();
   poll_parent.join();
   return 0;
-}
-
-boost::asio::ip::udp::endpoint GetBootstrapEndpoint(const std::string& peer) {
-  size_t delim = peer.rfind(':');
-  boost::asio::ip::udp::endpoint ep;
-  ep.port(boost::lexical_cast<uint16_t>(peer.substr(delim + 1)));
-  ep.address(boost::asio::ip::address::from_string(peer.substr(0, delim)));
-  LOG(kInfo) << "Going to bootstrap off endpoint " << ep;
-  return ep;
 }
 
 int MountAndWaitForSignal(const Options& options) {

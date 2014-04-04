@@ -95,6 +95,8 @@ enum SharedMemoryArgIndex {
   kMountPathArg = 0,
   kStoragePathArg,
   kKeysPathArg,
+  kKeyIndexArg,
+  kPeerEndpointArg,
   kUniqueIdArg,
   kRootParentIdArg,
   kDriveNameArg,
@@ -132,6 +134,8 @@ void ReadAndRemoveInitialSharedMemory(const std::string& initial_shared_memory_n
   options.mount_path = shared_memory_args[kMountPathArg];
   options.storage_path = shared_memory_args[kStoragePathArg];
   options.keys_path = shared_memory_args[kKeysPathArg];
+  options.key_index = std::stoi(shared_memory_args[kKeyIndexArg]);
+  options.peer_endpoint = shared_memory_args[kPeerEndpointArg];
   options.unique_id = maidsafe::Identity(shared_memory_args[kUniqueIdArg]);
   options.root_parent_id = maidsafe::Identity(shared_memory_args[kRootParentIdArg]);
   options.drive_name = shared_memory_args[kDriveNameArg];
@@ -170,6 +174,8 @@ void Launcher::CreateInitialSharedMemory(const Options& options) {
   shared_memory_args[kMountPathArg] = options.mount_path.string();
   shared_memory_args[kStoragePathArg] = options.storage_path.string();
   shared_memory_args[kKeysPathArg] = options.keys_path.string();
+  shared_memory_args[kKeyIndexArg] = std::to_string(options.key_index);
+  shared_memory_args[kPeerEndpointArg] = options.peer_endpoint;
   shared_memory_args[kUniqueIdArg] = options.unique_id.string();
   shared_memory_args[kRootParentIdArg] = options.root_parent_id.string();
   shared_memory_args[kDriveNameArg] = options.drive_name.string();

@@ -159,12 +159,19 @@ void RemoveStorageDirectory(const fs::path& storage_path) {
 }
 
 po::options_description CommandLineOptions() {
+  boost::system::error_code error_code;
   po::options_description command_line_options(
       std::string("Filesystem Tool Options:\n") + kHelpInfo);
   command_line_options.add_options()("help,h", "Show help message.")
-                                    ("disk", "Perform all tests/benchmarks on native hard disk.")
-                                    ("local", "Perform all tests/benchmarks on local VFS.")
-                                    ("network", "Perform all tests/benchmarks on network VFS.");
+      ("disk", "Perform all tests/benchmarks on native hard disk.")
+      ("local", "Perform all tests/benchmarks on local VFS.")
+      ("network", "Perform all tests/benchmarks on network VFS.")
+      ("peer", po::value<std::string>(), "Endpoint of peer, if using network VFS.")
+      ("key_index,k", po::value<int>()->default_value(10),
+                      "The index of key to be used as client")
+      ("keys_path", po::value<std::string>()->default_value(fs::path(
+                       fs::temp_directory_path(error_code) / "key_directory.dat").string()),
+                    "Path to keys file");
 #ifdef MAIDSAFE_WIN32
   command_line_options.add_options()
       ("local_console", "Perform all tests/benchmarks on local VFS running as a console app.")
@@ -269,17 +276,30 @@ std::function<void()> PrepareLocalVfs() {
   return [options] {  // NOLINT
     RemoveTempDirectory();
     RemoveStorageDirectory(options.storage_path);
-    RemoveRootDirectory();
+//   RemoveRootDirectory();
   };
 }
 
-std::function<void()> PrepareNetworkVfs() {
+std::string GetStringFromProgramOption(const std::string& option_name,
+                                       const po::variables_map& variables_map) {
+  if (variables_map.count(option_name)) {
+    std::string option_string(variables_map.at(option_name).as<std::string>());
+    LOG(kInfo) << option_name << " set to " << option_string;
+    return option_string;
+  } else {
+    return "";
+  }
+}
+
+std::function<void()> PrepareNetworkVfs(const po::variables_map& variables_map) {
   SetUpTempDirectory();
   drive::Options options;
   SetUpRootDirectory(GetHomeDir());
   options.mount_path = g_root;
   options.storage_path = SetUpStorageDirectory();
-  options.keys_path = fs::path(fs::temp_directory_path() / "key_directory.dat");
+  options.keys_path = GetStringFromProgramOption("keys_path", variables_map);
+  options.peer_endpoint = GetStringFromProgramOption("peer", variables_map);
+  options.key_index = variables_map.at("key_index").as<int>();
   options.drive_name = RandomAlphaNumericString(10);
   options.unique_id = Identity(RandomString(64));
   options.root_parent_id = Identity(RandomString(64));
@@ -294,11 +314,11 @@ std::function<void()> PrepareNetworkVfs() {
   return [options] {  // NOLINT
     RemoveTempDirectory();
     RemoveStorageDirectory(options.storage_path);
-    RemoveRootDirectory();
+//     RemoveRootDirectory();
   };
 }
 
-std::function<void()> PrepareTest() {
+std::function<void()> PrepareTest(const po::variables_map& variables_map) {
   switch (g_test_type) {
     case TestType::kDisk:
       return PrepareDisk();
@@ -307,7 +327,7 @@ std::function<void()> PrepareTest() {
       return PrepareLocalVfs();
     case TestType::kNetwork:
     case TestType::kNetworkConsole:
-      return PrepareNetworkVfs();
+      return PrepareNetworkVfs(variables_map);
     default:
       BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
   }
@@ -329,7 +349,7 @@ int main(int argc, char** argv) {
     maidsafe::test::HandleHelp(variables_map);
     maidsafe::test::GetTestType(variables_map);
 
-    auto cleanup_functor(maidsafe::test::PrepareTest());
+    auto cleanup_functor(maidsafe::test::PrepareTest(variables_map));
     maidsafe::on_scope_exit cleanup_on_exit(cleanup_functor);
 
     auto tests_result(maidsafe::test::RunTool(argc, argv, maidsafe::test::g_root,
