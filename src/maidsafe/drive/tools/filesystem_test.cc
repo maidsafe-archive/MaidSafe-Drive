@@ -1796,17 +1796,19 @@ TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
   REQUIRE(WriteFile(cmake_file, content));
   REQUIRE(fs::exists(cmake_file));
 
+  content = "";
+
 #ifdef MAIDSAFE_WIN32
   DWORD exit_code(0);
   script = "configure_file.bat";
-  command_args = "/C " + script; // + " 1>nul 2>nul";
+  command_args = "/C " + script + " 1>nul 2>nul";
 #else
   int exit_code(0);
-  script = "configure_file.bat";
+  script = "configure_file.sh";
   command_args = script;
+  content = "#!/bin/bash\n";
 #endif
-
-  content = "cmake -DCMAKE_PREFIX_PATH=" + prefix_path.string() + "\nexit\n";
+  content += "cmake -DCMAKE_PREFIX_PATH=" + prefix_path.string() + "\nexit\n";
 
   auto script_file(prefix_path / script);
   REQUIRE(WriteFile(script_file, content));
