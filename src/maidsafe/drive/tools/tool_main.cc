@@ -276,7 +276,7 @@ std::function<void()> PrepareLocalVfs() {
   return [options] {  // NOLINT
     RemoveTempDirectory();
     RemoveStorageDirectory(options.storage_path);
-//   RemoveRootDirectory();
+    RemoveRootDirectory();
   };
 }
 
@@ -314,7 +314,7 @@ std::function<void()> PrepareNetworkVfs(const po::variables_map& variables_map) 
   return [options] {  // NOLINT
     RemoveTempDirectory();
     RemoveStorageDirectory(options.storage_path);
-//     RemoveRootDirectory();
+    RemoveRootDirectory();
   };
 }
 
