@@ -1773,7 +1773,7 @@ TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
   fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)), root, prefix_path(g_temp),
            cross_platform(resources / "cross_platform"), ids(cross_platform / "ids"),
            utf8_file(resources / "utf-8.txt"), shell_path(boost::process::shell_path());
-  std::string content, recovered, script, command_args, utf8_file_name;
+  std::string content, script, command_args, utf8_file_name;
   boost::system::error_code error_code;
 
   REQUIRE(fs::exists(utf8_file));
@@ -1883,9 +1883,30 @@ TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
   }
   else {
     REQUIRE(fs::exists(file));
-    REQUIRE_NOTHROW(content = ReadFile(utf8_file).string());
-    REQUIRE_NOTHROW(recovered = ReadFile(file).string());
-    REQUIRE(recovered == content);
+#ifdef MAIDSAFE_WIN32
+    std::locale::global(boost::locale::generator().generate(""));
+#else
+    std::locale::global(std::locale(""));
+#endif
+    std::wifstream original_file, recovered_file;
+
+    original_file.imbue(std::locale());
+    recovered_file.imbue(std::locale());
+
+    original_file.open(utf8_file.string(), std::ios_base::binary | std::ios_base::in);
+    REQUIRE(original_file.good());
+    recovered_file.open(file.string(), std::ios_base::binary | std::ios_base::in);
+    REQUIRE(original_file.good());
+
+    std::wstring original_string(256, 0), recovered_string(256, 0);
+    int line_count = 0;
+    while(!original_file.eof() && !recovered_file.eof()) {
+      original_file.getline(const_cast<wchar_t*>(original_string.c_str()), 256);
+      recovered_file.getline(const_cast<wchar_t*>(recovered_string.c_str()), 256);
+      REQUIRE(original_string == recovered_string);
+      ++line_count;
+    }
+    REQUIRE((original_file.eof() && recovered_file.eof()));
   }
 
   // allow time for the version to store!
@@ -1896,31 +1917,6 @@ TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
   REQUIRE(fs::remove(root));
   REQUIRE(!fs::exists(root));
 #endif
-
-//  if (is_empty) {
-//    REQUIRE(!fs::exists(file));
-//    content = "1";
-//    REQUIRE(WriteFile(file, content));
-//    REQUIRE(fs::exists(file));
-//  }
-//  else {
-//    REQUIRE(fs::exists(file));
-//    REQUIRE_NOTHROW(content = ReadFile(file).string());
-//    uint32_t value(0);
-//    REQUIRE_NOTHROW(value = std::stoul(content));
-//    REQUIRE((value == 1 || value == 2));
-
-//    if (value == 1) {
-//      content = "2";
-//      REQUIRE(WriteFile(file, content));
-//      REQUIRE(fs::exists(file));
-//    }
-//    else {
-//      content = "1";
-//      REQUIRE(WriteFile(file, content));
-//      REQUIRE(fs::exists(file));
-//    }
-//  }
 }
 
 }  // namespace test
