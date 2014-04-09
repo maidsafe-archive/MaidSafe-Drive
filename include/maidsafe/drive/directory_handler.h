@@ -451,14 +451,15 @@ template <typename Storage>
 void DirectoryHandler<Storage>::Put(Directory* directory) {
   ImmutableData encrypted_data_map(SerialiseDirectory(directory));
   storage_->Put(encrypted_data_map);
-  MutableData::Name hash_directory_id(crypto::Hash<crypto::SHA512>(std::get<0>(result)));
   if (directory->VersionsCount() == 0) {
     auto result(directory->InitialiseVersions(encrypted_data_map.name()));
+    MutableData::Name hash_directory_id(crypto::Hash<crypto::SHA512>(std::get<0>(result)));
     auto future(storage_->CreateVersionTree(hash_directory_id,
                                             std::get<1>(result), kMaxVersions, 2));
     future.get();
   } else {
     auto result(directory->AddNewVersion(encrypted_data_map.name()));
+    MutableData::Name hash_directory_id(crypto::Hash<crypto::SHA512>(std::get<0>(result)));
     storage_->PutVersion(hash_directory_id, std::get<1>(result), std::get<2>(result));
   }
 }
