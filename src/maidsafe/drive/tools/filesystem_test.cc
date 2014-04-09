@@ -669,6 +669,51 @@ void WriteUtf8FileAndEdit(const fs::path& start_directory) {
   RequireExists(utf8_file);
 }
 
+#ifndef MAIDSAFE_WIN32
+void RunFsTest(const fs::path& start_directory) {
+  boost::system::error_code error_code;
+  fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)),
+           fstest(resources.parent_path() / "pjd-fstest-20080816/fstest"),
+           shell_path(boost::process::shell_path());
+  std::string content, script, command_args;
+
+  int exit_code(0);
+  script = "fstest.sh";
+  content = std::string("#!/bin/bash\n")
+          + "prove -r " + fstest.string() + " 1>/dev/null 2>/dev/null\n"
+          + "exit";
+  command_args = "sudo " + script;
+
+  auto script_file(start_directory / script);
+  REQUIRE(WriteFile(script_file, content));
+  REQUIRE(fs::exists(script_file, error_code));
+
+  int result(setuid(0));
+#ifndef MAIDSAFE_APPLE
+  clearenv();
+#endif
+  result = system((start_directory.string() + script).c_str());
+  static_cast<void>(result);
+
+  std::vector<std::string> process_args;
+  process_args.emplace_back(shell_path.string());
+  process_args.emplace_back(command_args);
+  const auto command_line(process::ConstructCommandLine(process_args));
+
+  boost::process::child child = boost::process::execute(
+      boost::process::initializers::start_in_dir(start_directory.string()),
+      boost::process::initializers::run_exe(shell_path),
+      boost::process::initializers::set_cmd_line(command_line),
+      boost::process::initializers::inherit_env(),
+      boost::process::initializers::set_on_error(error_code));
+
+  REQUIRE(error_code.value() == 0);
+  exit_code = boost::process::wait_for_exit(child, error_code);
+  REQUIRE(error_code.value() == 0);
+  REQUIRE(exit_code == 0);
+}
+#endif
+
 }  // unnamed namespace
 
 int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
@@ -1708,6 +1753,14 @@ TEST_CASE("Download movie then copy to drive", "[Filesystem][behavioural]") {
   INFO("Failed to find " << (g_root / movie).string());
   REQUIRE(fs::exists(g_root / movie));
 }
+
+#ifndef MAIDSAFE_WIN32
+TEST_CASE("Run fstest", "[Filesystem][behavioural]") {
+  on_scope_exit cleanup(clean_root);
+  REQUIRE_NOTHROW(RunFsTest(g_temp));
+  REQUIRE_NOTHROW(RunFsTest(g_root));
+}
+#endif
 
 }  // namespace test
 
