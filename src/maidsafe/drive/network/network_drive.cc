@@ -51,6 +51,7 @@
 #include "maidsafe/common/data_stores/local_store.h"
 
 #include "maidsafe/passport/types.h"
+#include "maidsafe/passport/passport.h"
 
 #include "maidsafe/nfs/client/maid_node_nfs.h"
 
@@ -330,14 +331,14 @@ void ValidateOptions(const Options& options) {
     error_message += "  chunk_store must be set\n";
     g_return_code += 2;
   }
-  if (!options.unique_id.IsInitialised()) {
-    error_message += "  unique_id must be set to a 64 character string\n";
-    g_return_code += 4;
-  }
-  if (!options.root_parent_id.IsInitialised()) {
-    error_message += "  parent_id must be set to a 64 character string\n";
-    g_return_code += 8;
-  }
+//   if (!options.unique_id.IsInitialised()) {
+//     error_message += "  unique_id must be set to a 64 character string\n";
+//     g_return_code += 4;
+//   }
+//   if (!options.root_parent_id.IsInitialised()) {
+//     error_message += "  parent_id must be set to a 64 character string\n";
+//     g_return_code += 8;
+//   }
 
   if (g_return_code) {
     g_error_message = "Fatal error:\n" + error_message + "\nRun with -h to see all options.\n\n";
@@ -423,10 +424,24 @@ int MountAndWait(const Options& options, bool use_ipc) {
       maidsafe::passport::detail::ReadKeyChainList(options.keys_path);
   for (auto& key_chain : all_keychains_)
     g_pmids_from_file_.push_back(passport::PublicPmid(key_chain.pmid));
-  passport::detail::AnmaidToPmid key_chain(all_keychains_[options.key_index]);
-  routing::Routing client_routing_(key_chain.maid);
-  passport::PublicPmid::Name pmid_name(Identity(key_chain.pmid.name().value));
 
+  std::shared_ptr<passport::Maid> maid;
+  std::shared_ptr<passport::Anmaid> anmaid;
+  std::shared_ptr<passport::Pmid> pmid;
+  if (options.key_index != -1) {
+    passport::detail::AnmaidToPmid key_chain(all_keychains_[options.key_index]);
+    maid.reset(new passport::Maid(key_chain.maid));
+    anmaid.reset(new passport::Anmaid(key_chain.anmaid));
+    pmid.reset(new passport::Pmid(key_chain.pmid));
+  } else {
+    passport::Passport passport(NonEmptyString(options.passport));
+    maid.reset(new passport::Maid(passport.Get<passport::Maid>()));
+    anmaid.reset(new passport::Anmaid(passport.Get<passport::Anmaid>()));
+    pmid.reset(new passport::Pmid(passport.Get<passport::Pmid>()));
+  }
+  passport::PublicPmid::Name pmid_name(Identity(pmid->name().value));
+
+  routing::Routing client_routing_(*maid);
   g_client_nfs_.reset(new nfs_client::MaidNodeNfs(g_asio_service_, client_routing_, pmid_name));
 
   std::vector<boost::asio::ip::udp::endpoint> peer_endpoints;
@@ -435,9 +450,9 @@ int MountAndWait(const Options& options, bool use_ipc) {
   RoutingJoin(client_routing_, peer_endpoints);
 
   bool account_exists(false);
-  passport::PublicMaid public_maid(key_chain.maid);
+  passport::PublicMaid public_maid(*maid);
   {
-    passport::PublicAnmaid public_anmaid(key_chain.anmaid);
+    passport::PublicAnmaid public_anmaid(*anmaid);
     auto future(g_client_nfs_->CreateAccount(nfs_vault::AccountCreation(public_maid,
                                                                         public_anmaid)));
     auto status(future.wait_for(boost::chrono::seconds(3)));
@@ -470,12 +485,12 @@ int MountAndWait(const Options& options, bool use_ipc) {
     std::cout << "Account created for maid " << HexSubstr(public_maid.name()->string())
               << std::endl;
     // before register pmid, need to store pmid to network first
-    g_client_nfs_->Put(passport::PublicPmid(key_chain.pmid));
+    g_client_nfs_->Put(passport::PublicPmid(*pmid));
     boost::this_thread::sleep_for(boost::chrono::seconds(2));
   }
 
   if (register_pmid_for_client) {
-    g_client_nfs_->RegisterPmid(nfs_vault::PmidRegistration(key_chain.maid, key_chain.pmid, false));
+    g_client_nfs_->RegisterPmid(nfs_vault::PmidRegistration(*maid, *pmid, false));
     boost::this_thread::sleep_for(boost::chrono::seconds(3));
     auto future(g_client_nfs_->GetPmidHealth(pmid_name));
     auto status(future.wait_for(boost::chrono::seconds(3)));
@@ -490,8 +505,12 @@ int MountAndWait(const Options& options, bool use_ipc) {
     LOG(kInfo) << "Pmid Registered created for the client node to store chunks";
   }
 
-  maidsafe::Identity unique_id(crypto::Hash<crypto::SHA512>(public_maid.name()->string()));
-  maidsafe::Identity root_parent_id(crypto::Hash<crypto::SHA512>(unique_id.string()));
+  maidsafe::Identity unique_id(options.unique_id);
+  maidsafe::Identity root_parent_id(options.root_parent_id);
+  if (!unique_id.IsInitialised() || !root_parent_id.IsInitialised()) {
+    unique_id = maidsafe::Identity(crypto::Hash<crypto::SHA512>(public_maid.name()->string()));
+    root_parent_id = maidsafe::Identity(crypto::Hash<crypto::SHA512>(unique_id.string()));
+  }
   bool create_store(true);
   if (account_exists)
     create_store = false;

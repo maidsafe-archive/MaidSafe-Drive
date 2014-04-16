@@ -101,6 +101,7 @@ enum SharedMemoryArgIndex {
   kRootParentIdArg,
   kDriveNameArg,
   kCreateStoreArg,
+  kPassportArg,
   kParentProcessHandle,
   kMaxArgIndex
 };
@@ -140,6 +141,7 @@ void ReadAndRemoveInitialSharedMemory(const std::string& initial_shared_memory_n
   options.root_parent_id = maidsafe::Identity(shared_memory_args[kRootParentIdArg]);
   options.drive_name = shared_memory_args[kDriveNameArg];
   options.create_store = (std::stoi(shared_memory_args[kCreateStoreArg]) != 0);
+  options.passport = shared_memory_args[kPassportArg];
   options.mount_status_shared_object_name =
       GetMountStatusSharedMemoryName(initial_shared_memory_name);
   options.parent_handle =
@@ -180,6 +182,7 @@ void Launcher::CreateInitialSharedMemory(const Options& options) {
   shared_memory_args[kRootParentIdArg] = options.root_parent_id.string();
   shared_memory_args[kDriveNameArg] = options.drive_name.string();
   shared_memory_args[kCreateStoreArg] = options.create_store ? "1" : "0";
+  shared_memory_args[kPassportArg] = options.passport;
   shared_memory_args[kParentProcessHandle] =
       std::to_string(reinterpret_cast<uintptr_t>(this_process_handle_));
   ipc::CreateSharedMemory(initial_shared_memory_name_, shared_memory_args);
