@@ -67,14 +67,16 @@ struct Options {
   Options() : mount_path(), storage_path(), keys_path(), drive_name(), key_index(-1),
               unique_id(), root_parent_id(),
               create_store(false), check_data(false), drive_type(DriveType::kNetwork),
-              drive_logging_args(), mount_status_shared_object_name(), peer_endpoint(), passport(),
+              drive_logging_args(), mount_status_shared_object_name(), peer_endpoint(),
+              encrypted_maid(), encrypted_pmid(), symm_key(), symm_iv(),
               parent_handle(nullptr) {}
   boost::filesystem::path mount_path, storage_path, keys_path, drive_name;
   int key_index;
   Identity unique_id, root_parent_id;
   bool create_store, check_data;
   DriveType drive_type;
-  std::string drive_logging_args, mount_status_shared_object_name, peer_endpoint, passport;
+  std::string drive_logging_args, mount_status_shared_object_name, peer_endpoint,
+              encrypted_maid, encrypted_pmid, symm_key, symm_iv;
   void* parent_handle;
 };
 

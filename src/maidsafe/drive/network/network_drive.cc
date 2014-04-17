@@ -419,37 +419,10 @@ int MountAndWaitForSignal(NetworkDrive& drive) {
   return 0;
 }
 
-int MountAndWait(const Options& options, bool use_ipc) {
-  std::vector<passport::detail::AnmaidToPmid> all_keychains_ =
-      maidsafe::passport::detail::ReadKeyChainList(options.keys_path);
-  for (auto& key_chain : all_keychains_)
-    g_pmids_from_file_.push_back(passport::PublicPmid(key_chain.pmid));
-
-  std::shared_ptr<passport::Maid> maid;
-  std::shared_ptr<passport::Anmaid> anmaid;
-  std::shared_ptr<passport::Pmid> pmid;
-  if (options.key_index != -1) {
-    passport::detail::AnmaidToPmid key_chain(all_keychains_[options.key_index]);
-    maid.reset(new passport::Maid(key_chain.maid));
-    anmaid.reset(new passport::Anmaid(key_chain.anmaid));
-    pmid.reset(new passport::Pmid(key_chain.pmid));
-  } else {
-    passport::Passport passport(NonEmptyString(options.passport));
-    maid.reset(new passport::Maid(passport.Get<passport::Maid>()));
-    anmaid.reset(new passport::Anmaid(passport.Get<passport::Anmaid>()));
-    pmid.reset(new passport::Pmid(passport.Get<passport::Pmid>()));
-  }
+bool CreateAccount(std::shared_ptr<passport::Maid> maid,
+                   std::shared_ptr<passport::Anmaid> anmaid,
+                   std::shared_ptr<passport::Pmid> pmid) {
   passport::PublicPmid::Name pmid_name(Identity(pmid->name().value));
-
-  routing::Routing client_routing_(*maid);
-  g_client_nfs_.reset(new nfs_client::MaidNodeNfs(g_asio_service_, client_routing_, pmid_name));
-
-  std::vector<boost::asio::ip::udp::endpoint> peer_endpoints;
-  if (!options.peer_endpoint.empty())
-    peer_endpoints.push_back(GetBootstrapEndpoint(options.peer_endpoint));
-  RoutingJoin(client_routing_, peer_endpoints);
-
-  bool account_exists(false);
   passport::PublicMaid public_maid(*maid);
   {
     passport::PublicAnmaid public_anmaid(*anmaid);
@@ -467,57 +440,86 @@ int MountAndWait(const Options& options, bool use_ipc) {
       } catch (const maidsafe_error& error) {
 //         std::cout << "caught a maidsafe_error : " << error.what() << std::endl;
         if (error.code() == make_error_code(VaultErrors::account_already_exists))
-          account_exists = true;
+          return true;
       } catch (...) {
         std::cout << "caught an unknown exception" << std::endl;
       }
     }
   }
 
-  bool register_pmid_for_client(true);
-  if (account_exists) {
-    std::cout << "Account exists for maid " << HexSubstr(public_maid.name()->string())
-              << std::endl;
-    register_pmid_for_client = false;
+  // waiting for syncs resolved
+  boost::this_thread::sleep_for(boost::chrono::seconds(2));
+  std::cout << "Account created for maid " << HexSubstr(public_maid.name()->string())
+            << std::endl;
+  // before register pmid, need to store pmid to network first
+  g_client_nfs_->Put(passport::PublicPmid(*pmid));
+  boost::this_thread::sleep_for(boost::chrono::seconds(2));
+
+  g_client_nfs_->RegisterPmid(nfs_vault::PmidRegistration(*maid, *pmid, false));
+  boost::this_thread::sleep_for(boost::chrono::seconds(3));
+  auto future(g_client_nfs_->GetPmidHealth(pmid_name));
+  auto status(future.wait_for(boost::chrono::seconds(3)));
+  if (status == boost::future_status::timeout) {
+    std::cout << "can't fetch pmid health" << std::endl;
+    BOOST_THROW_EXCEPTION(MakeError(VaultErrors::failed_to_handle_request));
+  }
+  std::cout << "The fetched PmidHealth for pmid_name " << HexSubstr(pmid_name.value.string())
+            << " is " << future.get() << std::endl;
+  // waiting for the GetPmidHealth updating corresponding accounts
+  boost::this_thread::sleep_for(boost::chrono::seconds(3));
+  LOG(kInfo) << "Pmid Registered created for the client node to store chunks";
+
+  return false;
+}
+
+int MountAndWait(const Options& options, bool use_ipc) {
+  std::vector<passport::detail::AnmaidToPmid> all_keychains =
+      maidsafe::passport::detail::ReadKeyChainList(options.keys_path);
+  for (auto& key_chain : all_keychains)
+    g_pmids_from_file_.push_back(passport::PublicPmid(key_chain.pmid));
+
+  std::shared_ptr<passport::Maid> maid;
+  std::shared_ptr<passport::Anmaid> anmaid;
+  std::shared_ptr<passport::Pmid> pmid;
+  if (options.key_index != -1) {
+    passport::detail::AnmaidToPmid key_chain(all_keychains[options.key_index]);
+    maid.reset(new passport::Maid(key_chain.maid));
+    anmaid.reset(new passport::Anmaid(key_chain.anmaid));
+    pmid.reset(new passport::Pmid(key_chain.pmid));
   } else {
-    // waiting for syncs resolved
-    boost::this_thread::sleep_for(boost::chrono::seconds(2));
-    std::cout << "Account created for maid " << HexSubstr(public_maid.name()->string())
-              << std::endl;
-    // before register pmid, need to store pmid to network first
-    g_client_nfs_->Put(passport::PublicPmid(*pmid));
-    boost::this_thread::sleep_for(boost::chrono::seconds(2));
+    crypto::AES256Key symm_key(options.symm_key);
+    crypto::AES256InitialisationVector symm_iv(options.symm_iv);
+    crypto::CipherText encrypted_maid(NonEmptyString(options.encrypted_maid));
+    crypto::CipherText encrypted_pmid(NonEmptyString(options.encrypted_pmid));
+    maid.reset(new passport::Maid(passport::DecryptMaid(encrypted_maid, symm_key, symm_iv)));
+    pmid.reset(new passport::Pmid(passport::DecryptPmid(encrypted_pmid, symm_key, symm_iv)));
   }
 
-  if (register_pmid_for_client) {
-    g_client_nfs_->RegisterPmid(nfs_vault::PmidRegistration(*maid, *pmid, false));
-    boost::this_thread::sleep_for(boost::chrono::seconds(3));
-    auto future(g_client_nfs_->GetPmidHealth(pmid_name));
-    auto status(future.wait_for(boost::chrono::seconds(3)));
-    if (status == boost::future_status::timeout) {
-      std::cout << "can't fetch pmid health" << std::endl;
-      BOOST_THROW_EXCEPTION(MakeError(VaultErrors::failed_to_handle_request));
-    }
-    std::cout << "The fetched PmidHealth for pmid_name " << HexSubstr(pmid_name.value.string())
-              << " is " << future.get() << std::endl;
-    // waiting for the GetPmidHealth updating corresponding accounts
-    boost::this_thread::sleep_for(boost::chrono::seconds(3));
-    LOG(kInfo) << "Pmid Registered created for the client node to store chunks";
-  }
+  routing::Routing client_routing_(*maid);
+  passport::PublicPmid::Name pmid_name(Identity(pmid->name().value));
+  g_client_nfs_.reset(new nfs_client::MaidNodeNfs(g_asio_service_, client_routing_, pmid_name));
+
+  std::vector<boost::asio::ip::udp::endpoint> peer_endpoints;
+  if (!options.peer_endpoint.empty())
+    peer_endpoints.push_back(GetBootstrapEndpoint(options.peer_endpoint));
+  RoutingJoin(client_routing_, peer_endpoints);
+
+  bool account_exists(true);
+  if (options.key_index != -1)
+    account_exists = CreateAccount(maid, anmaid, pmid);
 
   maidsafe::Identity unique_id(options.unique_id);
   maidsafe::Identity root_parent_id(options.root_parent_id);
   if (!unique_id.IsInitialised() || !root_parent_id.IsInitialised()) {
+    passport::PublicMaid public_maid(*maid);
     unique_id = maidsafe::Identity(crypto::Hash<crypto::SHA512>(public_maid.name()->string()));
     root_parent_id = maidsafe::Identity(crypto::Hash<crypto::SHA512>(unique_id.string()));
   }
-  bool create_store(true);
-  if (account_exists)
-    create_store = false;
 
   std::cout << "unique_id : " << HexSubstr(unique_id.string()) << std::endl;
   std::cout << "root_parent_id : " << HexSubstr(root_parent_id.string()) << std::endl;
 
+  bool create_store(!account_exists);
   NetworkDrive drive(g_client_nfs_, unique_id, root_parent_id, options.mount_path, GetUserAppDir(),
                      options.drive_name, options.mount_status_shared_object_name, create_store);
   g_network_drive = &drive;
