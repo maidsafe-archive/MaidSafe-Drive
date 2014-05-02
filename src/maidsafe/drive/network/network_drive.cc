@@ -510,7 +510,8 @@ int MountAndWait(const Options& options, bool use_ipc) {
 
   maidsafe::Identity unique_id(options.unique_id);
   maidsafe::Identity root_parent_id(options.root_parent_id);
-  if (!unique_id.IsInitialised() || !root_parent_id.IsInitialised()) {
+  if ((options.key_index != -1) ||
+      (!unique_id.IsInitialised() || !root_parent_id.IsInitialised())) {
     passport::PublicMaid public_maid(*maid);
     unique_id = maidsafe::Identity(crypto::Hash<crypto::SHA512>(public_maid.name()->string()));
     root_parent_id = maidsafe::Identity(crypto::Hash<crypto::SHA512>(unique_id.string()));
