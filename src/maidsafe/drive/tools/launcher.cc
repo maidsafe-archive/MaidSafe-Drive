@@ -94,24 +94,36 @@ void CloseHandleToThisProcess(void* /*this_process*/) {}
 enum SharedMemoryArgIndex {
   kMountPathArg = 0,
   kStoragePathArg,
+  kKeysPathArg,
+  kKeyIndexArg,
+  kPeerEndpointArg,
   kUniqueIdArg,
   kRootParentIdArg,
   kDriveNameArg,
   kCreateStoreArg,
+  kMaidArg,
+  kPmidArg,
+  kSymmKeyArg,
+  kSymmIvArg,
   kParentProcessHandle,
   kMaxArgIndex
 };
 
 void DoNotifyMountStatus(const std::string& mount_status_shared_object_name, bool mount_and_wait) {
-  bi::shared_memory_object shared_object(bi::open_only, mount_status_shared_object_name.c_str(),
-                                         bi::read_write);
-  bi::mapped_region region(shared_object, bi::read_write);
-  auto mount_status = static_cast<MountStatus*>(region.get_address());
-  bi::scoped_lock<bi::interprocess_mutex> lock(mount_status->mutex);
-  mount_status->mounted = mount_and_wait;
-  mount_status->condition.notify_one();
-  if (mount_and_wait)
-    mount_status->condition.wait(lock, [&] { return mount_status->unmount; });
+  try {
+    bi::shared_memory_object shared_object(bi::open_only, mount_status_shared_object_name.c_str(),
+                                           bi::read_write);
+    bi::mapped_region region(shared_object, bi::read_write);
+    auto mount_status = static_cast<MountStatus*>(region.get_address());
+    bi::scoped_lock<bi::interprocess_mutex> lock(mount_status->mutex);
+    mount_status->mounted = mount_and_wait;
+    mount_status->condition.notify_one();
+    if (mount_and_wait)
+      mount_status->condition.wait(lock, [&] { return !mount_status->mounted; });
+  } catch (...) {
+    // in case parent process is gone, try to access shared_memory will raise exception of
+    // 'boost::interprocess::interprocess_exception'
+  }
 }
 
 }  // unnamed namespace
@@ -125,10 +137,17 @@ void ReadAndRemoveInitialSharedMemory(const std::string& initial_shared_memory_n
   auto shared_memory_args = ipc::ReadSharedMemory(initial_shared_memory_name.c_str(), kMaxArgIndex);
   options.mount_path = shared_memory_args[kMountPathArg];
   options.storage_path = shared_memory_args[kStoragePathArg];
+  options.keys_path = shared_memory_args[kKeysPathArg];
+  options.key_index = std::stoi(shared_memory_args[kKeyIndexArg]);
+  options.peer_endpoint = shared_memory_args[kPeerEndpointArg];
   options.unique_id = maidsafe::Identity(shared_memory_args[kUniqueIdArg]);
   options.root_parent_id = maidsafe::Identity(shared_memory_args[kRootParentIdArg]);
   options.drive_name = shared_memory_args[kDriveNameArg];
   options.create_store = (std::stoi(shared_memory_args[kCreateStoreArg]) != 0);
+  options.encrypted_maid = shared_memory_args[kMaidArg];
+  options.encrypted_pmid = shared_memory_args[kPmidArg];
+  options.symm_key = shared_memory_args[kSymmKeyArg];
+  options.symm_iv = shared_memory_args[kSymmIvArg];
   options.mount_status_shared_object_name =
       GetMountStatusSharedMemoryName(initial_shared_memory_name);
   options.parent_handle =
@@ -149,6 +168,7 @@ Launcher::Launcher(const Options& options)
       kMountPath_(AdjustMountPath(options.mount_path)), mount_status_shared_object_(),
       mount_status_mapped_region_(), mount_status_(nullptr),
       this_process_handle_(GetHandleToThisProcess()), drive_process_() {
+  LOG(kVerbose) << "launcher initial_shared_memory_name_ : " << initial_shared_memory_name_;
   maidsafe::on_scope_exit cleanup_on_throw([&] { Cleanup(); });
   CreateInitialSharedMemory(options);
   CreateMountStatusSharedMemory();
@@ -161,10 +181,17 @@ void Launcher::CreateInitialSharedMemory(const Options& options) {
   std::vector<std::string> shared_memory_args(kMaxArgIndex);
   shared_memory_args[kMountPathArg] = options.mount_path.string();
   shared_memory_args[kStoragePathArg] = options.storage_path.string();
+  shared_memory_args[kKeysPathArg] = options.keys_path.string();
+  shared_memory_args[kKeyIndexArg] = std::to_string(options.key_index);
+  shared_memory_args[kPeerEndpointArg] = options.peer_endpoint;
   shared_memory_args[kUniqueIdArg] = options.unique_id.string();
   shared_memory_args[kRootParentIdArg] = options.root_parent_id.string();
   shared_memory_args[kDriveNameArg] = options.drive_name.string();
   shared_memory_args[kCreateStoreArg] = options.create_store ? "1" : "0";
+  shared_memory_args[kMaidArg] = options.encrypted_maid;
+  shared_memory_args[kPmidArg] = options.encrypted_pmid;
+  shared_memory_args[kSymmKeyArg] = options.symm_key;
+  shared_memory_args[kSymmIvArg] = options.symm_iv;
   shared_memory_args[kParentProcessHandle] =
       std::to_string(reinterpret_cast<uintptr_t>(this_process_handle_));
   ipc::CreateSharedMemory(initial_shared_memory_name_, shared_memory_args);
@@ -214,7 +241,7 @@ void Launcher::StartDriveProcess(const Options& options) {
       bp::initializers::set_on_error(error_code))));
 #endif
   if (error_code) {
-    LOG(kError) << "Failed to start local drive: " << error_code.message();
+    std::cout << "Failed to start local drive: " << error_code.message() << std::endl;
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::uninitialised));
   }
 }
@@ -236,9 +263,9 @@ fs::path Launcher::GetDriveExecutablePath(DriveType drive_type) {
 
 void Launcher::WaitForDriveToMount() {
   bi::scoped_lock<bi::interprocess_mutex> lock(mount_status_->mutex);
-  auto timeout(bptime::second_clock::universal_time() + bptime::seconds(10));
+  auto timeout(bptime::second_clock::universal_time() + bptime::seconds(100));
   if (!mount_status_->condition.timed_wait(lock, timeout, [&] { return mount_status_->mounted; })) {
-    LOG(kError) << "Failed waiting for drive to mount.";
+    std::cout << "Failed waiting for drive to mount." << std::endl;
     BOOST_THROW_EXCEPTION(MakeError(DriveErrors::failed_to_mount));
   }
 }
