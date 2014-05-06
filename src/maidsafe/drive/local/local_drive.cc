@@ -278,7 +278,8 @@ int MountAndWaitForIpcNotification(const Options& options) {
                    options.create_store);
   g_local_drive = &drive;
 #ifdef MAIDSAFE_WIN32
-  drive.SetGuid("MaidSafe-SureFile");
+  std::string guid(BOOST_PP_STRINGIZE(PRODUCT_ID));
+  drive.SetGuid(guid);
 #endif
   // Start a thread to poll the parent process' continued existence *before* calling drive.Mount().
   std::thread poll_parent([&] { MonitorParentProcess(options); });
@@ -313,7 +314,8 @@ int MountAndWaitForSignal(const Options& options) {
                    GetUserAppDir(), options.drive_name, "", options.create_store);
   g_local_drive = &drive;
 #ifdef MAIDSAFE_WIN32
-  drive.SetGuid("MaidSafe-SureFile");
+  std::string guid(BOOST_PP_STRINGIZE(PRODUCT_ID));
+  drive.SetGuid(guid);
 #endif
   drive.Mount();
   return 0;

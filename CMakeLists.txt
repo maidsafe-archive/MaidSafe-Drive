@@ -221,6 +221,11 @@ if(CbfsFound)
   if(MaidsafeTesting)
     set_property(TARGET cbfs_driver APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_ROOT_DIR=${CBFS_ROOT_DIR}")
   endif()
+  set(ProductId "47584d51-4651-487a-534c-675242655154")
+  set_property(TARGET local_drive APPEND PROPERTY COMPILE_DEFINITIONS "PRODUCT_ID=${ProductId}")
+  set_property(TARGET network_drive APPEND PROPERTY COMPILE_DEFINITIONS "PRODUCT_ID=${ProductId}")
+  set_property(TARGET local_drive_console APPEND PROPERTY COMPILE_DEFINITIONS "PRODUCT_ID=${ProductId}")
+  set_property(TARGET network_drive_console APPEND PROPERTY COMPILE_DEFINITIONS "PRODUCT_ID=${ProductId}")
 endif()
 
 
