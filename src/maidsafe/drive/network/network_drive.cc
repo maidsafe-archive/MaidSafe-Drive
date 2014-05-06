@@ -114,12 +114,7 @@ void RemoveTempDirectory() {
 
 void SetUpRootDirectory(fs::path base_dir) {
 #ifdef MAIDSAFE_WIN32
-  if (g_test_type == TestType::kDisk) {
-    g_root = fs::unique_path(base_dir / "MaidSafe_Root_Filesystem_%%%%-%%%%-%%%%");
-    CreateDir(g_root);
-  } else {
-    g_root = drive::GetNextAvailableDrivePath();
-  }
+  g_root = drive::GetNextAvailableDrivePath();
 #else
   g_root = fs::unique_path(base_dir / "MaidSafe_Root_Filesystem_%%%%-%%%%-%%%%");
   CreateDir(g_root);
@@ -525,7 +520,7 @@ int MountAndWait(const Options& options, bool use_ipc) {
                      options.drive_name, options.mount_status_shared_object_name, create_store);
   g_network_drive = &drive;
 #ifdef MAIDSAFE_WIN32
-  drive->SetGuid("MaidSafe-SureFile");
+  g_network_drive->SetGuid(BOOST_PP_STRINGIZE(PRODUCT_ID));
 #endif
   if (use_ipc) {
     return MountAndWaitForIpcNotification(options, drive);
