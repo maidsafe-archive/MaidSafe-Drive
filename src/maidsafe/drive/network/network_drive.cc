@@ -369,17 +369,17 @@ void RoutingJoin(routing::Routing& routing,
     }
   };
   functors_.typed_message_and_caching.group_to_group.message_received =
-      [&](const routing::GroupToGroupMessage &msg) { 
+      [&](const routing::GroupToGroupMessage &msg) {
         g_client_nfs_->HandleMessage(msg); };  // NOLINT
   functors_.typed_message_and_caching.group_to_single.message_received =
       [&](const routing::GroupToSingleMessage &msg) {
-        g_client_nfs_->HandleMessage(msg); 
+        g_client_nfs_->HandleMessage(msg);
       };  // NOLINT
   functors_.typed_message_and_caching.single_to_group.message_received =
-      [&](const routing::SingleToGroupMessage &msg) { 
+      [&](const routing::SingleToGroupMessage &msg) {
         g_client_nfs_->HandleMessage(msg); };  // NOLINT
   functors_.typed_message_and_caching.single_to_single.message_received =
-      [&](const routing::SingleToSingleMessage &msg) { 
+      [&](const routing::SingleToSingleMessage &msg) {
         g_client_nfs_->HandleMessage(msg); };  // NOLINT
   functors_.request_public_key =
       [&](const NodeId & node_id, const routing::GivePublicKeyFunctor & give_key) {
