@@ -87,6 +87,7 @@ bool g_call_once_(false);
 std::vector<passport::PublicPmid> g_pmids_from_file_;
 AsioService g_asio_service_(2);
 std::shared_ptr<nfs_client::MaidNodeNfs> g_client_nfs_;
+nfs::detail::PublicPmidHelper g_public_pmid_helper_;
 
 void CreateDir(const fs::path& dir) {
   boost::system::error_code error_code;
@@ -388,13 +389,15 @@ void RoutingJoin(routing::Routing& routing,
         g_client_nfs_->HandleMessage(msg); };  // NOLINT
   functors_.request_public_key =
       [&](const NodeId & node_id, const routing::GivePublicKeyFunctor & give_key) {
-        nfs::detail::PublicPmidHelper temp_helper;
         nfs::detail::DoGetPublicKey(*g_client_nfs_, node_id, give_key,
-                                    g_pmids_from_file_, temp_helper);
+                                    g_pmids_from_file_, g_public_pmid_helper_);
       };
+  LOG(kVerbose) << "Networkdrive routing joining network";
   routing.Join(functors_, peer_endpoints);
   auto future(std::move(join_promise->get_future()));
-  auto status(future.wait_for(std::chrono::seconds(10)));
+  LOG(kVerbose) << "Networkdrive routing joining network get_future";
+  auto status(future.wait_for(std::chrono::seconds(30)));
+  LOG(kVerbose) << "Networkdrive routing joining network procedure completed";
   if (status == std::future_status::timeout || !future.get()) {
     std::cout << "can't join routing network" << std::endl;
     BOOST_THROW_EXCEPTION(MakeError(RoutingErrors::not_connected));
@@ -428,7 +431,7 @@ bool CreateAccount(std::shared_ptr<passport::Maid> maid,
     passport::PublicAnmaid public_anmaid(*anmaid);
     auto future(g_client_nfs_->CreateAccount(nfs_vault::AccountCreation(public_maid,
                                                                         public_anmaid)));
-    auto status(future.wait_for(boost::chrono::seconds(3)));
+    auto status(future.wait_for(boost::chrono::seconds(10)));
     if (status == boost::future_status::timeout) {
       std::cout << "can't create account" << std::endl;
       BOOST_THROW_EXCEPTION(MakeError(VaultErrors::failed_to_handle_request));
