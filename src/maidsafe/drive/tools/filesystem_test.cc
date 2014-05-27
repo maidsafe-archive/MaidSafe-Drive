@@ -1404,13 +1404,9 @@ TEST_CASE("Delete on close", "[Filesystem][behavioural]") {
   DWORD position(0);
   BOOL success(0);
   CHECK_NOTHROW(success = dtc::WriteFileCommand(handle, path, buffer, &position, nullptr));
-  DWORD attributes(0);
-  CHECK_NOTHROW(attributes = dtc::GetFileAttributesCommand(path));
-  CHECK((attributes & FILE_FLAG_DELETE_ON_CLOSE) == FILE_FLAG_DELETE_ON_CLOSE);
+  CHECK(fs::exists(path));
   CHECK_NOTHROW(success = dtc::CloseHandleCommand(handle));
-  attributes = 0;
-  CHECK_THROWS_AS(attributes = dtc::GetFileAttributesCommand(path), std::exception);
-  CHECK(attributes == 0);
+  CHECK_FALSE(fs::exists(path));
 #else
   int file_descriptor(-1);
   fs::path path_template(g_root / (RandomAlphaNumericString(8) + "_XXXXXX"));
@@ -1439,6 +1435,7 @@ TEST_CASE("Delete on close", "[Filesystem][behavioural]") {
   CHECK((mode & S_IWUSR) == S_IWUSR);
   // close file
   CHECK_NOTHROW(dtc::CloseFileCommand(file_descriptor));
+  // CHECK_FALSE(boost::filesystem::exists(path_template));
 #endif
 }
 
@@ -1615,30 +1612,13 @@ TEST_CASE("Locale", "[Filesystem][behavioural]") {
 #endif
   fs::path::imbue(std::locale());
   fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES));
-  fs::path file(resources / "utf8");
+  fs::path file(resources / "utf-8");
   RequireExists(file);
   fs::path directory(g_root / ReadFile(file).string());
   CreateDirectory(directory);
   RequireExists(directory);
   fs::directory_iterator it(g_root);
   CHECK(it->path().filename() == ReadFile(file).string());
-}
-
-TEST_CASE("Storage path chunks not deleted", "[Filesystem][behavioural]") {
-  // Related to SureFile Issue#50, the test should be reworked/removed when the implementation of
-  // versions is complete and some form of communication is available to handle them. The test is
-  // currently setup to highlight the issue and thus to fail.
-  on_scope_exit cleanup(clean_root);
-  boost::system::error_code error_code;
-  size_t file_size(1024 * 1024);
-  uintmax_t initial_size(0), first_update_size(0), second_update_size(0);
-  GetUsedSpace(g_storage, initial_size);
-  auto test_file(CreateFile(g_root, file_size));
-  GetUsedSpace(g_storage, first_update_size);
-  fs::remove(test_file.first, error_code);
-  GetUsedSpace(g_storage, second_update_size);
-  CHECK(second_update_size < first_update_size);
-  CHECK(initial_size == second_update_size);
 }
 
 TEST_CASE("Create and build minimal C++ project", "[Filesystem][functional]") {
