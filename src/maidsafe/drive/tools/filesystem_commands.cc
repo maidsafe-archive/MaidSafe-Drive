@@ -122,7 +122,7 @@ void GetAndExecuteCommand() {
 namespace test {
 
 int RunTool(int /*argc*/, char** /*argv*/, const fs::path& root, const fs::path& temp,
-            const fs::path& storage) {
+            const fs::path& storage, int /*test_type*/) {
 //  std::vector<std::string> arguments(argv, argv + argc);
   drive::tools::g_environment.root = root;
   drive::tools::g_environment.temp = temp;

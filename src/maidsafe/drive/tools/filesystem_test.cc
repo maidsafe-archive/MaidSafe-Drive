@@ -45,6 +45,7 @@
 #define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
 
+#include "maidsafe/common/application_support_directories.h"
 #include "maidsafe/common/log.h"
 #include "maidsafe/common/on_scope_exit.h"
 #include "maidsafe/common/utils.h"
@@ -54,6 +55,8 @@
 #else
 #include "maidsafe/drive/tools/commands/unix_file_commands.h"
 #endif
+#include "maidsafe/drive/drive.h"
+#include "maidsafe/drive/tools/launcher.h"
 
 namespace fs = boost::filesystem;
 namespace dtc = maidsafe::drive::tools::commands;
@@ -65,6 +68,7 @@ namespace test {
 namespace {
 
 fs::path g_root, g_temp, g_storage;
+drive::DriveType g_test_type;
 
 std::function<void()> clean_root([] {
   // On Windows, this frequently fails on the first attempt due to lingering open handles in the
@@ -717,10 +721,12 @@ void RunFsTest(const fs::path& start_directory) {
 }  // unnamed namespace
 
 int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
-            const fs::path& storage) {
+            const fs::path& storage, int test_type) {
   g_root = root;
   g_temp = temp;
   g_storage = storage;
+  g_test_type = static_cast<drive::DriveType>(test_type);
+
   Catch::Session session;
   auto command_line_result(
       session.applyCommandLine(argc, argv, Catch::Session::OnUnusedOptions::Ignore));
@@ -1741,6 +1747,157 @@ TEST_CASE("Run fstest", "[Filesystem][behavioural]") {
   REQUIRE_NOTHROW(RunFsTest(g_root));
 }
 #endif
+
+TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
+  on_scope_exit cleanup(clean_root);
+  fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)), root, prefix_path(g_temp),
+           cross_platform(resources / "cross_platform"), ids(cross_platform / "ids"),
+           utf8_file(resources / "utf-8.txt"), shell_path(boost::process::shell_path());
+  std::string content, script, command_args, utf8_file_name;
+  boost::system::error_code error_code;
+
+  REQUIRE(fs::exists(utf8_file));
+  REQUIRE((fs::exists(cross_platform) && fs::is_directory(cross_platform)));
+  bool is_empty(fs::is_empty(cross_platform));
+
+  utf8_file_name = utf8_file.filename().string();
+  REQUIRE_NOTHROW(fs::copy_file(utf8_file, prefix_path / utf8_file_name));
+  REQUIRE(fs::exists(prefix_path / utf8_file_name));
+
+  utf8_file = prefix_path / utf8_file_name;
+  content = std::string("cmake_minimum_required(VERSION 2.8.11.2 FATAL_ERROR)\n")
+          + "configure_file(\"${CMAKE_PREFIX_PATH}/"
+          + utf8_file_name
+          + "\" \"${CMAKE_PREFIX_PATH}/"
+          + utf8_file_name
+          + "\" NEWLINE_STYLE WIN32)";
+
+  auto cmake_file(prefix_path / "CMakeLists.txt");
+  REQUIRE(WriteFile(cmake_file, content));
+  REQUIRE(fs::exists(cmake_file));
+
+  content = "";
+
+#ifdef MAIDSAFE_WIN32
+  DWORD exit_code(0);
+  script = "configure_file.bat";
+  command_args = "/C " + script + " 1>nul 2>nul";
+#else
+  int exit_code(0);
+  script = "configure_file.sh";
+  command_args = script;
+  content = "#!/bin/bash\n";
+#endif
+  content += "cmake -DCMAKE_PREFIX_PATH=" + prefix_path.string() + "\nexit\n";
+
+  auto script_file(prefix_path / script);
+  REQUIRE(WriteFile(script_file, content));
+  REQUIRE(fs::exists(script_file, error_code));
+
+  std::vector<std::string> process_args;
+  process_args.emplace_back(shell_path.filename().string());
+  process_args.emplace_back(command_args);
+  const auto command_line(process::ConstructCommandLine(process_args));
+
+  boost::process::child child = boost::process::execute(
+      boost::process::initializers::start_in_dir(prefix_path.string()),
+      boost::process::initializers::run_exe(shell_path),
+      boost::process::initializers::set_cmd_line(command_line),
+      boost::process::initializers::inherit_env(),
+      boost::process::initializers::set_on_error(error_code));
+
+  REQUIRE(error_code.value() == 0);
+  exit_code = boost::process::wait_for_exit(child, error_code);
+  REQUIRE(error_code.value() == 0);
+  REQUIRE(exit_code == 0);
+
+  drive::Options options;
+
+#ifdef MAIDSAFE_WIN32
+  root = drive::GetNextAvailableDrivePath();
+#else
+  root = fs::unique_path(GetHomeDir() / "MaidSafe_Root_Filesystem_%%%%-%%%%-%%%%");
+  REQUIRE_NOTHROW(fs::create_directories(root));
+  REQUIRE(fs::exists(root));
+#endif
+
+  options.mount_path = root;
+  options.storage_path = cross_platform;
+  options.drive_name = RandomAlphaNumericString(10);
+
+  if (is_empty) {
+    options.unique_id = Identity(RandomAlphaNumericString(64));
+    options.root_parent_id = Identity(RandomAlphaNumericString(64));
+    options.create_store = true;
+    content = options.unique_id.string() + ";" + options.root_parent_id.string();
+    REQUIRE(WriteFile(ids, content));
+    REQUIRE(fs::exists(ids));
+  }
+  else {
+    REQUIRE(fs::exists(ids));
+    REQUIRE_NOTHROW(content = ReadFile(ids).string());
+    REQUIRE(content.size() == 2 * 64 + 1);
+    size_t offset(content.find(std::string(";").c_str(), 0, 1));
+    REQUIRE(offset != std::string::npos);
+    options.unique_id = Identity(std::string(content.begin(), content.begin() + offset));
+    options.root_parent_id = Identity(std::string(content.begin() + offset + 1, content.end()));
+    REQUIRE(options.unique_id.string().size() == 64);
+    REQUIRE(options.root_parent_id.string().size() == 64);
+  }
+
+  options.drive_type = g_test_type;
+
+  std::unique_ptr<drive::Launcher> launcher;
+  launcher.reset(new drive::Launcher(options));
+  root = launcher->kMountPath();
+
+  // allow time for mount
+  Sleep(std::chrono::seconds(1));
+
+  fs::path file(root / "file");
+
+  if (is_empty) {
+    REQUIRE(!fs::exists(file));
+    REQUIRE_NOTHROW(fs::copy_file(utf8_file, file));
+    REQUIRE(fs::exists(file));
+  }
+  else {
+    REQUIRE(fs::exists(file));
+#ifdef MAIDSAFE_WIN32
+    std::locale::global(boost::locale::generator().generate(""));
+#else
+    std::locale::global(std::locale(""));
+#endif
+    std::wifstream original_file, recovered_file;
+
+    original_file.imbue(std::locale());
+    recovered_file.imbue(std::locale());
+
+    original_file.open(utf8_file.string(), std::ios_base::binary | std::ios_base::in);
+    REQUIRE(original_file.good());
+    recovered_file.open(file.string(), std::ios_base::binary | std::ios_base::in);
+    REQUIRE(original_file.good());
+
+    std::wstring original_string(256, 0), recovered_string(256, 0);
+    int line_count = 0;
+    while(!original_file.eof() && !recovered_file.eof()) {
+      original_file.getline(const_cast<wchar_t*>(original_string.c_str()), 256);
+      recovered_file.getline(const_cast<wchar_t*>(recovered_string.c_str()), 256);
+      REQUIRE(original_string == recovered_string);
+      ++line_count;
+    }
+    REQUIRE((original_file.eof() && recovered_file.eof()));
+  }
+
+  // allow time for the version to store!
+  Sleep(std::chrono::seconds(3));
+
+#ifndef MAIDSAFE_WIN32
+  launcher.reset();
+  REQUIRE(fs::remove(root));
+  REQUIRE(!fs::exists(root));
+#endif
+}
 
 }  // namespace test
 

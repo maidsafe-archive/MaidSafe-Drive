@@ -55,7 +55,7 @@ namespace maidsafe {
 namespace test {
 
 int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
-            const fs::path& storage);
+            const fs::path& storage, int test_type);
 
 namespace {
 
@@ -353,7 +353,8 @@ int main(int argc, char** argv) {
     maidsafe::on_scope_exit cleanup_on_exit(cleanup_functor);
 
     auto tests_result(maidsafe::test::RunTool(argc, argv, maidsafe::test::g_root,
-                                              maidsafe::test::g_temp, maidsafe::test::g_storage));
+                                              maidsafe::test::g_temp, maidsafe::test::g_storage,
+                                              static_cast<int>(maidsafe::test::g_test_type)));
     if (maidsafe::test::g_launcher)
       maidsafe::test::g_launcher->StopDriveProcess();
     return tests_result;
