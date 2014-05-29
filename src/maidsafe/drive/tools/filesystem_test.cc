@@ -31,6 +31,10 @@
 #include <string>
 #include <vector>
 
+#ifdef __FreeBSD__
+extern "C" char **environ;
+#endif
+
 #ifndef MAIDSAFE_WIN32
 #include <locale>  // NOLINT
 #else
@@ -680,7 +684,7 @@ void RunFsTest(const fs::path& start_directory) {
   REQUIRE(fs::exists(script_file, error_code));
 
   int result(setuid(0));
-#ifndef MAIDSAFE_APPLE
+#if !defined(MAIDSAFE_APPLE) && !defined(__FreeBSD__)
   clearenv();
 #endif
   result = system((start_directory.string() + script).c_str());
