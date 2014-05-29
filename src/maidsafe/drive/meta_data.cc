@@ -295,11 +295,11 @@ void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
   attributes_archive->set_st_blksize(attributes.st_blksize);
   attributes_archive->set_st_blocks(attributes.st_blocks);
 
-  uint32_t win_attributes(0x10); // FILE_ATTRIBUTE_DIRECTORY
+  uint32_t win_attributes(0x10);  // FILE_ATTRIBUTE_DIRECTORY
   if ((attributes.st_mode & S_IFREG) == S_IFREG)
     win_attributes = 0x80;  // FILE_ATTRIBUTE_NORMAL
   if (((attributes.st_mode && S_IRUSR) == S_IRUSR) && (win_attributes == 0x80))
-    win_attributes = 0x20 | 0x1; // FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_READONLY
+    win_attributes = 0x20 | 0x1;  // FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_READONLY
   if (name.string()[0]  == '.')
     win_attributes |= 0x2;  // FILE_ATTRIBUTE_HIDDEN
   attributes_archive->set_win_attributes(win_attributes);
