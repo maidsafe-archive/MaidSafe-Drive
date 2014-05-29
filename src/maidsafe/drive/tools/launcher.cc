@@ -20,6 +20,10 @@
 
 #include <vector>
 
+#ifdef __FreeBSD__
+extern "C" char **environ;
+#endif
+
 #include "boost/interprocess/sync/scoped_lock.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
 #include "boost/process/execute.hpp"

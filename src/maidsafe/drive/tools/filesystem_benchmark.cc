@@ -22,6 +22,10 @@
 #include <functional>
 #include <string>
 
+#ifdef __FreeBSD__
+extern "C" char **environ;
+#endif
+
 #include "boost/filesystem/path.hpp"
 #include "boost/filesystem/operations.hpp"
 #include "boost/program_options.hpp"
