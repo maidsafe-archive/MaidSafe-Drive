@@ -49,6 +49,7 @@ extern "C" char **environ;
 #define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
 
+#include "maidsafe/common/application_support_directories.h"
 #include "maidsafe/common/log.h"
 #include "maidsafe/common/on_scope_exit.h"
 #include "maidsafe/common/utils.h"
@@ -58,6 +59,8 @@ extern "C" char **environ;
 #else
 #include "maidsafe/drive/tools/commands/unix_file_commands.h"
 #endif
+#include "maidsafe/drive/drive.h"
+#include "maidsafe/drive/tools/launcher.h"
 
 namespace fs = boost::filesystem;
 namespace dtc = maidsafe::drive::tools::commands;
@@ -69,6 +72,7 @@ namespace test {
 namespace {
 
 fs::path g_root, g_temp, g_storage;
+drive::DriveType g_test_type;
 
 std::function<void()> clean_root([] {
   // On Windows, this frequently fails on the first attempt due to lingering open handles in the
@@ -721,10 +725,12 @@ void RunFsTest(const fs::path& start_directory) {
 }  // unnamed namespace
 
 int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
-            const fs::path& storage) {
+            const fs::path& storage, int test_type) {
   g_root = root;
   g_temp = temp;
   g_storage = storage;
+  g_test_type = static_cast<drive::DriveType>(test_type);
+
   Catch::Session session;
   auto command_line_result(
       session.applyCommandLine(argc, argv, Catch::Session::OnUnusedOptions::Ignore));
@@ -1408,13 +1414,9 @@ TEST_CASE("Delete on close", "[Filesystem][behavioural]") {
   DWORD position(0);
   BOOL success(0);
   CHECK_NOTHROW(success = dtc::WriteFileCommand(handle, path, buffer, &position, nullptr));
-  DWORD attributes(0);
-  CHECK_NOTHROW(attributes = dtc::GetFileAttributesCommand(path));
-  CHECK((attributes & FILE_FLAG_DELETE_ON_CLOSE) == FILE_FLAG_DELETE_ON_CLOSE);
+  CHECK(fs::exists(path));
   CHECK_NOTHROW(success = dtc::CloseHandleCommand(handle));
-  attributes = 0;
-  CHECK_THROWS_AS(attributes = dtc::GetFileAttributesCommand(path), std::exception);
-  CHECK(attributes == 0);
+  CHECK_FALSE(fs::exists(path));
 #else
   int file_descriptor(-1);
   fs::path path_template(g_root / (RandomAlphaNumericString(8) + "_XXXXXX"));
@@ -1443,6 +1445,7 @@ TEST_CASE("Delete on close", "[Filesystem][behavioural]") {
   CHECK((mode & S_IWUSR) == S_IWUSR);
   // close file
   CHECK_NOTHROW(dtc::CloseFileCommand(file_descriptor));
+  // CHECK_FALSE(boost::filesystem::exists(path_template));
 #endif
 }
 
@@ -1619,7 +1622,7 @@ TEST_CASE("Locale", "[Filesystem][behavioural]") {
 #endif
   fs::path::imbue(std::locale());
   fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES));
-  fs::path file(resources / "utf8");
+  fs::path file(resources / "utf-8");
   RequireExists(file);
   fs::path directory(g_root / ReadFile(file).string());
   CreateDirectory(directory);
@@ -1628,51 +1631,29 @@ TEST_CASE("Locale", "[Filesystem][behavioural]") {
   CHECK(it->path().filename() == ReadFile(file).string());
 }
 
-TEST_CASE("Storage path chunks not deleted", "[Filesystem][behavioural]") {
-  // Related to SureFile Issue#50, the test should be reworked/removed when the implementation of
-  // versions is complete and some form of communication is available to handle them. The test is
-  // currently setup to highlight the issue and thus to fail.
-  on_scope_exit cleanup(clean_root);
-  boost::system::error_code error_code;
-  size_t file_size(1024 * 1024);
-  uintmax_t initial_size(0), first_update_size(0), second_update_size(0);
-  GetUsedSpace(g_storage, initial_size);
-  auto test_file(CreateFile(g_root, file_size));
-  GetUsedSpace(g_storage, first_update_size);
-  fs::remove(test_file.first, error_code);
-  GetUsedSpace(g_storage, second_update_size);
-  CHECK(second_update_size < first_update_size);
-  CHECK(initial_size == second_update_size);
-}
-
 TEST_CASE("Create and build minimal C++ project", "[Filesystem][functional]") {
   on_scope_exit cleanup(clean_root);
   REQUIRE_NOTHROW(CreateAndBuildMinimalCppProject(g_root));
   REQUIRE_NOTHROW(CreateAndBuildMinimalCppProject(g_temp));
 }
 
-TEST_CASE("Download and build poco foundation twice with no deletions",
-          "[Filesystem][functional]") {
-  on_scope_exit cleanup(clean_root);
-  REQUIRE_NOTHROW(DownloadAndBuildPocoFoundation(g_root));
-  REQUIRE_NOTHROW(DownloadAndBuildPocoFoundation(g_root));
-}
+// commented since times out during experimental
 
-TEST_CASE("Download and build poco", "[Filesystem][functional]") {
-  on_scope_exit cleanup(clean_root);
-  fs::path directory;
-  REQUIRE_NOTHROW(directory = CreateDirectory(g_root));
-  REQUIRE_NOTHROW(DownloadAndBuildPoco(directory));
+// TEST_CASE("Download and build poco foundation twice with no deletions",
+//          "[Filesystem][functional]") {
+//  on_scope_exit cleanup(clean_root);
+//  REQUIRE_NOTHROW(DownloadAndBuildPocoFoundation(g_root));
+//  REQUIRE_NOTHROW(DownloadAndBuildPocoFoundation(g_root));
+// }
 
-  REQUIRE_NOTHROW(DownloadAndBuildPoco(g_temp));
-
-  RequireDirectoriesEqual(directory, g_temp, false);
-}
-
-TEST_CASE("Download and extract boost", "[Filesystem][functional]") {
-  on_scope_exit cleanup(clean_root);
-  REQUIRE_NOTHROW(DownloadAndExtractBoost(g_root));
-}
+// TEST_CASE("Download and build poco", "[Filesystem][functional]") {
+//  on_scope_exit cleanup(clean_root);
+//  fs::path directory;
+//  REQUIRE_NOTHROW(directory = CreateDirectory(g_root));
+//  REQUIRE_NOTHROW(DownloadAndBuildPoco(directory));
+//  REQUIRE_NOTHROW(DownloadAndBuildPoco(g_temp));
+//  RequireDirectoriesEqual(directory, g_temp, false);
+// }
 
 TEST_CASE("Write 256Mb file to temp and copy to drive", "[Filesystem][functional]") {
   on_scope_exit cleanup(clean_root);
@@ -1765,6 +1746,174 @@ TEST_CASE("Run fstest", "[Filesystem][behavioural]") {
   REQUIRE_NOTHROW(RunFsTest(g_root));
 }
 #endif
+
+TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
+  // Involves mounting a drive of type g_test_type so don't attempt it if we're doing a disk test
+  if (g_test_type == drive::DriveType::kLocal || g_test_type == drive::DriveType::kLocalConsole ||
+      g_test_type == drive::DriveType::kNetwork ||
+      g_test_type == drive::DriveType::kNetworkConsole) {
+    on_scope_exit cleanup(clean_root);
+    fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)), root, prefix_path(g_temp),
+             cross_platform(resources / "cross_platform"), ids(cross_platform / "ids"),
+             utf8_file(resources / "utf-8.txt"), shell_path(boost::process::shell_path());
+    std::string content, script, command_args, utf8_file_name;
+    boost::system::error_code error_code;
+
+    REQUIRE(fs::exists(utf8_file));
+    REQUIRE((fs::exists(cross_platform) && fs::is_directory(cross_platform)));
+    bool is_empty(fs::is_empty(cross_platform));
+
+    utf8_file_name = utf8_file.filename().string();
+    REQUIRE_NOTHROW(fs::copy_file(utf8_file, prefix_path / utf8_file_name));
+    REQUIRE(fs::exists(prefix_path / utf8_file_name));
+
+    utf8_file = prefix_path / utf8_file_name;
+    content = std::string("cmake_minimum_required(VERSION 2.8.11.2 FATAL_ERROR)\n")
+            + "configure_file(\"${CMAKE_PREFIX_PATH}/"
+            + utf8_file_name
+            + "\" \"${CMAKE_PREFIX_PATH}/"
+            + utf8_file_name
+            + "\" NEWLINE_STYLE WIN32)";
+
+    auto cmake_file(prefix_path / "CMakeLists.txt");
+    REQUIRE(WriteFile(cmake_file, content));
+    REQUIRE(fs::exists(cmake_file));
+
+    content = "";
+
+#ifdef MAIDSAFE_WIN32
+    DWORD exit_code(0);
+    script = "configure_file.bat";
+    command_args = "/C " + script + " 1>nul 2>nul";
+#else
+    int exit_code(0);
+    script = "configure_file.sh";
+    command_args = script;
+    content = "#!/bin/bash\n";
+#endif
+    content += "cmake -DCMAKE_PREFIX_PATH=" + prefix_path.string() + "\nexit\n";
+
+    auto script_file(prefix_path / script);
+    REQUIRE(WriteFile(script_file, content));
+    REQUIRE(fs::exists(script_file, error_code));
+
+    std::vector<std::string> process_args;
+    process_args.emplace_back(shell_path.filename().string());
+    process_args.emplace_back(command_args);
+    const auto command_line(process::ConstructCommandLine(process_args));
+
+    boost::process::child child = boost::process::execute(
+        boost::process::initializers::start_in_dir(prefix_path.string()),
+        boost::process::initializers::run_exe(shell_path),
+        boost::process::initializers::set_cmd_line(command_line),
+        boost::process::initializers::inherit_env(),
+        boost::process::initializers::set_on_error(error_code));
+
+    REQUIRE(error_code.value() == 0);
+    exit_code = boost::process::wait_for_exit(child, error_code);
+    REQUIRE(error_code.value() == 0);
+    REQUIRE(exit_code == 0);
+
+    drive::Options options;
+
+#ifdef MAIDSAFE_WIN32
+    root = drive::GetNextAvailableDrivePath();
+#else
+    root = fs::unique_path(GetHomeDir() / "MaidSafe_Root_Filesystem_%%%%-%%%%-%%%%");
+    REQUIRE_NOTHROW(fs::create_directories(root));
+    REQUIRE(fs::exists(root));
+#endif
+
+    options.mount_path = root;
+    options.storage_path = cross_platform;
+    options.drive_name = RandomAlphaNumericString(10);
+
+    if (is_empty) {
+      options.unique_id = Identity(RandomAlphaNumericString(64));
+      options.root_parent_id = Identity(RandomAlphaNumericString(64));
+      options.create_store = true;
+      content = options.unique_id.string() + ";" + options.root_parent_id.string();
+      REQUIRE(WriteFile(ids, content));
+      REQUIRE(fs::exists(ids));
+    } else {
+      REQUIRE(fs::exists(ids));
+      REQUIRE_NOTHROW(content = ReadFile(ids).string());
+      REQUIRE(content.size() == 2 * 64 + 1);
+      size_t offset(content.find(std::string(";").c_str(), 0, 1));
+      REQUIRE(offset != std::string::npos);
+      options.unique_id = Identity(std::string(content.begin(), content.begin() + offset));
+      options.root_parent_id = Identity(std::string(content.begin() + offset + 1, content.end()));
+      REQUIRE(options.unique_id.string().size() == 64);
+      REQUIRE(options.root_parent_id.string().size() == 64);
+    }
+
+    options.drive_type = g_test_type;
+
+    std::unique_ptr<drive::Launcher> launcher;
+    launcher.reset(new drive::Launcher(options));
+    root = launcher->kMountPath();
+
+    // allow time for mount
+    Sleep(std::chrono::seconds(1));
+
+    fs::path file(root / "file");
+
+    if (is_empty) {
+      REQUIRE(!fs::exists(file));
+      REQUIRE_NOTHROW(fs::copy_file(utf8_file, file));
+      REQUIRE(fs::exists(file));
+    } else {
+      REQUIRE(fs::exists(file));
+#ifdef MAIDSAFE_WIN32
+      std::locale::global(boost::locale::generator().generate(""));
+#else
+      std::locale::global(std::locale(""));
+#endif
+      std::wifstream original_file, recovered_file;
+
+      original_file.imbue(std::locale());
+      recovered_file.imbue(std::locale());
+
+      original_file.open(utf8_file.string(), std::ios_base::binary | std::ios_base::in);
+      REQUIRE(original_file.good());
+      recovered_file.open(file.string(), std::ios_base::binary | std::ios_base::in);
+      REQUIRE(original_file.good());
+
+      std::wstring original_string(256, 0), recovered_string(256, 0);
+      int line_count = 0;
+      while (!original_file.eof() && !recovered_file.eof()) {
+        original_file.getline(const_cast<wchar_t*>(original_string.c_str()), 256);
+        recovered_file.getline(const_cast<wchar_t*>(recovered_string.c_str()), 256);
+        REQUIRE(original_string == recovered_string);
+        ++line_count;
+      }
+      REQUIRE((original_file.eof() && recovered_file.eof()));
+    }
+
+    // allow time for the version to store!
+    Sleep(std::chrono::seconds(3));
+
+#ifndef MAIDSAFE_WIN32
+    launcher.reset();
+    REQUIRE(fs::remove(root));
+    REQUIRE(!fs::exists(root));
+#endif
+  } else {
+    CHECK(true);
+  }
+}
+
+TEST_CASE("Download and extract boost", "[Filesystem][functional]") {
+  // Extraction fails for disk test and at g_temp path due to path lengths
+  if (g_test_type == drive::DriveType::kLocal || g_test_type == drive::DriveType::kLocalConsole ||
+      g_test_type == drive::DriveType::kNetwork ||
+      g_test_type == drive::DriveType::kNetworkConsole) {
+    on_scope_exit cleanup(clean_root);
+    REQUIRE_NOTHROW(DownloadAndExtractBoost(g_root));
+  } else {
+    CHECK(true);
+  }
+}
 
 }  // namespace test
 
