@@ -31,7 +31,7 @@
 #include <string>
 #include <vector>
 
-#ifdef __FreeBSD__
+#ifdef MAIDSAFE_BSD
 extern "C" char **environ;
 #endif
 
@@ -684,7 +684,7 @@ void RunFsTest(const fs::path& start_directory) {
   REQUIRE(fs::exists(script_file, error_code));
 
   int result(setuid(0));
-#if !defined(MAIDSAFE_APPLE) && !defined(__FreeBSD__)
+#if !defined(MAIDSAFE_APPLE) && !defined(MAIDSAFE_BSD)
   clearenv();
 #endif
   result = system((start_directory.string() + script).c_str());

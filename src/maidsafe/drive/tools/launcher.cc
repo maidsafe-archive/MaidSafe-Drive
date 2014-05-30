@@ -20,7 +20,7 @@
 
 #include <vector>
 
-#ifdef __FreeBSD__
+#ifdef MAIDSAFE_BSD
 extern "C" char **environ;
 #endif
 
