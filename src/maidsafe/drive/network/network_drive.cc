@@ -48,7 +48,6 @@
 #include "maidsafe/common/utils.h"
 #include "maidsafe/common/application_support_directories.h"
 #include "maidsafe/common/types.h"
-#include "maidsafe/common/data_stores/local_store.h"
 
 #include "maidsafe/passport/types.h"
 #include "maidsafe/passport/passport.h"
