@@ -1708,6 +1708,8 @@ TEST_CASE("Write 256Mb file to temp and copy to drive", "[Filesystem][functional
   REQUIRE_NOTHROW(success = dtc::CloseHandleCommand(root_handle));
   REQUIRE(success);
 #endif
+  // (TODO Team): Implementation required
+  REQUIRE(true);
 }
 
 TEST_CASE("Write utf-8 file and edit", "[Filesystem][behavioural]") {
