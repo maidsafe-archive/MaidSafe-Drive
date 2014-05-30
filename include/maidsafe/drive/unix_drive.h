@@ -998,32 +998,30 @@ int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]
     return -ENOENT;
   }
 
-#if defined __USE_MISC || defined __USE_XOPEN2K8 || defined MAIDSAFE_APPLE
-  time(&file_context->meta_data.attributes.st_ctime);
-  if (ts) {
-    file_context->meta_data.attributes.st_atime = ts[0].tv_sec;
-    file_context->meta_data.attributes.st_mtime = ts[1].tv_sec;
-  } else {
-    file_context->meta_data.attributes.st_mtime = file_context->meta_data.attributes.st_atime =
-        file_context->meta_data.attributes.st_ctime;
-  }
-#else
   timespec tspec;
-  clock_gettime(CLOCK_MONOTONIC, &tspec);
-  file_context->meta_data->attributes.st_ctime = tspec.tv_sec;
-  file_context->meta_data->attributes.st_ctimensec = tspec.tv_nsec;
-  if (ts) {
-    file_context->meta_data->attributes.st_atime = ts[0].tv_sec;
-    file_context->meta_data->attributes.st_atimensec = ts[0].tv_nsec;
-    file_context->meta_data->attributes.st_mtime = ts[1].tv_sec;
-    file_context->meta_data->attributes.st_mtimensec = ts[1].tv_nsec;
-  } else {
-    file_context->meta_data->attributes.st_atime = tspec.tv_sec;
-    file_context->meta_data->attributes.st_atimensec = tspec.tv_nsec;
-    file_context->meta_data->attributes.st_mtime = tspec.tv_sec;
-    file_context->meta_data->attributes.st_mtimensec = tspec.tv_nsec;
-  }
+#ifdef MAIDSAFE_APPLE
+  struct timeval _tspec;
+  gettimeofday(&_tspec, NULL);
+  tspec.tv_sec = _tspec.tv_sec;
+  tspec.tv_nsec = _tspec.tv_usec * 1000;
+  timespec &st_ctim = file_context->meta_data.attributes.st_ctimespec;
+  timespec &st_atim = file_context->meta_data.attributes.st_atimespec;
+  timespec &st_mtim = file_context->meta_data.attributes.st_mtimespec;
+#else
+  clock_gettime(CLOCK_REALTIME, &tspec);
+  timespec &st_ctim = file_context->meta_data.attributes.st_ctim;
+  timespec &st_atim = file_context->meta_data.attributes.st_atim;
+  timespec &st_mtim = file_context->meta_data.attributes.st_mtim;
+  // Really ought to support st_birthtim where available
 #endif
+  st_ctim = tspec;
+  if (ts) {
+    st_atim = ts[0];
+    st_mtim = ts[1];
+  } else {
+    st_atim = tspec;
+    st_mtim = tspec;
+  }
   file_context->parent->ScheduleForStoring();
   return 0;
 }
