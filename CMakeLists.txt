@@ -140,8 +140,8 @@ if(WIN32)
 endif()
 
 if(MaidsafeTesting)
-  ms_add_executable(filesystem_benchmark "Tools/Drive"
-                    ${DriveSourcesDir}/tools/filesystem_benchmark.cc
+  ms_add_executable(filesystem_weekly "Tools/Drive"
+                    ${DriveSourcesDir}/tools/filesystem_weekly.cc
                     ${DriveSourcesDir}/tools/tool_main.cc)
   if(WIN32)
     ms_add_executable(filesystem_test "Tools/Drive"
@@ -162,20 +162,20 @@ if(MaidsafeTesting)
   ms_add_executable(test_drive "Tests/Drive" ${DriveTestsAllFiles})
   target_include_directories(test_drive PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
-  add_dependencies(filesystem_benchmark local_drive network_drive)
+  add_dependencies(filesystem_weekly local_drive network_drive)
   add_dependencies(filesystem_test local_drive network_drive)
   add_dependencies(filesystem_commands local_drive network_drive)
   if(WIN32)
-    add_dependencies(filesystem_benchmark local_drive_console network_drive_console)
+    add_dependencies(filesystem_weekly local_drive_console network_drive_console)
     add_dependencies(filesystem_test local_drive_console network_drive_console)
     add_dependencies(filesystem_commands local_drive_console network_drive_console)
   endif()
-  target_include_directories(filesystem_benchmark PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
+  target_include_directories(filesystem_weekly PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
   target_include_directories(filesystem_test PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
   target_include_directories(filesystem_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
   target_include_directories(filesystem_commands PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
-  target_link_libraries(filesystem_benchmark maidsafe_drive_launcher)
+  target_link_libraries(filesystem_weekly maidsafe_drive_launcher)
   target_link_libraries(filesystem_test maidsafe_drive_launcher)
   target_link_libraries(filesystem_commands maidsafe_drive_launcher maidsafe_drive)
   add_dependencies(filesystem_test catch)
@@ -185,7 +185,7 @@ endif()
 ms_rename_outdated_built_exes()
 
 if(WIN32 AND NOT CbfsFound)
-  foreach(Target maidsafe_drive cbfs_driver local_drive network_drive local_drive_console network_drive_console filesystem_benchmark filesystem_test filesystem_commands test_drive)
+  foreach(Target maidsafe_drive cbfs_driver local_drive network_drive local_drive_console network_drive_console filesystem_weekly filesystem_test filesystem_commands test_drive)
     if(TARGET ${Target})
       set_target_properties(${Target} PROPERTIES EXCLUDE_FROM_ALL ON EXCLUDE_FROM_DEFAULT_BUILD ON)
     endif()
@@ -203,18 +203,18 @@ target_compile_definitions(local_drive PRIVATE $<$<BOOL:${WIN32}>:USES_WINMAIN>)
 target_compile_definitions(network_drive PRIVATE $<$<BOOL:${WIN32}>:USES_WINMAIN>)
 
 if(MaidsafeTesting)
-  target_compile_definitions(filesystem_benchmark PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
+  target_compile_definitions(filesystem_weekly PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
   target_compile_definitions(filesystem_test PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
-  set_property(TARGET filesystem_benchmark APPEND PROPERTY COMPILE_DEFINITIONS "CMAKE_GENERATOR=\"${CMAKE_GENERATOR}\"")
+  set_property(TARGET filesystem_weekly APPEND PROPERTY COMPILE_DEFINITIONS "CMAKE_GENERATOR=\"${CMAKE_GENERATOR}\"")
   set_property(TARGET filesystem_test APPEND PROPERTY COMPILE_DEFINITIONS "CMAKE_GENERATOR=\"${CMAKE_GENERATOR}\"")
-  set_property(TARGET filesystem_benchmark APPEND PROPERTY COMPILE_DEFINITIONS "DRIVE_TESTS_RESOURCES=${DriveTestsResourcesDir}")
+  set_property(TARGET filesystem_weekly APPEND PROPERTY COMPILE_DEFINITIONS "DRIVE_TESTS_RESOURCES=${DriveTestsResourcesDir}")
   set_property(TARGET filesystem_test APPEND PROPERTY COMPILE_DEFINITIONS "DRIVE_TESTS_RESOURCES=${DriveTestsResourcesDir}")
   if(WIN32)
     if(CMAKE_CL_64)
-      set_property(TARGET filesystem_benchmark APPEND PROPERTY COMPILE_DEFINITIONS "VS_DEV_CMD=\"$ENV{VCInstallDir}vcvarsall.bat\" x86_amd64")
+      set_property(TARGET filesystem_weekly APPEND PROPERTY COMPILE_DEFINITIONS "VS_DEV_CMD=\"$ENV{VCInstallDir}vcvarsall.bat\" x86_amd64")
       set_property(TARGET filesystem_test APPEND PROPERTY COMPILE_DEFINITIONS "VS_DEV_CMD=\"$ENV{VCInstallDir}vcvarsall.bat\" x86_amd64")
     else()
-      set_property(TARGET filesystem_benchmark APPEND PROPERTY COMPILE_DEFINITIONS "VS_DEV_CMD=\"$ENV{VCInstallDir}vcvarsall.bat\" x86")
+      set_property(TARGET filesystem_weekly APPEND PROPERTY COMPILE_DEFINITIONS "VS_DEV_CMD=\"$ENV{VCInstallDir}vcvarsall.bat\" x86")
       set_property(TARGET filesystem_test APPEND PROPERTY COMPILE_DEFINITIONS "VS_DEV_CMD=\"$ENV{VCInstallDir}vcvarsall.bat\" x86")
     endif()
   endif()
@@ -255,16 +255,16 @@ if(MaidsafeTesting)
                        LABELS "Drive;Filesystem")
 
   if(WEEKLY)
-    add_test(NAME "\"Real Disk Benchmark\""
-             COMMAND filesystem_benchmark --durations yes --warn NoAssertions --disk
-                     --name "filesystem_benchmark ($<CONFIGURATION> build)")
-    add_test(NAME "\"Local Drive Benchmark\""
-             COMMAND filesystem_benchmark --durations yes --warn NoAssertions --local${Console}
-                     --name "filesystem_benchmark ($<CONFIGURATION> build)")
-    set_tests_properties("\"Real Disk Benchmark\"" "\"Local Drive Benchmark\"" PROPERTIES
+    add_test(NAME "\"Real Disk Weekly\""
+             COMMAND filesystem_weekly --durations yes --warn NoAssertions --disk
+                     --name "filesystem_weekly ($<CONFIGURATION> build)")
+    add_test(NAME "\"Local Drive Weekly\""
+             COMMAND filesystem_weekly --durations yes --warn NoAssertions --local${Console}
+                     --name "filesystem_weekly ($<CONFIGURATION> build)")
+    set_tests_properties("\"Real Disk Weekly\"" "\"Local Drive Weekly\"" PROPERTIES
                          FAIL_REGULAR_EXPRESSION "No tests ran"
-                         TIMEOUT 300
-                         LABELS "Drive;Filesystem;Benchmark")
+                         TIMEOUT 10800
+                         LABELS "Drive;Filesystem;Weekly")
   endif()
 
   ms_add_project_experimental()
