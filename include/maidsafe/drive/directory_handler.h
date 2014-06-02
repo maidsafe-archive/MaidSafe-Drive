@@ -121,7 +121,7 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
                                             const Identity& unique_user_id,
                                             const Identity& root_parent_id,
                                             const boost::filesystem::path& disk_buffer_path,
-                                            bool create,
+                                            bool /*create*/,
                                             boost::asio::io_service& asio_service)
     : storage_(storage),
       unique_user_id_(unique_user_id),
@@ -153,7 +153,10 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
       throw;
     }
   };
-  if (create) {
+  try {
+    cache_[""] = GetFromStorage("", ParentId(unique_user_id_), root_parent_id_);
+  } catch (...) {
+//   if (create) {
     // TODO(Fraser#5#): 2013-12-05 - Fill 'root_file_context' attributes appropriately.
     FileContext root_file_context(kRoot, true);
     std::unique_ptr<Directory> root_parent(new Directory(ParentId(unique_user_id_),
@@ -167,9 +170,10 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
     root->ScheduleForStoring();
     cache_[""] = std::move(root_parent);
     cache_[kRoot] = std::move(root);
-  } else {
-    cache_[""] = GetFromStorage("", ParentId(unique_user_id_), root_parent_id_);
   }
+//   } else {
+//     cache_[""] = GetFromStorage("", ParentId(unique_user_id_), root_parent_id_);
+//   }
 }
 
 template <typename Storage>
