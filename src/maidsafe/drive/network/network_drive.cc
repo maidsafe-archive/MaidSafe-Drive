@@ -349,57 +349,6 @@ void MonitorParentProcess(const Options& options) {
   Unmount();
 }
 
-boost::asio::ip::udp::endpoint GetBootstrapEndpoint(const std::string& peer) {
-  size_t delim = peer.rfind(':');
-  boost::asio::ip::udp::endpoint ep;
-  ep.port(boost::lexical_cast<uint16_t>(peer.substr(delim + 1)));
-  ep.address(boost::asio::ip::address::from_string(peer.substr(0, delim)));
-  LOG(kInfo) << "Going to bootstrap off endpoint " << ep;
-  return ep;
-}
-
-void RoutingJoin(routing::Routing& routing,
-                 const std::vector<boost::asio::ip::udp::endpoint>& peer_endpoints) {
-  std::shared_ptr<std::promise<bool>> join_promise(std::make_shared<std::promise<bool>>());
-  routing::Functors functors_;
-  functors_.network_status = [join_promise](int result) {
-//     std::cout << "Network health: " << result << std::endl;
-    if ((result == 100) && (!g_call_once_)) {
-      g_call_once_ = true;
-      join_promise->set_value(true);
-    }
-  };
-  functors_.typed_message_and_caching.group_to_group.message_received =
-      [&](const routing::GroupToGroupMessage &msg) {
-        g_client_nfs_->HandleMessage(msg); };  // NOLINT
-  functors_.typed_message_and_caching.group_to_single.message_received =
-      [&](const routing::GroupToSingleMessage &msg) {
-        g_client_nfs_->HandleMessage(msg);
-      };  // NOLINT
-  functors_.typed_message_and_caching.single_to_group.message_received =
-      [&](const routing::SingleToGroupMessage &msg) {
-        g_client_nfs_->HandleMessage(msg); };  // NOLINT
-  functors_.typed_message_and_caching.single_to_single.message_received =
-      [&](const routing::SingleToSingleMessage &msg) {
-        g_client_nfs_->HandleMessage(msg); };  // NOLINT
-  functors_.request_public_key =
-      [&](const NodeId & node_id, const routing::GivePublicKeyFunctor & give_key) {
-        nfs::detail::DoGetPublicKey(*g_client_nfs_, node_id, give_key,
-                                    g_pmids_from_file_, g_public_pmid_helper_);
-      };
-  LOG(kVerbose) << "Networkdrive routing joining network";
-  routing.Join(functors_, peer_endpoints);
-  auto future(std::move(join_promise->get_future()));
-  LOG(kVerbose) << "Networkdrive routing joining network get_future";
-  auto status(future.wait_for(std::chrono::seconds(30)));
-  LOG(kVerbose) << "Networkdrive routing joining network procedure completed";
-  if (status == std::future_status::timeout || !future.get()) {
-    std::cout << "can't join routing network" << std::endl;
-    BOOST_THROW_EXCEPTION(MakeError(RoutingErrors::not_connected));
-  }
-  std::cout << "Client node joined routing network" << std::endl;
-}
-
 int MountAndWaitForIpcNotification(const Options& options, NetworkDrive& drive) {
   // Start a thread to poll the parent process' continued existence *before* calling drive.Mount().
   std::thread poll_parent([&] { MonitorParentProcess(options); });
@@ -441,8 +390,9 @@ int MountAndWait(const Options& options, bool use_ipc) {
   g_client_nfs_.reset(new nfs_client::MaidNodeNfs(g_asio_service_, client_routing_));
   std::vector<boost::asio::ip::udp::endpoint> peer_endpoints;
   if (!options.peer_endpoint.empty())
-    peer_endpoints.push_back(GetBootstrapEndpoint(options.peer_endpoint));
-  RoutingJoin(client_routing_, peer_endpoints);
+    peer_endpoints.push_back(drive::GetBootstrapEndpoint(options.peer_endpoint));
+  drive::RoutingJoin(client_routing_, peer_endpoints, g_call_once_, g_client_nfs_,
+                     g_pmids_from_file_, g_public_pmid_helper_);
 
   if (options.key_index != -1)
     nfs_client::CreateAccount(maid, anmaid, pmid, g_client_nfs_);
@@ -456,8 +406,8 @@ int MountAndWait(const Options& options, bool use_ipc) {
     root_parent_id = maidsafe::Identity(crypto::Hash<crypto::SHA512>(unique_id.string()));
   }
 
-  std::cout << "unique_id : " << HexSubstr(unique_id.string()) << std::endl;
-  std::cout << "root_parent_id : " << HexSubstr(root_parent_id.string()) << std::endl;
+  std::cout << "network_drive unique_id : " << HexSubstr(unique_id.string()) << std::endl;
+  std::cout << "network_drive root_parent_id : " << HexSubstr(root_parent_id.string()) << std::endl;
 
 //   bool create_store(!account_exists);
   NetworkDrive drive(g_client_nfs_, unique_id, root_parent_id, options.mount_path, GetUserAppDir(),

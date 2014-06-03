@@ -22,6 +22,8 @@
 #include <memory>
 #include <string>
 
+#include "maidsafe/common/utils.h"
+
 #include "boost/filesystem/path.hpp"
 #include "boost/interprocess/mapped_region.hpp"
 #include "boost/interprocess/shared_memory_object.hpp"
@@ -30,6 +32,8 @@
 #include "boost/process/child.hpp"
 
 #include "maidsafe/common/types.h"
+
+#include "maidsafe/nfs/client/maid_node_nfs.h"
 
 namespace maidsafe {
 
@@ -41,6 +45,15 @@ struct Options;
 #ifdef MAIDSAFE_WIN32
 boost::filesystem::path GetNextAvailableDrivePath();
 #endif
+
+boost::asio::ip::udp::endpoint GetBootstrapEndpoint(const std::string& peer);
+
+void RoutingJoin(maidsafe::routing::Routing& routing,
+                 const std::vector<boost::asio::ip::udp::endpoint>& peer_endpoints,
+                 bool& call_once,
+                 std::shared_ptr<nfs_client::MaidNodeNfs> client_nfs,
+                 std::vector<passport::PublicPmid>& pmids_from_file,
+                 nfs::detail::PublicPmidHelper& public_pmid_helper);
 
 // This derives a name for the shared memory object which will be used to store the MountStatus from
 // the name of the initial shared memory passed to Drive on the command line.
@@ -69,20 +82,22 @@ struct Options {
               create_store(false), check_data(false), drive_type(DriveType::kNetwork),
               drive_logging_args(), mount_status_shared_object_name(), peer_endpoint(),
               encrypted_maid(), encrypted_pmid(), symm_key(), symm_iv(),
-              parent_handle(nullptr) {}
+              pin(), pwd(), keyword(), parent_handle(nullptr) {}
   boost::filesystem::path mount_path, storage_path, keys_path, drive_name;
   int key_index;
   Identity unique_id, root_parent_id;
   bool create_store, check_data;
   DriveType drive_type;
   std::string drive_logging_args, mount_status_shared_object_name, peer_endpoint,
-              encrypted_maid, encrypted_pmid, symm_key, symm_iv;
+              encrypted_maid, encrypted_pmid, symm_key, symm_iv,
+              pin, pwd, keyword;
   void* parent_handle;
 };
 
 class Launcher {
  public:
   explicit Launcher(const Options& options);
+  Launcher(Options& options, const bool network_account);
   ~Launcher();
   // If the attempt to stop the child process via IPC notification fails, then the child can be
   // terminated if required.  This should not be needed if the child is monitoring the parent
@@ -95,6 +110,7 @@ class Launcher {
   Launcher(Launcher&&);
   Launcher& operator=(Launcher);
 
+  void LogIn(Options& options);
   void CreateInitialSharedMemory(const Options& options);
   void CreateMountStatusSharedMemory();
   void StartDriveProcess(const Options& options);
