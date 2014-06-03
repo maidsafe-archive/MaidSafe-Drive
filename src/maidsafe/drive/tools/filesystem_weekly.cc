@@ -535,10 +535,10 @@ int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
 
   if (!no_big_test)
     CopyThenReadLargeFile();
-  
+
   if (!no_small_test)
     CopyThenReadManySmallFiles();
-  
+
   if (!no_clone_and_build_maidsafe_test)
     CloneMaidSafeAndBuildDefaults(g_root);
 
