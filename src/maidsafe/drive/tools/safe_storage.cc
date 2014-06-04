@@ -143,9 +143,6 @@ po::options_description CommandLineOptions() {
   po::options_description command_line_options(std::string("SafeStorage Tool Options:\n"));
   command_line_options.add_options()("help,h", "Show help message.")
       ("peer", po::value<std::string>(), "Endpoint of peer, for connection to SAFE network")
-      ("pin", po::value<std::string>(), "pin")
-      ("pwd", po::value<std::string>(), "password")
-      ("keyword", po::value<std::string>(), "keyword")
       ("enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging), "Enable logging on the VFS");
   return command_line_options;
 }
@@ -198,15 +195,13 @@ std::function<void()> PrepareNetworkVfs(const po::variables_map& variables_map) 
   options.mount_path = g_root;
   options.storage_path = SetUpStorageDirectory();
   options.peer_endpoint = GetStringFromProgramOption("peer", variables_map);
-  options.drive_name = GetStringFromProgramOption("keyword", variables_map);
-  options.keyword = GetStringFromProgramOption("keyword", variables_map);
-  options.pin = GetStringFromProgramOption("pin", variables_map);
-  options.pwd = GetStringFromProgramOption("pwd", variables_map);
+  options.drive_name = RandomAlphaNumericString(10);
+  options.monitor_parent = false;
   options.create_store = false;
   if (g_enable_vfs_logging)
     options.drive_logging_args = "--log_* V --log_colour_mode 2 --log_no_async";
 
-  g_launcher.reset(new drive::Launcher(options, true));
+  g_launcher.reset(new drive::Launcher(options, passport::Anmaid(), passport::Anpmid()));
   g_root = g_launcher->kMountPath();
 
   return [options] {  // NOLINT

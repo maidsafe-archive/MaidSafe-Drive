@@ -107,6 +107,7 @@ enum SharedMemoryArgIndex {
   kRootParentIdArg,
   kDriveNameArg,
   kCreateStoreArg,
+  kMonitorParentArg,
   kMaidArg,
   kPmidArg,
   kSymmKeyArg,
@@ -123,9 +124,10 @@ void DoNotifyMountStatus(const std::string& mount_status_shared_object_name, boo
     auto mount_status = static_cast<MountStatus*>(region.get_address());
     bi::scoped_lock<bi::interprocess_mutex> lock(mount_status->mutex);
     mount_status->mounted = mount_and_wait;
+    mount_status->unmount = false;
     mount_status->condition.notify_one();
     if (mount_and_wait)
-      mount_status->condition.wait(lock, [&] { return !mount_status->mounted; });
+      mount_status->condition.wait(lock, [&] { return mount_status->unmount; });
   } catch (...) {
     // in case parent process is gone, try to access shared_memory will raise exception of
     // 'boost::interprocess::interprocess_exception'
@@ -150,6 +152,7 @@ void ReadAndRemoveInitialSharedMemory(const std::string& initial_shared_memory_n
   options.root_parent_id = maidsafe::Identity(shared_memory_args[kRootParentIdArg]);
   options.drive_name = shared_memory_args[kDriveNameArg];
   options.create_store = (std::stoi(shared_memory_args[kCreateStoreArg]) != 0);
+  options.monitor_parent = (std::stoi(shared_memory_args[kMonitorParentArg]) != 0);
   options.encrypted_maid = shared_memory_args[kMaidArg];
   options.encrypted_pmid = shared_memory_args[kPmidArg];
   options.symm_key = shared_memory_args[kSymmKeyArg];
@@ -232,13 +235,15 @@ Launcher::Launcher(const Options& options)
   cleanup_on_throw.Release();
 }
 
-Launcher::Launcher(Options& options, const bool /*network_account*/)
+Launcher::Launcher(Options& options,
+                   const passport::Anmaid& anmaid,
+                   const passport::Anpmid& anpmid)
     : initial_shared_memory_name_(RandomAlphaNumericString(32)),
       kMountPath_(AdjustMountPath(options.mount_path)), mount_status_shared_object_(),
       mount_status_mapped_region_(), mount_status_(nullptr),
       this_process_handle_(GetHandleToThisProcess()), drive_process_() {
   LOG(kVerbose) << "launcher initial_shared_memory_name_ : " << initial_shared_memory_name_;
-  LogIn(options);
+  LogIn(options, anmaid, anpmid);
   maidsafe::on_scope_exit cleanup_on_throw([&] { Cleanup(); });
   CreateInitialSharedMemory(options);
   CreateMountStatusSharedMemory();
@@ -247,10 +252,11 @@ Launcher::Launcher(Options& options, const bool /*network_account*/)
   cleanup_on_throw.Release();
 }
 
-void Launcher::LogIn(Options& options) {
-  std::shared_ptr<passport::Anmaid> anmaid(new passport::Anmaid());
-  std::shared_ptr<passport::Maid> maid(new passport::Maid(*anmaid));
-  passport::Anpmid anpmid;
+void Launcher::LogIn(Options& options,
+                     const passport::Anmaid& anmaid,
+                     const passport::Anpmid& anpmid) {
+  std::shared_ptr<passport::Anmaid> anmaid_ptr(new passport::Anmaid(anmaid));
+  std::shared_ptr<passport::Maid> maid(new passport::Maid(anmaid));
   std::shared_ptr<passport::Pmid> pmid(new passport::Pmid(anpmid));
   AsioService asio_service(2);
   std::shared_ptr<nfs_client::MaidNodeNfs> client_nfs;
@@ -266,7 +272,7 @@ void Launcher::LogIn(Options& options) {
     nfs::detail::PublicPmidHelper public_pmid_helper;
     drive::RoutingJoin(client_routing, peer_endpoints, call_once, client_nfs,
                       pmids_from_file, public_pmid_helper);
-    nfs_client::CreateAccount(maid, anmaid, pmid, client_nfs);
+    nfs_client::CreateAccount(maid, anmaid_ptr, pmid, client_nfs);
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     client_nfs.reset();
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -301,6 +307,7 @@ void Launcher::CreateInitialSharedMemory(const Options& options) {
   shared_memory_args[kRootParentIdArg] = options.root_parent_id.string();
   shared_memory_args[kDriveNameArg] = options.drive_name.string();
   shared_memory_args[kCreateStoreArg] = options.create_store ? "1" : "0";
+  shared_memory_args[kMonitorParentArg] = options.monitor_parent ? "1" : "0";
   shared_memory_args[kMaidArg] = options.encrypted_maid;
   shared_memory_args[kPmidArg] = options.encrypted_pmid;
   shared_memory_args[kSymmKeyArg] = options.symm_key;
@@ -422,10 +429,12 @@ void Launcher::StopDriveProcess(bool terminate_on_ipc_failure) {
     }
   }
   auto exit_code = bp::wait_for_exit(*drive_process_, error_code);
-  if (error_code)
-    std::cout << "Error waiting for drive process to exit: " << error_code.message() << '\n';
-  else
+  if (error_code) {
+    if (error_code.message() != "No child processes")
+      std::cout << "Error waiting for drive process to exit: " << error_code.message() << '\n';
+  } else {
     std::cout << "Drive process has completed with exit code " << exit_code << '\n';
+  }
   drive_process_ = nullptr;
 }
 

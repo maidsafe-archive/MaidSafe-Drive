@@ -79,25 +79,24 @@ struct MountStatus {
 struct Options {
   Options() : mount_path(), storage_path(), keys_path(), drive_name(), key_index(-1),
               unique_id(), root_parent_id(),
-              create_store(false), check_data(false), drive_type(DriveType::kNetwork),
+              create_store(false), check_data(false), monitor_parent(true),
+              drive_type(DriveType::kNetwork),
               drive_logging_args(), mount_status_shared_object_name(), peer_endpoint(),
-              encrypted_maid(), encrypted_pmid(), symm_key(), symm_iv(),
-              pin(), pwd(), keyword(), parent_handle(nullptr) {}
+              encrypted_maid(), encrypted_pmid(), symm_key(), symm_iv(), parent_handle(nullptr) {}
   boost::filesystem::path mount_path, storage_path, keys_path, drive_name;
   int key_index;
   Identity unique_id, root_parent_id;
-  bool create_store, check_data;
+  bool create_store, check_data, monitor_parent;
   DriveType drive_type;
   std::string drive_logging_args, mount_status_shared_object_name, peer_endpoint,
-              encrypted_maid, encrypted_pmid, symm_key, symm_iv,
-              pin, pwd, keyword;
+              encrypted_maid, encrypted_pmid, symm_key, symm_iv;
   void* parent_handle;
 };
 
 class Launcher {
  public:
   explicit Launcher(const Options& options);
-  Launcher(Options& options, const bool network_account);
+  Launcher(Options& options, const passport::Anmaid& anmaid, const passport::Anpmid& anpmid);
   ~Launcher();
   // If the attempt to stop the child process via IPC notification fails, then the child can be
   // terminated if required.  This should not be needed if the child is monitoring the parent
@@ -110,7 +109,7 @@ class Launcher {
   Launcher(Launcher&&);
   Launcher& operator=(Launcher);
 
-  void LogIn(Options& options);
+  void LogIn(Options& options, const passport::Anmaid& anmaid, const passport::Anpmid& anpmid);
   void CreateInitialSharedMemory(const Options& options);
   void CreateMountStatusSharedMemory();
   void StartDriveProcess(const Options& options);
