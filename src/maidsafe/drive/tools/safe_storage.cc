@@ -190,20 +190,23 @@ std::string GetStringFromProgramOption(const std::string& option_name,
   }
 }
 
-std::function<void()> PrepareNetworkVfs(const po::variables_map& variables_map) {
+std::function<void()> PrepareNetworkVfs(drive::Options& options, bool create_account) {
   SetUpTempDirectory();
-  drive::Options options;
   SetUpRootDirectory(GetHomeDir());
+
   options.mount_path = g_root;
   options.storage_path = SetUpStorageDirectory();
-  options.peer_endpoint = GetStringFromProgramOption("peer", variables_map);
   options.drive_name = RandomAlphaNumericString(10);
   options.monitor_parent = false;
   options.create_store = false;
   if (g_enable_vfs_logging)
     options.drive_logging_args = "--log_* V --log_colour_mode 2 --log_no_async";
 
-  g_launcher.reset(new drive::Launcher(options, *g_anmaid, *g_anpmid));
+  if (create_account)
+    g_launcher.reset(new drive::Launcher(options, *g_anmaid, *g_anpmid));
+  else
+    g_launcher.reset(new drive::Launcher(options));
+
   g_root = g_launcher->kMountPath();
 
   return [options] {  // NOLINT
@@ -229,9 +232,13 @@ int main(int argc, char** argv) {
     maidsafe::test::HandleHelp(variables_map);
     maidsafe::test::g_anmaid.reset(new maidsafe::passport::Anmaid());
     maidsafe::test::g_anpmid.reset(new maidsafe::passport::Anpmid());
+    bool create_account(true);
+    maidsafe::drive::Options options;
+    options.peer_endpoint = maidsafe::test::GetStringFromProgramOption("peer", variables_map);
 
     while (maidsafe::test::g_running) {
-      auto cleanup_functor(maidsafe::test::PrepareNetworkVfs(variables_map));
+      auto cleanup_functor(maidsafe::test::PrepareNetworkVfs(options, create_account));
+      create_account = false;
       maidsafe::on_scope_exit cleanup_on_exit(cleanup_functor);
       std::cout << " (enter \"1\" to logout and re-login; \"0\" to stop): ";
       std::string choice;
