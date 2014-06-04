@@ -461,7 +461,7 @@ int MountAndWait(const Options& options, bool use_ipc) {
 
 //   bool create_store(!account_exists);
   NetworkDrive drive(g_client_nfs_, unique_id, root_parent_id, options.mount_path, GetUserAppDir(),
-                     options.drive_name, options.mount_status_shared_object_name, true);
+                     options.drive_name, options.mount_status_shared_object_name, false);
   g_network_drive = &drive;
 #ifdef MAIDSAFE_WIN32
   g_network_drive->SetGuid(BOOST_PP_STRINGIZE(PRODUCT_ID));
