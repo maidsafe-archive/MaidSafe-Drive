@@ -71,6 +71,8 @@ std::string g_error_message;
 int g_return_code(0);
 bool g_enable_vfs_logging(false);
 bool g_running(true);
+std::shared_ptr<passport::Anmaid> g_anmaid;
+std::shared_ptr<passport::Anpmid> g_anpmid;
 
 void CreateDir(const fs::path& dir) {
   boost::system::error_code error_code;
@@ -201,7 +203,7 @@ std::function<void()> PrepareNetworkVfs(const po::variables_map& variables_map) 
   if (g_enable_vfs_logging)
     options.drive_logging_args = "--log_* V --log_colour_mode 2 --log_no_async";
 
-  g_launcher.reset(new drive::Launcher(options, passport::Anmaid(), passport::Anpmid()));
+  g_launcher.reset(new drive::Launcher(options, *g_anmaid, *g_anpmid));
   g_root = g_launcher->kMountPath();
 
   return [options] {  // NOLINT
@@ -225,19 +227,24 @@ int main(int argc, char** argv) {
       unused_options.emplace_back(&unused[0]);
     auto variables_map(maidsafe::test::ParseAllOptions(argc, argv, unused_options));
     maidsafe::test::HandleHelp(variables_map);
-
-    auto cleanup_functor(maidsafe::test::PrepareNetworkVfs(variables_map));
-    maidsafe::on_scope_exit cleanup_on_exit(cleanup_functor);
+    maidsafe::test::g_anmaid.reset(new maidsafe::passport::Anmaid());
+    maidsafe::test::g_anpmid.reset(new maidsafe::passport::Anpmid());
 
     while (maidsafe::test::g_running) {
-      std::cout << " (enter \"0\" to stop): ";
+      auto cleanup_functor(maidsafe::test::PrepareNetworkVfs(variables_map));
+      maidsafe::on_scope_exit cleanup_on_exit(cleanup_functor);
+      std::cout << " (enter \"1\" to logout and re-login; \"0\" to stop): ";
       std::string choice;
       std::getline(std::cin, choice);
+      if (choice == "1") {
+        maidsafe::test::g_launcher->StopDriveProcess(true);
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        maidsafe::test::g_launcher.reset();
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+      }
       if (choice == "0")
         maidsafe::test::g_running = false;
     }
-
-    maidsafe::test::g_launcher->StopDriveProcess(true);
   }
   catch (const std::exception& e) {
     if (!maidsafe::test::g_error_message.empty()) {
