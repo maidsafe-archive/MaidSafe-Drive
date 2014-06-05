@@ -154,7 +154,6 @@ void ReadAndRemoveInitialSharedMemory(const std::string& initial_shared_memory_n
   options.create_store = (std::stoi(shared_memory_args[kCreateStoreArg]) != 0);
   options.monitor_parent = (std::stoi(shared_memory_args[kMonitorParentArg]) != 0);
   options.encrypted_maid = shared_memory_args[kMaidArg];
-  options.encrypted_pmid = shared_memory_args[kPmidArg];
   options.symm_key = shared_memory_args[kSymmKeyArg];
   options.symm_iv = shared_memory_args[kSymmIvArg];
   options.mount_status_shared_object_name =
@@ -235,15 +234,13 @@ Launcher::Launcher(const Options& options)
   cleanup_on_throw.Release();
 }
 
-Launcher::Launcher(Options& options,
-                   const passport::Anmaid& anmaid,
-                   const passport::Anpmid& anpmid)
+Launcher::Launcher(Options& options, const passport::Anmaid& anmaid)
     : initial_shared_memory_name_(RandomAlphaNumericString(32)),
       kMountPath_(AdjustMountPath(options.mount_path)), mount_status_shared_object_(),
       mount_status_mapped_region_(), mount_status_(nullptr),
       this_process_handle_(GetHandleToThisProcess()), drive_process_() {
   LOG(kVerbose) << "launcher initial_shared_memory_name_ : " << initial_shared_memory_name_;
-  LogIn(options, anmaid, anpmid);
+  LogIn(options, anmaid);
   maidsafe::on_scope_exit cleanup_on_throw([&] { Cleanup(); });
   CreateInitialSharedMemory(options);
   CreateMountStatusSharedMemory();
@@ -252,12 +249,9 @@ Launcher::Launcher(Options& options,
   cleanup_on_throw.Release();
 }
 
-void Launcher::LogIn(Options& options,
-                     const passport::Anmaid& anmaid,
-                     const passport::Anpmid& anpmid) {
+void Launcher::LogIn(Options& options, const passport::Anmaid& anmaid) {
   std::shared_ptr<passport::Anmaid> anmaid_ptr(new passport::Anmaid(anmaid));
   std::shared_ptr<passport::Maid> maid(new passport::Maid(anmaid));
-  std::shared_ptr<passport::Pmid> pmid(new passport::Pmid(anpmid));
   AsioService asio_service(2);
   std::shared_ptr<nfs_client::MaidNodeNfs> client_nfs;
   {
@@ -272,7 +266,7 @@ void Launcher::LogIn(Options& options,
     nfs::detail::PublicPmidHelper public_pmid_helper;
     drive::RoutingJoin(client_routing, peer_endpoints, call_once, client_nfs,
                       pmids_from_file, public_pmid_helper);
-    nfs_client::CreateAccount(maid, anmaid_ptr, pmid, client_nfs);
+    nfs_client::CreateAccount(maid, anmaid_ptr, client_nfs);
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
     client_nfs.reset();
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -281,9 +275,7 @@ void Launcher::LogIn(Options& options,
   crypto::AES256Key symm_key{ RandomString(crypto::AES256_KeySize) };
   crypto::AES256InitialisationVector symm_iv{ RandomString(crypto::AES256_IVSize) };
   crypto::CipherText encrypted_maid = passport::EncryptMaid(*maid, symm_key, symm_iv);
-  crypto::CipherText encrypted_pmid = passport::EncryptPmid(*pmid, symm_key, symm_iv);
   options.encrypted_maid = encrypted_maid.data.string();
-  options.encrypted_pmid = encrypted_pmid.data.string();
   options.symm_key = symm_key.string();
   options.symm_iv = symm_iv.string();
   passport::PublicMaid public_maid(*maid);
@@ -309,7 +301,6 @@ void Launcher::CreateInitialSharedMemory(const Options& options) {
   shared_memory_args[kCreateStoreArg] = options.create_store ? "1" : "0";
   shared_memory_args[kMonitorParentArg] = options.monitor_parent ? "1" : "0";
   shared_memory_args[kMaidArg] = options.encrypted_maid;
-  shared_memory_args[kPmidArg] = options.encrypted_pmid;
   shared_memory_args[kSymmKeyArg] = options.symm_key;
   shared_memory_args[kSymmIvArg] = options.symm_iv;
   shared_memory_args[kParentProcessHandle] =

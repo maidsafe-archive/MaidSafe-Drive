@@ -203,7 +203,7 @@ std::function<void()> PrepareNetworkVfs(drive::Options& options, bool create_acc
     options.drive_logging_args = "--log_* V --log_colour_mode 2 --log_no_async";
 
   if (create_account)
-    g_launcher.reset(new drive::Launcher(options, *g_anmaid, *g_anpmid));
+    g_launcher.reset(new drive::Launcher(options, *g_anmaid));
   else
     g_launcher.reset(new drive::Launcher(options));
 

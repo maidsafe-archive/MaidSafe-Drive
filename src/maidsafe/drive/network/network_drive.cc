@@ -382,7 +382,6 @@ int MountAndWait(const Options& options, bool use_ipc) {
     passport::detail::AnmaidToPmid key_chain(all_keychains[options.key_index]);
     maid.reset(new passport::Maid(key_chain.maid));
     anmaid.reset(new passport::Anmaid(key_chain.anmaid));
-    pmid.reset(new passport::Pmid(key_chain.pmid));
   } else {
     crypto::AES256Key symm_key(options.symm_key);
     crypto::AES256InitialisationVector symm_iv(options.symm_iv);
@@ -399,7 +398,7 @@ int MountAndWait(const Options& options, bool use_ipc) {
                      g_pmids_from_file_, g_public_pmid_helper_);
 
   if (options.key_index != -1)
-    nfs_client::CreateAccount(maid, anmaid, pmid, g_client_nfs_);
+    nfs_client::CreateAccount(maid, anmaid, g_client_nfs_);
 
   maidsafe::Identity unique_id(options.unique_id);
   maidsafe::Identity root_parent_id(options.root_parent_id);
