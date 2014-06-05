@@ -128,6 +128,9 @@ ms_add_executable(local_drive "Production" ${LocalDriveMain})
 target_link_libraries(local_drive maidsafe_drive maidsafe_drive_launcher)
 ms_add_executable(network_drive "Production" ${NetworkDriveMain})
 target_link_libraries(network_drive maidsafe_drive maidsafe_drive_launcher maidsafe_nfs_client)
+ms_add_executable(safe_storage "Tools/Drive" ${DriveSourcesDir}/tools/safe_storage.cc)
+target_include_directories(safe_storage PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
+target_link_libraries(safe_storage maidsafe_drive_launcher)
 
 if(WIN32)
   set_property(TARGET local_drive network_drive safe_storage PROPERTY WIN32_EXECUTABLE TRUE)
@@ -141,13 +144,10 @@ if(WIN32)
   endif()
 endif()
 
-ms_add_executable(safe_storage "Tools/Drive" ${DriveSourcesDir}/tools/safe_storage.cc)
 add_dependencies(safe_storage network_drive)
 if(WIN32)
   add_dependencies(safe_storage network_drive_console)
 endif()
-target_include_directories(safe_storage PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
-target_link_libraries(safe_storage maidsafe_drive_launcher)
 
 if(MaidsafeTesting)
   ms_add_executable(filesystem_weekly "Tools/Drive"
