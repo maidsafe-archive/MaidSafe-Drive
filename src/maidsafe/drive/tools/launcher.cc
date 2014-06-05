@@ -285,7 +285,8 @@ void Launcher::LogIn(Options& options, const passport::Anmaid& anmaid) {
       maidsafe::Identity(crypto::Hash<crypto::SHA512>(options.unique_id.string()));
 
   std::cout << "launcher unique_id : " << HexSubstr(options.unique_id.string()) << std::endl;
-  std::cout << "launcher root_parent_id : " << HexSubstr(options.root_parent_id.string()) << std::endl;
+  std::cout << "launcher root_parent_id : " << HexSubstr(options.root_parent_id.string())
+            << std::endl;
 }
 
 void Launcher::CreateInitialSharedMemory(const Options& options) {

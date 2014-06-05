@@ -351,11 +351,12 @@ void MonitorParentProcess(const Options& options) {
 
 int MountAndWaitForIpcNotification(const Options& options, NetworkDrive& drive) {
   if (options.monitor_parent) {
-    // Start a thread to poll the parent process' continued existence *before* calling drive.Mount().
+    // Start a thread to poll the parent process' continued existence *before*
+    // calling drive.Mount().
     std::thread poll_parent([&] { MonitorParentProcess(options); });
     drive.Mount();
-    // Drive should already be unmounted by this point, but we need to make 'g_network_drive' null to
-    // allow 'poll_parent' to join.
+    // Drive should already be unmounted by this point, but we need to make 'g_network_drive' null
+    // to allow 'poll_parent' to join.
   //   Unmount();
     poll_parent.join();
   } else {
