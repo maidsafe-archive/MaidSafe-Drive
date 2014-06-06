@@ -133,7 +133,7 @@ target_include_directories(safe_storage PRIVATE $<TARGET_PROPERTY:maidsafe_drive
 target_link_libraries(safe_storage maidsafe_drive_launcher)
 
 if(WIN32)
-  set_property(TARGET local_drive network_drive safe_storage PROPERTY WIN32_EXECUTABLE TRUE)
+  set_property(TARGET local_drive network_drive PROPERTY WIN32_EXECUTABLE TRUE)
   target_compile_options(network_drive PUBLIC $<$<CONFIG:Debug>: /bigobj>)
   if(MaidsafeTesting)
     ms_add_executable(local_drive_console "Production" ${LocalDriveMain})
