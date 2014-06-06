@@ -223,14 +223,14 @@ if(CbfsFound)
   target_compile_definitions(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_DEFINITIONS>)
   target_compile_options(cbfs_driver PRIVATE $<TARGET_PROPERTY:maidsafe_common,INTERFACE_COMPILE_OPTIONS>)
   set_property(TARGET cbfs_driver APPEND_STRING PROPERTY LINK_FLAGS " /level='requireAdministrator' /uiAccess='false' ")
-  if(MaidsafeTesting)
-    set_property(TARGET cbfs_driver APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_ROOT_DIR=${CBFS_ROOT_DIR}")
-  endif()
+  set_property(TARGET cbfs_driver APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_ROOT_DIR=${CBFS_ROOT_DIR}")
   set(ProductId "47584d51-4651-487a-534c-675242655154")
   set_property(TARGET local_drive APPEND PROPERTY COMPILE_DEFINITIONS "PRODUCT_ID=${ProductId}")
   set_property(TARGET network_drive APPEND PROPERTY COMPILE_DEFINITIONS "PRODUCT_ID=${ProductId}")
-  set_property(TARGET local_drive_console APPEND PROPERTY COMPILE_DEFINITIONS "PRODUCT_ID=${ProductId}")
-  set_property(TARGET network_drive_console APPEND PROPERTY COMPILE_DEFINITIONS "PRODUCT_ID=${ProductId}")
+  if(MaidsafeTesting)
+    set_property(TARGET local_drive_console APPEND PROPERTY COMPILE_DEFINITIONS "PRODUCT_ID=${ProductId}")
+    set_property(TARGET network_drive_console APPEND PROPERTY COMPILE_DEFINITIONS "PRODUCT_ID=${ProductId}")
+  endif()
 endif()
 
 
@@ -270,3 +270,23 @@ if(MaidsafeTesting)
   ms_add_project_experimental()
   ms_test_summary_output()
 endif()
+
+
+#==================================================================================================#
+# Package                                                                                          #
+#==================================================================================================#
+set(EXPORT_NAME maidsafe_drive)
+install(TARGETS maidsafe_drive EXPORT ${EXPORT_NAME} ARCHIVE DESTINATION bin/lib)
+set(EXPORT_NAME maidsafe_drive_launcher)
+install(TARGETS maidsafe_drive_launcher EXPORT ${EXPORT_NAME} ARCHIVE DESTINATION bin/lib)
+set(EXPORT_NAME network_drive)
+install(TARGETS network_drive EXPORT ${EXPORT_NAME} RUNTIME DESTINATION bin)
+set(EXPORT_NAME local_drive)
+install(TARGETS local_drive EXPORT ${EXPORT_NAME} RUNTIME DESTINATION bin)
+if(CbfsFound)
+  install(TARGETS cbfs_driver EXPORT ${EXPORT_NAME} RUNTIME DESTINATION bin)
+endif()
+
+install(FILES ${DriveApi} DESTINATION include/maidsafe/drive)
+install(FILES ${DriveToolsApi} DESTINATION include/maidsafe/drive/tools)
+install(FILES ${DriveHeaders} DESTINATION src/maidsafe/drive)
