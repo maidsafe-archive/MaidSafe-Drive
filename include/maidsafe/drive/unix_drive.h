@@ -309,10 +309,11 @@ void FuseDrive<Storage>::Mount() {
   fuse_ = fuse_new(fuse_channel_, &args, &maidsafe_ops_, sizeof(maidsafe_ops_), nullptr);
   fuse_opt_free_args(&args);
   on_scope_exit cleanup_on_error([&]()->void {
-    fuse_unmount(mountpoint, fuse_channel_);
-    if (fuse_)
+    if (fuse_) {
+      fuse_unmount(mountpoint, fuse_channel_);
       fuse_destroy(fuse_);
-    free(mountpoint);
+      free(mountpoint);
+    }
     this->mount_promise_.set_value();
   });
   if (!fuse_)
