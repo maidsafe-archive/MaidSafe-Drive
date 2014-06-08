@@ -296,9 +296,9 @@ endif()
 # Package                                                                                          #
 #==================================================================================================#
 set(EXPORT_NAME maidsafe_drive)
-install(TARGETS maidsafe_drive EXPORT ${EXPORT_NAME} ARCHIVE DESTINATION bin/lib)
+install(TARGETS maidsafe_drive EXPORT ${EXPORT_NAME} ARCHIVE DESTINATION lib)
 set(EXPORT_NAME maidsafe_drive_launcher)
-install(TARGETS maidsafe_drive_launcher EXPORT ${EXPORT_NAME} ARCHIVE DESTINATION bin/lib)
+install(TARGETS maidsafe_drive_launcher EXPORT ${EXPORT_NAME} ARCHIVE DESTINATION lib)
 set(EXPORT_NAME network_drive)
 install(TARGETS network_drive EXPORT ${EXPORT_NAME} RUNTIME DESTINATION bin)
 set(EXPORT_NAME local_drive)
@@ -309,4 +309,3 @@ endif()
 
 install(FILES ${DriveApi} DESTINATION include/maidsafe/drive)
 install(FILES ${DriveToolsApi} DESTINATION include/maidsafe/drive/tools)
-install(FILES ${DriveHeaders} DESTINATION src/maidsafe/drive)
