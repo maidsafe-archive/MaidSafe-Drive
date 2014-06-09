@@ -36,7 +36,9 @@ extern "C" char **environ;
 #include "maidsafe/common/ipc.h"
 #include "maidsafe/common/on_scope_exit.h"
 #include "maidsafe/common/process.h"
-#include "maidsafe/common/utils.h"
+
+#include "maidsafe/passport/types.h"
+#include "maidsafe/passport/passport.h"
 
 namespace bi = boost::interprocess;
 namespace bp = boost::process;
@@ -105,6 +107,7 @@ enum SharedMemoryArgIndex {
   kRootParentIdArg,
   kDriveNameArg,
   kCreateStoreArg,
+  kMonitorParentArg,
   kMaidArg,
   kPmidArg,
   kSymmKeyArg,
@@ -121,9 +124,10 @@ void DoNotifyMountStatus(const std::string& mount_status_shared_object_name, boo
     auto mount_status = static_cast<MountStatus*>(region.get_address());
     bi::scoped_lock<bi::interprocess_mutex> lock(mount_status->mutex);
     mount_status->mounted = mount_and_wait;
+    mount_status->unmount = false;
     mount_status->condition.notify_one();
     if (mount_and_wait)
-      mount_status->condition.wait(lock, [&] { return !mount_status->mounted; });
+      mount_status->condition.wait(lock, [&] { return mount_status->unmount; });
   } catch (...) {
     // in case parent process is gone, try to access shared_memory will raise exception of
     // 'boost::interprocess::interprocess_exception'
@@ -148,8 +152,8 @@ void ReadAndRemoveInitialSharedMemory(const std::string& initial_shared_memory_n
   options.root_parent_id = maidsafe::Identity(shared_memory_args[kRootParentIdArg]);
   options.drive_name = shared_memory_args[kDriveNameArg];
   options.create_store = (std::stoi(shared_memory_args[kCreateStoreArg]) != 0);
+  options.monitor_parent = (std::stoi(shared_memory_args[kMonitorParentArg]) != 0);
   options.encrypted_maid = shared_memory_args[kMaidArg];
-  options.encrypted_pmid = shared_memory_args[kPmidArg];
   options.symm_key = shared_memory_args[kSymmKeyArg];
   options.symm_iv = shared_memory_args[kSymmIvArg];
   options.mount_status_shared_object_name =
@@ -167,6 +171,55 @@ void NotifyUnmounted(const std::string& mount_status_shared_object_name) {
   DoNotifyMountStatus(mount_status_shared_object_name, false);
 }
 
+boost::asio::ip::udp::endpoint GetBootstrapEndpoint(const std::string& peer) {
+  size_t delim = peer.rfind(':');
+  boost::asio::ip::udp::endpoint ep;
+  ep.port(boost::lexical_cast<uint16_t>(peer.substr(delim + 1)));
+  ep.address(boost::asio::ip::address::from_string(peer.substr(0, delim)));
+  LOG(kInfo) << "Going to bootstrap off endpoint " << ep;
+  return ep;
+}
+
+void RoutingJoin(maidsafe::routing::Routing& routing,
+                 const std::vector<boost::asio::ip::udp::endpoint>& peer_endpoints,
+                 bool& call_once,
+                 std::shared_ptr<nfs_client::MaidNodeNfs> client_nfs,
+                 std::vector<passport::PublicPmid>& pmids_from_file,
+                 nfs::detail::PublicPmidHelper& public_pmid_helper) {
+  std::shared_ptr<std::promise<bool>> join_promise(std::make_shared<std::promise<bool>>());
+  routing::Functors functors_;
+  functors_.network_status = [join_promise, &call_once](int result) {
+    if ((result == 100) && (!call_once)) {
+      call_once = true;
+      join_promise->set_value(true);
+    }
+  };
+  functors_.typed_message_and_caching.group_to_group.message_received =
+      [&](const routing::GroupToGroupMessage &msg) { client_nfs->HandleMessage(msg); };  // NOLINT
+  functors_.typed_message_and_caching.group_to_single.message_received =
+      [&](const routing::GroupToSingleMessage &msg) { client_nfs->HandleMessage(msg); };  // NOLINT
+  functors_.typed_message_and_caching.single_to_group.message_received =
+      [&](const routing::SingleToGroupMessage &msg) { client_nfs->HandleMessage(msg); };  // NOLINT
+  functors_.typed_message_and_caching.single_to_single.message_received =
+      [&](const routing::SingleToSingleMessage &msg) { client_nfs->HandleMessage(msg); };  // NOLINT
+  functors_.request_public_key =
+      [&](const NodeId & node_id, const routing::GivePublicKeyFunctor & give_key) {
+        nfs::detail::DoGetPublicKey(*client_nfs, node_id, give_key,
+                                    pmids_from_file, public_pmid_helper);
+      };
+  LOG(kVerbose) << "Networkdrive routing joining network";
+  routing.Join(functors_, peer_endpoints);
+  auto future(std::move(join_promise->get_future()));
+  LOG(kVerbose) << "Networkdrive routing joining network get_future";
+  auto status(future.wait_for(std::chrono::seconds(30)));
+  LOG(kVerbose) << "Networkdrive routing joining network procedure completed";
+  if (status == std::future_status::timeout || !future.get()) {
+    LOG(kError) << "can't join routing network";
+    BOOST_THROW_EXCEPTION(MakeError(RoutingErrors::not_connected));
+  }
+  LOG(kInfo) << "Client node joined routing network";
+}
+
 Launcher::Launcher(const Options& options)
     : initial_shared_memory_name_(RandomAlphaNumericString(32)),
       kMountPath_(AdjustMountPath(options.mount_path)), mount_status_shared_object_(),
@@ -181,6 +234,61 @@ Launcher::Launcher(const Options& options)
   cleanup_on_throw.Release();
 }
 
+Launcher::Launcher(Options& options, const passport::Anmaid& anmaid)
+    : initial_shared_memory_name_(RandomAlphaNumericString(32)),
+      kMountPath_(AdjustMountPath(options.mount_path)), mount_status_shared_object_(),
+      mount_status_mapped_region_(), mount_status_(nullptr),
+      this_process_handle_(GetHandleToThisProcess()), drive_process_() {
+  LOG(kVerbose) << "launcher initial_shared_memory_name_ : " << initial_shared_memory_name_;
+  LogIn(options, anmaid);
+  maidsafe::on_scope_exit cleanup_on_throw([&] { Cleanup(); });
+  CreateInitialSharedMemory(options);
+  CreateMountStatusSharedMemory();
+  StartDriveProcess(options);
+  WaitForDriveToMount();
+  cleanup_on_throw.Release();
+}
+
+void Launcher::LogIn(Options& options, const passport::Anmaid& anmaid) {
+  std::shared_ptr<passport::Anmaid> anmaid_ptr(new passport::Anmaid(anmaid));
+  std::shared_ptr<passport::Maid> maid(new passport::Maid(anmaid));
+  AsioService asio_service(2);
+  std::shared_ptr<nfs_client::MaidNodeNfs> client_nfs;
+  {
+    routing::Routing client_routing(*maid);
+    client_nfs.reset(new nfs_client::MaidNodeNfs(asio_service, client_routing));
+
+    std::vector<boost::asio::ip::udp::endpoint> peer_endpoints;
+    if (!options.peer_endpoint.empty())
+      peer_endpoints.push_back(GetBootstrapEndpoint(options.peer_endpoint));
+    bool call_once(false);
+    std::vector<passport::PublicPmid> pmids_from_file;
+    nfs::detail::PublicPmidHelper public_pmid_helper;
+    drive::RoutingJoin(client_routing, peer_endpoints, call_once, client_nfs,
+                      pmids_from_file, public_pmid_helper);
+    nfs_client::CreateAccount(maid, anmaid_ptr, client_nfs);
+    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+    client_nfs.reset();
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  }
+
+  crypto::AES256Key symm_key{ RandomString(crypto::AES256_KeySize) };
+  crypto::AES256InitialisationVector symm_iv{ RandomString(crypto::AES256_IVSize) };
+  crypto::CipherText encrypted_maid = passport::EncryptMaid(*maid, symm_key, symm_iv);
+  options.encrypted_maid = encrypted_maid.data.string();
+  options.symm_key = symm_key.string();
+  options.symm_iv = symm_iv.string();
+  passport::PublicMaid public_maid(*maid);
+  options.unique_id =
+      maidsafe::Identity(crypto::Hash<crypto::SHA512>(public_maid.name()->string()));
+  options.root_parent_id =
+      maidsafe::Identity(crypto::Hash<crypto::SHA512>(options.unique_id.string()));
+
+  std::cout << "launcher unique_id : " << HexSubstr(options.unique_id.string()) << std::endl;
+  std::cout << "launcher root_parent_id : " << HexSubstr(options.root_parent_id.string())
+            << std::endl;
+}
+
 void Launcher::CreateInitialSharedMemory(const Options& options) {
   std::vector<std::string> shared_memory_args(kMaxArgIndex);
   shared_memory_args[kMountPathArg] = options.mount_path.string();
@@ -192,8 +300,8 @@ void Launcher::CreateInitialSharedMemory(const Options& options) {
   shared_memory_args[kRootParentIdArg] = options.root_parent_id.string();
   shared_memory_args[kDriveNameArg] = options.drive_name.string();
   shared_memory_args[kCreateStoreArg] = options.create_store ? "1" : "0";
+  shared_memory_args[kMonitorParentArg] = options.monitor_parent ? "1" : "0";
   shared_memory_args[kMaidArg] = options.encrypted_maid;
-  shared_memory_args[kPmidArg] = options.encrypted_pmid;
   shared_memory_args[kSymmKeyArg] = options.symm_key;
   shared_memory_args[kSymmIvArg] = options.symm_iv;
   shared_memory_args[kParentProcessHandle] =
@@ -313,10 +421,12 @@ void Launcher::StopDriveProcess(bool terminate_on_ipc_failure) {
     }
   }
   auto exit_code = bp::wait_for_exit(*drive_process_, error_code);
-  if (error_code)
-    std::cout << "Error waiting for drive process to exit: " << error_code.message() << '\n';
-  else
+  if (error_code) {
+    if (error_code.message() != "No child processes")
+      std::cout << "Error waiting for drive process to exit: " << error_code.message() << '\n';
+  } else {
     std::cout << "Drive process has completed with exit code " << exit_code << '\n';
+  }
   drive_process_ = nullptr;
 }
 
