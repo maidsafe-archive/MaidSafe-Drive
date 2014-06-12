@@ -69,7 +69,8 @@ foreach(TEST_SCRIPT ${TEST_SCRIPTS})
   add_test(NAME fstest-${TEST_NAME_BEGIN}-${TEST_NAME_END} WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/pjd-fstest-20080816/mountdir
              COMMAND prove -v ${CMAKE_BINARY_DIR}/pjd-fstest-20080816/tests/${TEST_SCRIPT})
   set_property(TEST fstest-${TEST_NAME_BEGIN}-${TEST_NAME_END} PROPERTY LABELS Behavioural POSIX)
-  set_property(TEST fstest-${TEST_NAME_BEGIN}-${TEST_NAME_END} PROPERTY TIMEOUT 60)
+  set(Timeout 60)
+  ms_update_test_timeout(Timeout)
+  set_property(TEST fstest-${TEST_NAME_BEGIN}-${TEST_NAME_END} PROPERTY TIMEOUT ${Timeout})
 endforeach()
 
-#WILL_FAIL

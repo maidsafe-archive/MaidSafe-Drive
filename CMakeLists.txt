@@ -269,9 +269,11 @@ if(MaidsafeTesting)
   add_test(NAME "\"Local Drive Filesystem Test\""
            COMMAND filesystem_test --durations yes --warn NoAssertions --local${Console}
                    --name "filesystem_test ($<CONFIGURATION> build)")
+  set(Timeout 120)
+  ms_update_test_timeout(Timeout)
   set_tests_properties("\"Real Disk Filesystem Test\"" "\"Local Drive Filesystem Test\"" PROPERTIES
                        FAIL_REGULAR_EXPRESSION "No tests ran"
-                       TIMEOUT 120
+                       TIMEOUT ${Timeout}
                        LABELS "Drive;Filesystem")
 
   if(WEEKLY)
@@ -281,9 +283,11 @@ if(MaidsafeTesting)
     add_test(NAME "\"Local Drive Weekly\""
              COMMAND filesystem_weekly --durations yes --warn NoAssertions --local${Console}
                      --name "filesystem_weekly ($<CONFIGURATION> build)")
+    set(Timeout 10800)
+    ms_update_test_timeout(Timeout)
     set_tests_properties("\"Real Disk Weekly\"" "\"Local Drive Weekly\"" PROPERTIES
                          FAIL_REGULAR_EXPRESSION "No tests ran"
-                         TIMEOUT 10800
+                         TIMEOUT ${Timeout}
                          LABELS "Drive;Filesystem;Weekly")
   endif()
 
