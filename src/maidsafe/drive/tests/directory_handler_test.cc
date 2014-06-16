@@ -34,7 +34,6 @@
 #include "maidsafe/common/test.h"
 #include "maidsafe/common/utils.h"
 #include "maidsafe/common/application_support_directories.h"
-#include "maidsafe/nfs/client/fake_store.h"
 
 #include "maidsafe/encrypt/data_map.h"
 
@@ -43,6 +42,8 @@
 #include "maidsafe/drive/directory.h"
 #include "maidsafe/drive/directory_handler.h"
 #include "maidsafe/drive/tests/test_utils.h"
+
+#include "maidsafe/nfs/client/fake_store.h"
 
 namespace fs = boost::filesystem;
 

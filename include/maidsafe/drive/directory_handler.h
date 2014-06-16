@@ -153,6 +153,13 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
       throw;
     }
   };
+  if (!create) {
+    try {
+      cache_[""] = GetFromStorage("", ParentId(unique_user_id_), root_parent_id_);
+    } catch (...) {
+      create = true;
+    }
+  }
   if (create) {
     // TODO(Fraser#5#): 2013-12-05 - Fill 'root_file_context' attributes appropriately.
     FileContext root_file_context(kRoot, true);
@@ -167,8 +174,6 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
     root->ScheduleForStoring();
     cache_[""] = std::move(root_parent);
     cache_[kRoot] = std::move(root);
-  } else {
-    cache_[""] = GetFromStorage("", ParentId(unique_user_id_), root_parent_id_);
   }
 }
 

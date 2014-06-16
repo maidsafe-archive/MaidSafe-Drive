@@ -274,6 +274,7 @@ void CopyThenReadManySmallFiles() {
 }
 
 void CloneMaidSafeAndBuildDefaults(const fs::path& start_directory) {
+  on_scope_exit cleanup(clean_root);
   boost::system::error_code error_code;
   std::string command_args, cmake_generator(BOOST_PP_STRINGIZE(CMAKE_GENERATOR));
   fs::path resources_path(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)), script,
@@ -340,27 +341,218 @@ void CloneMaidSafeAndBuildDefaults(const fs::path& start_directory) {
   std::cout << "Test duration: " << duration.count() << " secs" << std::endl;
 }
 
+void DownloadAndBuildPoco(const fs::path& start_directory) {
+  on_scope_exit cleanup(clean_root);
+  fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)),
+    download_py(resources / "download.py"), extract_py(resources / "extract.py"),
+    shell_path(boost::process::shell_path());
+  std::string content, script, command_args;
+
+#ifdef MAIDSAFE_WIN32
+  std::string architecture(BOOST_PP_STRINGIZE(TARGET_ARCHITECTURE));
+  if (architecture == "x86_64")
+    architecture = "x64";
+  else
+    architecture = "Win32";
+
+  fs::path url("http://pocoproject.org/releases/poco-1.4.6/poco-1.4.6p2.zip");
+  script = "poco.bat";
+  content += "call " + std::string(BOOST_PP_STRINGIZE(VS_DEV_CMD)) + "\n"
+    + "python " + download_py.string()
+    + " -u " + url.string()
+    + " -l " + start_directory.string() + "\n"
+    + "python " + extract_py.string()
+    + " -f " + (start_directory / url.filename()).string()
+    + " -l " + start_directory.string() + "\n"
+    + "cd poco-1.4.6p2\n"
+    + "buildwin.cmd 110 build shared both " + architecture + " nosamples\n"
+    + "exit";
+  command_args = "/C " + script + " 1>nul 2>nul";
+#else
+  fs::path url("http://pocoproject.org/releases/poco-1.4.6/poco-1.4.6p2.tar.gz");
+  script = "poco.sh";
+  content += std::string("#!/bin/bash\n")
+    + "python " + download_py.string()
+    + " -u " + url.string()
+    + " -l " + start_directory.string() + " 1>/dev/null 2>/dev/null\n"
+    + "python " + extract_py.string()
+    + " -f " + (start_directory / url.filename()).string()
+    + " -l " + start_directory.string() + " 1>/dev/null 2>/dev/null\n"
+    + "cd poco-1.4.6p2\n"
+    + "./configure 1>/dev/null 2>/dev/null\n"
+    + "make 1>/dev/null 2>/dev/null\n"
+    + "exit\n";
+  command_args = script;
+#endif
+
+  auto script_file(start_directory / script);
+  WriteFile(script_file, content);
+
+  std::vector<std::string> process_args;
+  process_args.emplace_back(shell_path.string());
+  process_args.emplace_back(command_args);
+  const auto command_line(process::ConstructCommandLine(process_args));
+
+  boost::process::child child = boost::process::execute(
+    boost::process::initializers::start_in_dir(start_directory.string()),
+    boost::process::initializers::run_exe(shell_path),
+    boost::process::initializers::set_cmd_line(command_line),
+    boost::process::initializers::inherit_env());
+
+  boost::process::wait_for_exit(child);
+}
+
+void DownloadAndBuildPocoFoundation(const fs::path& start_directory) {
+  on_scope_exit cleanup(clean_root);
+  fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)),
+           download_py(resources / "download.py"), extract_py(resources / "extract.py"),
+           shell_path(boost::process::shell_path());
+  std::string content, script, command_args, project_file;
+
+#ifdef MAIDSAFE_WIN32
+  std::string architecture(BOOST_PP_STRINGIZE(TARGET_ARCHITECTURE));
+  if (architecture == "x86_64")
+    project_file = "Foundation_x64_vs110.sln";
+  else
+    project_file = "Foundation_vs110.sln";
+
+  fs::path url("http://pocoproject.org/releases/poco-1.4.6/poco-1.4.6p2.zip");
+  script = "poco.bat";
+  content += "call " + std::string(BOOST_PP_STRINGIZE(VS_DEV_CMD)) + "\n"
+           + "python " + download_py.string()
+           + " -u " + url.string()
+           + " -l " + start_directory.string() + "\n"
+           + "python " + extract_py.string()
+           + " -f " + (start_directory / url.filename()).string()
+           + " -l " + start_directory.string() + "\n"
+           + "cd poco-1.4.6p2\\Foundation\n"
+           + "msbuild " + project_file + " /t:Foundation\n"
+           + "exit\n";
+  command_args = "/C " + script + " 1>nul 2>nul";
+#else
+  fs::path url("http://pocoproject.org/releases/poco-1.4.6/poco-1.4.6p2.tar.gz");
+  script = "poco.sh";
+  content += std::string("#!/bin/bash\n")
+           + "python " + download_py.string()
+           + " -u " + url.string()
+           + " -l " + start_directory.string() + " 1>/dev/null 2>/dev/null\n"
+           + "python " + extract_py.string()
+           + " -f " + (start_directory / url.filename()).string()
+           + " -l " + start_directory.string() + " 1>/dev/null 2>/dev/null\n"
+           + "cd poco-1.4.6p2\n"
+           + "./configure 1>/dev/null 2>/dev/null\n"
+           + "make Foundation-libexec 1>/dev/null 2>/dev/null\n"
+           + "exit\n";
+  command_args = script;
+#endif
+
+  auto script_file(start_directory / script);
+  WriteFile(script_file, content);
+
+  std::vector<std::string> process_args;
+  process_args.emplace_back(shell_path.string());
+  process_args.emplace_back(command_args);
+  const auto command_line(process::ConstructCommandLine(process_args));
+
+  boost::process::child child = boost::process::execute(
+      boost::process::initializers::start_in_dir(start_directory.string()),
+      boost::process::initializers::run_exe(shell_path),
+      boost::process::initializers::set_cmd_line(command_line),
+      boost::process::initializers::inherit_env());
+
+  boost::process::wait_for_exit(child);
+}
+
+void DownloadAndExtractBoost(const fs::path& start_directory) {
+  on_scope_exit cleanup(clean_root);
+  fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES)),
+    download_py(resources / "download.py"), extract_py(resources / "extract.py"),
+    shell_path(boost::process::shell_path()),
+    url("http://sourceforge.net/projects/boost/files/boost/1.55.0/boost_1_55_0.tar.bz2");
+  std::string content, script, command_args;
+
+#ifdef MAIDSAFE_WIN32
+  script = "boost.bat";
+  content = "python " + download_py.string()
+          + " -u " + url.string()
+          + " -l " + start_directory.string() + "\n"
+          + "python " + extract_py.string()
+          + " -f " + (start_directory / url.filename()).string()
+          + " -l " + start_directory.string() + "\n"
+          + "exit";
+  command_args = "/C " + script + " 1>nul 2>nul";
+#else
+  script = "boost.sh";
+  content = std::string("#!/bin/bash\n")
+          + "python " + download_py.string()
+          + " -u " + url.string()
+          + " -l " + start_directory.string() + " 1>/dev/null 2>/dev/null\n"
+          + "python " + extract_py.string()
+          + " -f " + (start_directory / url.filename()).string()
+          + " -l " + start_directory.string() + " 1>/dev/null 2>/dev/null\n"
+          + "exit";
+  command_args = script;
+#endif
+
+  auto script_file(start_directory / script);
+  WriteFile(script_file, content);
+
+  std::vector<std::string> process_args;
+  process_args.emplace_back(shell_path.string());
+  process_args.emplace_back(command_args);
+  const auto command_line(process::ConstructCommandLine(process_args));
+
+  boost::process::child child = boost::process::execute(
+    boost::process::initializers::start_in_dir(start_directory.string()),
+    boost::process::initializers::run_exe(shell_path),
+    boost::process::initializers::set_cmd_line(command_line),
+    boost::process::initializers::inherit_env());
+
+  boost::process::wait_for_exit(child);
+}
+
 int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
             const fs::path& storage, int /*test_type*/) {
   std::vector<std::string> arguments(argv, argv + argc);
+
   bool no_big_test(std::any_of(std::begin(arguments), std::end(arguments),
-                               [](const std::string& arg) { return arg == "--no_big_test"; }));
+                                   [](const std::string& arg) { return arg == "--no_big_test"; }));
   bool no_small_test(std::any_of(std::begin(arguments), std::end(arguments),
                                  [](const std::string& arg) { return arg == "--no_small_test"; }));
   bool no_clone_and_build_maidsafe_test(std::any_of(std::begin(arguments), std::end(arguments),
               [](const std::string& arg) { return arg == "--no_clone_and_build_maidsafe_test"; }));
+  bool no_download_and_build_poco_test(std::any_of(std::begin(arguments), std::end(arguments),
+               [](const std::string& arg) { return arg == "--no_download_and_build_poco_test"; }));
+  bool no_download_and_build_poco_foundation_test(
+    std::any_of(std::begin(arguments), std::end(arguments),
+    [](const std::string& arg) { return arg == "--no_download_and_build_poco_foundation_test"; }));
+  bool no_download_and_extract_boost_test(std::any_of(std::begin(arguments), std::end(arguments),
+            [](const std::string& arg) { return arg == "--no_download_and_extract_boost_test"; }));
+
   g_root = root;
   g_temp = temp;
   g_storage = storage;
+
   if (!no_big_test)
     CopyThenReadLargeFile();
+
   if (!no_small_test)
     CopyThenReadManySmallFiles();
-  if (!no_clone_and_build_maidsafe_test) {
-    CloneMaidSafeAndBuildDefaults(g_temp);
+
+  if (!no_clone_and_build_maidsafe_test)
     CloneMaidSafeAndBuildDefaults(g_root);
-    // RequireDirectoriesEqual(g_root, g_temp, false);
+
+  if (!no_download_and_build_poco_test)
+    DownloadAndBuildPoco(g_root);
+
+  if (!no_download_and_build_poco_foundation_test) {
+    DownloadAndBuildPocoFoundation(g_root);
+    DownloadAndBuildPocoFoundation(g_root);
   }
+
+  if (!no_download_and_extract_boost_test)
+    DownloadAndExtractBoost(g_root);
+
   return 0;
 }
 
