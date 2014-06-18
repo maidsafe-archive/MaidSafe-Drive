@@ -15,6 +15,7 @@
 
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
+#ifdef MAIDSAFE_WIN32
 
 #include "maidsafe/common/test.h"
 
@@ -212,3 +213,5 @@ TEST_CASE("Mask match", "[behavioural] [drive]" ) {
 }  // namespace drive
 
 }  // namespace maidsafe
+
+#endif  // MAIDSAFE_WIN32
