@@ -1534,7 +1534,10 @@ TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
     bool is_empty(fs::is_empty(cross_platform));
 
     utf8_file_name = utf8_file.filename().string();
+#ifdef MAIDSAFE_WIN32
+    // this requires the iconv module to be tested on linux/fuse
     REQUIRE_NOTHROW(fs::copy_file(utf8_file, prefix_path / utf8_file_name));
+#endif 
     REQUIRE(fs::exists(prefix_path / utf8_file_name));
 
     utf8_file = prefix_path / utf8_file_name;
@@ -1635,10 +1638,8 @@ TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
     } else {
       REQUIRE(fs::exists(file));
 #ifdef MAIDSAFE_WIN32
+      //inconv required for conversion of types
       std::locale::global(boost::locale::generator().generate(""));
-#else
-      std::locale::global(std::locale(""));
-#endif
       std::wifstream original_file, recovered_file;
 
       original_file.imbue(std::locale());
@@ -1658,6 +1659,7 @@ TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
         ++line_count;
       }
       REQUIRE((original_file.eof() && recovered_file.eof()));
+#endif
     }
 
     // allow time for the version to store!
