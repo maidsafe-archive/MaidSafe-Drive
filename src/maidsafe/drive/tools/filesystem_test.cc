@@ -1537,7 +1537,7 @@ TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
 #ifdef MAIDSAFE_WIN32
     // this requires the iconv module to be tested on linux/fuse
     REQUIRE_NOTHROW(fs::copy_file(utf8_file, prefix_path / utf8_file_name));
-#endif 
+#endif
     REQUIRE(fs::exists(prefix_path / utf8_file_name));
 
     utf8_file = prefix_path / utf8_file_name;
@@ -1638,7 +1638,7 @@ TEST_CASE("Cross-platform file check", "[Filesystem][behavioural]") {
     } else {
       REQUIRE(fs::exists(file));
 #ifdef MAIDSAFE_WIN32
-      //inconv required for conversion of types
+      //  inconv required for conversion of types
       std::locale::global(boost::locale::generator().generate(""));
       std::wifstream original_file, recovered_file;
 
