@@ -232,13 +232,13 @@ void FuseDrive<Storage>::Init() {
   maidsafe_ops_.opendir = OpsOpendir;
   maidsafe_ops_.read = OpsRead;
   maidsafe_ops_.readdir = OpsReaddir;
-//  maidsafe_ops_.readlink = OpsReadlink;
+  maidsafe_ops_.readlink = OpsReadlink;
   maidsafe_ops_.release = OpsRelease;
   maidsafe_ops_.releasedir = OpsReleasedir;
   maidsafe_ops_.rename = OpsRename;
   maidsafe_ops_.rmdir = OpsRmdir;
   maidsafe_ops_.statfs = OpsStatfs;
-//  maidsafe_ops_.symlink = OpsSymlink;
+  maidsafe_ops_.symlink = OpsSymlink;
   maidsafe_ops_.truncate = OpsTruncate;
   maidsafe_ops_.unlink = OpsUnlink;
   maidsafe_ops_.utimens = OpsUtimens;
@@ -794,7 +794,6 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
   return 0;
 }
 
-/*
 // Quote from FUSE documentation:
 //
 // Read the target of a symbolic link.
@@ -806,10 +805,11 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t size) {
   LOG(kInfo) << "OpsReadlink: " << path;
   try {
-    auto file_context(Global<Storage>::g_fuse_drive->GetFileContext(path));
-    if (S_ISLNK(file_context->meta_data->attributes.st_mode)) {
-      snprintf(buf, file_context->meta_data->link_to.string().size() + 1, "%s",
-               file_context->meta_data->link_to.string().c_str());
+    auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
+    if (S_ISLNK(file_context->meta_data.attributes.st_mode)) {
+      assert(size != 0);
+      snprintf(buf, file_context->meta_data.link_to.string().size() + 1, "%s",
+               file_context->meta_data.link_to.string().c_str());
     } else {
       LOG(kError) << "OpsReadlink " << path << ", no link returned.";
       return -EINVAL;
@@ -821,7 +821,6 @@ int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t size) {
   }
   return 0;
 }
-*/
 
 // Quote from FUSE documentation:
 //
@@ -927,7 +926,6 @@ int FuseDrive<Storage>::OpsStatfs(const char* path, struct statvfs* stbuf) {
   return 0;
 }
 
-/*
 // Quote from FUSE documentation:
 //
 // Create a symbolic link.
@@ -935,27 +933,18 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsSymlink(const char* to, const char* from) {
   LOG(kInfo) << "OpsSymlink: " << from << " --> " << to;
 
-  fs::path path_to(to), path_from(from);
-  MetaData meta_data(path_from.filename(), false);
-  time(&meta_data.attributes.st_atime);
-  meta_data.attributes.st_mtime = meta_data.attributes.st_atime;
-  meta_data.attributes.st_mode = S_IFLNK;
-  meta_data.attributes.st_uid = fuse_get_context()->uid;
-  meta_data.attributes.st_gid = fuse_get_context()->gid;
-  meta_data.attributes.st_size = path_from.string().size();
-  meta_data.link_to = path_to;
-
-  int result(AddNewMetaData(Global<Storage>::g_fuse_drive->directory_handler_,
-                            path_from, ShareData(), &meta_data, false,
-                            nullptr, nullptr, nullptr));
-  if (result != kSuccess) {
-    LOG(kError) << "OpsSymlink: " << from << " --> " << to
-                << " failed to AddNewMetaData.  Result: " << result;
+  try {
+    fs::path path_to(to), path_from(from);
+    CreateNew(path_from, S_IFLNK);
+    detail::FileContext* file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path_from));
+    file_context->meta_data.link_to = path_to;
+  }
+  catch (const std::exception&) {
     return -EIO;
   }
+
   return 0;
 }
-*/
 
 // Quote from FUSE documentation:
 //
