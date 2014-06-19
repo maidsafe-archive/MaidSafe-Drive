@@ -49,13 +49,6 @@ boost::filesystem::path GetNextAvailableDrivePath();
 
 boost::asio::ip::udp::endpoint GetBootstrapEndpoint(const std::string& peer);
 
-void RoutingJoin(maidsafe::routing::Routing& routing,
-                 const std::vector<boost::asio::ip::udp::endpoint>& peer_endpoints,
-                 bool& call_once,
-                 std::shared_ptr<nfs_client::MaidNodeNfs> client_nfs,
-                 std::vector<passport::PublicPmid>& pmids_from_file,
-                 nfs::detail::PublicPmidHelper& public_pmid_helper);
-
 // This derives a name for the shared memory object which will be used to store the MountStatus from
 // the name of the initial shared memory passed to Drive on the command line.
 std::string GetMountStatusSharedMemoryName(const std::string& initial_shared_memory_name);

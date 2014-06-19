@@ -82,7 +82,7 @@ std::once_flag g_unmount_flag;
 const std::string kConfigFile("maidsafe_network_drive.conf");
 std::string g_error_message;
 int g_return_code(0);
-bool g_call_once_(false);
+//bool g_call_once_(false);
 std::vector<passport::PublicPmid> g_pmids_from_file_;
 AsioService g_asio_service_(2);
 std::shared_ptr<nfs_client::MaidNodeNfs> g_client_nfs_;
@@ -389,16 +389,11 @@ int MountAndWait(const Options& options, bool use_ipc) {
     maid.reset(new passport::Maid(passport::DecryptMaid(encrypted_maid, symm_key, symm_iv)));
   }
 
-  routing::Routing client_routing_(*maid);
-  g_client_nfs_.reset(new nfs_client::MaidNodeNfs(g_asio_service_, client_routing_));
-  std::vector<boost::asio::ip::udp::endpoint> peer_endpoints;
+  routing::BootstrapContacts bootstrap_contacts;
   if (!options.peer_endpoint.empty())
-    peer_endpoints.push_back(drive::GetBootstrapEndpoint(options.peer_endpoint));
-  drive::RoutingJoin(client_routing_, peer_endpoints, g_call_once_, g_client_nfs_,
-                     g_pmids_from_file_, g_public_pmid_helper_);
+    bootstrap_contacts.push_back(GetBootstrapEndpoint(options.peer_endpoint));
 
-  if (options.key_index != -1)
-    nfs_client::CreateAccount(maid, anmaid, g_client_nfs_);
+  g_client_nfs_ = nfs_client::MaidNodeNfs::MakeShared(*maid, bootstrap_contacts);
 
   maidsafe::Identity unique_id(options.unique_id);
   maidsafe::Identity root_parent_id(options.root_parent_id);

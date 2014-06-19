@@ -40,6 +40,8 @@ extern "C" char **environ;
 #include "maidsafe/passport/types.h"
 #include "maidsafe/passport/passport.h"
 
+#include "maidsafe/nfs/client/maid_node_nfs.h"
+
 namespace bi = boost::interprocess;
 namespace bp = boost::process;
 namespace bptime = boost::posix_time;
@@ -180,46 +182,6 @@ boost::asio::ip::udp::endpoint GetBootstrapEndpoint(const std::string& peer) {
   return ep;
 }
 
-void RoutingJoin(maidsafe::routing::Routing& routing,
-                 const std::vector<boost::asio::ip::udp::endpoint>& peer_endpoints,
-                 bool& call_once,
-                 std::shared_ptr<nfs_client::MaidNodeNfs> client_nfs,
-                 std::vector<passport::PublicPmid>& pmids_from_file,
-                 nfs::detail::PublicPmidHelper& public_pmid_helper) {
-  std::shared_ptr<std::promise<bool>> join_promise(std::make_shared<std::promise<bool>>());
-  routing::Functors functors_;
-  functors_.network_status = [join_promise, &call_once](int result) {
-    if ((result == 100) && (!call_once)) {
-      call_once = true;
-      join_promise->set_value(true);
-    }
-  };
-  functors_.typed_message_and_caching.group_to_group.message_received =
-      [&](const routing::GroupToGroupMessage &msg) { client_nfs->HandleMessage(msg); };  // NOLINT
-  functors_.typed_message_and_caching.group_to_single.message_received =
-      [&](const routing::GroupToSingleMessage &msg) { client_nfs->HandleMessage(msg); };  // NOLINT
-  functors_.typed_message_and_caching.single_to_group.message_received =
-      [&](const routing::SingleToGroupMessage &msg) { client_nfs->HandleMessage(msg); };  // NOLINT
-  functors_.typed_message_and_caching.single_to_single.message_received =
-      [&](const routing::SingleToSingleMessage &msg) { client_nfs->HandleMessage(msg); };  // NOLINT
-  functors_.request_public_key =
-      [&](const NodeId & node_id, const routing::GivePublicKeyFunctor & give_key) {
-        nfs::detail::DoGetPublicKey(*client_nfs, node_id, give_key,
-                                    pmids_from_file, public_pmid_helper);
-      };
-  LOG(kVerbose) << "Networkdrive routing joining network";
-  routing.Join(functors_, peer_endpoints);
-  auto future(std::move(join_promise->get_future()));
-  LOG(kVerbose) << "Networkdrive routing joining network get_future";
-  auto status(future.wait_for(std::chrono::seconds(30)));
-  LOG(kVerbose) << "Networkdrive routing joining network procedure completed";
-  if (status == std::future_status::timeout || !future.get()) {
-    LOG(kError) << "can't join routing network";
-    BOOST_THROW_EXCEPTION(MakeError(RoutingErrors::not_connected));
-  }
-  LOG(kInfo) << "Client node joined routing network";
-}
-
 Launcher::Launcher(const Options& options)
     : initial_shared_memory_name_(RandomAlphaNumericString(32)),
       kMountPath_(AdjustMountPath(options.mount_path)), mount_status_shared_object_(),
@@ -249,36 +211,22 @@ Launcher::Launcher(Options& options, const passport::Anmaid& anmaid)
   cleanup_on_throw.Release();
 }
 
-void Launcher::LogIn(Options& options, const passport::Anmaid& anmaid) {
-  std::shared_ptr<passport::Anmaid> anmaid_ptr(new passport::Anmaid(anmaid));
-  std::shared_ptr<passport::Maid> maid(new passport::Maid(anmaid));
-  AsioService asio_service(2);
-  std::shared_ptr<nfs_client::MaidNodeNfs> client_nfs;
-  {
-    routing::Routing client_routing(*maid);
-    client_nfs.reset(new nfs_client::MaidNodeNfs(asio_service, client_routing));
+void Launcher::LogIn(Options& options, const passport::Anmaid& /*anmaid*/) {
+  passport::MaidAndSigner maid_and_signer{ passport::CreateMaidAndSigner() };   // FIXME FRASER. should only use maid ?
 
-    std::vector<boost::asio::ip::udp::endpoint> peer_endpoints;
-    if (!options.peer_endpoint.empty())
-      peer_endpoints.push_back(GetBootstrapEndpoint(options.peer_endpoint));
-    bool call_once(false);
-    std::vector<passport::PublicPmid> pmids_from_file;
-    nfs::detail::PublicPmidHelper public_pmid_helper;
-    drive::RoutingJoin(client_routing, peer_endpoints, call_once, client_nfs,
-                      pmids_from_file, public_pmid_helper);
-    nfs_client::CreateAccount(maid, anmaid_ptr, client_nfs);
-    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-    client_nfs.reset();
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  }
-
+  routing::BootstrapContacts bootstrap_contacts;
+  if (!options.peer_endpoint.empty())
+    bootstrap_contacts.push_back(GetBootstrapEndpoint(options.peer_endpoint));
+  auto client_nfs = nfs_client::MaidNodeNfs::MakeShared(passport::CreateMaidAndSigner(),
+                                                        bootstrap_contacts);
   crypto::AES256Key symm_key{ RandomString(crypto::AES256_KeySize) };
   crypto::AES256InitialisationVector symm_iv{ RandomString(crypto::AES256_IVSize) };
-  crypto::CipherText encrypted_maid = passport::EncryptMaid(*maid, symm_key, symm_iv);
+  crypto::CipherText encrypted_maid = passport::EncryptMaid(maid_and_signer.first, symm_key,
+                                                            symm_iv);
   options.encrypted_maid = encrypted_maid.data.string();
   options.symm_key = symm_key.string();
   options.symm_iv = symm_iv.string();
-  passport::PublicMaid public_maid(*maid);
+  passport::PublicMaid public_maid(maid_and_signer.first);
   options.unique_id =
       maidsafe::Identity(crypto::Hash<crypto::SHA512>(public_maid.name()->string()));
   options.root_parent_id =
