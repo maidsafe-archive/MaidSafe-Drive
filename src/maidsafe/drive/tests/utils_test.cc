@@ -48,6 +48,7 @@ void FilesMatchMask(const std::vector<fs::path>& all_files,
 }
 
 TEST_CASE("Mask match", "[behavioural] [drive]" ) {
+#ifdef MAIDSAFE_WIN32
   std::set<fs::path> matching_files;
   matching_files.insert(L"1.txt");
   matching_files.insert(L"a.txt");
@@ -203,6 +204,9 @@ TEST_CASE("Mask match", "[behavioural] [drive]" ) {
   matching_files.insert(L"1^f.txt");
   matching_files.insert(L"1$.txt");
   FilesMatchMask(kAllFiles, matching_files, mask);
+#else
+  REQUIRE(true);
+#endif  // MAIDSAFE_WIN32
 }
 
 }  // namespace test
@@ -212,3 +216,4 @@ TEST_CASE("Mask match", "[behavioural] [drive]" ) {
 }  // namespace drive
 
 }  // namespace maidsafe
+

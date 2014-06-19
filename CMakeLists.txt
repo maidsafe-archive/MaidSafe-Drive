@@ -150,16 +150,16 @@ if(WIN32)
 endif()
 
 if(MaidsafeTesting)
-  ms_add_executable(filesystem_weekly "Tools/Drive"
+  ms_add_executable(filesystem_weekly "Tests/Drive"
                     ${DriveSourcesDir}/tools/filesystem_weekly.cc
                     ${DriveSourcesDir}/tools/tool_main.cc)
   if(WIN32)
-    ms_add_executable(filesystem_test "Tools/Drive"
+    ms_add_executable(filesystem_test "Tests/Drive"
                       ${DriveSourcesDir}/tools/filesystem_test.cc
                       ${DriveSourcesDir}/tools/tool_main.cc
                       ${WindowsFileCommands})
   else()
-    ms_add_executable(filesystem_test "Tools/Drive"
+    ms_add_executable(filesystem_test "Tests/Drive"
                       ${DriveSourcesDir}/tools/filesystem_test.cc
                       ${DriveSourcesDir}/tools/tool_main.cc
                       ${UnixFileCommands})
