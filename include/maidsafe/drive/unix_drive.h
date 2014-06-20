@@ -807,9 +807,16 @@ int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t size) {
   try {
     auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
     if (S_ISLNK(file_context->meta_data.attributes.st_mode)) {
-      assert(size != 0);
-      snprintf(buf, file_context->meta_data.link_to.string().size() + 1, "%s",
-               file_context->meta_data.link_to.string().c_str());
+      std::string link_path(file_context->meta_data.link_to.string());
+      size_t link_path_size(link_path.size());
+      if (size != 0) {
+        if (link_path_size >= size) {
+          std::string link_path_substr(link_path.substr(0, size - 1));
+          snprintf(buf, size, "%s", link_path_substr.c_str());
+        } else {
+          snprintf(buf, link_path_size + 1, "%s", link_path.c_str());
+        }
+      }
     } else {
       LOG(kError) << "OpsReadlink " << path << ", no link returned.";
       return -EINVAL;
