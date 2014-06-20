@@ -799,8 +799,8 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
 // Read the target of a symbolic link.
 //
 // The buffer should be filled with a null terminated string.  The buffer size argument includes the
-// space for the terminating null character.	If the linkname is too long to fit in the buffer, it
-// should be truncated.	The return value should be 0 for success.
+// space for the terminating null character.  If the linkname is too long to fit in the buffer, it
+// should be truncated.  The return value should be 0 for success.
 template <typename Storage>
 int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t size) {
   LOG(kInfo) << "OpsReadlink: " << path;
