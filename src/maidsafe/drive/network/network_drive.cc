@@ -157,6 +157,7 @@ void RemoveStorageDirectory(const fs::path& storage_path) {
 
 void Unmount() {
   std::call_once(g_unmount_flag, [&] {
+    g_client_nfs_->Stop();
     g_network_drive->Unmount();
     g_network_drive = nullptr;
   });
@@ -392,6 +393,7 @@ int MountAndWait(const Options& options, bool use_ipc) {
   routing::BootstrapContacts bootstrap_contacts;
   if (!options.peer_endpoint.empty())
     bootstrap_contacts.push_back(GetBootstrapEndpoint(options.peer_endpoint));
+  LOG(kInfo) << "bootstrap_contacts = " << bootstrap_contacts.front();
 
   g_client_nfs_ = nfs_client::MaidNodeNfs::MakeShared(*maid, bootstrap_contacts);
 

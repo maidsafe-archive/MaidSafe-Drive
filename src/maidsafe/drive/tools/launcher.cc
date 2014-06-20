@@ -217,8 +217,11 @@ void Launcher::LogIn(Options& options, const passport::Anmaid& /*anmaid*/) {
   routing::BootstrapContacts bootstrap_contacts;
   if (!options.peer_endpoint.empty())
     bootstrap_contacts.push_back(GetBootstrapEndpoint(options.peer_endpoint));
-  auto client_nfs = nfs_client::MaidNodeNfs::MakeShared(passport::CreateMaidAndSigner(),
-                                                        bootstrap_contacts);
+  {
+    auto client_nfs = nfs_client::MaidNodeNfs::MakeShared(passport::CreateMaidAndSigner(),
+                                                          bootstrap_contacts);
+    client_nfs->Stop();
+  }
   crypto::AES256Key symm_key{ RandomString(crypto::AES256_KeySize) };
   crypto::AES256InitialisationVector symm_iv{ RandomString(crypto::AES256_IVSize) };
   crypto::CipherText encrypted_maid = passport::EncryptMaid(maid_and_signer.first, symm_key,
@@ -313,7 +316,7 @@ fs::path Launcher::GetDriveExecutablePath(DriveType drive_type) {
     case DriveType::kLocalConsole:
       return process::GetOtherExecutablePath("local_drive_console");
     case DriveType::kNetwork:
-      return process::GetOtherExecutablePath("network_drive");
+      return process::GetOtherExecutablePath("drive");
     case DriveType::kNetworkConsole:
       return process::GetOtherExecutablePath("network_drive_console");
     default:

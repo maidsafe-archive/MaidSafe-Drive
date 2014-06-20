@@ -69,7 +69,7 @@ fs::path g_root, g_temp, g_storage;
 std::unique_ptr<drive::Launcher> g_launcher;
 std::string g_error_message;
 int g_return_code(0);
-bool g_enable_vfs_logging(false);
+bool g_enable_vfs_logging(true);
 bool g_running(true);
 std::shared_ptr<passport::Anmaid> g_anmaid;
 std::shared_ptr<passport::Anpmid> g_anpmid;
