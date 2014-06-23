@@ -82,7 +82,6 @@ std::once_flag g_unmount_flag;
 const std::string kConfigFile("maidsafe_network_drive.conf");
 std::string g_error_message;
 int g_return_code(0);
-//bool g_call_once_(false);
 std::vector<passport::PublicPmid> g_pmids_from_file_;
 AsioService g_asio_service_(2);
 std::shared_ptr<nfs_client::MaidNodeNfs> g_client_nfs_;
