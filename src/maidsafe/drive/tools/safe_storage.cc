@@ -190,9 +190,22 @@ std::string GetStringFromProgramOption(const std::string& option_name,
   }
 }
 
-std::function<void()> PrepareNetworkVfs(drive::Options& options, bool create_account) {
+std::function<void()> PrepareNetworkVfs(drive::Options& options, const passport::Maid& maid) {
   SetUpTempDirectory();
   SetUpRootDirectory(GetHomeDir());
+  crypto::AES256Key symm_key{ RandomString(crypto::AES256_KeySize) };
+  crypto::AES256InitialisationVector symm_iv{ RandomString(crypto::AES256_IVSize) };
+  crypto::CipherText encrypted_maid = passport::EncryptMaid(maid, symm_key, symm_iv);
+
+  options.encrypted_maid = encrypted_maid.data.string();
+  options.symm_key = symm_key.string();
+  options.symm_iv = symm_iv.string();
+
+  passport::PublicMaid public_maid(maid);
+  options.unique_id =
+      maidsafe::Identity(crypto::Hash<crypto::SHA512>(public_maid.name()->string()));
+  options.root_parent_id =
+      maidsafe::Identity(crypto::Hash<crypto::SHA512>(options.unique_id.string()));
 
   options.mount_path = g_root;
   options.storage_path = SetUpStorageDirectory();
@@ -202,11 +215,7 @@ std::function<void()> PrepareNetworkVfs(drive::Options& options, bool create_acc
   if (g_enable_vfs_logging)
     options.drive_logging_args = "--log_* V --log_colour_mode 2 --log_no_async";
 
-  if (create_account)
-    g_launcher.reset(new drive::Launcher(options, *g_anmaid));
-  else
-    g_launcher.reset(new drive::Launcher(options));
-
+  g_launcher.reset(new drive::Launcher(options));
   g_root = g_launcher->kMountPath();
 
   return [options] {  // NOLINT
@@ -214,6 +223,16 @@ std::function<void()> PrepareNetworkVfs(drive::Options& options, bool create_acc
     RemoveStorageDirectory(options.storage_path);
     RemoveRootDirectory();
   };
+}
+
+
+passport::MaidAndSigner CreateAccount(const routing::BootstrapContacts& bootstrap_contacts) {
+  passport::MaidAndSigner maid_and_signer{ passport::CreateMaidAndSigner() };
+  auto client_nfs = nfs_client::MaidNodeNfs::MakeShared(passport::CreateMaidAndSigner(),
+                                                        bootstrap_contacts);
+  client_nfs->Stop();
+  LOG(kSuccess) << " Account created for MAID : " << DebugId(maid_and_signer.first.name());
+  return maid_and_signer;
 }
 
 }  // unnamed namespace
@@ -232,13 +251,15 @@ int main(int argc, char** argv) {
     maidsafe::test::HandleHelp(variables_map);
     maidsafe::test::g_anmaid.reset(new maidsafe::passport::Anmaid());
     maidsafe::test::g_anpmid.reset(new maidsafe::passport::Anpmid());
-    bool create_account(true);
     maidsafe::drive::Options options;
     options.peer_endpoint = maidsafe::test::GetStringFromProgramOption("peer", variables_map);
+    maidsafe::routing::BootstrapContacts bootstrap_contacts;
+    if (!options.peer_endpoint.empty())
+      bootstrap_contacts.push_back(maidsafe::drive::GetBootstrapEndpoint(options.peer_endpoint));
+    auto maid_and_signer = maidsafe::test::CreateAccount(bootstrap_contacts);
 
     while (maidsafe::test::g_running) {
-      auto cleanup_functor(maidsafe::test::PrepareNetworkVfs(options, create_account));
-      create_account = false;
+      auto cleanup_functor(maidsafe::test::PrepareNetworkVfs(options, maid_and_signer.first));
       maidsafe::on_scope_exit cleanup_on_exit(cleanup_functor);
       std::cout << " (enter \"1\" to logout and re-login; \"0\" to stop): ";
       std::string choice;

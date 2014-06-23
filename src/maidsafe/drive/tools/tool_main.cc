@@ -166,12 +166,7 @@ po::options_description CommandLineOptions() {
       ("disk", "Perform all tests/benchmarks on native hard disk.")
       ("local", "Perform all tests/benchmarks on local VFS.")
       ("network", "Perform all tests/benchmarks on network VFS.")
-      ("peer", po::value<std::string>(), "Endpoint of peer, if using network VFS.")
-      ("key_index,k", po::value<int>()->default_value(10),
-                      "The index of key to be used as client")
-      ("keys_path", po::value<std::string>()->default_value(fs::path(
-                       fs::temp_directory_path(error_code) / "key_directory.dat").string()),
-                    "Path to keys file");
+      ("peer", po::value<std::string>(), "Endpoint of peer, if using network VFS.");
 #ifdef MAIDSAFE_WIN32
   command_line_options.add_options()
       ("local_console", "Perform all tests/benchmarks on local VFS running as a console app.")
@@ -299,7 +294,6 @@ std::function<void()> PrepareNetworkVfs(const po::variables_map& variables_map) 
   options.storage_path = SetUpStorageDirectory();
   options.keys_path = GetStringFromProgramOption("keys_path", variables_map);
   options.peer_endpoint = GetStringFromProgramOption("peer", variables_map);
-  options.key_index = variables_map.at("key_index").as<int>();
   options.drive_name = RandomAlphaNumericString(10);
   options.unique_id = Identity(RandomString(64));
   options.root_parent_id = Identity(RandomString(64));

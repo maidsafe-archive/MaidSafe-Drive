@@ -148,7 +148,6 @@ void ReadAndRemoveInitialSharedMemory(const std::string& initial_shared_memory_n
   options.mount_path = shared_memory_args[kMountPathArg];
   options.storage_path = shared_memory_args[kStoragePathArg];
   options.keys_path = shared_memory_args[kKeysPathArg];
-  options.key_index = std::stoi(shared_memory_args[kKeyIndexArg]);
   options.peer_endpoint = shared_memory_args[kPeerEndpointArg];
   options.unique_id = maidsafe::Identity(shared_memory_args[kUniqueIdArg]);
   options.root_parent_id = maidsafe::Identity(shared_memory_args[kRootParentIdArg]);
@@ -196,56 +195,11 @@ Launcher::Launcher(const Options& options)
   cleanup_on_throw.Release();
 }
 
-Launcher::Launcher(Options& options, const passport::Anmaid& anmaid)
-    : initial_shared_memory_name_(RandomAlphaNumericString(32)),
-      kMountPath_(AdjustMountPath(options.mount_path)), mount_status_shared_object_(),
-      mount_status_mapped_region_(), mount_status_(nullptr),
-      this_process_handle_(GetHandleToThisProcess()), drive_process_() {
-  LOG(kVerbose) << "launcher initial_shared_memory_name_ : " << initial_shared_memory_name_;
-  LogIn(options, anmaid);
-  maidsafe::on_scope_exit cleanup_on_throw([&] { Cleanup(); });
-  CreateInitialSharedMemory(options);
-  CreateMountStatusSharedMemory();
-  StartDriveProcess(options);
-  WaitForDriveToMount();
-  cleanup_on_throw.Release();
-}
-
-void Launcher::LogIn(Options& options, const passport::Anmaid& /*anmaid*/) {
-  passport::MaidAndSigner maid_and_signer{ passport::CreateMaidAndSigner() };   // FIXME FRASER. should only use maid ?
-
-  routing::BootstrapContacts bootstrap_contacts;
-  if (!options.peer_endpoint.empty())
-    bootstrap_contacts.push_back(GetBootstrapEndpoint(options.peer_endpoint));
-  {
-    auto client_nfs = nfs_client::MaidNodeNfs::MakeShared(passport::CreateMaidAndSigner(),
-                                                          bootstrap_contacts);
-    client_nfs->Stop();
-  }
-  crypto::AES256Key symm_key{ RandomString(crypto::AES256_KeySize) };
-  crypto::AES256InitialisationVector symm_iv{ RandomString(crypto::AES256_IVSize) };
-  crypto::CipherText encrypted_maid = passport::EncryptMaid(maid_and_signer.first, symm_key,
-                                                            symm_iv);
-  options.encrypted_maid = encrypted_maid.data.string();
-  options.symm_key = symm_key.string();
-  options.symm_iv = symm_iv.string();
-  passport::PublicMaid public_maid(maid_and_signer.first);
-  options.unique_id =
-      maidsafe::Identity(crypto::Hash<crypto::SHA512>(public_maid.name()->string()));
-  options.root_parent_id =
-      maidsafe::Identity(crypto::Hash<crypto::SHA512>(options.unique_id.string()));
-
-  std::cout << "launcher unique_id : " << HexSubstr(options.unique_id.string()) << std::endl;
-  std::cout << "launcher root_parent_id : " << HexSubstr(options.root_parent_id.string())
-            << std::endl;
-}
-
 void Launcher::CreateInitialSharedMemory(const Options& options) {
   std::vector<std::string> shared_memory_args(kMaxArgIndex);
   shared_memory_args[kMountPathArg] = options.mount_path.string();
   shared_memory_args[kStoragePathArg] = options.storage_path.string();
   shared_memory_args[kKeysPathArg] = options.keys_path.string();
-  shared_memory_args[kKeyIndexArg] = std::to_string(options.key_index);
   shared_memory_args[kPeerEndpointArg] = options.peer_endpoint;
   shared_memory_args[kUniqueIdArg] = options.unique_id.string();
   shared_memory_args[kRootParentIdArg] = options.root_parent_id.string();
