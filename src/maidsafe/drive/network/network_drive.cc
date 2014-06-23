@@ -384,6 +384,7 @@ int MountAndWait(const Options& options, bool use_ipc) {
   maidsafe::Identity root_parent_id(options.root_parent_id);
   std::cout << "network_drive unique_id : " << HexSubstr(unique_id.string()) << std::endl;
   std::cout << "network_drive root_parent_id : " << HexSubstr(root_parent_id.string()) << std::endl;
+  std::cout << "network_drive maid_id : " << DebugId(maid->name()) << std::endl;
 
   NetworkDrive drive(g_client_nfs_, unique_id, root_parent_id, options.mount_path, GetUserAppDir(),
                      options.drive_name, options.mount_status_shared_object_name, false);

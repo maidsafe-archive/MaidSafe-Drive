@@ -228,8 +228,7 @@ std::function<void()> PrepareNetworkVfs(drive::Options& options, const passport:
 
 passport::MaidAndSigner CreateAccount(const routing::BootstrapContacts& bootstrap_contacts) {
   passport::MaidAndSigner maid_and_signer{ passport::CreateMaidAndSigner() };
-  auto client_nfs = nfs_client::MaidNodeNfs::MakeShared(passport::CreateMaidAndSigner(),
-                                                        bootstrap_contacts);
+  auto client_nfs = nfs_client::MaidNodeNfs::MakeShared(maid_and_signer, bootstrap_contacts);
   client_nfs->Stop();
   LOG(kSuccess) << " Account created for MAID : " << DebugId(maid_and_signer.first.name());
   return maid_and_signer;
@@ -261,9 +260,11 @@ int main(int argc, char** argv) {
     while (maidsafe::test::g_running) {
       auto cleanup_functor(maidsafe::test::PrepareNetworkVfs(options, maid_and_signer.first));
       maidsafe::on_scope_exit cleanup_on_exit(cleanup_functor);
-      std::cout << " (enter \"1\" to logout and re-login; \"0\" to stop): ";
       std::string choice;
-      std::getline(std::cin, choice);
+      do {
+        std::cout << " (enter \"1\" to logout and re-login; \"0\" to stop): ";
+        std::getline(std::cin, choice);
+      } while ((choice != "1") && (choice != "0"));
       if (choice == "1") {
         maidsafe::test::g_launcher->StopDriveProcess(true);
         std::this_thread::sleep_for(std::chrono::seconds(5));

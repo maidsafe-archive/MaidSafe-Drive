@@ -102,7 +102,6 @@ class Launcher {
   Launcher(Launcher&&);
   Launcher& operator=(Launcher);
 
-  void LogIn(Options& options, const passport::Anmaid& anmaid);
   void CreateInitialSharedMemory(const Options& options);
   void CreateMountStatusSharedMemory();
   void StartDriveProcess(const Options& options);
