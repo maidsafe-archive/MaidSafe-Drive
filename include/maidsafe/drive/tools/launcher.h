@@ -49,13 +49,6 @@ boost::filesystem::path GetNextAvailableDrivePath();
 
 boost::asio::ip::udp::endpoint GetBootstrapEndpoint(const std::string& peer);
 
-void RoutingJoin(maidsafe::routing::Routing& routing,
-                 const std::vector<boost::asio::ip::udp::endpoint>& peer_endpoints,
-                 bool& call_once,
-                 std::shared_ptr<nfs_client::MaidNodeNfs> client_nfs,
-                 std::vector<passport::PublicPmid>& pmids_from_file,
-                 nfs::detail::PublicPmidHelper& public_pmid_helper);
-
 // This derives a name for the shared memory object which will be used to store the MountStatus from
 // the name of the initial shared memory passed to Drive on the command line.
 std::string GetMountStatusSharedMemoryName(const std::string& initial_shared_memory_name);
@@ -78,14 +71,13 @@ struct MountStatus {
 };
 
 struct Options {
-  Options() : mount_path(), storage_path(), keys_path(), drive_name(), key_index(-1),
-              unique_id(), root_parent_id(),
-              create_store(false), check_data(false), monitor_parent(true),
-              drive_type(DriveType::kNetwork),
-              drive_logging_args(), mount_status_shared_object_name(), peer_endpoint(),
-              encrypted_maid(), symm_key(), symm_iv(), parent_handle(nullptr) {}
+  Options()
+      : mount_path(), storage_path(), keys_path(), drive_name(), unique_id(), root_parent_id(),
+        create_store(false), check_data(false), monitor_parent(true),
+        drive_type(DriveType::kNetwork), drive_logging_args(),
+        mount_status_shared_object_name(), peer_endpoint(), encrypted_maid(), symm_key(),
+        symm_iv(), parent_handle(nullptr) {}
   boost::filesystem::path mount_path, storage_path, keys_path, drive_name;
-  int key_index;
   Identity unique_id, root_parent_id;
   bool create_store, check_data, monitor_parent;
   DriveType drive_type;
@@ -110,7 +102,6 @@ class Launcher {
   Launcher(Launcher&&);
   Launcher& operator=(Launcher);
 
-  void LogIn(Options& options, const passport::Anmaid& anmaid);
   void CreateInitialSharedMemory(const Options& options);
   void CreateMountStatusSharedMemory();
   void StartDriveProcess(const Options& options);

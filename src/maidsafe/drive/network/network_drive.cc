@@ -82,7 +82,6 @@ std::once_flag g_unmount_flag;
 const std::string kConfigFile("maidsafe_network_drive.conf");
 std::string g_error_message;
 int g_return_code(0);
-bool g_call_once_(false);
 std::vector<passport::PublicPmid> g_pmids_from_file_;
 AsioService g_asio_service_(2);
 std::shared_ptr<nfs_client::MaidNodeNfs> g_client_nfs_;
@@ -157,6 +156,7 @@ void RemoveStorageDirectory(const fs::path& storage_path) {
 
 void Unmount() {
   std::call_once(g_unmount_flag, [&] {
+    g_client_nfs_->Stop();
     g_network_drive->Unmount();
     g_network_drive = nullptr;
   });
@@ -222,12 +222,7 @@ po::options_description VisibleOptions() {
                        " virtual drive name")
       ("create,C", " Must be called on first run")
       ("check_data,Z", " check all data in chunkstore")
-      ("peer", po::value<std::string>(), "Endpoint of peer, if using network VFS.")
-      ("key_index,k", po::value<int>()->default_value(10),
-                      "The index of key to be used as client")
-      ("keys_path", po::value<std::string>()->default_value(fs::path(
-                       fs::temp_directory_path(error_code) / "key_directory.dat").string()),
-                    "Path to keys file");
+      ("peer", po::value<std::string>(), "Endpoint of peer, if using network VFS.");
   return options;
 }
 
@@ -312,7 +307,6 @@ void GetFromProgramOptions(const po::variables_map& variables_map, Options& opti
   options.create_store = (variables_map.count("create") != 0);
   options.keys_path = GetStringFromProgramOption("keys_path", variables_map);
   options.peer_endpoint = GetStringFromProgramOption("peer", variables_map);
-  options.key_index = variables_map.at("key_index").as<int>();
 }
 
 void ValidateOptions(const Options& options) {
@@ -372,47 +366,25 @@ int MountAndWaitForSignal(NetworkDrive& drive) {
 
 int MountAndWait(const Options& options, bool use_ipc) {
   std::shared_ptr<passport::Maid> maid;
-  std::shared_ptr<passport::Anmaid> anmaid;
-  std::shared_ptr<passport::Pmid> pmid;
-  if (options.key_index != -1) {
-    std::vector<passport::detail::AnmaidToPmid> all_keychains =
-        maidsafe::passport::detail::ReadKeyChainList(options.keys_path);
-    for (auto& key_chain : all_keychains)
-      g_pmids_from_file_.push_back(passport::PublicPmid(key_chain.pmid));
-    passport::detail::AnmaidToPmid key_chain(all_keychains[options.key_index]);
-    maid.reset(new passport::Maid(key_chain.maid));
-    anmaid.reset(new passport::Anmaid(key_chain.anmaid));
-  } else {
-    crypto::AES256Key symm_key(options.symm_key);
-    crypto::AES256InitialisationVector symm_iv(options.symm_iv);
-    crypto::CipherText encrypted_maid(NonEmptyString(options.encrypted_maid));
-    maid.reset(new passport::Maid(passport::DecryptMaid(encrypted_maid, symm_key, symm_iv)));
-  }
 
-  routing::Routing client_routing_(*maid);
-  g_client_nfs_.reset(new nfs_client::MaidNodeNfs(g_asio_service_, client_routing_));
-  std::vector<boost::asio::ip::udp::endpoint> peer_endpoints;
+  crypto::AES256Key symm_key(options.symm_key);
+  crypto::AES256InitialisationVector symm_iv(options.symm_iv);
+  crypto::CipherText encrypted_maid(NonEmptyString(options.encrypted_maid));
+  maid.reset(new passport::Maid(passport::DecryptMaid(encrypted_maid, symm_key, symm_iv)));
+
+  routing::BootstrapContacts bootstrap_contacts;
   if (!options.peer_endpoint.empty())
-    peer_endpoints.push_back(drive::GetBootstrapEndpoint(options.peer_endpoint));
-  drive::RoutingJoin(client_routing_, peer_endpoints, g_call_once_, g_client_nfs_,
-                     g_pmids_from_file_, g_public_pmid_helper_);
+    bootstrap_contacts.push_back(GetBootstrapEndpoint(options.peer_endpoint));
+  LOG(kInfo) << "bootstrap_contacts = " << bootstrap_contacts.front();
 
-  if (options.key_index != -1)
-    nfs_client::CreateAccount(maid, anmaid, g_client_nfs_);
+  g_client_nfs_ = nfs_client::MaidNodeNfs::MakeShared(*maid, bootstrap_contacts);
 
   maidsafe::Identity unique_id(options.unique_id);
   maidsafe::Identity root_parent_id(options.root_parent_id);
-  if ((options.key_index != -1) ||
-      (!unique_id.IsInitialised() || !root_parent_id.IsInitialised())) {
-    passport::PublicMaid public_maid(*maid);
-    unique_id = maidsafe::Identity(crypto::Hash<crypto::SHA512>(public_maid.name()->string()));
-    root_parent_id = maidsafe::Identity(crypto::Hash<crypto::SHA512>(unique_id.string()));
-  }
-
   std::cout << "network_drive unique_id : " << HexSubstr(unique_id.string()) << std::endl;
   std::cout << "network_drive root_parent_id : " << HexSubstr(root_parent_id.string()) << std::endl;
+  std::cout << "network_drive maid_id : " << DebugId(maid->name()) << std::endl;
 
-//   bool create_store(!account_exists);
   NetworkDrive drive(g_client_nfs_, unique_id, root_parent_id, options.mount_path, GetUserAppDir(),
                      options.drive_name, options.mount_status_shared_object_name, false);
   g_network_drive = &drive;
