@@ -237,7 +237,7 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
 MetaData::MetaData(MetaData&& other)
     : MetaData() {
       swap(*this, other);
-    } 
+    }
 
 void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
   protobuf_meta_data->set_name(name.string());

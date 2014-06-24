@@ -347,7 +347,8 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
 
 template <typename Storage>
 bool DirectoryHandler<Storage>::IsDirectory(const FileContext& file_context) const {
-  return (file_context.meta_data.directory_id != nullptr) &&  file_context.meta_data.directory_id->IsInitialised();
+  return (file_context.meta_data.directory_id != nullptr) &&
+    file_context.meta_data.directory_id->IsInitialised();
 }
 
 template <typename Storage>
