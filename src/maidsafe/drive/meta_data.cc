@@ -239,6 +239,11 @@ MetaData::MetaData(MetaData&& other)
       swap(*this, other);
     }
 
+MetaData& MetaData::operator=(MetaData other) {
+  swap(*this, other);
+  return *this;
+}
+
 void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
   protobuf_meta_data->set_name(name.string());
   auto attributes_archive = protobuf_meta_data->mutable_attributes_archive();
