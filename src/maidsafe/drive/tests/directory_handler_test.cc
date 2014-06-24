@@ -65,6 +65,8 @@ class DirectoryHandlerTest {
         asio_service_(2),
         listing_handler_() {}
   ~DirectoryHandlerTest() { asio_service_.Stop(); }
+  DirectoryHandlerTest(const DirectoryHandlerTest&) = delete;
+  DirectoryHandlerTest& operator=(const DirectoryHandlerTest&) = delete;
 
  protected:
   maidsafe::test::TestPath main_test_dir_;
@@ -72,10 +74,6 @@ class DirectoryHandlerTest {
   Identity unique_user_id_, root_parent_id_;
   AsioService asio_service_;
   std::shared_ptr<detail::DirectoryHandler<nfs::FakeStore>> listing_handler_;
-
- private:
-  DirectoryHandlerTest(const DirectoryHandlerTest&);
-  DirectoryHandlerTest& operator=(const DirectoryHandlerTest&);
 };
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "Construct", "[DirectoryHandler][behavioural]") {
@@ -109,7 +107,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Add directory", "[DirectoryHandler][beha
   CHECK(directory->directory_id() == dir);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(directory_name));
-  CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
+  CHECK(directory_name == recovered_file_context->meta_data.name);
 }
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "Add same directory", "[DirectoryHandler][behavioural]") {
@@ -149,7 +147,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Add file", "[DirectoryHandler][behaviour
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK(directory->HasChild(file_name));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(file_name));
-  CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
+  CHECK(file_name == recovered_file_context->meta_data.name);
 }
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "Add same file", "[DirectoryHandler][behavioural]") {
@@ -166,11 +164,11 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Add same file", "[DirectoryHandler][beha
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK(directory->HasChild(file_name));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(file_name));
-  CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
+  CHECK(file_name == recovered_file_context->meta_data.name);
 
   CHECK(directory->HasChild(file_name));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(file_name));
-  CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
+  CHECK(file_name == recovered_file_context->meta_data.name);
 }
 
 TEST_CASE_METHOD(DirectoryHandlerTest, "Delete directory", "[DirectoryHandler][behavioural]") {
@@ -188,7 +186,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Delete directory", "[DirectoryHandler][b
   CHECK(directory->directory_id() == dir);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(directory_name));
-  CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
+  CHECK(directory_name == recovered_file_context->meta_data.name);
 
   CHECK_NOTHROW(listing_handler_->Delete(kRoot / directory_name));
   CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / directory_name), std::exception);
@@ -212,7 +210,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Delete same directory", "[DirectoryHandl
   CHECK(directory->directory_id() == dir);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(directory_name));
-  CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
+  CHECK(directory_name == recovered_file_context->meta_data.name);
 
   CHECK_NOTHROW(listing_handler_->Delete(kRoot / directory_name));
   CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / directory_name), std::exception);
@@ -235,7 +233,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Delete file", "[DirectoryHandler][behavi
   CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / file_name), std::exception);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(file_name));
-  CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
+  CHECK(file_name == recovered_file_context->meta_data.name);
 
   CHECK_NOTHROW(listing_handler_->Delete(kRoot / file_name));
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
@@ -255,7 +253,7 @@ TEST_CASE_METHOD(DirectoryHandlerTest, "Delete same file", "[DirectoryHandler][b
   CHECK_THROWS_AS(directory = listing_handler_->Get(kRoot / file_name), std::exception);
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
   CHECK_NOTHROW(recovered_file_context = directory->GetChild(file_name));
-  CHECK(file_context.meta_data.name == recovered_file_context->meta_data.name);
+  CHECK(file_name == recovered_file_context->meta_data.name);
 
   CHECK_NOTHROW(listing_handler_->Delete(kRoot / file_name));
   CHECK_NOTHROW(directory = listing_handler_->Get(kRoot));
