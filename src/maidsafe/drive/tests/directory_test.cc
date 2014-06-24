@@ -536,21 +536,21 @@ TEST_CASE_METHOD(DirectoryTest, "Iterator reset", "[Directory][behavioural]") {
   CHECK("B" == file_context->meta_data.name);
 
   // Remove an element and check iterator is reset
-  REQUIRE(directory_.HasChild(new_file_context.meta_data.name));
-  CHECK_NOTHROW(FileContext context(directory_.RemoveChild(new_file_context.meta_data.name)));
+  REQUIRE(directory_.HasChild("C"));
+  CHECK_NOTHROW(FileContext context(directory_.RemoveChild("C")));
   CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
   CHECK("A" == file_context->meta_data.name);
   CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
   CHECK("B" == file_context->meta_data.name);
 
   // Try to remove a non-existent element and check iterator is not reset
-  REQUIRE_FALSE(directory_.HasChild(new_file_context.meta_data.name));
-  CHECK_THROWS_AS(FileContext context(directory_.RemoveChild(new_file_context.meta_data.name)),
+  REQUIRE_FALSE(directory_.HasChild("C"));
+  CHECK_THROWS_AS(FileContext context(directory_.RemoveChild("C")),
                   std::exception);
   CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
-  CHECK("C" == file_context->meta_data.name);
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
   CHECK("D" == file_context->meta_data.name);
+  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
+  CHECK("E" == file_context->meta_data.name);
 
   // Check operator<
   // DirectoryListing directory_listing1(Identity(crypto::Hash<crypto::SHA512>(std::string("A")))),

@@ -235,25 +235,9 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
 }
 
 MetaData::MetaData(MetaData&& other)
-    : name(std::move(other.name)),
-#ifdef MAIDSAFE_WIN32
-      end_of_file(std::move(other.end_of_file)),
-      allocation_size(std::move(other.allocation_size)),
-      attributes(std::move(other.attributes)),
-      creation_time(std::move(other.creation_time)),
-      last_access_time(std::move(other.last_access_time)),
-      last_write_time(std::move(other.last_write_time)),
-#else
-      attributes(std::move(other.attributes)),
-      link_to(std::move(other.link_to)),
-#endif
-      data_map(std::move(other.data_map)),
-      directory_id(std::move(other.directory_id)) {}
-
-MetaData& MetaData::operator=(MetaData other) {
-  swap(*this, other);
-  return *this;
-}
+    : MetaData() {
+      swap(*this, other);
+    } 
 
 void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
   protobuf_meta_data->set_name(name.string());
