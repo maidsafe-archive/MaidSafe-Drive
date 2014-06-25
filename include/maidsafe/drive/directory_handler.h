@@ -291,9 +291,8 @@ void DirectoryHandler<Storage>::Delete(const boost::filesystem::path& relative_p
   assert(parent.first && parent.second);
 
   auto file_context(parent.first->GetChild(relative_path.filename()));
-  bool dir(false);
-  if (IsDirectory(*file_context)) {
-    dir = true;
+  bool is_directory(IsDirectory(*file_context));
+  if (is_directory) {
     auto directory(Get(relative_path));
     DeleteAllVersions(directory);
     {  // NOLINT
@@ -307,7 +306,7 @@ void DirectoryHandler<Storage>::Delete(const boost::filesystem::path& relative_p
 
 #ifndef MAIDSAFE_WIN32
   parent.second->meta_data.attributes.st_ctime = parent.second->meta_data.attributes.st_mtime;
-  if (dir)
+  if (is_directory)
     --parent.second->meta_data.attributes.st_nlink;
 #endif
 }
@@ -347,8 +346,7 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
 
 template <typename Storage>
 bool DirectoryHandler<Storage>::IsDirectory(const FileContext& file_context) const {
-  return (file_context.meta_data.directory_id != nullptr) &&
-    file_context.meta_data.directory_id->IsInitialised();
+  return static_cast<bool>(file_context.meta_data.directory_id);
 }
 
 template <typename Storage>
