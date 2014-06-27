@@ -97,7 +97,6 @@ class CbfsDrive : public Drive<Storage> {
   void SetGuid(const std::string& guid);
   virtual void Mount();
   virtual void Unmount();
-  int Install();
   uint32_t max_file_path_length() const;
 
  private:
@@ -109,10 +108,9 @@ class CbfsDrive : public Drive<Storage> {
   std::wstring drive_name() const;
 
   void FlushAll();
-  void UpdateDriverStatus();
+  void GetDriverStatus();
   void UpdateMountingPoints();
   void InitialiseCbfs();
-  int OnCallbackFsInstall();
 
   static void CbFsMount(CallbackFileSystem* sender);
   static void CbFsUnmount(CallbackFileSystem* sender);
@@ -227,7 +225,7 @@ void CbfsDrive<Storage>::Mount() {
   }
   try {
     InitialiseCbfs();
-    UpdateDriverStatus();
+    GetDriverStatus();
     callback_filesystem_.Initialize(guid_.c_str());
     callback_filesystem_.CreateStorage();
     // SetIcon can only be called after CreateStorage has successfully completed.
@@ -309,7 +307,7 @@ void CbfsDrive<Storage>::FlushAll() {
 }
 
 template <typename Storage>
-void CbfsDrive<Storage>::UpdateDriverStatus() {
+void CbfsDrive<Storage>::GetDriverStatus() {
   BOOL installed = false;
   int version_high = 0, version_low = 0;
   SERVICE_STATUS status;
@@ -345,6 +343,9 @@ void CbfsDrive<Storage>::UpdateDriverStatus() {
     LOG(kInfo) << "Driver (version " << (version_high >> 16) << "." << (version_high & 0xFFFF)
                << "." << (version_low >> 16) << "." << (version_low & 0xFFFF)
                << ") installed, service " << string_status;
+  } else {
+    LOG(kError) << "CbFs driver is not installed.  Run 'cbfs_driver_installer -i' to rectify.";
+    BOOST_THROW_EXCEPTION(MakeError(DriveErrors::driver_not_installed));
   }
 }
 
@@ -423,40 +424,6 @@ void CbfsDrive<Storage>::InitialiseCbfs() {
     detail::ErrorMessage("InitialiseCbfs", error);
   }
   return;
-}
-
-template <typename Storage>
-int CbfsDrive<Storage>::Install() {
-  return OnCallbackFsInstall();
-}
-
-template <typename Storage>
-int CbfsDrive<Storage>::OnCallbackFsInstall() {
-  TCHAR file_name[MAX_PATH];
-  DWORD reboot = 0;
-
-  if (!GetModuleFileName(nullptr, file_name, MAX_PATH)) {
-    DWORD error = GetLastError();
-    detail::ErrorMessage("OnCallbackFsInstall::GetModuleFileName", error);
-    return error;
-  }
-  try {
-    boost::filesystem::path drive_path(
-        boost::filesystem::path(file_name).parent_path().parent_path());
-    boost::filesystem::path cab_path(drive_path / "drivers\\cbfs\\cbfs.cab");
-    LOG(kInfo) << "CbfsDrive::OnCallbackFsInstall cabinet file: " << cab_path.string();
-
-    callback_filesystem_.Install(
-      cab_path.wstring().c_str(), detail::CbfsGuid.data(),
-      boost::filesystem::path().wstring().c_str(), false,
-      CBFS_MODULE_DRIVER | CBFS_MODULE_NET_REDIRECTOR_DLL | CBFS_MODULE_MOUNT_NOTIFIER_DLL,
-      &reboot);
-    return reboot;
-  }
-  catch (const ECBFSError& error) {
-    detail::ErrorMessage("OnCallbackFsInstall", error);
-    return -1111;
-  }
 }
 
 // =============================== Callbacks =======================================================

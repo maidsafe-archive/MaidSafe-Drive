@@ -16,23 +16,29 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
-#ifndef DRIVE_CBFS_CONF_MAIDSAFE_DRIVE_CBFS_KEY_H_
-#define DRIVE_CBFS_CONF_MAIDSAFE_DRIVE_CBFS_KEY_H_
+#ifndef DRIVE_CBFS_CONF_MAIDSAFE_DRIVE_CBFS_PATHS_H_
+#define DRIVE_CBFS_CONF_MAIDSAFE_DRIVE_CBFS_PATHS_H_
+
+#include <Windows.h>
 
 namespace maidsafe {
 
 namespace drive {
 
-namespace detail {
+namespace installer {
 
-const char* const GetCbfsKey() {
-  return "@CbfsKey@";  // NOLINT
+inline const TCHAR* InstallerDllPath() {
+  return TEXT("@CbfsInstallerNative@");  // NOLINT
 }
 
-}  // namespace detail
+inline const TCHAR* CabinetFilePath() {
+  return TEXT("@CbfsCabNative@");  // NOLINT
+}
+
+}  // namespace installer
 
 }  // namespace drive
 
 }  // namespace maidsafe
 
-#endif  // DRIVE_CBFS_CONF_MAIDSAFE_DRIVE_CBFS_KEY_H_
+#endif  // DRIVE_CBFS_CONF_MAIDSAFE_DRIVE_CBFS_PATHS_H_
