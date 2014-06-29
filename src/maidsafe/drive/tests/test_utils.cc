@@ -38,36 +38,48 @@ namespace {
 void Exists(const fs::path& path, bool required = false, bool should_succeed = true) {
   boost::system::error_code error_code;
   auto result(fs::exists(path, error_code));
-  INFO("fs::exists(" << path << ", error_code) returned \"" << std::boolalpha << result
-       << "\" with error_code \"" << error_code << " (" << error_code.message() << ")\"");
   if (required) {
     if (should_succeed)
-      REQUIRE(result);
+      ASSERT_TRUE(result) << "fs::exists(" << path << ", error_code) returned \"" << std::boolalpha
+                          << result << "\" with error_code \"" << error_code << " ("
+                          << error_code.message() << ")\"";
     else
-      REQUIRE(!result);
+      ASSERT_TRUE(!result) << "fs::exists(" << path << ", error_code) returned \"" << std::boolalpha
+                           << result << "\" with error_code \"" << error_code << " ("
+                           << error_code.message() << ")\"";
   } else {
     if (should_succeed)
-      CHECK(result);
+      EXPECT_TRUE(result) << "fs::exists(" << path << ", error_code) returned \"" << std::boolalpha
+                          << result << "\" with error_code \"" << error_code << " ("
+                          << error_code.message() << ")\"";
     else
-      CHECK(!result);
+      EXPECT_TRUE(!result) << "fs::exists(" << path << ", error_code) returned \"" << std::boolalpha
+                           << result << "\" with error_code \"" << error_code << " ("
+                           << error_code.message() << ")\"";
   }
 }
 
 void Remove(const fs::path& path, bool required = false, bool should_succeed = true) {
   boost::system::error_code error_code;
   auto result(fs::remove(path, error_code));
-  INFO("fs::remove(" << path << ", error_code) returned \"" << std::boolalpha << result
-       << "\" with error_code \"" << error_code << " (" << error_code.message() << ")\"");
   if (required) {
     if (should_succeed)
-      REQUIRE(result);
+      ASSERT_TRUE(result) << "fs::remove(" << path << ", error_code) returned \"" << std::boolalpha
+                          << result << "\" with error_code \"" << error_code << " ("
+                          << error_code.message() << ")\"";
     else
-      REQUIRE(!result);
+      ASSERT_TRUE(!result) << "fs::remove(" << path << ", error_code) returned \"" << std::boolalpha
+                           << result << "\" with error_code \"" << error_code << " ("
+                           << error_code.message() << ")\"";
   } else {
     if (should_succeed)
-      CHECK(result);
+      EXPECT_TRUE(result) << "fs::remove(" << path << ", error_code) returned \"" << std::boolalpha
+                          << result << "\" with error_code \"" << error_code << " ("
+                          << error_code.message() << ")\"";
     else
-      CHECK(!result);
+      EXPECT_TRUE(!result) << "fs::remove(" << path << ", error_code) returned \"" << std::boolalpha
+                           << result << "\" with error_code \"" << error_code << " ("
+                           << error_code.message() << ")\"";
   }
 }
 
@@ -75,36 +87,48 @@ void Rename(const fs::path& old_path, const fs::path& new_path, bool required = 
             bool should_succeed = true) {
   boost::system::error_code error_code;
   fs::rename(old_path, new_path, error_code);
-  INFO("fs::rename(" << old_path << ", " << new_path << ", error_code) returned with error_code \""
-       << error_code << " (" << error_code.message() << ")\"");
   if (required) {
     if (should_succeed)
-      REQUIRE(!error_code);
+      ASSERT_TRUE(!error_code) << "fs::rename(" << old_path << ", " << new_path
+                               << ", error_code) returned with error_code \"" << error_code << " ("
+                               << error_code.message() << ")\"";
     else
-      REQUIRE(error_code);
+      ASSERT_TRUE(error_code) << "fs::rename(" << old_path << ", " << new_path
+                              << ", error_code) returned with error_code \"" << error_code << " ("
+                              << error_code.message() << ")\"";
   } else {
     if (should_succeed)
-      CHECK(!error_code);
+      EXPECT_TRUE(!error_code) << "fs::rename(" << old_path << ", " << new_path
+                               << ", error_code) returned with error_code \"" << error_code << " ("
+                               << error_code.message() << ")\"";
     else
-      CHECK(error_code);
+      EXPECT_TRUE(error_code) << "fs::rename(" << old_path << ", " << new_path
+                              << ", error_code) returned with error_code \"" << error_code << " ("
+                              << error_code.message() << ")\"";
   }
 }
 
 void CreateDirectories(const fs::path& path, bool required = false, bool should_succeed = true) {
   boost::system::error_code error_code;
   auto result(fs::create_directories(path, error_code));
-  INFO("fs::create_directories(" << path << ", error_code) returned \"" << std::boolalpha << result
-       << "\" with error_code \"" << error_code << " (" << error_code.message() << ")\"");
   if (required) {
     if (should_succeed)
-      REQUIRE(result);
+      ASSERT_TRUE(result) << "fs::create_directories(" << path << ", error_code) returned \""
+                          << std::boolalpha << result << "\" with error_code \"" << error_code
+                          << " (" << error_code.message() << ")\"";
     else
-      REQUIRE(!result);
+      ASSERT_TRUE(!result) << "fs::create_directories(" << path << ", error_code) returned \""
+                           << std::boolalpha << result << "\" with error_code \"" << error_code
+                           << " (" << error_code.message() << ")\"";
   } else {
     if (should_succeed)
-      CHECK(result);
+      EXPECT_TRUE(result) << "fs::create_directories(" << path << ", error_code) returned \""
+                          << std::boolalpha << result << "\" with error_code \"" << error_code
+                          << " (" << error_code.message() << ")\"";
     else
-      CHECK(!result);
+      EXPECT_TRUE(!result) << "fs::create_directories(" << path << ", error_code) returned \""
+                           << std::boolalpha << result << "\" with error_code \"" << error_code
+                           << " (" << error_code.message() << ")\"";
   }
 }
 
@@ -159,17 +183,17 @@ fs::path CreateTestFileWithContent(fs::path const& parent, const std::string& co
     ofs.close();
   }
   boost::system::error_code ec;
-  CHECK(fs::exists(file, ec));
-  CHECK(0 == ec.value());
+  EXPECT_TRUE(fs::exists(file, ec));
+  EXPECT_TRUE(0 == ec.value());
   return file;
 }
 
 fs::path CreateTestDirectory(fs::path const& parent) {
   fs::path directory(parent / RandomAlphaNumericString(5));
   boost::system::error_code error_code;
-  CHECK(fs::create_directories(directory, error_code));
-  CHECK(0 == error_code.value());
-  CHECK(fs::exists(directory, error_code));
+  EXPECT_TRUE(fs::create_directories(directory, error_code));
+  EXPECT_TRUE(0 == error_code.value());
+  EXPECT_TRUE(fs::exists(directory, error_code));
   return directory;
 }
 
@@ -190,21 +214,21 @@ fs::path CreateTestDirectoriesAndFiles(fs::path const& parent) {
       break;
     if (r2 < r3) {
       check = CreateTestDirectoriesAndFiles(directory);
-      CHECK(fs::exists(check, error_code));
-      CHECK(0 == error_code.value());
+      EXPECT_TRUE(fs::exists(check, error_code));
+      EXPECT_TRUE(0 == error_code.value());
     } else if (r2 > r3) {
       r4 = distribution(generator);
       for (size_t j = 0; j != r4; ++j) {
         check = CreateTestFile(directory, file_size);
-        CHECK(fs::exists(check, error_code));
-        CHECK(0 == error_code.value());
+        EXPECT_TRUE(fs::exists(check, error_code));
+        EXPECT_TRUE(0 == error_code.value());
       }
     } else {
       r4 = distribution(generator);
       for (size_t j = 0; j != r4; ++j) {
         check = CreateTestDirectory(directory);
-        CHECK(fs::exists(check, error_code));
-        CHECK(0 == error_code.value());
+        EXPECT_TRUE(fs::exists(check, error_code));
+        EXPECT_TRUE(0 == error_code.value());
       }
     }
   }
@@ -324,40 +348,24 @@ void GenerateDirectoryListingEntryForFile(Directory& directory, const fs::path& 
   file_context.meta_data.attributes.st_size = file_size;
 #endif
   file_context.meta_data.data_map->content = RandomString(100);
-  CHECK_NOTHROW(directory.AddChild(std::move(file_context)));
+  EXPECT_NO_THROW(directory.AddChild(std::move(file_context)));
 }
 
-void CheckedExists(const fs::path& path) {
-  Exists(path, false, true);
-}
+void CheckedExists(const fs::path& path) { Exists(path, false, true); }
 
-void CheckedNotExists(const fs::path& path) {
-  Exists(path, false, false);
-}
+void CheckedNotExists(const fs::path& path) { Exists(path, false, false); }
 
-void RequiredExists(const fs::path& path) {
-  Exists(path, true, true);
-}
+void RequiredExists(const fs::path& path) { Exists(path, true, true); }
 
-void RequiredNotExists(const fs::path& path) {
-  Exists(path, true, false);
-}
+void RequiredNotExists(const fs::path& path) { Exists(path, true, false); }
 
-void CheckedRemove(const fs::path& path) {
-  Remove(path, false, true);
-}
+void CheckedRemove(const fs::path& path) { Remove(path, false, true); }
 
-void CheckedNotRemove(const fs::path& path) {
-  Remove(path, false, false);
-}
+void CheckedNotRemove(const fs::path& path) { Remove(path, false, false); }
 
-void RequiredRemove(const fs::path& path) {
-  Remove(path, true, true);
-}
+void RequiredRemove(const fs::path& path) { Remove(path, true, true); }
 
-void RequiredNotRemove(const fs::path& path) {
-  Remove(path, true, false);
-}
+void RequiredNotRemove(const fs::path& path) { Remove(path, true, false); }
 
 void CheckedRename(const fs::path& old_path, const fs::path& new_path) {
   Rename(old_path, new_path, false, true);
@@ -375,21 +383,13 @@ void RequiredNotRename(const fs::path& old_path, const fs::path& new_path) {
   Rename(old_path, new_path, true, false);
 }
 
-void CheckedCreateDirectories(const fs::path& path) {
-  CreateDirectories(path, false, true);
-}
+void CheckedCreateDirectories(const fs::path& path) { CreateDirectories(path, false, true); }
 
-void CheckedNotCreateDirectories(const fs::path& path) {
-  CreateDirectories(path, false, false);
-}
+void CheckedNotCreateDirectories(const fs::path& path) { CreateDirectories(path, false, false); }
 
-void RequiredCreateDirectories(const fs::path& path) {
-  CreateDirectories(path, true, true);
-}
+void RequiredCreateDirectories(const fs::path& path) { CreateDirectories(path, true, true); }
 
-void RequiredNotCreateDirectories(const fs::path& path) {
-  CreateDirectories(path, true, false);
-}
+void RequiredNotCreateDirectories(const fs::path& path) { CreateDirectories(path, true, false); }
 
 }  // namespace test
 

@@ -59,7 +59,7 @@ inline uint64_t GetSize(MetaData meta_data) {
 #endif
 }
 
-class DirectoryTest {
+class DirectoryTest : public testing::Test {
  public:
   DirectoryTest()
       : main_test_dir_(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive")),
@@ -94,7 +94,7 @@ class DirectoryTest {
 #endif
     *file_context.meta_data.directory_id =
         Identity(crypto::Hash<crypto::SHA512>((*main_test_dir_ / path).string()));
-    CHECK_NOTHROW(directory.AddChild(std::move(file_context)));
+    EXPECT_NO_THROW(directory.AddChild(std::move(file_context)));
   }
 
   bool GenerateDirectoryListings(fs::path const& path, fs::path relative_path) {
@@ -109,7 +109,8 @@ class DirectoryTest {
       for (; itr != end; ++itr) {
         if (fs::is_directory(*itr)) {
           GenerateDirectoryListingEntryForDirectory(directory, itr->path().filename());
-          CHECK(GenerateDirectoryListings(itr->path(), relative_path / itr->path().filename()));
+          EXPECT_TRUE(
+              GenerateDirectoryListings(itr->path(), relative_path / itr->path().filename()));
         } else if (fs::is_regular_file(*itr)) {
           GenerateDirectoryListingEntryForFile(directory, itr->path().filename(),
                                                fs::file_size(itr->path()));
@@ -122,7 +123,7 @@ class DirectoryTest {
         }
       }
       ImmutableData contents(NonEmptyString(directory.Serialise()));
-      CHECK(WriteFile(path / "msdir.listing", contents.data().string()));
+      EXPECT_TRUE(WriteFile(path / "msdir.listing", contents.data().string()));
       directory.AddNewVersion(contents.name());
     }
     catch (const std::exception& e) {
@@ -134,7 +135,7 @@ class DirectoryTest {
 
   bool RemoveDirectoryListingsEntries(fs::path const& path, fs::path const& relative_path) {
     std::string serialised_directory;
-    CHECK(ReadFile(path / "msdir.listing", &serialised_directory));
+    EXPECT_TRUE(ReadFile(path / "msdir.listing", &serialised_directory));
     std::vector<StructuredDataVersions::VersionName> versions;
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
@@ -144,20 +145,20 @@ class DirectoryTest {
     FileContext* file_context(nullptr);
     // Remove the directory listing file
     boost::system::error_code error_code;
-    CHECK(fs::remove(path / "msdir.listing", error_code));
+    EXPECT_TRUE(fs::remove(path / "msdir.listing", error_code));
     fs::directory_iterator itr(path), end;
     try {
       for (; itr != end; ++itr) {
         if (fs::is_directory(*itr)) {
-          CHECK(RemoveDirectoryListingsEntries(itr->path(),
-                                                     relative_path / itr->path().filename()));
-          CHECK_NOTHROW(file_context = directory.GetMutableChild(itr->path().filename()));
-          CHECK_NOTHROW(FileContext context(directory.RemoveChild(file_context->meta_data.name)));
+          EXPECT_TRUE(
+              RemoveDirectoryListingsEntries(itr->path(), relative_path / itr->path().filename()));
+          EXPECT_NO_THROW(file_context = directory.GetMutableChild(itr->path().filename()));
+          EXPECT_NO_THROW(FileContext context(directory.RemoveChild(file_context->meta_data.name)));
           // Remove the disk directory also
           CheckedRemove(itr->path());
         } else if (fs::is_regular_file(*itr)) {
-          CHECK_NOTHROW(file_context = directory.GetMutableChild(itr->path().filename()));
-          CHECK_NOTHROW(FileContext context(directory.RemoveChild(file_context->meta_data.name)));
+          EXPECT_NO_THROW(file_context = directory.GetMutableChild(itr->path().filename()));
+          EXPECT_NO_THROW(FileContext context(directory.RemoveChild(file_context->meta_data.name)));
           // Remove the disk file also
           CheckedRemove(itr->path());
         } else {
@@ -173,13 +174,13 @@ class DirectoryTest {
       LOG(kError) << "RemoveDirectoryListingsEntries test failed: " << e.what();
       return false;
     }
-    CHECK(directory.empty());
+    EXPECT_TRUE(directory.empty());
     return true;
   }
 
   bool RenameDirectoryEntries(fs::path const& path, fs::path const& relative_path) {
     std::string serialised_directory;
-    CHECK(ReadFile(path / "msdir.listing", &serialised_directory));
+    EXPECT_TRUE(ReadFile(path / "msdir.listing", &serialised_directory));
     std::vector<StructuredDataVersions::VersionName> versions;
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
@@ -193,23 +194,23 @@ class DirectoryTest {
       for (; itr != end; ++itr) {
         if (fs::is_directory(*itr)) {
           fs::path new_path(relative_path / itr->path().filename());
-          CHECK(RenameDirectoryEntries(itr->path(), new_path));
-          CHECK_NOTHROW(file_context = directory.GetMutableChild(itr->path().filename()));
+          EXPECT_TRUE(RenameDirectoryEntries(itr->path(), new_path));
+          EXPECT_NO_THROW(file_context = directory.GetMutableChild(itr->path().filename()));
           FileContext removed_context;
-          CHECK_NOTHROW(removed_context = directory.RemoveChild(file_context->meta_data.name));
+          EXPECT_NO_THROW(removed_context = directory.RemoveChild(file_context->meta_data.name));
           std::string new_name(RandomAlphaNumericString(5));
           removed_context.meta_data.name = fs::path(new_name);
-          CHECK_NOTHROW(directory.AddChild(std::move(removed_context)));
+          EXPECT_NO_THROW(directory.AddChild(std::move(removed_context)));
           // Rename corresponding directory
           CheckedRename(itr->path(), (itr->path().parent_path() / new_name));
         } else if (fs::is_regular_file(*itr)) {
           if (itr->path().filename().string() != listing) {
-            CHECK_NOTHROW(file_context = directory.GetMutableChild(itr->path().filename()));
+            EXPECT_NO_THROW(file_context = directory.GetMutableChild(itr->path().filename()));
             FileContext removed_context;
-            CHECK_NOTHROW(removed_context = directory.RemoveChild(file_context->meta_data.name));
+            EXPECT_NO_THROW(removed_context = directory.RemoveChild(file_context->meta_data.name));
             std::string new_name(RandomAlphaNumericString(5) + ".txt");
             removed_context.meta_data.name = fs::path(new_name);
-            CHECK_NOTHROW(directory.AddChild(std::move(removed_context)));
+            EXPECT_NO_THROW(directory.AddChild(std::move(removed_context)));
             // Rename corresponding file
             CheckedRename(itr->path(), (itr->path().parent_path() / new_name));
           }
@@ -231,7 +232,7 @@ class DirectoryTest {
 
   bool DirectoryHasChild(fs::path const& path, fs::path const& relative_path) {
     std::string serialised_directory;
-    CHECK(ReadFile(path / "msdir.listing", &serialised_directory));
+    EXPECT_TRUE(ReadFile(path / "msdir.listing", &serialised_directory));
     std::vector<StructuredDataVersions::VersionName> versions;
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
@@ -245,10 +246,10 @@ class DirectoryTest {
         if (itr->path().filename().string() != listing) {
           if (fs::is_directory(*itr)) {
             fs::path name(itr->path().filename());
-            CHECK(DirectoryHasChild(itr->path(), relative_path / name));
-            CHECK(directory.HasChild(name));
+            EXPECT_TRUE(DirectoryHasChild(itr->path(), relative_path / name));
+            EXPECT_TRUE(directory.HasChild(name));
           } else if (fs::is_regular_file(*itr)) {
-            CHECK(directory.HasChild(itr->path().filename()));
+            EXPECT_TRUE(directory.HasChild(itr->path().filename()));
           } else {
             if (fs::exists(*itr))
               LOG(kInfo) << "Unknown type found.";
@@ -268,7 +269,7 @@ class DirectoryTest {
 
   bool MatchEntries(fs::path const& path, fs::path relative_path) {
     std::string serialised_directory;
-    CHECK(ReadFile(path / "msdir.listing", &serialised_directory));
+    EXPECT_TRUE(ReadFile(path / "msdir.listing", &serialised_directory));
     std::vector<StructuredDataVersions::VersionName> versions;
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
@@ -282,14 +283,15 @@ class DirectoryTest {
     try {
       for (; itr != end; ++itr) {
         if (fs::is_directory(*itr)) {
-          CHECK(MatchEntries(itr->path(), relative_path / itr->path().filename()));
-          CHECK_NOTHROW(file_context = directory.GetChild(itr->path().filename()));
-          CHECK(file_context->meta_data.name == itr->path().filename());
+          EXPECT_TRUE(MatchEntries(itr->path(), relative_path / itr->path().filename()));
+          EXPECT_NO_THROW(file_context = directory.GetChild(itr->path().filename()));
+          EXPECT_TRUE(file_context->meta_data.name == itr->path().filename());
         } else if (fs::is_regular_file(*itr)) {
           if (itr->path().filename().string() != listing) {
-            CHECK_NOTHROW(file_context = directory.GetChild(itr->path().filename()));
-            CHECK(file_context->meta_data.name == itr->path().filename());
-            // CHECK(GetSize(std::move(file_context->meta_data)) == fs::file_size(itr->path()));
+            EXPECT_NO_THROW(file_context = directory.GetChild(itr->path().filename()));
+            EXPECT_TRUE(file_context->meta_data.name == itr->path().filename());
+            // EXPECT_TRUE(GetSize(std::move(file_context->meta_data)) ==
+            // fs::file_size(itr->path()));
           }
         } else {
           if (fs::exists(*itr))
@@ -305,18 +307,14 @@ class DirectoryTest {
       return false;
     }
 
-    CHECK(directory.directory_id().string() ==
-      crypto::Hash<crypto::SHA512>(absolute_path.string()).string());
+    EXPECT_TRUE(directory.directory_id().string() ==
+                crypto::Hash<crypto::SHA512>(absolute_path.string()).string());
     return true;
   }
 
-  void SortAndResetChildrenCounter() {
-    directory_.SortAndResetChildrenCounter();
-  }
+  void SortAndResetChildrenCounter() { directory_.SortAndResetChildrenCounter(); }
 
-  void ResetChildrenCounter() {
-    directory_.ResetChildrenCounter();
-  }
+  void ResetChildrenCounter() { directory_.ResetChildrenCounter(); }
 
   maidsafe::test::TestPath main_test_dir_;
   fs::path relative_root_;
@@ -332,112 +330,110 @@ class DirectoryTest {
   DirectoryTest& operator=(const DirectoryTest&);
 };
 
-TEST_CASE_METHOD(DirectoryTest, "Add children", "[Directory][behavioural]") {
-  REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
-  REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
-  REQUIRE(MatchEntries(*main_test_dir_, relative_root_));
+TEST_F(DirectoryTest, BEH_AddChildren) {
+  ASSERT_TRUE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
+  ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
+  ASSERT_TRUE(MatchEntries(*main_test_dir_, relative_root_));
 }
 
-TEST_CASE_METHOD(DirectoryTest, "Add then remove children", "[Directory][behavioural]") {
-  REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
-  REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
-  REQUIRE(RemoveDirectoryListingsEntries(*main_test_dir_, relative_root_));
+TEST_F(DirectoryTest, BEH_AddThenRemoveChildren) {
+  ASSERT_TRUE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
+  ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
+  ASSERT_TRUE(RemoveDirectoryListingsEntries(*main_test_dir_, relative_root_));
 }
 
-TEST_CASE_METHOD(DirectoryTest, "Add then rename children", "[Directory][behavioural]") {
-  REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
-  REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
-  REQUIRE(RenameDirectoryEntries(*main_test_dir_, relative_root_));
-  REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
-  REQUIRE(MatchEntries(*main_test_dir_, relative_root_));
+TEST_F(DirectoryTest, BEH_AddThenRenameChildren) {
+  ASSERT_TRUE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
+  ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
+  ASSERT_TRUE(RenameDirectoryEntries(*main_test_dir_, relative_root_));
+  ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
+  ASSERT_TRUE(MatchEntries(*main_test_dir_, relative_root_));
 }
 
-TEST_CASE_METHOD(DirectoryTest, "Directory has child", "[Directory][behavioural]") {
-  REQUIRE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
-  REQUIRE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
-  REQUIRE(DirectoryHasChild(*main_test_dir_, relative_root_));
+TEST_F(DirectoryTest, BEH_DirectoryHasChild) {
+  ASSERT_TRUE(fs::exists(CreateTestDirectoriesAndFiles(*main_test_dir_)));
+  ASSERT_TRUE(GenerateDirectoryListings(*main_test_dir_, relative_root_));
+  ASSERT_TRUE(DirectoryHasChild(*main_test_dir_, relative_root_));
 }
 
 void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
-  if (lhs.directory_id() != rhs.directory_id())
-    FAIL("Directory ID mismatch.");
-  REQUIRE(lhs.children_.size() == rhs.children_.size());
+  ASSERT_TRUE(lhs.directory_id() == rhs.directory_id()) << "Directory ID mismatch.";
+  ASSERT_TRUE(lhs.children_.size() == rhs.children_.size());
   auto itr1(lhs.children_.begin()), itr2(rhs.children_.begin());
   for (; itr1 != lhs.children_.end(); ++itr1, ++itr2) {
-    REQUIRE((*itr1)->meta_data.name == (*itr2)->meta_data.name);
-    if (((*itr1)->meta_data.data_map && !(*itr2)->meta_data.data_map) ||
-        (!(*itr1)->meta_data.data_map && (*itr2)->meta_data.data_map))
-      FAIL("Data map pointer mismatch");
+    ASSERT_TRUE((*itr1)->meta_data.name == (*itr2)->meta_data.name);
+    EXPECT_FALSE((*itr1)->meta_data.data_map == nullptr &&
+                 (*itr2)->meta_data.directory_id == nullptr);
     if ((*itr1)->meta_data.data_map) {
-      REQUIRE(TotalSize(*(*itr1)->meta_data.data_map) == TotalSize(*(*itr2)->meta_data.data_map));
-      REQUIRE((*itr1)->meta_data.data_map->chunks.size() ==
-              (*itr2)->meta_data.data_map->chunks.size());
+      ASSERT_TRUE(TotalSize(*(*itr1)->meta_data.data_map) ==
+                  TotalSize(*(*itr2)->meta_data.data_map));
+      ASSERT_TRUE((*itr1)->meta_data.data_map->chunks.size() ==
+                  (*itr2)->meta_data.data_map->chunks.size());
       auto chunk_itr1((*itr1)->meta_data.data_map->chunks.begin());
       auto chunk_itr2((*itr2)->meta_data.data_map->chunks.begin());
       size_t chunk_no(0);
       for (; chunk_itr1 != (*itr1)->meta_data.data_map->chunks.end();
            ++chunk_itr1, ++chunk_itr2, ++chunk_no) {
-        if ((*chunk_itr1).hash != (*chunk_itr2).hash)
-          FAIL("DataMap chunk " << chunk_no << " hash mismatch.");
-        if ((*chunk_itr1).pre_hash != (*chunk_itr2).pre_hash)
-          FAIL("DataMap chunk " << chunk_no << " pre_hash mismatch.");
-        REQUIRE((*chunk_itr1).size == (*chunk_itr2).size);
+        ASSERT_TRUE((*chunk_itr1).hash != (*chunk_itr2).hash) << "DataMap chunk " << chunk_no
+                                                              << " hash mismatch.";
+        ASSERT_TRUE((*chunk_itr1).pre_hash != (*chunk_itr2).pre_hash)
+            << "DataMap chunk " << chunk_no << " pre_hash mismatch.";
+        ASSERT_TRUE((*chunk_itr1).size == (*chunk_itr2).size);
       }
-      if ((*itr1)->meta_data.data_map->content != (*itr2)->meta_data.data_map->content)
-        FAIL("DataMap content mismatch.");
-      //       if ((*itr1).data_map->self_encryption_type !=
-      //           (*itr2).data_map->self_encryption_type)
-      //         FAIL("DataMap SE type mismatch.");
+      ASSERT_TRUE((*itr1)->meta_data.data_map->content == (*itr2)->meta_data.data_map->content)
+          << "DataMap content mismatch.";
     }
-    //     if ((*itr1).end_of_file != (*itr2).end_of_file)
-    REQUIRE(GetSize(std::move((*itr1)->meta_data)) == GetSize(std::move((*itr2)->meta_data)));
+    ASSERT_TRUE(GetSize(std::move((*itr1)->meta_data)) == GetSize(std::move((*itr2)->meta_data)));
 #ifdef MAIDSAFE_WIN32
-    REQUIRE((*itr1)->meta_data.allocation_size == (*itr2)->meta_data.allocation_size);
-    REQUIRE((*itr1)->meta_data.attributes == (*itr2)->meta_data.attributes);
-    REQUIRE((*itr1)->meta_data.creation_time.dwHighDateTime ==
-            (*itr2)->meta_data.creation_time.dwHighDateTime);
+    ASSERT_TRUE((*itr1)->meta_data.allocation_size == (*itr2)->meta_data.allocation_size);
+    ASSERT_TRUE((*itr1)->meta_data.attributes == (*itr2)->meta_data.attributes);
+    ASSERT_TRUE((*itr1)->meta_data.creation_time.dwHighDateTime ==
+                (*itr2)->meta_data.creation_time.dwHighDateTime);
     if ((*itr1)->meta_data.creation_time.dwLowDateTime !=
         (*itr2)->meta_data.creation_time.dwLowDateTime) {
       uint32_t error = 0xA;
       if ((*itr1)->meta_data.creation_time.dwLowDateTime >
-          (*itr2)->meta_data.creation_time.dwLowDateTime + error ||
+              (*itr2)->meta_data.creation_time.dwLowDateTime + error ||
           (*itr1)->meta_data.creation_time.dwLowDateTime <
-          (*itr2)->meta_data.creation_time.dwLowDateTime - error)
-        FAIL("Creation times low: " << (*itr1)->meta_data.creation_time.dwLowDateTime << " != "
-             << (*itr2)->meta_data.creation_time.dwLowDateTime);
+              (*itr2)->meta_data.creation_time.dwLowDateTime - error)
+        GTEST_FAIL("Creation times low: " << (*itr1)->meta_data.creation_time.dwLowDateTime
+                                          << " != "
+                                          << (*itr2)->meta_data.creation_time.dwLowDateTime);
     }
-    REQUIRE((*itr1)->meta_data.last_access_time.dwHighDateTime ==
-            (*itr2)->meta_data.last_access_time.dwHighDateTime);
+    ASSERT_TRUE((*itr1)->meta_data.last_access_time.dwHighDateTime ==
+                (*itr2)->meta_data.last_access_time.dwHighDateTime);
     if ((*itr1)->meta_data.last_access_time.dwLowDateTime !=
         (*itr2)->meta_data.last_access_time.dwLowDateTime) {
       uint32_t error = 0xA;
       if ((*itr1)->meta_data.last_access_time.dwLowDateTime >
-          (*itr2)->meta_data.last_access_time.dwLowDateTime + error ||
+              (*itr2)->meta_data.last_access_time.dwLowDateTime + error ||
           (*itr1)->meta_data.last_access_time.dwLowDateTime <
-          (*itr2)->meta_data.last_access_time.dwLowDateTime - error)
-        FAIL("Last access times low: " << (*itr1)->meta_data.last_access_time.dwLowDateTime
-             << " != " << (*itr2)->meta_data.last_access_time.dwLowDateTime);
+              (*itr2)->meta_data.last_access_time.dwLowDateTime - error)
+        GTEST_FAIL("Last access times low: " << (*itr1)->meta_data.last_access_time.dwLowDateTime
+                                             << " != "
+                                             << (*itr2)->meta_data.last_access_time.dwLowDateTime);
     }
-    REQUIRE((*itr1)->meta_data.last_write_time.dwHighDateTime ==
-            (*itr2)->meta_data.last_write_time.dwHighDateTime);
+    ASSERT_TRUE((*itr1)->meta_data.last_write_time.dwHighDateTime ==
+                (*itr2)->meta_data.last_write_time.dwHighDateTime);
     if ((*itr1)->meta_data.last_write_time.dwLowDateTime !=
         (*itr2)->meta_data.last_write_time.dwLowDateTime) {
       uint32_t error = 0xA;
       if ((*itr1)->meta_data.last_write_time.dwLowDateTime >
-          (*itr2)->meta_data.last_write_time.dwLowDateTime + error ||
+              (*itr2)->meta_data.last_write_time.dwLowDateTime + error ||
           (*itr1)->meta_data.last_write_time.dwLowDateTime <
-          (*itr2)->meta_data.last_write_time.dwLowDateTime - error)
-        FAIL("Last write times low: " << (*itr1)->meta_data.last_write_time.dwLowDateTime << " != "
-             << (*itr2)->meta_data.last_write_time.dwLowDateTime);
+              (*itr2)->meta_data.last_write_time.dwLowDateTime - error)
+        GTEST_FAIL("Last write times low: " << (*itr1)->meta_data.last_write_time.dwLowDateTime
+                                            << " != "
+                                            << (*itr2)->meta_data.last_write_time.dwLowDateTime);
     }
 #else
-    REQUIRE((*itr1)->meta_data.attributes.st_atime == (*itr2)->meta_data.attributes.st_atime);
-    REQUIRE((*itr1)->meta_data.attributes.st_mtime == (*itr2)->meta_data.attributes.st_mtime);
+    ASSERT_TRUE((*itr1)->meta_data.attributes.st_atime == (*itr2)->meta_data.attributes.st_atime);
+    ASSERT_TRUE((*itr1)->meta_data.attributes.st_mtime == (*itr2)->meta_data.attributes.st_mtime);
 #endif
   }
 }
 
-TEST_CASE_METHOD(DirectoryTest, "Serialise and parse", "[Directory][behavioural]") {
+TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
   maidsafe::test::TestPath testpath(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
   boost::system::error_code error_code;
   int64_t file_size(0);
@@ -483,7 +479,7 @@ TEST_CASE_METHOD(DirectoryTest, "Serialise and parse", "[Directory][behavioural]
       file_context.meta_data.data_map->content = RandomString(10);
     }
     // file_contexts_before.emplace_back(std::move(file_context));
-    CHECK_NOTHROW(directory_.AddChild(std::move(file_context)));
+    EXPECT_NO_THROW(directory_.AddChild(std::move(file_context)));
   }
 
   std::string serialised_directory(directory_.Serialise());
@@ -497,65 +493,64 @@ TEST_CASE_METHOD(DirectoryTest, "Serialise and parse", "[Directory][behavioural]
   DirectoriesMatch(directory_, recovered_directory);
 }
 
-TEST_CASE_METHOD(DirectoryTest, "Iterator reset", "[Directory][behavioural]") {
+TEST_F(DirectoryTest, BEH_IteratorReset) {
   // Add elements
-  REQUIRE(directory_.empty());
+  ASSERT_TRUE(directory_.empty());
   const size_t kTestCount(10);
   ResetChildrenCounter();
-  CHECK(4U < kTestCount);
+  EXPECT_TRUE(4U < kTestCount);
   char c('A');
   for (size_t i(0); i != kTestCount; ++i, ++c) {
     FileContext file_context(std::string(1, c), ((i % 2) == 0));
-    CHECK_NOTHROW(directory_.AddChild(std::move(file_context)));
+    EXPECT_NO_THROW(directory_.AddChild(std::move(file_context)));
   }
-  CHECK_FALSE(directory_.empty());
+  EXPECT_FALSE(directory_.empty());
 
   // Check internal iterator
   const FileContext* file_context(nullptr);
   c = 'A';
   for (size_t i(0); i != kTestCount; ++i, ++c) {
-    CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
-    CHECK(std::string(1, c) == file_context->meta_data.name);
-    CHECK(((i % 2) == 0) == (file_context->meta_data.directory_id != nullptr));
+    EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+    EXPECT_TRUE(std::string(1, c) == file_context->meta_data.name);
+    EXPECT_TRUE(((i % 2) == 0) == (file_context->meta_data.directory_id != nullptr));
   }
 
   SortAndResetChildrenCounter();
 
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
-  CHECK("A" == file_context->meta_data.name);
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
-  CHECK("B" == file_context->meta_data.name);
+  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  EXPECT_TRUE("A" == file_context->meta_data.name);
+  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  EXPECT_TRUE("B" == file_context->meta_data.name);
 
   // Add another element and check iterator is reset
   ++c;
   FileContext new_file_context(std::string(1, c), false);
-  CHECK_NOTHROW(directory_.AddChild(std::move(new_file_context)));
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
-  CHECK("A" == file_context->meta_data.name);
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
-  CHECK("B" == file_context->meta_data.name);
+  EXPECT_NO_THROW(directory_.AddChild(std::move(new_file_context)));
+  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  EXPECT_TRUE("A" == file_context->meta_data.name);
+  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  EXPECT_TRUE("B" == file_context->meta_data.name);
 
   // Remove an element and check iterator is reset
-  REQUIRE(directory_.HasChild("C"));
-  CHECK_NOTHROW(FileContext context(directory_.RemoveChild("C")));
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
-  CHECK("A" == file_context->meta_data.name);
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
-  CHECK("B" == file_context->meta_data.name);
+  ASSERT_TRUE(directory_.HasChild("C"));
+  EXPECT_NO_THROW(FileContext context(directory_.RemoveChild("C")));
+  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  EXPECT_TRUE("A" == file_context->meta_data.name);
+  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  EXPECT_TRUE("B" == file_context->meta_data.name);
 
   // Try to remove a non-existent element and check iterator is not reset
-  REQUIRE_FALSE(directory_.HasChild("C"));
-  CHECK_THROWS_AS(FileContext context(directory_.RemoveChild("C")),
-                  std::exception);
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
-  CHECK("D" == file_context->meta_data.name);
-  CHECK_NOTHROW(file_context = directory_.GetChildAndIncrementCounter());
-  CHECK("E" == file_context->meta_data.name);
+  ASSERT_FALSE(directory_.HasChild("C"));
+  EXPECT_THROW(FileContext context(directory_.RemoveChild("C")), std::exception);
+  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  EXPECT_TRUE("D" == file_context->meta_data.name);
+  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  EXPECT_TRUE("E" == file_context->meta_data.name);
 
   // Check operator<
   // DirectoryListing directory_listing1(Identity(crypto::Hash<crypto::SHA512>(std::string("A")))),
   //     directory_listing2(Identity(crypto::Hash<crypto::SHA512>(std::string("B"))));
-  // CHECK(directory_listing1 < directory_listing2);
+  // EXPECT_TRUE(directory_listing1 < directory_listing2);
 }
 
 }  // namespace test

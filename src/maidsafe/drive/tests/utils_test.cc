@@ -34,20 +34,20 @@ namespace test {
 
 void FilesMatchMask(const std::vector<fs::path>& all_files,
                     const std::set<fs::path>& matching_files, const std::wstring& mask) {
-  std::for_each(all_files.begin(), all_files.end(), [&](const fs::path & file_name) {
+  std::for_each(all_files.begin(), all_files.end(), [&](const fs::path& file_name) {
     if (matching_files.find(file_name) != matching_files.end()) {
-      INFO((std::wstring(L"File ") + file_name.wstring() + L" should match for mask \"" + mask +
-            L"\"").c_str());
-      REQUIRE(MatchesMask(mask, file_name));
+      ASSERT_TRUE(MatchesMask(mask, file_name))
+          << (std::wstring(L"File ") + file_name.wstring() + L" should match for mask \"" + mask +
+              L"\"").c_str();
     } else {
-      INFO((std::wstring(L"File ") + file_name.wstring() + L" should NOT match for mask \"" + mask +
-            L"\"").c_str());
-      REQUIRE_FALSE(MatchesMask(mask, file_name));
+      ASSERT_FALSE(MatchesMask(mask, file_name))
+          << (std::wstring(L"File ") + file_name.wstring() + L" should NOT match for mask \"" +
+              mask + L"\"").c_str();
     }
   });
 }
 
-TEST_CASE("Mask match", "[behavioural] [drive]" ) {
+TEST(MaskMatchTest, BEH_MaskMatch) {
 #ifdef MAIDSAFE_WIN32
   std::set<fs::path> matching_files;
   matching_files.insert(L"1.txt");
@@ -205,7 +205,7 @@ TEST_CASE("Mask match", "[behavioural] [drive]" ) {
   matching_files.insert(L"1$.txt");
   FilesMatchMask(kAllFiles, matching_files, mask);
 #else
-  REQUIRE(true);
+  ASSERT_TRUE(true);
 #endif  // MAIDSAFE_WIN32
 }
 
@@ -216,4 +216,3 @@ TEST_CASE("Mask match", "[behavioural] [drive]" ) {
 }  // namespace drive
 
 }  // namespace maidsafe
-

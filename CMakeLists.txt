@@ -176,8 +176,8 @@ if(MaidsafeTesting)
                     ${DriveSourcesDir}/tools/filesystem_commands.cc
                     ${DriveSourcesDir}/tools/tool_main.cc
                     ${DriveToolsCommandsAllFiles})
-  ms_add_executable(test_drive "Tests/Drive" ${DriveTestsAllFiles})
-  target_include_directories(test_drive PRIVATE ${PROJECT_SOURCE_DIR}/src)
+  ms_add_executable(TESTdrive "Tests/Drive" ${DriveTestsAllFiles})
+  target_include_directories(TESTdrive PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
   add_dependencies(filesystem_weekly local_drive drive)
   add_dependencies(filesystem_test local_drive drive)
@@ -197,13 +197,13 @@ if(MaidsafeTesting)
   target_link_libraries(filesystem_commands maidsafe_drive_launcher maidsafe_drive)
 
   add_dependencies(filesystem_test catch)
-  target_link_libraries(test_drive maidsafe_drive maidsafe_nfs_client maidsafe_test)
+  target_link_libraries(TESTdrive maidsafe_drive maidsafe_nfs_client maidsafe_test)
 endif()
 
 ms_rename_outdated_built_exes()
 
 if(WIN32 AND NOT CbfsFound)
-  foreach(Target maidsafe_drive cbfs_driver_installer local_drive drive local_drive_console drive_console filesystem_weekly filesystem_test filesystem_commands test_drive)
+  foreach(Target maidsafe_drive cbfs_driver_installer local_drive drive local_drive_console drive_console filesystem_weekly filesystem_test filesystem_commands TESTdrive)
     if(TARGET ${Target})
       set_target_properties(${Target} PROPERTIES EXCLUDE_FROM_ALL ON EXCLUDE_FROM_DEFAULT_BUILD ON)
     endif()
@@ -265,7 +265,7 @@ endif()
 #==================================================================================================#
 if(MaidsafeTesting)
   ms_add_style_test()
-  ms_add_catch_tests(test_drive)
+  ms_add_gtests(TESTdrive)
   add_test(NAME "\"Real Disk Filesystem Test\""
            COMMAND filesystem_test --durations yes --warn NoAssertions --disk
                    --name "filesystem_test ($<CONFIGURATION> build)")
@@ -324,7 +324,7 @@ endforeach()
 install(TARGETS drive COMPONENT Apps CONFIGURATIONS Debug RUNTIME DESTINATION bin/debug)
 install(TARGETS drive COMPONENT Apps CONFIGURATIONS Release RUNTIME DESTINATION bin)
 
-foreach(Target filesystem_weekly filesystem_test filesystem_commands test_drive)
+foreach(Target filesystem_weekly filesystem_test filesystem_commands TESTdrive)
   if(TARGET ${Target})
     install(TARGETS ${Target} COMPONENT Tests CONFIGURATIONS Debug RUNTIME DESTINATION bin/debug)
     install(TARGETS ${Target} COMPONENT Tests CONFIGURATIONS Release RUNTIME DESTINATION bin)

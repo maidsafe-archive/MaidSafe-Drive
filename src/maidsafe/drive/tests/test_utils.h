@@ -47,11 +47,7 @@ namespace detail {
 
 namespace test {
 
-enum TestOperationCode {
-  kCopy = 0,
-  kRead = 1,
-  kCompare = 2
-};
+enum TestOperationCode { kCopy = 0, kRead = 1, kCompare = 2 };
 
 template <typename Storage>
 struct GlobalDrive {

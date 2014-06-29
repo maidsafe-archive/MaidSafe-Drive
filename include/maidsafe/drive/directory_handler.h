@@ -306,8 +306,9 @@ void DirectoryHandler<Storage>::Delete(const boost::filesystem::path& relative_p
 
 #ifndef MAIDSAFE_WIN32
   parent.second->meta_data.attributes.st_ctime = parent.second->meta_data.attributes.st_mtime;
-  if (is_directory)
+  if (is_directory) {
     --parent.second->meta_data.attributes.st_nlink;
+  }
 #endif
 }
 
