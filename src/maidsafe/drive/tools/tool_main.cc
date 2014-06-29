@@ -81,8 +81,9 @@ enum class TestType {
 } g_test_type;
 bool g_enable_vfs_logging;
 #ifdef MAIDSAFE_WIN32
-const std::string kHelpInfo("You must pass exactly one of '--disk', '--local', '--local_console', "
-                            "'--network' or '--network_console'");
+const std::string kHelpInfo(
+    "You must pass exactly one of '--disk', '--local', '--local_console', "
+    "'--network' or '--network_console'");
 #else
 const std::string kHelpInfo("You must pass exactly one of '--disk', '--local' or '--network'");
 #endif
@@ -130,8 +131,7 @@ void RemoveRootDirectory() {
   boost::system::error_code error_code;
   if (fs::exists(g_root, error_code)) {
     if (fs::remove_all(g_root, error_code) == 0 || error_code) {
-      LOG(kWarning) << "Failed to remove root directory " << g_root << ": "
-                    << error_code.message();
+      LOG(kWarning) << "Failed to remove root directory " << g_root << ": " << error_code.message();
     } else {
       LOG(kInfo) << "Removed " << g_root;
     }
@@ -160,21 +160,23 @@ void RemoveStorageDirectory(const fs::path& storage_path) {
 
 po::options_description CommandLineOptions() {
   boost::system::error_code error_code;
-  po::options_description command_line_options(
-      std::string("Filesystem Tool Options:\n") + kHelpInfo);
-  command_line_options.add_options()("help,h", "Show help message.")
-      ("disk", "Perform all tests/benchmarks on native hard disk.")
-      ("local", "Perform all tests/benchmarks on local VFS.")
-      ("network", "Perform all tests/benchmarks on network VFS.")
-      ("peer", po::value<std::string>(), "Endpoint of peer, if using network VFS.");
+  po::options_description command_line_options(std::string("Filesystem Tool Options:\n") +
+                                               kHelpInfo);
+  command_line_options.add_options()("help,h", "Show help message.")(
+      "disk", "Perform all tests/benchmarks on native hard disk.")(
+      "local", "Perform all tests/benchmarks on local VFS.")(
+      "network", "Perform all tests/benchmarks on network VFS.")(
+      "peer", po::value<std::string>(), "Endpoint of peer, if using network VFS.");
 #ifdef MAIDSAFE_WIN32
-  command_line_options.add_options()
-      ("local_console", "Perform all tests/benchmarks on local VFS running as a console app.")
-      ("network_console", "Perform all tests/benchmarks on network VFS running as a console app.")
-      ("enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging), "Enable logging on the VFS "
-          "(this is only useful if used with '--local_console' or '--network_console'.");
+  command_line_options.add_options()(
+      "local_console", "Perform all tests/benchmarks on local VFS running as a console app.")(
+      "network_console", "Perform all tests/benchmarks on network VFS running as a console app.")(
+      "enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging),
+      "Enable logging on the VFS "
+      "(this is only useful if used with '--local_console' or '--network_console'.");
 #else
-  command_line_options.add_options() ("enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging),
+  command_line_options.add_options()(
+      "enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging),
       "Enable logging on the VFS (this is only useful if used with '--local' or '--network'.");
 #endif
   return command_line_options;
@@ -183,8 +185,10 @@ po::options_description CommandLineOptions() {
 po::variables_map ParseAllOptions(int& argc, char* argv[],
                                   std::vector<std::string>& unused_options) {
   auto command_line_options(CommandLineOptions());
-  po::parsed_options parsed(po::command_line_parser(unused_options).options(command_line_options).
-                            allow_unregistered().run());
+  po::parsed_options parsed(po::command_line_parser(unused_options)
+                                .options(command_line_options)
+                                .allow_unregistered()
+                                .run());
 
   po::variables_map variables_map;
   po::store(parsed, variables_map);

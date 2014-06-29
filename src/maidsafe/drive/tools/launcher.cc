@@ -21,7 +21,7 @@
 #include <vector>
 
 #ifdef MAIDSAFE_BSD
-extern "C" char **environ;
+extern "C" char** environ;
 #endif
 
 #include "boost/interprocess/sync/scoped_lock.hpp"
@@ -84,7 +84,8 @@ void CloseHandleToThisProcess(void* this_process) {
   try {
     CloseHandle(this_process);
   }
-  catch (...) {}
+  catch (...) {
+  }
 }
 
 #else
@@ -130,7 +131,8 @@ void DoNotifyMountStatus(const std::string& mount_status_shared_object_name, boo
     mount_status->condition.notify_one();
     if (mount_and_wait)
       mount_status->condition.wait(lock, [&] { return mount_status->unmount; });
-  } catch (...) {
+  }
+  catch (...) {
     // in case parent process is gone, try to access shared_memory will raise exception of
     // 'boost::interprocess::interprocess_exception'
   }
@@ -183,9 +185,12 @@ boost::asio::ip::udp::endpoint GetBootstrapEndpoint(const std::string& peer) {
 
 Launcher::Launcher(const Options& options)
     : initial_shared_memory_name_(RandomAlphaNumericString(32)),
-      kMountPath_(AdjustMountPath(options.mount_path)), mount_status_shared_object_(),
-      mount_status_mapped_region_(), mount_status_(nullptr),
-      this_process_handle_(GetHandleToThisProcess()), drive_process_() {
+      kMountPath_(AdjustMountPath(options.mount_path)),
+      mount_status_shared_object_(),
+      mount_status_mapped_region_(),
+      mount_status_(nullptr),
+      this_process_handle_(GetHandleToThisProcess()),
+      drive_process_() {
   LOG(kVerbose) << "launcher initial_shared_memory_name_ : " << initial_shared_memory_name_;
   maidsafe::on_scope_exit cleanup_on_throw([&] { Cleanup(); });
   CreateInitialSharedMemory(options);
@@ -215,11 +220,12 @@ void Launcher::CreateInitialSharedMemory(const Options& options) {
 }
 
 void Launcher::CreateMountStatusSharedMemory() {
-  mount_status_shared_object_ = bi::shared_memory_object(bi::create_only,
-      GetMountStatusSharedMemoryName(initial_shared_memory_name_).c_str(), bi::read_write);
+  mount_status_shared_object_ = bi::shared_memory_object(
+      bi::create_only, GetMountStatusSharedMemoryName(initial_shared_memory_name_).c_str(),
+      bi::read_write);
   mount_status_shared_object_.truncate(sizeof(MountStatus));
   mount_status_mapped_region_ = bi::mapped_region(mount_status_shared_object_, bi::read_write);
-  mount_status_ = new(mount_status_mapped_region_.get_address()) MountStatus;
+  mount_status_ = new (mount_status_mapped_region_.get_address()) MountStatus;
 }
 
 void Launcher::StartDriveProcess(const Options& options) {
@@ -237,25 +243,25 @@ void Launcher::StartDriveProcess(const Options& options) {
 #ifdef MAIDSAFE_WIN32
   drive_process_.reset(new bp::child(bp::execute(
       bp::initializers::run_exe(kExePath),
-      bp::initializers::on_CreateProcess_setup(
-          [](bp::windows::executor &executor) { executor.inherit_handles = TRUE; }),
-      bp::initializers::set_cmd_line(kCommandLine),
-      bp::initializers::set_on_error(error_code))));
+      bp::initializers::on_CreateProcess_setup([](bp::windows::executor& executor) {
+        executor.inherit_handles = TRUE;
+      }),
+      bp::initializers::set_cmd_line(kCommandLine), bp::initializers::set_on_error(error_code))));
 #else
   // Copy the "TERM" environment variable to the child process to allow for coloured logging.
   auto env_ptr = std::getenv("TERM");
   std::string term("TERM=");
   if (env_ptr)
     term += env_ptr;
-  const char* env[2] = { 0 };
+  const char* env[2] = {0};
   env[0] = term.c_str();
   static_cast<void>(env);
   drive_process_.reset(new bp::child(bp::execute(
       bp::initializers::run_exe(kExePath),
-      bp::initializers::on_fork_setup(
-          [env](bp::posix::executor &executor) { executor.env = const_cast<char**>(env); }),
-      bp::initializers::set_cmd_line(kCommandLine),
-      bp::initializers::set_on_error(error_code))));
+      bp::initializers::on_fork_setup([env](bp::posix::executor& executor) {
+        executor.env = const_cast<char**>(env);
+      }),
+      bp::initializers::set_cmd_line(kCommandLine), bp::initializers::set_on_error(error_code))));
 #endif
   if (error_code) {
     std::cout << "Failed to start local drive: " << error_code.message() << std::endl;
@@ -300,9 +306,7 @@ void Launcher::Cleanup() {
       GetMountStatusSharedMemoryName(initial_shared_memory_name_).c_str());
 }
 
-Launcher::~Launcher() {
-  Cleanup();
-}
+Launcher::~Launcher() { Cleanup(); }
 
 void Launcher::StopDriveProcess(bool terminate_on_ipc_failure) {
   if (!drive_process_)

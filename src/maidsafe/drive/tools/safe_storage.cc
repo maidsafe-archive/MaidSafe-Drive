@@ -112,8 +112,7 @@ void RemoveRootDirectory() {
   boost::system::error_code error_code;
   if (fs::exists(g_root, error_code)) {
     if (fs::remove_all(g_root, error_code) == 0 || error_code) {
-      LOG(kWarning) << "Failed to remove root directory " << g_root << ": "
-                    << error_code.message();
+      LOG(kWarning) << "Failed to remove root directory " << g_root << ": " << error_code.message();
     } else {
       LOG(kInfo) << "Removed " << g_root;
     }
@@ -143,17 +142,19 @@ void RemoveStorageDirectory(const fs::path& storage_path) {
 po::options_description CommandLineOptions() {
   boost::system::error_code error_code;
   po::options_description command_line_options(std::string("SafeStorage Tool Options:\n"));
-  command_line_options.add_options()("help,h", "Show help message.")
-      ("peer", po::value<std::string>(), "Endpoint of peer, for connection to SAFE network")
-      ("enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging), "Enable logging on the VFS");
+  command_line_options.add_options()("help,h", "Show help message.")(
+      "peer", po::value<std::string>(), "Endpoint of peer, for connection to SAFE network")(
+      "enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging), "Enable logging on the VFS");
   return command_line_options;
 }
 
 po::variables_map ParseAllOptions(int& argc, char* argv[],
                                   std::vector<std::string>& unused_options) {
   auto command_line_options(CommandLineOptions());
-  po::parsed_options parsed(po::command_line_parser(unused_options).options(command_line_options).
-                            allow_unregistered().run());
+  po::parsed_options parsed(po::command_line_parser(unused_options)
+                                .options(command_line_options)
+                                .allow_unregistered()
+                                .run());
 
   po::variables_map variables_map;
   po::store(parsed, variables_map);
@@ -193,8 +194,8 @@ std::string GetStringFromProgramOption(const std::string& option_name,
 std::function<void()> PrepareNetworkVfs(drive::Options& options, const passport::Maid& maid) {
   SetUpTempDirectory();
   SetUpRootDirectory(GetHomeDir());
-  crypto::AES256Key symm_key{ RandomString(crypto::AES256_KeySize) };
-  crypto::AES256InitialisationVector symm_iv{ RandomString(crypto::AES256_IVSize) };
+  crypto::AES256Key symm_key{RandomString(crypto::AES256_KeySize)};
+  crypto::AES256InitialisationVector symm_iv{RandomString(crypto::AES256_IVSize)};
   crypto::CipherText encrypted_maid = passport::EncryptMaid(maid, symm_key, symm_iv);
 
   options.encrypted_maid = encrypted_maid.data.string();
@@ -227,7 +228,7 @@ std::function<void()> PrepareNetworkVfs(drive::Options& options, const passport:
 
 
 passport::MaidAndSigner CreateAccount(const routing::BootstrapContacts& bootstrap_contacts) {
-  passport::MaidAndSigner maid_and_signer{ passport::CreateMaidAndSigner() };
+  passport::MaidAndSigner maid_and_signer{passport::CreateMaidAndSigner()};
   auto client_nfs = nfs_client::MaidNodeNfs::MakeShared(maid_and_signer, bootstrap_contacts);
   client_nfs->Stop();
   LOG(kSuccess) << " Account created for MAID : " << DebugId(maid_and_signer.first.name());

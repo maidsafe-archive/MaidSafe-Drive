@@ -105,7 +105,9 @@ void GetAndExecuteCommand() {
           BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
       }
     }
-    catch (const Restart&) { return; }
+    catch (const Restart&) {
+      return;
+    }
     catch (const std::exception&) {
       std::cout << "Invalid choice.  Enter number between 0 and "
                 << static_cast<int>(Operation::kUninitialised) - 1 << " inclusive: ";
@@ -123,7 +125,7 @@ namespace test {
 
 int RunTool(int /*argc*/, char** /*argv*/, const fs::path& root, const fs::path& temp,
             const fs::path& storage, int /*test_type*/) {
-//  std::vector<std::string> arguments(argv, argv + argc);
+  //  std::vector<std::string> arguments(argv, argv + argc);
   drive::tools::g_environment.root = root;
   drive::tools::g_environment.temp = temp;
   drive::tools::g_environment.storage = storage;

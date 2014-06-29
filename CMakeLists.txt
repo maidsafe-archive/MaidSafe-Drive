@@ -195,8 +195,6 @@ if(MaidsafeTesting)
   target_link_libraries(filesystem_weekly maidsafe_drive_launcher maidsafe_test)
   target_link_libraries(filesystem_test maidsafe_drive_launcher maidsafe_test)
   target_link_libraries(filesystem_commands maidsafe_drive_launcher maidsafe_drive)
-
-  add_dependencies(filesystem_test catch)
   target_link_libraries(TESTdrive maidsafe_drive maidsafe_nfs_client maidsafe_test)
 endif()
 
