@@ -1479,7 +1479,7 @@ TEST(FileSystemTest, BEH_WriteUtf8FileAndEdit) {
   ASSERT_NO_THROW(WriteUtf8FileAndEdit(g_root));
 }
 
-TEST(FileSystemTest, FUNC_DownloadMovieThenCopyToDrive) {
+TEST(FileSystemTest, DISABLED_FUNC_DownloadMovieThenCopyToDrive) {
   on_scope_exit cleanup(clean_root);
   std::string movie("TheKid_512kb.mp4");
   ASSERT_NO_THROW(

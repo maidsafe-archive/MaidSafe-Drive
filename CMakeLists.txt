@@ -265,15 +265,15 @@ if(MaidsafeTesting)
   ms_add_style_test()
   ms_add_gtests(TESTdrive)
   add_test(NAME "\"Real Disk Filesystem Test\""
-           COMMAND filesystem_test --durations yes --warn NoAssertions --disk
+           COMMAND filesystem_test --disk
                    --name "filesystem_test ($<CONFIGURATION> build)")
   if(WIN32)
     set(Console _console)
   endif()
   add_test(NAME "\"Local Drive Filesystem Test\""
-           COMMAND filesystem_test --durations yes --warn NoAssertions --local${Console}
+           COMMAND filesystem_test --local${Console}
                    --name "filesystem_test ($<CONFIGURATION> build)")
-  set(Timeout 120)
+  set(Timeout 180)
   ms_update_test_timeout(Timeout)
   set_tests_properties("\"Real Disk Filesystem Test\"" "\"Local Drive Filesystem Test\"" PROPERTIES
                        FAIL_REGULAR_EXPRESSION "No tests ran"
@@ -282,10 +282,10 @@ if(MaidsafeTesting)
 
   if(WEEKLY)
     add_test(NAME "\"Real Disk Weekly\""
-             COMMAND filesystem_weekly --durations yes --warn NoAssertions --disk
+             COMMAND filesystem_weekly --disk
                      --name "filesystem_weekly ($<CONFIGURATION> build)")
     add_test(NAME "\"Local Drive Weekly\""
-             COMMAND filesystem_weekly --durations yes --warn NoAssertions --local${Console}
+             COMMAND filesystem_weekly --local${Console}
                      --name "filesystem_weekly ($<CONFIGURATION> build)")
     set(Timeout 10800)
     ms_update_test_timeout(Timeout)
