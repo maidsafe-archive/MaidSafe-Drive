@@ -93,18 +93,18 @@ void Rename(const fs::path& old_path, const fs::path& new_path, bool required = 
                                << ", error_code) returned with error_code \"" << error_code << " ("
                                << error_code.message() << ")\"";
     else
-      ASSERT_TRUE(error_code) << "fs::rename(" << old_path << ", " << new_path
-                              << ", error_code) returned with error_code \"" << error_code << " ("
-                              << error_code.message() << ")\"";
+      ASSERT_TRUE(!!error_code) << "fs::rename(" << old_path << ", " << new_path
+                                << ", error_code) returned with error_code \"" << error_code << " ("
+                                << error_code.message() << ")\"";
   } else {
     if (should_succeed)
       EXPECT_TRUE(!error_code) << "fs::rename(" << old_path << ", " << new_path
                                << ", error_code) returned with error_code \"" << error_code << " ("
                                << error_code.message() << ")\"";
     else
-      EXPECT_TRUE(error_code) << "fs::rename(" << old_path << ", " << new_path
-                              << ", error_code) returned with error_code \"" << error_code << " ("
-                              << error_code.message() << ")\"";
+      EXPECT_TRUE(!!error_code) << "fs::rename(" << old_path << ", " << new_path
+                                << ", error_code) returned with error_code \"" << error_code << " ("
+                                << error_code.message() << ")\"";
   }
 }
 

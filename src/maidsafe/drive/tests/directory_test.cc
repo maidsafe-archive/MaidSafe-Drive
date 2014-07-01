@@ -396,9 +396,8 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
               (*itr2)->meta_data.creation_time.dwLowDateTime + error ||
           (*itr1)->meta_data.creation_time.dwLowDateTime <
               (*itr2)->meta_data.creation_time.dwLowDateTime - error)
-        GTEST_FAIL("Creation times low: " << (*itr1)->meta_data.creation_time.dwLowDateTime
-                                          << " != "
-                                          << (*itr2)->meta_data.creation_time.dwLowDateTime);
+        GTEST_FAIL() << "Creation times low: " << (*itr1)->meta_data.creation_time.dwLowDateTime
+            << " != " << (*itr2)->meta_data.creation_time.dwLowDateTime;
     }
     ASSERT_TRUE((*itr1)->meta_data.last_access_time.dwHighDateTime ==
                 (*itr2)->meta_data.last_access_time.dwHighDateTime);
@@ -409,9 +408,9 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
               (*itr2)->meta_data.last_access_time.dwLowDateTime + error ||
           (*itr1)->meta_data.last_access_time.dwLowDateTime <
               (*itr2)->meta_data.last_access_time.dwLowDateTime - error)
-        GTEST_FAIL("Last access times low: " << (*itr1)->meta_data.last_access_time.dwLowDateTime
-                                             << " != "
-                                             << (*itr2)->meta_data.last_access_time.dwLowDateTime);
+        GTEST_FAIL() << "Last access times low: "
+            << (*itr1)->meta_data.last_access_time.dwLowDateTime << " != "
+            << (*itr2)->meta_data.last_access_time.dwLowDateTime;
     }
     ASSERT_TRUE((*itr1)->meta_data.last_write_time.dwHighDateTime ==
                 (*itr2)->meta_data.last_write_time.dwHighDateTime);
@@ -422,9 +421,8 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
               (*itr2)->meta_data.last_write_time.dwLowDateTime + error ||
           (*itr1)->meta_data.last_write_time.dwLowDateTime <
               (*itr2)->meta_data.last_write_time.dwLowDateTime - error)
-        GTEST_FAIL("Last write times low: " << (*itr1)->meta_data.last_write_time.dwLowDateTime
-                                            << " != "
-                                            << (*itr2)->meta_data.last_write_time.dwLowDateTime);
+        GTEST_FAIL() << "Last write times low: " << (*itr1)->meta_data.last_write_time.dwLowDateTime
+            << " != " << (*itr2)->meta_data.last_write_time.dwLowDateTime;
     }
 #else
     ASSERT_TRUE((*itr1)->meta_data.attributes.st_atime == (*itr2)->meta_data.attributes.st_atime);

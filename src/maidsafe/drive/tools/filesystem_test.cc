@@ -393,9 +393,9 @@ void WriteUtf8FileAndEdit(const fs::path& start_directory) {
   Sleep(std::chrono::seconds(1));
 
   HWND notepad(FindWindow(L"notepad", (utf8_file.filename().wstring() + L" - notepad").c_str()));
-  ASSERT_TRUE(notepad);
+  ASSERT_NE(nullptr, notepad);
   HWND edit(FindWindowEx(notepad, nullptr, L"edit", nullptr));
-  ASSERT_TRUE(edit);
+  ASSERT_NE(nullptr, edit);
 
   SendMessage(edit, EM_SETSEL, 0, static_cast<LPARAM>(remove));
   SendMessage(edit, EM_REPLACESEL, 0, reinterpret_cast<LPARAM>(L""));
@@ -403,9 +403,9 @@ void WriteUtf8FileAndEdit(const fs::path& start_directory) {
   Sleep(std::chrono::seconds(3));
 
   HMENU menu(GetMenu(notepad));
-  ASSERT_TRUE(menu);
+  ASSERT_NE(nullptr, menu);
   HMENU sub_menu(GetSubMenu(menu, 0));
-  ASSERT_TRUE(sub_menu);
+  ASSERT_NE(nullptr, sub_menu);
   UINT id(GetMenuItemID(sub_menu, 2));
 
   LRESULT command(SendMessage(notepad, WM_COMMAND, id, reinterpret_cast<LPARAM>(menu)));
@@ -509,7 +509,6 @@ int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
   int result(RUN_ALL_TESTS());
   int test_count = testing::UnitTest::GetInstance()->test_to_run_count();
   return (test_count == 0) ? -1 : result;
-  return 0;
 }
 
 TEST(FileSystemTest, BEH_DriveSize) {
@@ -1066,13 +1065,13 @@ TEST(FileSystemTest, BEH_ReadOnlyAttribute) {
   // create a file
   EXPECT_NO_THROW(
       handle = dtc::CreateFileCommand(path, GENERIC_ALL, 0, CREATE_NEW, FILE_ATTRIBUTE_ARCHIVE));
-  ASSERT_TRUE(handle);
+  ASSERT_NE(nullptr, handle);
   EXPECT_NO_THROW(success = dtc::WriteFileCommand(handle, path, buffer, &position, nullptr));
   EXPECT_TRUE((size = dtc::GetFileSizeCommand(handle, nullptr)) == buffer_size);
   EXPECT_NO_THROW(success = dtc::CloseHandleCommand(handle));
   // check we can open and write to the file
   EXPECT_NO_THROW(handle = dtc::CreateFileCommand(path, GENERIC_ALL, 0, OPEN_EXISTING, attributes));
-  ASSERT_TRUE(handle);
+  ASSERT_NE(nullptr, handle);
   buffer = RandomString(buffer_size);
   success = 0;
   position = 1;
@@ -1096,7 +1095,7 @@ TEST(FileSystemTest, BEH_ReadOnlyAttribute) {
                std::exception);
   EXPECT_NO_THROW(handle =
                       dtc::CreateFileCommand(path, GENERIC_READ, 0, OPEN_EXISTING, attributes));
-  ASSERT_TRUE(handle);
+  ASSERT_NE(nullptr, handle);
   buffer = RandomString(buffer_size);
   success = 0;
   position = 2;
@@ -1174,7 +1173,7 @@ TEST(FileSystemTest, BEH_DeleteOnClose) {
   fs::path path(g_root / RandomAlphaNumericString(8));
   EXPECT_NO_THROW(
       handle = dtc::CreateFileCommand(path, GENERIC_ALL, 0, CREATE_NEW, FILE_FLAG_DELETE_ON_CLOSE));
-  ASSERT_TRUE(handle);
+  ASSERT_NE(nullptr, handle);
   const size_t buffer_size(1024);
   std::string buffer(RandomString(buffer_size));
   DWORD position(0);
@@ -1227,10 +1226,10 @@ TEST(FileSystemTest, BEH_HiddenAttribute) {
   BOOL success(0);
 
   EXPECT_NO_THROW(success = dtc::CreateDirectoryCommand(directory));
-  EXPECT_TRUE(success);
+  ASSERT_NE(0, success);
   EXPECT_NO_THROW(
       handle = dtc::CreateFileCommand(file, GENERIC_ALL, 0, CREATE_NEW, FILE_ATTRIBUTE_HIDDEN));
-  ASSERT_TRUE(handle);
+  ASSERT_NE(nullptr, handle);
   EXPECT_NO_THROW(success = dtc::WriteFileCommand(handle, file, buffer, &position, nullptr));
   EXPECT_NO_THROW(attributes = dtc::GetFileAttributesCommand(file));
   EXPECT_TRUE((attributes & FILE_ATTRIBUTE_HIDDEN) == FILE_ATTRIBUTE_HIDDEN);
@@ -1281,33 +1280,33 @@ TEST(FileSystemTest, BEH_CheckAttributesForConcurrentOpenInstances) {
   fs::path path(g_root / RandomAlphaNumericString(5));
   const size_t buffer_size(1024);
   std::string buffer(RandomString(buffer_size)), recovered(buffer_size, 0);
-  DWORD position(0), attributes(FILE_ATTRIBUTE_ARCHIVE), size(0), count;
+  DWORD position(0), attributes(FILE_ATTRIBUTE_ARCHIVE), size(0), count(0);
   BOOL success(0);
   OVERLAPPED overlapped;
 
   // create file
   EXPECT_NO_THROW(first_handle =
                       dtc::CreateFileCommand(path, GENERIC_ALL, 0, CREATE_NEW, attributes));
-  ASSERT_TRUE(first_handle);
+  ASSERT_NE(nullptr, first_handle);
   // write data using first instance
   EXPECT_NO_THROW(success = dtc::WriteFileCommand(first_handle, path, buffer, &count, nullptr));
   // verify opening a second instance throws
   EXPECT_THROW(second_handle =
                    dtc::CreateFileCommand(path, GENERIC_ALL, 0, OPEN_EXISTING, attributes),
                std::exception);
-  ASSERT_TRUE(!second_handle);
+  ASSERT_EQ(nullptr, second_handle);
   // close first instance
   EXPECT_NO_THROW(success = dtc::CloseHandleCommand(first_handle));
   // reopen a first instance with shared read/write access
   EXPECT_NO_THROW(first_handle = dtc::CreateFileCommand(path, GENERIC_READ | GENERIC_WRITE,
                                                         FILE_SHARE_READ | FILE_SHARE_WRITE,
                                                         OPEN_EXISTING, attributes));
-  ASSERT_TRUE(first_handle);
+  ASSERT_NE(nullptr, first_handle);
   // open a second instance with shared read/write access
   EXPECT_NO_THROW(second_handle = dtc::CreateFileCommand(path, GENERIC_READ | GENERIC_WRITE,
                                                          FILE_SHARE_READ | FILE_SHARE_WRITE,
                                                          OPEN_EXISTING, attributes));
-  ASSERT_TRUE(second_handle);
+  ASSERT_NE(nullptr, second_handle);
   // write to file using first instance
   buffer = RandomString(buffer_size);
   success = 0;
@@ -1419,7 +1418,7 @@ TEST(FileSystemTest, BEH_Write256MbFileToTempAndCopyToDrive) {
 
   EXPECT_NO_THROW(handle =
                       dtc::CreateFileCommand(temp_file, GENERIC_ALL, 0, CREATE_NEW, attributes));
-  ASSERT_TRUE(handle);
+  ASSERT_NE(nullptr, handle);
 
   for (uint32_t i = 0; i != (1 << 12); ++i) {
     original = RandomString(size);
@@ -1429,7 +1428,7 @@ TEST(FileSystemTest, BEH_Write256MbFileToTempAndCopyToDrive) {
     overlapped.OffsetHigh = 0;
     EXPECT_NO_THROW(success =
                         dtc::WriteFileCommand(handle, temp_file, original, &count, &overlapped));
-    ASSERT_TRUE(success);
+    ASSERT_NE(0, success);
     ASSERT_TRUE(count == size);
   }
 
@@ -1442,10 +1441,10 @@ TEST(FileSystemTest, BEH_Write256MbFileToTempAndCopyToDrive) {
   HANDLE temp_handle(nullptr), root_handle(nullptr);
   EXPECT_NO_THROW(temp_handle =
                       dtc::CreateFileCommand(temp_file, GENERIC_ALL, 0, OPEN_EXISTING, attributes));
-  ASSERT_TRUE(temp_handle);
+  ASSERT_NE(nullptr, temp_handle);
   ASSERT_NO_THROW(root_handle =
                       dtc::CreateFileCommand(root_file, GENERIC_ALL, 0, OPEN_EXISTING, attributes));
-  ASSERT_TRUE(root_handle);
+  ASSERT_NE(nullptr, root_handle);
 
   for (uint32_t i = 0; i != (1 << 12); ++i) {
     success = 0, count = 0, position = i * size;
@@ -1454,25 +1453,24 @@ TEST(FileSystemTest, BEH_Write256MbFileToTempAndCopyToDrive) {
     overlapped.OffsetHigh = 0;
     ASSERT_NO_THROW(
         success = dtc::ReadFileCommand(temp_handle, temp_file, original, &count, &overlapped));
-    ASSERT_TRUE(success);
+    ASSERT_NE(0, success);
     ASSERT_TRUE(count == size);
     success = 0, count = 0;
     ASSERT_NO_THROW(
         success = dtc::ReadFileCommand(root_handle, root_file, recovered, &count, &overlapped));
-    ASSERT_TRUE(success);
+    ASSERT_NE(0, success);
     ASSERT_TRUE(count == size);
     ASSERT_TRUE(original == recovered);
   }
 
-  success = 1;
+  success = 0;
   ASSERT_NO_THROW(success = dtc::CloseHandleCommand(temp_handle));
-  ASSERT_TRUE(success);
-  success = 1;
+  ASSERT_NE(0, success);
+  success = 0;
   ASSERT_NO_THROW(success = dtc::CloseHandleCommand(root_handle));
-  ASSERT_TRUE(success);
+  ASSERT_NE(0, success);
 #endif
   // (TODO Team): Implementation required
-  ASSERT_TRUE(true);
 }
 
 TEST(FileSystemTest, BEH_WriteUtf8FileAndEdit) {
