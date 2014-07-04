@@ -44,17 +44,20 @@ struct FileContext {
 
   FileContext();
   FileContext(FileContext&& other);
-  FileContext(MetaData meta_data_in, Directory* parent_in);
+  FileContext(MetaData meta_data_in, std::shared_ptr<Directory> parent_in);
   FileContext(const boost::filesystem::path& name, bool is_directory);
   FileContext& operator=(FileContext other);
   ~FileContext();
+
+  void Flush();
+  void ScheduleForStoring();
 
   MetaData meta_data;
   std::unique_ptr<Buffer> buffer;
   std::unique_ptr<encrypt::SelfEncryptor> self_encryptor;
   std::unique_ptr<boost::asio::steady_timer> timer;
   std::unique_ptr<std::atomic<int>> open_count;
-  Directory* parent;
+  std::weak_ptr<Directory> parent;
   bool flushed;
 };
 

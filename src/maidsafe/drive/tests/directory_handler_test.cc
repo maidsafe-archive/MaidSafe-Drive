@@ -81,7 +81,7 @@ TEST_F(DirectoryHandlerTest, BEH_Construct) {
       data_store_, unique_user_id_, root_parent_id_,
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service()));
-  Directory* recovered_directory(nullptr);
+  std::shared_ptr<Directory> recovered_directory(nullptr);
   const FileContext* recovered_file_context(nullptr);
 
   EXPECT_NO_THROW(recovered_directory = listing_handler_->Get(""));
@@ -102,7 +102,7 @@ TEST_F(DirectoryHandlerTest, BEH_AddDirectory) {
   std::string directory_name("Directory");
   FileContext file_context(directory_name, true);
   const FileContext* recovered_file_context(nullptr);
-  Directory* directory(nullptr);
+  std::shared_ptr<Directory> directory;
   DirectoryId dir(*file_context.meta_data.directory_id);
   EXPECT_NO_THROW(listing_handler_->Add(kRoot / directory_name, std::move(file_context)));
   EXPECT_NO_THROW(directory = listing_handler_->Get(kRoot / directory_name));
@@ -121,7 +121,7 @@ TEST_F(DirectoryHandlerTest, BEH_AddSameDirectory) {
   FileContext file_context(directory_name, true);
   DirectoryId dir(*file_context.meta_data.directory_id);
   const FileContext* recovered_file_context(nullptr);
-  Directory* directory(nullptr);
+  std::shared_ptr<Directory> directory;
   boost::filesystem::path meta_data_name(file_context.meta_data.name);
   EXPECT_NO_THROW(listing_handler_->Add(kRoot / directory_name, std::move(file_context)));
   EXPECT_NO_THROW(directory = listing_handler_->Get(kRoot / directory_name));
@@ -144,7 +144,7 @@ TEST_F(DirectoryHandlerTest, BEH_AddFile) {
   std::string file_name("File");
   FileContext file_context(file_name, false);
   const FileContext* recovered_file_context(nullptr);
-  Directory* directory(nullptr);
+  std::shared_ptr<Directory> directory;
 
   EXPECT_NO_THROW(listing_handler_->Add(kRoot / file_name, std::move(file_context)));
   EXPECT_THROW(directory = listing_handler_->Get(kRoot / file_name), std::exception);
@@ -162,7 +162,7 @@ TEST_F(DirectoryHandlerTest, BEH_AddSameFile) {
   std::string file_name("File");
   FileContext file_context(file_name, false);
   const FileContext* recovered_file_context(nullptr);
-  Directory* directory(nullptr);
+  std::shared_ptr<Directory> directory;
 
   EXPECT_NO_THROW(listing_handler_->Add(kRoot / file_name, std::move(file_context)));
   EXPECT_THROW(directory = listing_handler_->Get(kRoot / file_name), std::exception);
@@ -184,7 +184,7 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteDirectory) {
   std::string directory_name("Directory");
   FileContext file_context(directory_name, true);
   const FileContext* recovered_file_context(nullptr);
-  Directory* directory(nullptr);
+  std::shared_ptr<Directory> directory;
   DirectoryId dir(*file_context.meta_data.directory_id);
 
   EXPECT_NO_THROW(listing_handler_->Add(kRoot / directory_name, std::move(file_context)));
@@ -208,7 +208,7 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteSameDirectory) {
   std::string directory_name("Directory");
   FileContext file_context(directory_name, true);
   const FileContext* recovered_file_context(nullptr);
-  Directory* directory(nullptr);
+  std::shared_ptr<Directory> directory;
   DirectoryId dir(*file_context.meta_data.directory_id);
 
   EXPECT_NO_THROW(listing_handler_->Add(kRoot / directory_name, std::move(file_context)));
@@ -233,7 +233,7 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteFile) {
   std::string file_name("File");
   FileContext file_context(file_name, false);
   const FileContext* recovered_file_context(nullptr);
-  Directory* directory(nullptr);
+  std::shared_ptr<Directory> directory;
 
   EXPECT_NO_THROW(listing_handler_->Add(kRoot / file_name, std::move(file_context)));
   EXPECT_THROW(directory = listing_handler_->Get(kRoot / file_name), std::exception);
@@ -254,7 +254,7 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteSameFile) {
   std::string file_name("File");
   FileContext file_context(file_name, false);
   const FileContext* recovered_file_context(nullptr);
-  Directory* directory(nullptr);
+  std::shared_ptr<Directory> directory;
 
   EXPECT_NO_THROW(listing_handler_->Add(kRoot / file_name, std::move(file_context)));
   EXPECT_THROW(directory = listing_handler_->Get(kRoot / file_name), std::exception);
@@ -279,7 +279,7 @@ TEST_F(DirectoryHandlerTest, BEH_RenameAndMoveDirectory) {
   FileContext first_file_context(first_directory_name, true),
       second_file_context(second_directory_name, true), file_context(old_directory_name, true);
   const FileContext* recovered_file_context(nullptr);
-  Directory* old_parent_directory(nullptr), *new_parent_directory(nullptr), *directory(nullptr);
+  std::shared_ptr<Directory> old_parent_directory, new_parent_directory, directory;
 
   EXPECT_NO_THROW(
       listing_handler_->Add(kRoot / first_directory_name, std::move(first_file_context)));
@@ -380,7 +380,7 @@ TEST_F(DirectoryHandlerTest, BEH_RenameAndMoveFile) {
   FileContext first_file_context(first_directory_name, true),
       second_file_context(second_directory_name, true), file_context(old_file_name, false);
   const FileContext* recovered_file_context(nullptr);
-  Directory* old_parent_directory(nullptr), *new_parent_directory(nullptr);
+  std::shared_ptr<Directory> old_parent_directory, new_parent_directory;
   EXPECT_NO_THROW(
       listing_handler_->Add(kRoot / first_directory_name, std::move(first_file_context)));
   EXPECT_NO_THROW(

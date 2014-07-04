@@ -30,20 +30,20 @@ namespace detail {
 
 FileContext::FileContext()
     : meta_data(), buffer(), self_encryptor(), timer(), open_count(new std::atomic<int>(0)),
-      parent(nullptr), flushed(false) {}
+      parent(), flushed(false) {}
 
 FileContext::FileContext(FileContext&& other)
     : meta_data(std::move(other.meta_data)), buffer(std::move(other.buffer)),
       self_encryptor(std::move(other.self_encryptor)), timer(std::move(other.timer)),
       open_count(std::move(other.open_count)), parent(other.parent), flushed(other.flushed) {}
 
-FileContext::FileContext(MetaData meta_data_in, Directory* parent_in)
+FileContext::FileContext(MetaData meta_data_in, std::shared_ptr<Directory> parent_in)
     : meta_data(std::move(meta_data_in)), buffer(), self_encryptor(), timer(),
       open_count(new std::atomic<int>(0)), parent(parent_in), flushed(false) {}
 
 FileContext::FileContext(const boost::filesystem::path& name, bool is_directory)
     : meta_data(name, is_directory), buffer(), self_encryptor(), timer(),
-      open_count(new std::atomic<int>(0)), parent(nullptr), flushed(false) {}
+      open_count(new std::atomic<int>(0)), parent(), flushed(false) {}
 
 FileContext& FileContext::operator=(FileContext other) {
   swap(*this, other);
@@ -53,7 +53,21 @@ FileContext& FileContext::operator=(FileContext other) {
 FileContext::~FileContext() {
   if (timer) {
     timer->cancel();
-    parent->FlushChildAndDeleteEncryptor(this);
+    Flush();
+  }
+}
+
+void FileContext::Flush() {
+  std::shared_ptr<Directory> p = parent.lock();
+  if (p) {
+      p->FlushChildAndDeleteEncryptor(this);
+  }
+}
+
+void FileContext::ScheduleForStoring() {
+  std::shared_ptr<Directory> p = parent.lock();
+  if (p) {
+      p->ScheduleForStoring();
   }
 }
 

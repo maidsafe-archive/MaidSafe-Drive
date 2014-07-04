@@ -71,7 +71,7 @@ bool SameFileContents(fs::path const& path1, fs::path const& path2);
 
 uint64_t TotalSize(const encrypt::DataMap& data_map);
 
-void GenerateDirectoryListingEntryForFile(Directory& directory, const fs::path& path,
+void GenerateDirectoryListingEntryForFile(std::shared_ptr<Directory> directory, const fs::path& path,
                                           const uintmax_t& file_size);
 
 void CheckedExists(const fs::path& path);

@@ -51,7 +51,7 @@ namespace detail {
 
 namespace test {
 
-inline uint64_t GetSize(MetaData meta_data) {
+inline uint64_t GetSize(const MetaData& meta_data) {
 #ifdef MAIDSAFE_WIN32
   return meta_data.end_of_file;
 #else
@@ -72,16 +72,27 @@ class DirectoryTest : public testing::Test {
         increment_chunks_functor_([](const std::vector<ImmutableData::Name>&) {
           LOG(kInfo) << "Incrementing chunks.";
         }),
-        put_functor_([&](Directory* directory) {
+        put_functor_([&](std::shared_ptr<Directory> directory) {
           LOG(kInfo) << "Putting directory.";
           ImmutableData contents(NonEmptyString(directory->Serialise()));
           directory->AddNewVersion(contents.name());
         }),
-        directory_(ParentId(unique_id_), parent_id_, asio_service_.service(), put_functor_,
-                   put_chunk_functor_, increment_chunks_functor_, "") {}
+        directory_(Directory::Create(ParentId(unique_id_),
+                                     parent_id_,
+                                     asio_service_.service(),
+                                     put_functor_,
+                                     put_chunk_functor_,
+                                     increment_chunks_functor_,
+                                     "")) {
+  }
+
+  ~DirectoryTest()
+  {
+    asio_service_.Stop();
+  }
 
  protected:
-  void GenerateDirectoryListingEntryForDirectory(Directory& directory, fs::path const& path) {
+  void GenerateDirectoryListingEntryForDirectory(std::shared_ptr<Directory> directory, fs::path const& path) {
     FileContext file_context(path.filename(), true);
 #ifdef MAIDSAFE_WIN32
     file_context.meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
@@ -94,7 +105,7 @@ class DirectoryTest : public testing::Test {
 #endif
     *file_context.meta_data.directory_id =
         Identity(crypto::Hash<crypto::SHA512>((*main_test_dir_ / path).string()));
-    EXPECT_NO_THROW(directory.AddChild(std::move(file_context)));
+    EXPECT_NO_THROW(directory->AddChild(std::move(file_context)));
   }
 
   bool GenerateDirectoryListings(fs::path const& path, fs::path relative_path) {
@@ -102,8 +113,13 @@ class DirectoryTest : public testing::Test {
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
     DirectoryId directory_id(crypto::Hash<crypto::SHA512>(absolute_path.string()));
-    Directory directory(parent_id, directory_id, asio_service_.service(), put_functor_,
-                        put_chunk_functor_, increment_chunks_functor_, relative_path);
+    std::shared_ptr<Directory> directory(Directory::Create(parent_id,
+                                                           directory_id,
+                                                           asio_service_.service(),
+                                                           put_functor_,
+                                                           put_chunk_functor_,
+                                                           increment_chunks_functor_,
+                                                           relative_path));
     fs::directory_iterator itr(path), end;
     try {
       for (; itr != end; ++itr) {
@@ -122,9 +138,9 @@ class DirectoryTest : public testing::Test {
           return false;
         }
       }
-      ImmutableData contents(NonEmptyString(directory.Serialise()));
+      ImmutableData contents(NonEmptyString(directory->Serialise()));
       EXPECT_TRUE(WriteFile(path / "msdir.listing", contents.data().string()));
-      directory.AddNewVersion(contents.name());
+      directory->AddNewVersion(contents.name());
     }
     catch (const std::exception& e) {
       LOG(kError) << "GenerateDirectoryListings test failed: " << e.what();
@@ -139,8 +155,14 @@ class DirectoryTest : public testing::Test {
     std::vector<StructuredDataVersions::VersionName> versions;
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
-    Directory directory(parent_id, serialised_directory, versions, asio_service_.service(),
-                        put_functor_, put_chunk_functor_, increment_chunks_functor_, relative_path);
+    auto directory(Directory::Create(parent_id,
+                                     serialised_directory,
+                                     versions,
+                                     asio_service_.service(),
+                                     put_functor_,
+                                     put_chunk_functor_,
+                                     increment_chunks_functor_,
+                                     relative_path));
 
     FileContext* file_context(nullptr);
     // Remove the directory listing file
@@ -152,13 +174,13 @@ class DirectoryTest : public testing::Test {
         if (fs::is_directory(*itr)) {
           EXPECT_TRUE(
               RemoveDirectoryListingsEntries(itr->path(), relative_path / itr->path().filename()));
-          EXPECT_NO_THROW(file_context = directory.GetMutableChild(itr->path().filename()));
-          EXPECT_NO_THROW(FileContext context(directory.RemoveChild(file_context->meta_data.name)));
+          EXPECT_NO_THROW(file_context = directory->GetMutableChild(itr->path().filename()));
+          EXPECT_NO_THROW(FileContext context(directory->RemoveChild(file_context->meta_data.name)));
           // Remove the disk directory also
           CheckedRemove(itr->path());
         } else if (fs::is_regular_file(*itr)) {
-          EXPECT_NO_THROW(file_context = directory.GetMutableChild(itr->path().filename()));
-          EXPECT_NO_THROW(FileContext context(directory.RemoveChild(file_context->meta_data.name)));
+          EXPECT_NO_THROW(file_context = directory->GetMutableChild(itr->path().filename()));
+          EXPECT_NO_THROW(FileContext context(directory->RemoveChild(file_context->meta_data.name)));
           // Remove the disk file also
           CheckedRemove(itr->path());
         } else {
@@ -174,7 +196,7 @@ class DirectoryTest : public testing::Test {
       LOG(kError) << "RemoveDirectoryListingsEntries test failed: " << e.what();
       return false;
     }
-    EXPECT_TRUE(directory.empty());
+    EXPECT_TRUE(directory->empty());
     return true;
   }
 
@@ -184,8 +206,14 @@ class DirectoryTest : public testing::Test {
     std::vector<StructuredDataVersions::VersionName> versions;
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
-    Directory directory(parent_id, serialised_directory, versions, asio_service_.service(),
-                        put_functor_, put_chunk_functor_, increment_chunks_functor_, relative_path);
+    auto directory(Directory::Create(parent_id,
+                                     serialised_directory,
+                                     versions,
+                                     asio_service_.service(),
+                                     put_functor_,
+                                     put_chunk_functor_,
+                                     increment_chunks_functor_,
+                                     relative_path));
 
     FileContext* file_context(nullptr);
     std::string listing("msdir.listing");
@@ -195,22 +223,22 @@ class DirectoryTest : public testing::Test {
         if (fs::is_directory(*itr)) {
           fs::path new_path(relative_path / itr->path().filename());
           EXPECT_TRUE(RenameDirectoryEntries(itr->path(), new_path));
-          EXPECT_NO_THROW(file_context = directory.GetMutableChild(itr->path().filename()));
+          EXPECT_NO_THROW(file_context = directory->GetMutableChild(itr->path().filename()));
           FileContext removed_context;
-          EXPECT_NO_THROW(removed_context = directory.RemoveChild(file_context->meta_data.name));
+          EXPECT_NO_THROW(removed_context = directory->RemoveChild(file_context->meta_data.name));
           std::string new_name(RandomAlphaNumericString(5));
           removed_context.meta_data.name = fs::path(new_name);
-          EXPECT_NO_THROW(directory.AddChild(std::move(removed_context)));
+          EXPECT_NO_THROW(directory->AddChild(std::move(removed_context)));
           // Rename corresponding directory
           CheckedRename(itr->path(), (itr->path().parent_path() / new_name));
         } else if (fs::is_regular_file(*itr)) {
           if (itr->path().filename().string() != listing) {
-            EXPECT_NO_THROW(file_context = directory.GetMutableChild(itr->path().filename()));
+            EXPECT_NO_THROW(file_context = directory->GetMutableChild(itr->path().filename()));
             FileContext removed_context;
-            EXPECT_NO_THROW(removed_context = directory.RemoveChild(file_context->meta_data.name));
+            EXPECT_NO_THROW(removed_context = directory->RemoveChild(file_context->meta_data.name));
             std::string new_name(RandomAlphaNumericString(5) + ".txt");
             removed_context.meta_data.name = fs::path(new_name);
-            EXPECT_NO_THROW(directory.AddChild(std::move(removed_context)));
+            EXPECT_NO_THROW(directory->AddChild(std::move(removed_context)));
             // Rename corresponding file
             CheckedRename(itr->path(), (itr->path().parent_path() / new_name));
           }
@@ -236,8 +264,14 @@ class DirectoryTest : public testing::Test {
     std::vector<StructuredDataVersions::VersionName> versions;
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
-    Directory directory(parent_id, serialised_directory, versions, asio_service_.service(),
-                        put_functor_, put_chunk_functor_, increment_chunks_functor_, relative_path);
+    auto directory(Directory::Create(parent_id,
+                                     serialised_directory,
+                                     versions,
+                                     asio_service_.service(),
+                                     put_functor_,
+                                     put_chunk_functor_,
+                                     increment_chunks_functor_,
+                                     relative_path));
 
     std::string listing("msdir.listing");
     fs::directory_iterator itr(path), end;
@@ -247,9 +281,9 @@ class DirectoryTest : public testing::Test {
           if (fs::is_directory(*itr)) {
             fs::path name(itr->path().filename());
             EXPECT_TRUE(DirectoryHasChild(itr->path(), relative_path / name));
-            EXPECT_TRUE(directory.HasChild(name));
+            EXPECT_TRUE(directory->HasChild(name));
           } else if (fs::is_regular_file(*itr)) {
-            EXPECT_TRUE(directory.HasChild(itr->path().filename()));
+            EXPECT_TRUE(directory->HasChild(itr->path().filename()));
           } else {
             if (fs::exists(*itr))
               LOG(kInfo) << "Unknown type found.";
@@ -273,8 +307,14 @@ class DirectoryTest : public testing::Test {
     std::vector<StructuredDataVersions::VersionName> versions;
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
-    Directory directory(parent_id, serialised_directory, versions, asio_service_.service(),
-                        put_functor_, put_chunk_functor_, increment_chunks_functor_, relative_path);
+    auto directory(Directory::Create(parent_id,
+                                     serialised_directory,
+                                     versions,
+                                     asio_service_.service(),
+                                     put_functor_,
+                                     put_chunk_functor_,
+                                     increment_chunks_functor_,
+                                     relative_path));
 
     const FileContext* file_context(nullptr);
     std::string listing("msdir.listing");
@@ -284,13 +324,13 @@ class DirectoryTest : public testing::Test {
       for (; itr != end; ++itr) {
         if (fs::is_directory(*itr)) {
           EXPECT_TRUE(MatchEntries(itr->path(), relative_path / itr->path().filename()));
-          EXPECT_NO_THROW(file_context = directory.GetChild(itr->path().filename()));
+          EXPECT_NO_THROW(file_context = directory->GetChild(itr->path().filename()));
           EXPECT_TRUE(file_context->meta_data.name == itr->path().filename());
         } else if (fs::is_regular_file(*itr)) {
           if (itr->path().filename().string() != listing) {
-            EXPECT_NO_THROW(file_context = directory.GetChild(itr->path().filename()));
+            EXPECT_NO_THROW(file_context = directory->GetChild(itr->path().filename()));
             EXPECT_TRUE(file_context->meta_data.name == itr->path().filename());
-            // EXPECT_TRUE(GetSize(std::move(file_context->meta_data)) ==
+            // EXPECT_TRUE(GetSize(file_context->meta_data) ==
             // fs::file_size(itr->path()));
           }
         } else {
@@ -307,14 +347,18 @@ class DirectoryTest : public testing::Test {
       return false;
     }
 
-    EXPECT_TRUE(directory.directory_id().string() ==
+    EXPECT_TRUE(directory->directory_id().string() ==
                 crypto::Hash<crypto::SHA512>(absolute_path.string()).string());
     return true;
   }
 
-  void SortAndResetChildrenCounter() { directory_.SortAndResetChildrenCounter(); }
+  void SortAndResetChildrenCounter() {
+      test::SortAndResetChildrenCounter(*directory_);
+  }
 
-  void ResetChildrenCounter() { directory_.ResetChildrenCounter(); }
+  void ResetChildrenCounter() {
+    directory_->ResetChildrenCounter();
+  }
 
   maidsafe::test::TestPath main_test_dir_;
   fs::path relative_root_;
@@ -322,8 +366,8 @@ class DirectoryTest : public testing::Test {
   AsioService asio_service_;
   std::function<void(const ImmutableData&)> put_chunk_functor_;
   std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor_;
-  std::function<void(Directory*)> put_functor_;  // NOLINT
-  Directory directory_;
+  std::function<void(std::shared_ptr<Directory>)> put_functor_;  // NOLINT
+  std::shared_ptr<Directory> directory_;
 
  private:
   DirectoryTest(const DirectoryTest&);
@@ -383,7 +427,8 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
       ASSERT_TRUE((*itr1)->meta_data.data_map->content == (*itr2)->meta_data.data_map->content)
           << "DataMap content mismatch.";
     }
-    ASSERT_TRUE(GetSize(std::move((*itr1)->meta_data)) == GetSize(std::move((*itr2)->meta_data)));
+    //     if ((*itr1).end_of_file != (*itr2).end_of_file)
+    ASSERT_TRUE(GetSize((*itr1)->meta_data) == GetSize((*itr2)->meta_data));
 #ifdef MAIDSAFE_WIN32
     ASSERT_TRUE((*itr1)->meta_data.allocation_size == (*itr2)->meta_data.allocation_size);
     ASSERT_TRUE((*itr1)->meta_data.attributes == (*itr2)->meta_data.attributes);
@@ -429,6 +474,11 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
     ASSERT_TRUE((*itr1)->meta_data.attributes.st_mtime == (*itr2)->meta_data.attributes.st_mtime);
 #endif
   }
+}
+
+void SortAndResetChildrenCounter(Directory& lhs)
+{
+    lhs.SortAndResetChildrenCounter();
 }
 
 TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
@@ -477,72 +527,76 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
       file_context.meta_data.data_map->content = RandomString(10);
     }
     // file_contexts_before.emplace_back(std::move(file_context));
-    EXPECT_NO_THROW(directory_.AddChild(std::move(file_context)));
+    EXPECT_NO_THROW(directory_->AddChild(std::move(file_context)));
   }
 
-  std::string serialised_directory(directory_.Serialise());
-  ImmutableData contents(NonEmptyString(directory_.Serialise()));
-  directory_.AddNewVersion(contents.name());
+  directory_->StoreImmediatelyIfPending();
 
+  std::string serialised_directory(directory_->Serialise());
   std::vector<StructuredDataVersions::VersionName> versions;
-  Directory recovered_directory(directory_.parent_id(), serialised_directory, versions,
-                                asio_service_.service(), put_functor_, put_chunk_functor_,
-                                increment_chunks_functor_, "");
-  DirectoriesMatch(directory_, recovered_directory);
+  auto recovered_directory(Directory::Create(directory_->parent_id(),
+                                             serialised_directory,
+                                             versions,
+                                             asio_service_.service(),
+                                             put_functor_,
+                                             put_chunk_functor_,
+                                             increment_chunks_functor_,
+                                             ""));
+  DirectoriesMatch(*directory_, *recovered_directory);
 }
 
 TEST_F(DirectoryTest, BEH_IteratorReset) {
   // Add elements
-  ASSERT_TRUE(directory_.empty());
+  ASSERT_TRUE(directory_->empty());
   const size_t kTestCount(10);
   ResetChildrenCounter();
   EXPECT_TRUE(4U < kTestCount);
   char c('A');
   for (size_t i(0); i != kTestCount; ++i, ++c) {
     FileContext file_context(std::string(1, c), ((i % 2) == 0));
-    EXPECT_NO_THROW(directory_.AddChild(std::move(file_context)));
+    EXPECT_NO_THROW(directory_->AddChild(std::move(file_context)));
   }
-  EXPECT_FALSE(directory_.empty());
+  EXPECT_FALSE(directory_->empty());
 
   // Check internal iterator
   const FileContext* file_context(nullptr);
   c = 'A';
   for (size_t i(0); i != kTestCount; ++i, ++c) {
-    EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+    EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
     EXPECT_TRUE(std::string(1, c) == file_context->meta_data.name);
     EXPECT_TRUE(((i % 2) == 0) == (file_context->meta_data.directory_id != nullptr));
   }
 
   SortAndResetChildrenCounter();
 
-  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
   EXPECT_TRUE("A" == file_context->meta_data.name);
-  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
   EXPECT_TRUE("B" == file_context->meta_data.name);
 
   // Add another element and check iterator is reset
   ++c;
   FileContext new_file_context(std::string(1, c), false);
-  EXPECT_NO_THROW(directory_.AddChild(std::move(new_file_context)));
-  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  EXPECT_NO_THROW(directory_->AddChild(std::move(new_file_context)));
+  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
   EXPECT_TRUE("A" == file_context->meta_data.name);
-  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
   EXPECT_TRUE("B" == file_context->meta_data.name);
 
   // Remove an element and check iterator is reset
-  ASSERT_TRUE(directory_.HasChild("C"));
-  EXPECT_NO_THROW(FileContext context(directory_.RemoveChild("C")));
-  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  ASSERT_TRUE(directory_->HasChild("C"));
+  EXPECT_NO_THROW(FileContext context(directory_->RemoveChild("C")));
+  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
   EXPECT_TRUE("A" == file_context->meta_data.name);
-  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
   EXPECT_TRUE("B" == file_context->meta_data.name);
 
   // Try to remove a non-existent element and check iterator is not reset
-  ASSERT_FALSE(directory_.HasChild("C"));
-  EXPECT_THROW(FileContext context(directory_.RemoveChild("C")), std::exception);
-  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  ASSERT_FALSE(directory_->HasChild("C"));
+  EXPECT_THROW(FileContext context(directory_->RemoveChild("C")), std::exception);
+  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
   EXPECT_TRUE("D" == file_context->meta_data.name);
-  EXPECT_NO_THROW(file_context = directory_.GetChildAndIncrementCounter());
+  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
   EXPECT_TRUE("E" == file_context->meta_data.name);
 
   // Check operator<

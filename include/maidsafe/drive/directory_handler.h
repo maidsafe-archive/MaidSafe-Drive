@@ -68,7 +68,7 @@ class DirectoryHandler {
   ~DirectoryHandler();
 
   void Add(const boost::filesystem::path& relative_path, FileContext&& file_context);
-  Directory* Get(const boost::filesystem::path& relative_path);
+  std::shared_ptr<Directory> Get(const boost::filesystem::path& relative_path);
   void FlushAll();
   void Delete(const boost::filesystem::path& relative_path);
   void Rename(const boost::filesystem::path& old_relative_path,
@@ -91,12 +91,12 @@ class DirectoryHandler {
   void PrepareNewPath(const boost::filesystem::path& new_relative_path, Directory* new_parent);
   void RenameDifferentParent(const boost::filesystem::path& old_relative_path,
                              const boost::filesystem::path& new_relative_path,
-                             Directory* new_parent);
-  void Put(Directory* directory);
+                             std::shared_ptr<Directory> new_parent);
+  void Put(std::shared_ptr<Directory> directory);
   ImmutableData SerialiseDirectory(Directory* directory) const;
-  std::unique_ptr<Directory> GetFromStorage(const boost::filesystem::path& relative_path,
+  std::shared_ptr<Directory> GetFromStorage(const boost::filesystem::path& relative_path,
       const ParentId& parent_id, const DirectoryId& directory_id);
-  std::unique_ptr<Directory> ParseDirectory(
+  std::shared_ptr<Directory> ParseDirectory(
       const boost::filesystem::path& relative_path, const ImmutableData& encrypted_data_map,
       const ParentId& parent_id, const DirectoryId& directory_id,
       std::vector<StructuredDataVersions::VersionName> versions);
@@ -107,12 +107,12 @@ class DirectoryHandler {
   Identity unique_user_id_, root_parent_id_;
   mutable detail::FileContext::Buffer disk_buffer_;
   std::function<NonEmptyString(const std::string&)> get_chunk_from_store_;
-  std::function<void(Directory*)> put_functor_;  // NOLINT
+  std::function<void(std::shared_ptr<Directory>)> put_functor_;  // NOLINT
   std::function<void(const ImmutableData&)> put_chunk_functor_;
   std::function<void(std::vector<ImmutableData::Name>)> increment_chunks_functor_;
   mutable std::mutex cache_mutex_;
   boost::asio::io_service& asio_service_;
-  std::map<boost::filesystem::path, std::unique_ptr<Directory>> cache_;
+  std::map<boost::filesystem::path, std::shared_ptr<Directory>> cache_;
 };
 
 // ==================== Implementation details ====================================================
@@ -131,7 +131,7 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
       disk_buffer_(MemoryUsage(Concurrency() * 1024 * 1024), DiskUsage(30 * 1024 * 1024),
                    [](const std::string&, const NonEmptyString&) {}, disk_buffer_path, true),
       get_chunk_from_store_(),
-      put_functor_([this](Directory* directory) { Put(directory); }),
+      put_functor_([this](std::shared_ptr<Directory> directory) { Put(directory); }),
       put_chunk_functor_([this](const ImmutableData& chunk) { storage_->Put(chunk); }),
       increment_chunks_functor_([this](const std::vector<ImmutableData::Name>& chunk_names) {
                                   storage_->IncrementReferenceCount(chunk_names);
@@ -163,13 +163,13 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
   if (create) {
     // TODO(Fraser#5#): 2013-12-05 - Fill 'root_file_context' attributes appropriately.
     FileContext root_file_context(kRoot, true);
-    std::unique_ptr<Directory> root_parent(new Directory(ParentId(unique_user_id_),
+    std::shared_ptr<Directory> root_parent(Directory::Create(ParentId(unique_user_id_),
         root_parent_id, asio_service_, put_functor_, put_chunk_functor_, increment_chunks_functor_,
         ""));
-    std::unique_ptr<Directory> root(new Directory(ParentId(root_parent_id),
+    std::shared_ptr<Directory> root(Directory::Create(ParentId(root_parent_id),
         *root_file_context.meta_data.directory_id, asio_service_, put_functor_, put_chunk_functor_,
         increment_chunks_functor_, kRoot));
-    root_file_context.parent = root_parent.get();
+    root_file_context.parent = root_parent;
     root_parent->AddChild(std::move(root_file_context));
     root->ScheduleForStoring();
     cache_[""] = std::move(root_parent);
@@ -190,7 +190,7 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
   assert(parent.first && parent.second);
 
   if (IsDirectory(file_context)) {
-    std::unique_ptr<Directory> directory(new Directory(ParentId(parent.first->directory_id()),
+    std::shared_ptr<Directory> directory(Directory::Create(ParentId(parent.first->directory_id()),
         *file_context.meta_data.directory_id, asio_service_, put_functor_, put_chunk_functor_,
         increment_chunks_functor_, relative_path));
     std::lock_guard<std::mutex> lock(cache_mutex_);
@@ -203,7 +203,7 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
   parent.second->meta_data.attributes.st_ctime = parent.second->meta_data.attributes.st_mtime;
   if (IsDirectory(file_context)) {
     ++parent.second->meta_data.attributes.st_nlink;
-    parent.second->parent->ScheduleForStoring();
+    parent.second->ScheduleForStoring();
   }
 #endif
 
@@ -212,16 +212,16 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
 }
 
 template <typename Storage>
-Directory* DirectoryHandler<Storage>::Get(const boost::filesystem::path& relative_path) {
+std::shared_ptr<Directory> DirectoryHandler<Storage>::Get(const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
-  Directory* parent(nullptr);
+  std::shared_ptr<Directory> parent;
   boost::filesystem::path antecedent;
   {  // NOLINT
     std::lock_guard<std::mutex> lock(cache_mutex_);
     // Try to find the exact directory
     auto itr(cache_.find(relative_path));
     if (itr != std::end(cache_))
-      return itr->second.get();
+      return itr->second;
 
     // Locate the first antecedent in cache
     antecedent = relative_path;
@@ -230,7 +230,7 @@ Directory* DirectoryHandler<Storage>::Get(const boost::filesystem::path& relativ
       itr = cache_.find(antecedent);
     }
     assert(itr != std::end(cache_));
-    parent = itr->second.get();
+    parent = itr->second;
   }
 
   // Recover the decendent directories until we reach the target
@@ -252,7 +252,7 @@ Directory* DirectoryHandler<Storage>::Get(const boost::filesystem::path& relativ
                                   *file_context->meta_data.directory_id));
     {
       std::lock_guard<std::mutex> lock(cache_mutex_);
-      parent = directory.get();
+      parent = directory;
       auto insertion_result(cache_.emplace(antecedent, std::move(directory)));
       assert(insertion_result.second);
       static_cast<void>(insertion_result);
@@ -294,7 +294,7 @@ void DirectoryHandler<Storage>::Delete(const boost::filesystem::path& relative_p
   bool is_directory(IsDirectory(*file_context));
   if (is_directory) {
     auto directory(Get(relative_path));
-    DeleteAllVersions(directory);
+    DeleteAllVersions(directory.get());
     {  // NOLINT
       std::lock_guard<std::mutex> lock(cache_mutex_);
       cache_.erase(relative_path);
@@ -319,7 +319,7 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
   assert(old_relative_path != new_relative_path);
 
   auto new_parent(Get(new_relative_path.parent_path()));
-  PrepareNewPath(new_relative_path, new_parent);
+  PrepareNewPath(new_relative_path, new_parent.get());
 
   if (old_relative_path.parent_path() == new_relative_path.parent_path())
     new_parent->RenameChild(old_relative_path.filename(), new_relative_path.filename());
@@ -357,7 +357,7 @@ std::pair<Directory*, FileContext*> DirectoryHandler<Storage>::GetParent(
   auto parent_context(grandparent->GetMutableChild(relative_path.parent_path().filename()));
   if (!(parent_context->meta_data.directory_id))
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
-  return std::make_pair(Get(relative_path.parent_path()), parent_context);
+  return std::make_pair(Get(relative_path.parent_path()).get(), parent_context);
 }
 
 template <typename Storage>
@@ -377,7 +377,7 @@ void DirectoryHandler<Storage>::PrepareNewPath(const boost::filesystem::path& ne
       auto existing_directory(Get(new_relative_path));
       if (existing_directory->empty()) {
         new_parent->RemoveChild(new_relative_path.filename());
-        DeleteAllVersions(existing_directory);
+        DeleteAllVersions(existing_directory.get());
         std::lock_guard<std::mutex> lock(cache_mutex_);
         cache_.erase(new_relative_path);
       } else {
@@ -398,7 +398,7 @@ template <typename Storage>
 void DirectoryHandler<Storage>::RenameDifferentParent(
     const boost::filesystem::path& old_relative_path,
     const boost::filesystem::path& new_relative_path,
-    Directory* new_parent) {
+    std::shared_ptr<Directory> new_parent) {
   auto old_parent(GetParent(old_relative_path));
   assert(old_parent.first && old_parent.second && new_parent);
   auto file_context(old_parent.first->RemoveChild(old_relative_path.filename()));
@@ -412,17 +412,17 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
 // #endif
   if (IsDirectory(file_context)) {
     auto directory(Get(old_relative_path));
-    DeleteAllVersions(directory);
+    DeleteAllVersions(directory.get());
     {
       std::lock_guard<std::mutex> lock(cache_mutex_);
       auto itr(cache_.find(old_relative_path));
       assert(itr != std::end(cache_));
-      std::unique_ptr<Directory> temp(std::move(itr->second));
-      temp->SetNewParent(ParentId(new_parent->directory_id()), put_functor_, new_relative_path);
+      std::shared_ptr<Directory> temp = itr->second;
+      temp->SetNewParent(ParentId(new_parent->directory_id()), new_relative_path);
       cache_.erase(itr);
-      auto insertion_result(cache_.emplace(new_relative_path, std::move(temp)));
+      auto insertion_result(cache_.emplace(new_relative_path, temp));
       assert(insertion_result.second);
-      directory = insertion_result.first->second.get();
+      directory = insertion_result.first->second;
     }
     directory->ScheduleForStoring();
   }
@@ -454,8 +454,8 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
 }
 
 template <typename Storage>
-void DirectoryHandler<Storage>::Put(Directory* directory) {
-  ImmutableData encrypted_data_map(SerialiseDirectory(directory));
+void DirectoryHandler<Storage>::Put(std::shared_ptr<Directory> directory) {
+  ImmutableData encrypted_data_map(SerialiseDirectory(directory.get()));
   storage_->Put(encrypted_data_map);
   if (directory->VersionsCount() == 0) {
     auto result(directory->InitialiseVersions(encrypted_data_map.name()));
@@ -492,7 +492,7 @@ ImmutableData DirectoryHandler<Storage>::SerialiseDirectory(Directory* directory
 }
 
 template <typename Storage>
-std::unique_ptr<Directory> DirectoryHandler<Storage>::GetFromStorage(
+std::shared_ptr<Directory> DirectoryHandler<Storage>::GetFromStorage(
     const boost::filesystem::path& relative_path, const ParentId& parent_id,
     const DirectoryId& directory_id) {
   MutableData::Name hash_directory_id(crypto::Hash<crypto::SHA512>(directory_id));
@@ -518,7 +518,7 @@ std::unique_ptr<Directory> DirectoryHandler<Storage>::GetFromStorage(
 }
 
 template <typename Storage>
-std::unique_ptr<Directory> DirectoryHandler<Storage>::ParseDirectory(
+std::shared_ptr<Directory> DirectoryHandler<Storage>::ParseDirectory(
     const boost::filesystem::path& relative_path, const ImmutableData& encrypted_data_map,
     const ParentId& parent_id, const DirectoryId& directory_id,
     std::vector<StructuredDataVersions::VersionName> versions) {
@@ -531,11 +531,11 @@ std::unique_ptr<Directory> DirectoryHandler<Storage>::ParseDirectory(
   if (!self_encryptor.Read(const_cast<char*>(serialised_listing.c_str()), data_map_size, 0))
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
 
-  std::unique_ptr<Directory> directory(new Directory(parent_id, serialised_listing,
+  std::shared_ptr<Directory> directory(Directory::Create(parent_id, serialised_listing,
       std::move(versions), asio_service_, put_functor_, put_chunk_functor_,
       increment_chunks_functor_, relative_path));
   assert(directory->directory_id() == directory_id);
-  return std::move(directory);
+  return directory;
 }
 
 template <typename Storage>
