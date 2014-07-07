@@ -86,8 +86,7 @@ class DirectoryTest : public testing::Test {
                                      "")) {
   }
 
-  ~DirectoryTest()
-  {
+  ~DirectoryTest() {
     asio_service_.Stop();
   }
 
@@ -476,8 +475,7 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
   }
 }
 
-void SortAndResetChildrenCounter(Directory& lhs)
-{
+void SortAndResetChildrenCounter(Directory& lhs) {
     lhs.SortAndResetChildrenCounter();
 }
 

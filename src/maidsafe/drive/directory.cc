@@ -80,8 +80,7 @@ std::shared_ptr<Directory> Directory::Create(ParentId parent_id,
                                              std::function<void(std::shared_ptr<Directory>)> put_functor,
                                              std::function<void(const ImmutableData&)> put_chunk_functor,
                                              std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
-                                             const boost::filesystem::path& path)
-{
+                                             const boost::filesystem::path& path) {
     std::shared_ptr<Directory> result(new Directory(parent_id,
                                                     directory_id,
                                                     io_service,
@@ -101,8 +100,7 @@ std::shared_ptr<Directory> Directory::Create(ParentId parent_id,
                                              std::function<void(std::shared_ptr<Directory>)> put_functor,  // NOLINT
                                              std::function<void(const ImmutableData&)> put_chunk_functor,
                                              std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
-                                             const boost::filesystem::path& path)
-{
+                                             const boost::filesystem::path& path) {
     std::shared_ptr<Directory> result(new Directory(parent_id,
                                                     versions,
                                                     io_service,
@@ -154,8 +152,7 @@ Directory::~Directory() {
   DoScheduleForStoring(false);
 }
 
-void Directory::Initialise(const std::string& serialised_directory)
-{
+void Directory::Initialise(const std::string& serialised_directory) {
     std::lock_guard<std::mutex> lock(mutex_);
     protobuf::Directory proto_directory;
     if (!proto_directory.ParseFromString(serialised_directory))
