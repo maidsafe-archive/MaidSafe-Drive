@@ -212,7 +212,8 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
 }
 
 template <typename Storage>
-std::shared_ptr<Directory> DirectoryHandler<Storage>::Get(const boost::filesystem::path& relative_path) {
+std::shared_ptr<Directory>
+  DirectoryHandler<Storage>::Get(const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
   std::shared_ptr<Directory> parent;
   boost::filesystem::path antecedent;

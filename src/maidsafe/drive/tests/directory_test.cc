@@ -91,7 +91,8 @@ class DirectoryTest : public testing::Test {
   }
 
  protected:
-  void GenerateDirectoryListingEntryForDirectory(std::shared_ptr<Directory> directory, fs::path const& path) {
+  void GenerateDirectoryListingEntryForDirectory(std::shared_ptr<Directory> directory,
+                                                 fs::path const& path) {
     FileContext file_context(path.filename(), true);
 #ifdef MAIDSAFE_WIN32
     file_context.meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
@@ -174,12 +175,12 @@ class DirectoryTest : public testing::Test {
           EXPECT_TRUE(
               RemoveDirectoryListingsEntries(itr->path(), relative_path / itr->path().filename()));
           EXPECT_NO_THROW(file_context = directory->GetMutableChild(itr->path().filename()));
-          EXPECT_NO_THROW(FileContext context(directory->RemoveChild(file_context->meta_data.name)));
+          EXPECT_NO_THROW(FileContext(directory->RemoveChild(file_context->meta_data.name)));
           // Remove the disk directory also
           CheckedRemove(itr->path());
         } else if (fs::is_regular_file(*itr)) {
           EXPECT_NO_THROW(file_context = directory->GetMutableChild(itr->path().filename()));
-          EXPECT_NO_THROW(FileContext context(directory->RemoveChild(file_context->meta_data.name)));
+          EXPECT_NO_THROW(FileContext(directory->RemoveChild(file_context->meta_data.name)));
           // Remove the disk file also
           CheckedRemove(itr->path());
         } else {

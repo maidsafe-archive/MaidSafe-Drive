@@ -74,42 +74,44 @@ void FlushEncryptor(FileContext* file_context,
 
 }  // unnamed namespace
 
-std::shared_ptr<Directory> Directory::Create(ParentId parent_id,
-                                             DirectoryId directory_id,
-                                             boost::asio::io_service& io_service,
-                                             std::function<void(std::shared_ptr<Directory>)> put_functor,
-                                             std::function<void(const ImmutableData&)> put_chunk_functor,
-                                             std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
-                                             const boost::filesystem::path& path) {
-    std::shared_ptr<Directory> result(new Directory(parent_id,
-                                                    directory_id,
-                                                    io_service,
-                                                    put_functor,
-                                                    put_chunk_functor,
-                                                    increment_chunks_functor,
-                                                    path));
-    std::lock_guard<std::mutex> lock(result->mutex_);
-    result->DoScheduleForStoring();
-    return result;
+std::shared_ptr<Directory>
+Directory::Create(ParentId parent_id,
+                  DirectoryId directory_id,
+                  boost::asio::io_service& io_service,
+                  std::function<void(std::shared_ptr<Directory>)> put_functor,
+                  std::function<void(const ImmutableData&)> put_chunk_functor,
+                  std::function<void(const std::vector<ImmutableData::Name>&)> increment_functor,
+                  const boost::filesystem::path& path) {
+  std::shared_ptr<Directory> result(new Directory(parent_id,
+                                                  directory_id,
+                                                  io_service,
+                                                  put_functor,
+                                                  put_chunk_functor,
+                                                  increment_functor,
+                                                  path));
+  std::lock_guard<std::mutex> lock(result->mutex_);
+  result->DoScheduleForStoring();
+  return result;
 }
 
-std::shared_ptr<Directory> Directory::Create(ParentId parent_id,
-                                             const std::string& serialised_directory,
-                                             const std::vector<StructuredDataVersions::VersionName>& versions,
-                                             boost::asio::io_service& io_service,
-                                             std::function<void(std::shared_ptr<Directory>)> put_functor,  // NOLINT
-                                             std::function<void(const ImmutableData&)> put_chunk_functor,
-                                             std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
-                                             const boost::filesystem::path& path) {
-    std::shared_ptr<Directory> result(new Directory(parent_id,
-                                                    versions,
-                                                    io_service,
-                                                    put_functor,
-                                                    put_chunk_functor,
-                                                    increment_chunks_functor,
-                                                    path));
-    result->Initialise(serialised_directory);
-    return result;
+std::shared_ptr<Directory>
+Directory::Create(ParentId parent_id,
+                  const std::string& serialised_directory,
+                  const std::vector<StructuredDataVersions::VersionName>& versions,
+                  boost::asio::io_service& io_service,
+                  std::function<void(std::shared_ptr<Directory>)> put_functor,  // NOLINT
+                  std::function<void(const ImmutableData&)> put_chunk_functor,
+                  std::function<void(const std::vector<ImmutableData::Name>&)> increment_functor,
+                  const boost::filesystem::path& path) {
+  std::shared_ptr<Directory> result(new Directory(parent_id,
+                                                  versions,
+                                                  io_service,
+                                                  put_functor,
+                                                  put_chunk_functor,
+                                                  increment_functor,
+                                                  path));
+  result->Initialise(serialised_directory);
+  return result;
 }
 
 Directory::Directory(
@@ -162,7 +164,8 @@ void Directory::Initialise(const std::string& serialised_directory) {
     max_versions_ = MaxVersions(proto_directory.max_versions());
 
     for (int i(0); i != proto_directory.children_size(); ++i)
-        children_.emplace_back(new FileContext(MetaData(proto_directory.children(i)), shared_from_this()));
+        children_.emplace_back(new FileContext(MetaData(proto_directory.children(i)),
+                                               shared_from_this()));
     SortAndResetChildrenCounter();
 }
 
@@ -275,7 +278,9 @@ void Directory::DoScheduleForStoring(bool use_delay) {
     }
 #endif
     static_cast<void>(cancelled_count);
-    timer_.async_wait(std::bind(&Directory::ProcessTimer, shared_from_this(), std::placeholders::_1));
+    timer_.async_wait(std::bind(&Directory::ProcessTimer,
+                                shared_from_this(),
+                                std::placeholders::_1));
     ++pending_count_;
     store_state_ = StoreState::kPending;
   } else if (store_state_ == StoreState::kPending) {
@@ -287,7 +292,9 @@ void Directory::DoScheduleForStoring(bool use_delay) {
       LOG(kInfo) << "Successfully brought forward schedule for " << cancelled_count
                  << " store functor.";
       assert(cancelled_count == 1);
-      timer_.get_io_service().post(std::bind(&Directory::ProcessTimer, shared_from_this(), boost::system::error_code()));
+      timer_.get_io_service().post(std::bind(&Directory::ProcessTimer,
+                                             shared_from_this(),
+                                             boost::system::error_code()));
       ++pending_count_;
     } else {
       LOG(kWarning) << "Failed to cancel store functor.";
