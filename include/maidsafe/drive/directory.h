@@ -20,10 +20,9 @@
 #define MAIDSAFE_DRIVE_DIRECTORY_H_
 
 #include <chrono>
-#include <condition_variable>
 #include <deque>
 #include <memory>
-#include <mutex>
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -51,24 +50,36 @@ class Directory;
 namespace test {
 
 void DirectoriesMatch(const Directory& lhs, const Directory& rhs);
-class DirectoryTest;
+void SortAndResetChildrenCounter(Directory& lhs);
 
 }  // namespace test
 
-class Directory {
+class Directory : public std::enable_shared_from_this<Directory> {
  public:
-  Directory(ParentId parent_id, DirectoryId directory_id, boost::asio::io_service& io_service,
-            std::function<void(Directory*)> put_functor,  // NOLINT
-            std::function<void(const ImmutableData&)> put_chunk_functor,
-            std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
-            const boost::filesystem::path& path);  // NOLINT
-  Directory(ParentId parent_id, const std::string& serialised_directory,
-            const std::vector<StructuredDataVersions::VersionName>& versions,
-            boost::asio::io_service& io_service, std::function<void(Directory*)> put_functor,  // NOLINT
-            std::function<void(const ImmutableData&)> put_chunk_functor,
-            std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
-            const boost::filesystem::path& path);
+  static std::shared_ptr<Directory>
+      Create(ParentId parent_id,
+             DirectoryId directory_id,
+             boost::asio::io_service& io_service,
+             std::function<void(std::shared_ptr<Directory>)> put_functor,  // NOLINT
+             std::function<void(const ImmutableData&)> put_chunk_functor,
+             std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
+             const boost::filesystem::path& path);  // NOLINT
+  static std::shared_ptr<Directory>
+      Create(ParentId parent_id,
+             const std::string& serialised_directory,
+             const std::vector<StructuredDataVersions::VersionName>& versions,
+             boost::asio::io_service& io_service,
+             std::function<void(std::shared_ptr<Directory>)> put_functor,  // NOLINT
+             std::function<void(const ImmutableData&)> put_chunk_functor,
+             std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
+             const boost::filesystem::path& path);
+
+  Directory(const Directory& other) = delete;
+  Directory(Directory&& other) = delete;
+  Directory& operator=(Directory other) = delete;
+
   ~Directory();
+
   // This marks the start of an attempt to store the directory.  It serialises the appropriate
   // member data (critically parent_id_ must never be serialised), and sets 'store_state_' to
   // kOngoing.  It also calls 'FlushChild' on all children (see below).
@@ -96,23 +107,35 @@ class Directory {
   void ResetChildrenCounter();
   bool empty() const;
   ParentId parent_id() const;
-  // This will block while a store attempt is ongoing.
-  void SetNewParent(const ParentId parent_id, std::function<void(Directory*)> put_functor,  // NOLINT
-                    const boost::filesystem::path& path);
+  void SetNewParent(const ParentId parent_id, const boost::filesystem::path& path);
   DirectoryId directory_id() const;
   void ScheduleForStoring();
   void StoreImmediatelyIfPending();
+  bool HasPending() const;
 
   friend void test::DirectoriesMatch(const Directory& lhs, const Directory& rhs);
-  friend class test::DirectoryTest;
+  friend void test::SortAndResetChildrenCounter(Directory& lhs);
 
   // TODO(Fraser#5#): 2014-01-30 - BEFORE_RELEASE - Make mutex_ private.
   mutable std::mutex mutex_;
 
  private:
-  Directory(const Directory& other);
-  Directory(Directory&& other);
-  Directory& operator=(Directory other);
+  Directory(ParentId parent_id,
+            DirectoryId directory_id,
+            boost::asio::io_service& io_service,
+            std::function<void(std::shared_ptr<Directory>)> put_functor,  // NOLINT
+            std::function<void(const ImmutableData&)> put_chunk_functor,
+            std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
+            const boost::filesystem::path& path);  // NOLINT
+  Directory(ParentId parent_id,
+            const std::vector<StructuredDataVersions::VersionName>& versions,
+            boost::asio::io_service& io_service,
+            std::function<void(std::shared_ptr<Directory>)> put_functor,  // NOLINT
+            std::function<void(const ImmutableData&)> put_chunk_functor,
+            std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
+            const boost::filesystem::path& path);
+
+  void Initialise(const std::string& serialised_directory);
 
   typedef std::vector<std::unique_ptr<FileContext>> Children;
 
@@ -120,12 +143,13 @@ class Directory {
   Children::const_iterator Find(const boost::filesystem::path& name) const;
   void SortAndResetChildrenCounter();
   void DoScheduleForStoring(bool use_delay = true);
+  void ProcessTimer(const boost::system::error_code&);
 
-  std::condition_variable cond_var_;
   ParentId parent_id_;
   DirectoryId directory_id_;
   boost::asio::steady_timer timer_;
-  std::function<void(const boost::system::error_code&)> store_functor_;
+  boost::filesystem::path path_;
+  std::function<void(std::shared_ptr<Directory>)> put_functor_;
   std::function<void(const ImmutableData&)> put_chunk_functor_;
   std::function<void(std::vector<ImmutableData::Name>)> increment_chunks_functor_;
   std::vector<ImmutableData::Name> chunks_to_be_incremented_;
@@ -134,6 +158,14 @@ class Directory {
   Children children_;
   size_t children_count_position_;
   enum class StoreState { kPending, kOngoing, kComplete } store_state_;
+  struct NewParent {
+    NewParent(const ParentId& parent_id, const boost::filesystem::path& path)
+      : parent_id_(parent_id), path_(path) {}
+    ParentId parent_id_;
+    boost::filesystem::path path_;
+  };
+  std::unique_ptr<NewParent> newParent_;  // Use std::unique_ptr<> to fake an optional<>
+  int pending_count_;
 };
 
 bool operator<(const Directory& lhs, const Directory& rhs);

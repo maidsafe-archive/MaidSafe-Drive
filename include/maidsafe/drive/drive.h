@@ -206,7 +206,7 @@ void Drive<Storage>::ScheduleDeletionOfEncryptor(detail::FileContext* file_conte
 #ifndef NDEBUG
           LOG(kInfo) << "Deleting encryptor and buffer for " << name;
 #endif
-          file_context->parent->FlushChildAndDeleteEncryptor(file_context);
+          file_context->Flush();
         } else {
           LOG(kWarning) << "About to delete encryptor and buffer for "
                         << file_context->meta_data.name << " but open_count > 0";
@@ -222,7 +222,7 @@ void Drive<Storage>::ScheduleDeletionOfEncryptor(detail::FileContext* file_conte
 template <typename Storage>
 const detail::FileContext* Drive<Storage>::GetContext(
     const boost::filesystem::path& relative_path) {
-  detail::Directory* parent(directory_handler_.Get(relative_path.parent_path()));
+  auto parent(directory_handler_.Get(relative_path.parent_path()));
   return parent->GetChild(relative_path.filename());
 }
 
@@ -230,7 +230,7 @@ template <typename Storage>
 detail::FileContext* Drive<Storage>::GetMutableContext(
     const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
-  detail::Directory* parent(directory_handler_.Get(relative_path.parent_path()));
+  auto parent(directory_handler_.Get(relative_path.parent_path()));
   return parent->GetMutableChild(relative_path.filename());
 }
 
@@ -246,7 +246,7 @@ void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
 
 template <typename Storage>
 void Drive<Storage>::Open(const boost::filesystem::path& relative_path) {
-  detail::Directory* parent(directory_handler_.Get(relative_path.parent_path()));
+  auto parent(directory_handler_.Get(relative_path.parent_path()));
   auto file_context(parent->GetMutableChild(relative_path.filename()));
   if (!file_context->meta_data.directory_id) {
     LOG(kInfo) << "Opening " << relative_path << " open count: " << *file_context->open_count + 1;
@@ -329,7 +329,7 @@ uint32_t Drive<Storage>::Write(const boost::filesystem::path& relative_path, con
   file_context->meta_data.attributes.st_size = max_size;
   file_context->meta_data.attributes.st_blocks = file_context->meta_data.attributes.st_size / 512;
 #endif
-  file_context->parent->ScheduleForStoring();
+  file_context->ScheduleForStoring();
   return size;
 }
 

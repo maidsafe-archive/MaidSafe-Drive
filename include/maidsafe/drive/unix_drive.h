@@ -379,7 +379,7 @@ int FuseDrive<Storage>::OpsChmod(const char* path, mode_t mode) {
     auto file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path));
     file_context->meta_data.attributes.st_mode = mode;
     time(&file_context->meta_data.attributes.st_ctime);
-    file_context->parent->ScheduleForStoring();
+    file_context->ScheduleForStoring();
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to chmod " << path << ": " << e.what();
@@ -405,7 +405,7 @@ int FuseDrive<Storage>::OpsChown(const char* path, uid_t uid, gid_t gid) {
     if (change_gid)
       file_context->meta_data.attributes.st_gid = gid;
     time(&file_context->meta_data.attributes.st_ctime);
-    file_context->parent->ScheduleForStoring();
+    file_context->ScheduleForStoring();
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to chown " << path << ": " << e.what();
@@ -766,7 +766,7 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
 
   filler(buf, ".", nullptr, 0);
   filler(buf, "..", nullptr, 0);
-  detail::Directory* directory;
+  std::shared_ptr<detail::Directory> directory;
   try {
     directory = Global<Storage>::g_fuse_drive->directory_handler_.Get(path);
   }
@@ -1019,7 +1019,7 @@ int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]
     st_atim = tspec;
     st_mtim = tspec;
   }
-  file_context->parent->ScheduleForStoring();
+  file_context->ScheduleForStoring();
   return 0;
 }
 
@@ -1166,7 +1166,7 @@ int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
     time(&file_context->meta_data.attributes.st_mtime);
     file_context->meta_data.attributes.st_ctime = file_context->meta_data.attributes.st_atime =
         file_context->meta_data.attributes.st_mtime;
-    file_context->parent->ScheduleForStoring();
+    file_context->ScheduleForStoring();
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to truncate " << path << ": " << e.what();

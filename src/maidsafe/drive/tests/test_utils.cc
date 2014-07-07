@@ -332,7 +332,8 @@ uint64_t TotalSize(const encrypt::DataMap& data_map) {
   return size;
 }
 
-void GenerateDirectoryListingEntryForFile(Directory& directory, const fs::path& path,
+void GenerateDirectoryListingEntryForFile(std::shared_ptr<Directory> directory,
+                                          const fs::path& path,
                                           const uintmax_t& file_size) {
   FileContext file_context(path.filename(), false);
 #ifdef MAIDSAFE_WIN32
@@ -348,7 +349,7 @@ void GenerateDirectoryListingEntryForFile(Directory& directory, const fs::path& 
   file_context.meta_data.attributes.st_size = file_size;
 #endif
   file_context.meta_data.data_map->content = RandomString(100);
-  EXPECT_NO_THROW(directory.AddChild(std::move(file_context)));
+  EXPECT_NO_THROW(directory->AddChild(std::move(file_context)));
 }
 
 void CheckedExists(const fs::path& path) { Exists(path, false, true); }
