@@ -22,7 +22,7 @@
 #include <chrono>
 #include <deque>
 #include <memory>
-#include <mutex>
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -109,6 +109,7 @@ class Directory : public std::enable_shared_from_this<Directory> {
   DirectoryId directory_id() const;
   void ScheduleForStoring();
   void StoreImmediatelyIfPending();
+  bool HasPending() const;
 
   friend void test::DirectoriesMatch(const Directory& lhs, const Directory& rhs);
   friend void test::SortAndResetChildrenCounter(Directory& lhs);
@@ -159,6 +160,7 @@ class Directory : public std::enable_shared_from_this<Directory> {
     boost::filesystem::path path_;
   };
   std::unique_ptr<NewParent> newParent_; // Use std::unique_ptr<> to fake an optional<>
+  int pending_count_;
 };
 
 bool operator<(const Directory& lhs, const Directory& rhs);

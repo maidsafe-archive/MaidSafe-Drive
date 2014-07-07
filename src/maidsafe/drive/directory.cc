@@ -127,7 +127,8 @@ Directory::Directory(
           put_chunk_functor_(put_chunk_functor),
           increment_chunks_functor_(increment_chunks_functor), chunks_to_be_incremented_(),
           versions_(), max_versions_(kMaxVersions), children_(), children_count_position_(0),
-          store_state_(StoreState::kComplete) {
+          store_state_(StoreState::kComplete),
+          pending_count_(0) {
 }
 
 Directory::Directory(
@@ -144,7 +145,8 @@ Directory::Directory(
           put_chunk_functor_(put_chunk_functor),
           increment_chunks_functor_(increment_chunks_functor), chunks_to_be_incremented_(),
           versions_(std::begin(versions), std::end(versions)), max_versions_(kMaxVersions),
-          children_(), children_count_position_(0), store_state_(StoreState::kComplete) {
+          children_(), children_count_position_(0), store_state_(StoreState::kComplete),
+          pending_count_(0) {
 }
 
 Directory::~Directory() {
@@ -277,6 +279,7 @@ void Directory::DoScheduleForStoring(bool use_delay) {
 #endif
     static_cast<void>(cancelled_count);
     timer_.async_wait(std::bind(&Directory::ProcessTimer, shared_from_this(), std::placeholders::_1));
+    ++pending_count_;
     store_state_ = StoreState::kPending;
   } else if (store_state_ == StoreState::kPending) {
     // If 'use_delay' is false, the implication is that we should only store if there's already
@@ -288,6 +291,7 @@ void Directory::DoScheduleForStoring(bool use_delay) {
                  << " store functor.";
       assert(cancelled_count == 1);
       timer_.get_io_service().post(std::bind(&Directory::ProcessTimer, shared_from_this(), boost::system::error_code()));
+      ++pending_count_;
     } else {
       LOG(kWarning) << "Failed to cancel store functor.";
     }
@@ -319,6 +323,7 @@ void Directory::ProcessTimer(const boost::system::error_code& ec) {
     path_ = newParent_->path_;
     newParent_ = nullptr;
   }
+  --pending_count_;
 }
 
 bool Directory::HasChild(const fs::path& name) const {
@@ -433,6 +438,11 @@ void Directory::ScheduleForStoring() {
 void Directory::StoreImmediatelyIfPending() {
   std::lock_guard<std::mutex> lock(mutex_);
   DoScheduleForStoring(false);
+}
+
+bool Directory::HasPending() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return (pending_count_ != 0);
 }
 
 bool operator<(const Directory& lhs, const Directory& rhs) {

@@ -419,6 +419,9 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
       assert(itr != std::end(cache_));
       std::shared_ptr<Directory> temp = itr->second;
       temp->SetNewParent(ParentId(new_parent->directory_id()), new_relative_path);
+      while (directory->HasPending()) {
+          std::this_thread::sleep_for(std::chrono::milliseconds(250));
+      }
       cache_.erase(itr);
       auto insertion_result(cache_.emplace(new_relative_path, temp));
       assert(insertion_result.second);
