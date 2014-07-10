@@ -72,17 +72,18 @@ struct MountStatus {
 
 struct Options {
   Options()
-      : mount_path(), storage_path(), keys_path(), drive_name(), unique_id(), root_parent_id(),
+      : mount_path(), storage_path(), drive_name(), unique_id(), root_parent_id(),
         create_store(false), check_data(false), monitor_parent(true),
         drive_type(DriveType::kNetwork), drive_logging_args(),
-        mount_status_shared_object_name(), peer_endpoint(), encrypted_maid(), symm_key(),
+        mount_status_shared_object_name(), encrypted_maid(), symm_key(),
         symm_iv(), parent_handle(nullptr) {}
-  boost::filesystem::path mount_path, storage_path, keys_path, drive_name;
+
+  boost::filesystem::path mount_path, storage_path, drive_name;
   Identity unique_id, root_parent_id;
   bool create_store, check_data, monitor_parent;
   DriveType drive_type;
-  std::string drive_logging_args, mount_status_shared_object_name, peer_endpoint,
-              encrypted_maid, symm_key, symm_iv;
+  std::string drive_logging_args, mount_status_shared_object_name, encrypted_maid, symm_key,
+              symm_iv;
   void* parent_handle;
 };
 

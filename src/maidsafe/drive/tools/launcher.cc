@@ -103,9 +103,7 @@ void CloseHandleToThisProcess(void* /*this_process*/) {}
 enum SharedMemoryArgIndex {
   kMountPathArg = 0,
   kStoragePathArg,
-  kKeysPathArg,
   kKeyIndexArg,
-  kPeerEndpointArg,
   kUniqueIdArg,
   kRootParentIdArg,
   kDriveNameArg,
@@ -149,8 +147,6 @@ void ReadAndRemoveInitialSharedMemory(const std::string& initial_shared_memory_n
   auto shared_memory_args = ipc::ReadSharedMemory(initial_shared_memory_name.c_str(), kMaxArgIndex);
   options.mount_path = shared_memory_args[kMountPathArg];
   options.storage_path = shared_memory_args[kStoragePathArg];
-  options.keys_path = shared_memory_args[kKeysPathArg];
-  options.peer_endpoint = shared_memory_args[kPeerEndpointArg];
   options.unique_id = maidsafe::Identity(shared_memory_args[kUniqueIdArg]);
   options.root_parent_id = maidsafe::Identity(shared_memory_args[kRootParentIdArg]);
   options.drive_name = shared_memory_args[kDriveNameArg];
