@@ -207,6 +207,7 @@ void MonitorParentProcess(const Options& options) {
 
 int Mount(const Options& options) {
   std::shared_ptr<passport::Maid> maid;
+  routing::BootstrapContacts bootstrap_contacts;
   boost::system::error_code error_code;
 
   fs::path user_app_dir(GetUserAppDir());
@@ -223,7 +224,7 @@ int Mount(const Options& options) {
   crypto::CipherText encrypted_maid(NonEmptyString(options.encrypted_maid));
   maid.reset(new passport::Maid(passport::DecryptMaid(encrypted_maid, symm_key, symm_iv)));
 
-  g_maid_node_nfs = nfs_client::MaidNodeNfs::MakeShared(*maid);
+  g_maid_node_nfs = nfs_client::MaidNodeNfs::MakeShared(*maid, bootstrap_contacts);
   g_network_drive.reset(new NetworkDrive(g_maid_node_nfs, options.unique_id,
     options.root_parent_id, options.mount_path, user_app_dir, options.drive_name,
     options.mount_status_shared_object_name, options.create_store));
