@@ -162,23 +162,29 @@ po::options_description CommandLineOptions() {
   boost::system::error_code error_code;
   po::options_description command_line_options(std::string("Filesystem Tool Options:\n") +
                                                kHelpInfo);
-  command_line_options.add_options()("help,h", "Show help message.")(
-      "disk", "Perform all tests/benchmarks on native hard disk.")(
-      "local", "Perform all tests/benchmarks on local VFS.")(
-      "network", "Perform all tests/benchmarks on network VFS.")(
-      "peer", po::value<std::string>(), "Endpoint of peer, if using network VFS.");
+  command_line_options.add_options()("help,h", "Show help message.")
+      ("disk", "Perform all tests/benchmarks on native hard disk.")
+      ("local", "Perform all tests/benchmarks on local VFS.")
+      ("network", "Perform all tests/benchmarks on network VFS.");
 #ifdef MAIDSAFE_WIN32
-  command_line_options.add_options()(
-      "local_console", "Perform all tests/benchmarks on local VFS running as a console app.")(
-      "network_console", "Perform all tests/benchmarks on network VFS running as a console app.")(
-      "enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging),
-      "Enable logging on the VFS "
-      "(this is only useful if used with '--local_console' or '--network_console'.");
+  command_line_options.add_options()
+      ("local_console", "Perform all tests/benchmarks on local VFS running as a console app.")
+      ("network_console", "Perform all tests/benchmarks on network VFS running as a console app.")
+      ("enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging), "Enable logging on the VFS "
+       "(this is only useful if used with '--local_console' or '--network_console'.");
 #else
   command_line_options.add_options()(
       "enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging),
       "Enable logging on the VFS (this is only useful if used with '--local' or '--network'.");
 #endif
+  command_line_options.add_options()
+      ("encrypted_maid", po::value<std::string>(),
+       "Encrypted Maid public key, if using network VFS.")
+      ("symm_key", po::value<std::string>(),
+       "Symmetric encryption key to decrypt the maid, if using network VFS.")
+      ("symm_iv", po::value<std::string>(),
+       "Symmetric encryption iv to decrypt the maid, if using network VFS.");
+
   return command_line_options;
 }
 
@@ -260,7 +266,6 @@ std::function<void()> PrepareLocalVfs() {
   SetUpRootDirectory(GetHomeDir());
   options.mount_path = g_root;
   options.storage_path = SetUpStorageDirectory();
-  options.keys_path = fs::path(fs::temp_directory_path() / "key_directory.dat");
   options.drive_name = RandomAlphaNumericString(10);
   options.unique_id = Identity(RandomString(64));
   options.root_parent_id = Identity(RandomString(64));
@@ -286,21 +291,21 @@ std::string GetStringFromProgramOption(const std::string& option_name,
     LOG(kInfo) << option_name << " set to " << option_string;
     return option_string;
   } else {
-    return "";
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::uninitialised));
   }
 }
 
 std::function<void()> PrepareNetworkVfs(const po::variables_map& variables_map) {
   SetUpTempDirectory();
-  drive::Options options;
   SetUpRootDirectory(GetHomeDir());
+  drive::Options options;
   options.mount_path = g_root;
-  options.storage_path = SetUpStorageDirectory();
-  options.keys_path = GetStringFromProgramOption("keys_path", variables_map);
-  options.peer_endpoint = GetStringFromProgramOption("peer", variables_map);
   options.drive_name = RandomAlphaNumericString(10);
   options.unique_id = Identity(RandomString(64));
   options.root_parent_id = Identity(RandomString(64));
+  options.encrypted_maid = GetStringFromProgramOption("encrypted_maid", variables_map);
+  options.symm_key = GetStringFromProgramOption("symm_key", variables_map);
+  options.symm_iv = GetStringFromProgramOption("symm_iv", variables_map);
   options.create_store = true;
   options.drive_type = static_cast<drive::DriveType>(g_test_type);
   if (g_enable_vfs_logging)
@@ -311,7 +316,6 @@ std::function<void()> PrepareNetworkVfs(const po::variables_map& variables_map) 
 
   return [options] {  // NOLINT
     RemoveTempDirectory();
-    RemoveStorageDirectory(options.storage_path);
     RemoveRootDirectory();
   };
 }

@@ -75,11 +75,11 @@ typedef CbfsDrive<nfs_client::MaidNodeNfs> NetworkDrive;
 typedef FuseDrive<nfs_client::MaidNodeNfs> NetworkDrive;
 #endif
 
+std::unique_ptr<NetworkDrive> g_network_drive(nullptr);
+std::shared_ptr<nfs_client::MaidNodeNfs> g_maid_node_nfs;
 std::once_flag g_unmount_flag;
 std::string g_error_message;
 int g_return_code(0);
-std::unique_ptr<NetworkDrive> g_network_drive(nullptr);
-std::shared_ptr<nfs_client::MaidNodeNfs> g_maid_node_nfs;
 
 void Unmount() {
   std::call_once(g_unmount_flag, [&] {
@@ -132,11 +132,10 @@ po::options_description CommandLineOptions() {
 template <typename Char>
 po::variables_map ParseCommandLine(int argc, Char* argv[]) {
   auto command_line_options(CommandLineOptions());
-  po::parsed_options parsed(po::basic_command_line_parser<Char>(argc, argv)
-                            .options(command_line_options)
-                            .allow_unregistered()
-                            .run());
-
+  po::basic_parsed_options<Char> parsed(po::basic_command_line_parser<Char>(argc, argv)
+                                        .options(command_line_options)
+                                        .allow_unregistered()
+                                        .run());
   po::variables_map variables_map;
   po::store(parsed, variables_map);
   po::notify(variables_map);
@@ -180,10 +179,6 @@ void ValidateOptions(const Options& options) {
     error_message += "  parent_id must be set to a 64 character string\n";
     ++g_return_code;
   }
-  if (options.mount_status_shared_object_name.empty()) {
-    error_message += "  mount_status_shared_object_name must be set\n";
-    ++g_return_code;
-  }
   if (options.encrypted_maid.empty()) {
     error_message += "  encrypted_maid must be set\n";
     ++g_return_code;
@@ -213,6 +208,16 @@ void MonitorParentProcess(const Options& options) {
 int Mount(const Options& options) {
   std::shared_ptr<passport::Maid> maid;
   routing::BootstrapContacts bootstrap_contacts;
+  boost::system::error_code error_code;
+
+  fs::path user_app_dir(GetUserAppDir());
+  if (!fs::exists(user_app_dir, error_code)) {
+    LOG(kError) << "Creating " << user_app_dir;
+    if (!fs::create_directories(user_app_dir, error_code)) {
+      LOG(kError) << user_app_dir << " creation failed.";
+      return error_code.value();
+    }
+  }
 
   crypto::AES256Key symm_key(options.symm_key);
   crypto::AES256InitialisationVector symm_iv(options.symm_iv);
@@ -220,13 +225,14 @@ int Mount(const Options& options) {
   maid.reset(new passport::Maid(passport::DecryptMaid(encrypted_maid, symm_key, symm_iv)));
 
   g_maid_node_nfs = nfs_client::MaidNodeNfs::MakeShared(*maid, bootstrap_contacts);
-
   g_network_drive.reset(new NetworkDrive(g_maid_node_nfs, options.unique_id,
-    options.root_parent_id, options.mount_path, GetUserAppDir(), options.drive_name,
-    options.mount_status_shared_object_name, false));
+    options.root_parent_id, options.mount_path, user_app_dir, options.drive_name,
+    options.mount_status_shared_object_name, options.create_store));
+
 #ifdef MAIDSAFE_WIN32
   g_network_drive->SetGuid(BOOST_PP_STRINGIZE(PRODUCT_ID));
 #endif
+
   if (options.monitor_parent) {
     std::thread poll_parent([&] { MonitorParentProcess(options); });
     g_network_drive->Mount();
@@ -235,6 +241,7 @@ int Mount(const Options& options) {
   else {
     g_network_drive->Mount();
   }
+  return 0;
 }
 
 }  // unnamed namespace
