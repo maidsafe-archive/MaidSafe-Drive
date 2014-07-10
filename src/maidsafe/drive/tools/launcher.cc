@@ -200,8 +200,6 @@ void Launcher::CreateInitialSharedMemory(const Options& options) {
   std::vector<std::string> shared_memory_args(kMaxArgIndex);
   shared_memory_args[kMountPathArg] = options.mount_path.string();
   shared_memory_args[kStoragePathArg] = options.storage_path.string();
-  shared_memory_args[kKeysPathArg] = options.keys_path.string();
-  shared_memory_args[kPeerEndpointArg] = options.peer_endpoint;
   shared_memory_args[kUniqueIdArg] = options.unique_id.string();
   shared_memory_args[kRootParentIdArg] = options.root_parent_id.string();
   shared_memory_args[kDriveNameArg] = options.drive_name.string();
@@ -274,7 +272,7 @@ fs::path Launcher::GetDriveExecutablePath(DriveType drive_type) {
     case DriveType::kNetwork:
       return process::GetOtherExecutablePath("drive");
     case DriveType::kNetworkConsole:
-      return process::GetOtherExecutablePath("network_drive_console");
+      return process::GetOtherExecutablePath("drive_console");
     default:
       BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
   }
