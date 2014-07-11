@@ -285,6 +285,7 @@ std::function<void()> PrepareLocalVfs() {
   };
 }
 
+/*
 std::string GetStringFromProgramOption(const std::string& option_name,
                                        const po::variables_map& variables_map) {
   if (variables_map.count(option_name)) {
@@ -295,6 +296,7 @@ std::string GetStringFromProgramOption(const std::string& option_name,
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::uninitialised));
   }
 }
+*/
 
 std::function<void()> PrepareNetworkVfs() {
   SetUpTempDirectory();
