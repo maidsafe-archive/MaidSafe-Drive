@@ -117,7 +117,7 @@ process::ProcessInfo GetParentProcessInfo(const Options& /*options*/) {
   return getppid();
 }
 
-void SetSignalHandler() {}
+// void SetSignalHandler() {}
 
 #endif
 
