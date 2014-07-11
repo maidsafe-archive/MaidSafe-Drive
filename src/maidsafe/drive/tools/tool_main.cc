@@ -158,6 +158,14 @@ void RemoveStorageDirectory(const fs::path& storage_path) {
   }
 }
 
+passport::MaidAndSigner CreateAccount(const routing::BootstrapContacts& bootstrap_contacts) {
+  passport::MaidAndSigner maid_and_signer{ passport::CreateMaidAndSigner() };
+  auto maid_node_nfs = nfs_client::MaidNodeNfs::MakeShared(maid_and_signer, bootstrap_contacts);
+  maid_node_nfs->Stop();
+  LOG(kSuccess) << " Account created for MAID : " << DebugId(maid_and_signer.first.name());
+  return maid_and_signer;
+}
+
 po::options_description CommandLineOptions() {
   boost::system::error_code error_code;
   po::options_description command_line_options(std::string("Filesystem Tool Options:\n") +
@@ -177,13 +185,6 @@ po::options_description CommandLineOptions() {
       "enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging),
       "Enable logging on the VFS (this is only useful if used with '--local' or '--network'.");
 #endif
-  command_line_options.add_options()
-      ("encrypted_maid", po::value<std::string>(),
-       "Encrypted Maid public key, if using network VFS.")
-      ("symm_key", po::value<std::string>(),
-       "Symmetric encryption key to decrypt the maid, if using network VFS.")
-      ("symm_iv", po::value<std::string>(),
-       "Symmetric encryption iv to decrypt the maid, if using network VFS.");
 
   return command_line_options;
 }
@@ -295,17 +296,28 @@ std::string GetStringFromProgramOption(const std::string& option_name,
   }
 }
 
-std::function<void()> PrepareNetworkVfs(const po::variables_map& variables_map) {
+std::function<void()> PrepareNetworkVfs() {
   SetUpTempDirectory();
   SetUpRootDirectory(GetHomeDir());
+
+  routing::Parameters::append_local_live_port_endpoint = true;
   drive::Options options;
+  routing::BootstrapContacts bootstrap_contacts;
+  auto maid_and_signer = CreateAccount(bootstrap_contacts);
+
+  crypto::AES256Key symm_key{ RandomString(crypto::AES256_KeySize) };
+  crypto::AES256InitialisationVector symm_iv{ RandomString(crypto::AES256_IVSize) };
+  crypto::CipherText encrypted_maid(passport::EncryptMaid(maid_and_signer.first, symm_key,
+                                                          symm_iv));
+  passport::PublicMaid public_maid(maid_and_signer.first);
+
   options.mount_path = g_root;
   options.drive_name = RandomAlphaNumericString(10);
-  options.unique_id = Identity(RandomString(64));
-  options.root_parent_id = Identity(RandomString(64));
-  options.encrypted_maid = GetStringFromProgramOption("encrypted_maid", variables_map);
-  options.symm_key = GetStringFromProgramOption("symm_key", variables_map);
-  options.symm_iv = GetStringFromProgramOption("symm_iv", variables_map);
+  options.unique_id = Identity(crypto::Hash<crypto::SHA512>(public_maid.name()->string()));
+  options.root_parent_id = Identity(crypto::Hash<crypto::SHA512>(options.unique_id.string()));
+  options.encrypted_maid = encrypted_maid.data.string();
+  options.symm_key = symm_key.string();
+  options.symm_iv = symm_iv.string();
   options.create_store = true;
   options.drive_type = static_cast<drive::DriveType>(g_test_type);
   if (g_enable_vfs_logging)
@@ -320,7 +332,7 @@ std::function<void()> PrepareNetworkVfs(const po::variables_map& variables_map) 
   };
 }
 
-std::function<void()> PrepareTest(const po::variables_map& variables_map) {
+std::function<void()> PrepareTest() {
   switch (g_test_type) {
     case TestType::kDisk:
       return PrepareDisk();
@@ -329,7 +341,7 @@ std::function<void()> PrepareTest(const po::variables_map& variables_map) {
       return PrepareLocalVfs();
     case TestType::kNetwork:
     case TestType::kNetworkConsole:
-      return PrepareNetworkVfs(variables_map);
+      return PrepareNetworkVfs();
     default:
       BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
   }
@@ -351,7 +363,7 @@ int main(int argc, char** argv) {
     maidsafe::test::HandleHelp(variables_map);
     maidsafe::test::GetTestType(variables_map);
 
-    auto cleanup_functor(maidsafe::test::PrepareTest(variables_map));
+    auto cleanup_functor(maidsafe::test::PrepareTest());
     maidsafe::on_scope_exit cleanup_on_exit(cleanup_functor);
 
     auto tests_result(maidsafe::test::RunTool(argc, argv, maidsafe::test::g_root,
