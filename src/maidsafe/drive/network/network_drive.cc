@@ -224,6 +224,10 @@ int Mount(const Options& options) {
   crypto::CipherText encrypted_maid(NonEmptyString(options.encrypted_maid));
   maid.reset(new passport::Maid(passport::DecryptMaid(encrypted_maid, symm_key, symm_iv)));
 
+#ifdef TESTING
+  routing::Parameters::append_local_live_port_endpoint = true;
+#endif
+
   g_maid_node_nfs = nfs_client::MaidNodeNfs::MakeShared(*maid, bootstrap_contacts);
   g_network_drive.reset(new NetworkDrive(g_maid_node_nfs, options.unique_id,
     options.root_parent_id, options.mount_path, user_app_dir, options.drive_name,
