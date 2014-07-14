@@ -55,7 +55,8 @@ namespace maidsafe {
 namespace test {
 
 int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
-            const fs::path& storage, int test_type);
+            const drive::Options& options, std::shared_ptr<drive::Launcher> launcher,
+            int test_type);
 
 namespace {
 
@@ -69,7 +70,8 @@ void UseUnreferenced() {
 #endif
 
 fs::path g_root, g_temp, g_storage;
-std::unique_ptr<drive::Launcher> g_launcher;
+drive::Options g_options;
+std::shared_ptr<drive::Launcher> g_launcher;
 std::string g_error_message;
 int g_return_code(0);
 enum class TestType {
@@ -277,6 +279,7 @@ std::function<void()> PrepareLocalVfs() {
 
   g_launcher.reset(new drive::Launcher(options));
   g_root = g_launcher->kMountPath();
+  g_options = options;
 
   return [options] {  // NOLINT
     RemoveTempDirectory();
@@ -327,6 +330,7 @@ std::function<void()> PrepareNetworkVfs() {
 
   g_launcher.reset(new drive::Launcher(options));
   g_root = g_launcher->kMountPath();
+  g_options = options;
 
   return [options] {  // NOLINT
     RemoveTempDirectory();
@@ -369,7 +373,8 @@ int main(int argc, char** argv) {
     maidsafe::on_scope_exit cleanup_on_exit(cleanup_functor);
 
     auto tests_result(maidsafe::test::RunTool(argc, argv, maidsafe::test::g_root,
-                                              maidsafe::test::g_temp, maidsafe::test::g_storage,
+                                              maidsafe::test::g_temp, maidsafe::test::g_options,
+                                              maidsafe::test::g_launcher,
                                               static_cast<int>(maidsafe::test::g_test_type)));
     if (maidsafe::test::g_launcher)
       maidsafe::test::g_launcher->StopDriveProcess();

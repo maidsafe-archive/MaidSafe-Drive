@@ -38,6 +38,8 @@ extern "C" char** environ;
 #include "maidsafe/common/utils.h"
 #include "maidsafe/common/process.h"
 
+#include "maidsafe/drive/tools/launcher.h"
+
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 
@@ -56,7 +58,7 @@ void UseUnreferenced() {
 }
 #endif
 
-fs::path g_root, g_temp, g_storage;
+fs::path g_root, g_temp;
 
 std::function<void()> clean_root([] {
   boost::system::error_code error_code;
@@ -488,7 +490,8 @@ void DownloadAndExtractBoost(const fs::path& start_directory) {
 }
 
 int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
-            const fs::path& storage, int /*test_type*/) {
+            const drive::Options& /*options*/, std::shared_ptr<drive::Launcher> /*launcher*/,
+            int /*test_type*/) {
   std::vector<std::string> arguments(argv, argv + argc);
 
   bool no_big_test(std::any_of(std::begin(arguments), std::end(arguments),
@@ -511,7 +514,6 @@ int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
 
   g_root = root;
   g_temp = temp;
-  g_storage = storage;
 
   if (!no_big_test)
     CopyThenReadLargeFile();
