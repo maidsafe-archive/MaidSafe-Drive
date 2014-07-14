@@ -71,7 +71,9 @@ namespace test {
 
 namespace {
 
-fs::path g_root, g_temp, g_storage;
+fs::path g_root, g_temp;
+drive::Options g_options;
+std::shared_ptr<drive::Launcher> g_launcher;
 drive::DriveType g_test_type;
 
 std::function<void()> clean_root([] {
@@ -120,6 +122,33 @@ fs::path CreateDirectory(const fs::path& parent) {
   fs::create_directories(directory);
   RequireExists(directory);
   return directory;
+}
+
+std::vector<fs::path> CreateDirectoryHierarchy(const fs::path& parent) {
+  std::vector<fs::path> directories;
+  auto directory(CreateDirectory(parent));
+  directories.push_back(directory);
+
+  // Add further directories 3 levels deep
+  for (int i(0); i != 3; ++i) {
+    std::vector<fs::path> nested;
+    for (const auto& directory : directories) {
+      auto directory_count((RandomUint32() % 3) + 1);
+      for (uint32_t j(0); j != directory_count; ++j)
+        nested.push_back(CreateDirectory(directory));
+    }
+    directories.insert(std::end(directories), std::begin(nested), std::end(nested));
+    nested.clear();
+  }
+
+  // Add files to all directories
+  for (const auto& directory : directories) {
+    auto file_count((RandomUint32() % 4) + 2);
+    for (uint32_t k(0); k != file_count; ++k)
+      CreateFile(directory, (RandomUint32() % 1024) + 1);
+  }
+
+  return directories;
 }
 
 bool CopyDirectory(const fs::path& from, const fs::path& to) {
@@ -492,10 +521,12 @@ void WriteUtf8FileAndEdit(const fs::path& start_directory) {
 }  // unnamed namespace
 
 int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
-            const fs::path& storage, int test_type) {
+            const drive::Options& options, std::shared_ptr<drive::Launcher> launcher,
+            int test_type) {
   g_root = root;
   g_temp = temp;
-  g_storage = storage;
+  g_options = options;
+  g_launcher = launcher;
   g_test_type = static_cast<drive::DriveType>(test_type);
 
   log::Logging::Instance().Initialise(argc, argv);
@@ -664,39 +695,17 @@ TEST(FileSystemTest, BEH_CopyDirectoryContainingMultipleFiles) {
 }
 
 TEST(FileSystemTest, BEH_CopyDirectoryHierarchy) {
-  // Create a new directory in 'g_temp'
   on_scope_exit cleanup(clean_root);
-  std::vector<fs::path> directories;
-  auto directory(CreateDirectory(g_temp));
-  directories.push_back(directory);
-
-  // Add further directories 3 levels deep
-  for (int i(0); i != 3; ++i) {
-    std::vector<fs::path> nested;
-    for (const auto& dir : directories) {
-      auto dir_count((RandomUint32() % 3) + 1);
-      for (uint32_t j(0); j != dir_count; ++j)
-        nested.push_back(CreateDirectory(dir));
-    }
-    directories.insert(std::end(directories), std::begin(nested), std::end(nested));
-    nested.clear();
-  }
-
-  // Add files to all directories
-  for (const auto& dir : directories) {
-    auto file_count((RandomUint32() % 4) + 2);
-    for (uint32_t k(0); k != file_count; ++k)
-      CreateFile(dir, (RandomUint32() % 1024) + 1);
-  }
-
+  // Create a new hierarchy in 'g_temp'
+  std::vector<fs::path> directories(CreateDirectoryHierarchy(g_temp));
   // Copy hierarchy to 'g_root'
-  ASSERT_TRUE(CopyDirectory(directory, g_root));
-  auto copied_directory(g_root / directory.filename());
+  ASSERT_TRUE(CopyDirectory(directories.front(), g_root));
+  auto copied_directory(g_root / directories.front().filename());
   RequireExists(copied_directory);
   boost::system::error_code error_code;
   ASSERT_TRUE(!fs::is_empty(copied_directory, error_code));
   ASSERT_TRUE(error_code.value() == 0);
-  RequireDirectoriesEqual(directory, copied_directory, true);
+  RequireDirectoriesEqual(directories.front(), copied_directory, true);
 }
 
 TEST(FileSystemTest, BEH_CopyThenCopyCopiedFile) {
@@ -1496,6 +1505,46 @@ TEST(FileSystemTest, FUND_Runfstest) {
   ASSERT_TRUE(true);
 }
 #endif
+
+TEST(FileSystemTest, FUND_RemountDrive) {
+  bool do_test(g_test_type == drive::DriveType::kLocal ||
+               g_test_type == drive::DriveType::kLocalConsole ||
+               g_test_type == drive::DriveType::kNetwork ||
+               g_test_type == drive::DriveType::kNetworkConsole);
+
+  if (do_test) {
+    on_scope_exit cleanup(clean_root);
+
+    // Create a new hierarchy in 'g_temp'
+    std::vector<fs::path> directories(CreateDirectoryHierarchy(g_temp));
+    {
+      // Copy hierarchy to 'g_root'
+      ASSERT_TRUE(CopyDirectory(directories.front(), g_root));
+      auto copied_directory(g_root / directories.front().filename());
+      RequireExists(copied_directory);
+      boost::system::error_code error_code;
+      ASSERT_TRUE(!fs::is_empty(copied_directory, error_code));
+      ASSERT_TRUE(error_code.value() == 0);
+      RequireDirectoriesEqual(directories.front(), copied_directory, true);
+
+      g_launcher->StopDriveProcess();
+      g_launcher.reset();
+    }
+    {
+      // Remount and check hierarchy for equality
+      g_options.create_store = false;
+      g_launcher.reset(new drive::Launcher(g_options));
+      g_root = g_launcher->kMountPath();
+
+      auto directory(g_root / directories.front().filename());
+      RequireExists(directory);
+      boost::system::error_code error_code;
+      ASSERT_TRUE(!fs::is_empty(directory, error_code));
+      ASSERT_TRUE(error_code.value() == 0);
+      RequireDirectoriesEqual(directories.front(), directory, true);
+    }
+  }
+}
 
 TEST(FileSystemTest, FUND_CrossPlatformFileCheck) {
   // Involves mounting a drive of type g_test_type so don't attempt it if we're doing a disk test
