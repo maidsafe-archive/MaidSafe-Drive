@@ -77,10 +77,10 @@ class DirectoryHandlerTest : public testing::Test {
 };
 
 TEST_F(DirectoryHandlerTest, BEH_Construct) {
-  listing_handler_.reset(new detail::DirectoryHandler<nfs::FakeStore>(
+  listing_handler_ = detail::DirectoryHandler<nfs::FakeStore>::Create(
       data_store_, unique_user_id_, root_parent_id_,
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
-      asio_service_.service()));
+      asio_service_.service());
   std::shared_ptr<Directory> recovered_directory(nullptr);
   const FileContext* recovered_file_context(nullptr);
 
@@ -95,10 +95,10 @@ TEST_F(DirectoryHandlerTest, BEH_Construct) {
 }
 
 TEST_F(DirectoryHandlerTest, BEH_AddDirectory) {
-  listing_handler_.reset(new detail::DirectoryHandler<nfs::FakeStore>(
+  listing_handler_ = detail::DirectoryHandler<nfs::FakeStore>::Create(
       data_store_, unique_user_id_, root_parent_id_,
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
-      asio_service_.service()));
+      asio_service_.service());
   std::string directory_name("Directory");
   FileContext file_context(directory_name, true);
   const FileContext* recovered_file_context(nullptr);
@@ -113,10 +113,10 @@ TEST_F(DirectoryHandlerTest, BEH_AddDirectory) {
 }
 
 TEST_F(DirectoryHandlerTest, BEH_AddSameDirectory) {
-  listing_handler_.reset(new detail::DirectoryHandler<nfs::FakeStore>(
+  listing_handler_ = detail::DirectoryHandler<nfs::FakeStore>::Create(
       data_store_, unique_user_id_, root_parent_id_,
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
-      asio_service_.service()));
+      asio_service_.service());
   std::string directory_name("Directory");
   FileContext file_context(directory_name, true);
   DirectoryId dir(*file_context.meta_data.directory_id);
@@ -137,10 +137,10 @@ TEST_F(DirectoryHandlerTest, BEH_AddSameDirectory) {
 }
 
 TEST_F(DirectoryHandlerTest, BEH_AddFile) {
-  listing_handler_.reset(new detail::DirectoryHandler<nfs::FakeStore>(
+  listing_handler_ = detail::DirectoryHandler<nfs::FakeStore>::Create(
       data_store_, unique_user_id_, root_parent_id_,
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
-      asio_service_.service()));
+      asio_service_.service());
   std::string file_name("File");
   FileContext file_context(file_name, false);
   const FileContext* recovered_file_context(nullptr);
@@ -155,10 +155,10 @@ TEST_F(DirectoryHandlerTest, BEH_AddFile) {
 }
 
 TEST_F(DirectoryHandlerTest, BEH_AddSameFile) {
-  listing_handler_.reset(new detail::DirectoryHandler<nfs::FakeStore>(
+  listing_handler_ = detail::DirectoryHandler<nfs::FakeStore>::Create(
       data_store_, unique_user_id_, root_parent_id_,
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
-      asio_service_.service()));
+      asio_service_.service());
   std::string file_name("File");
   FileContext file_context(file_name, false);
   const FileContext* recovered_file_context(nullptr);
@@ -177,10 +177,10 @@ TEST_F(DirectoryHandlerTest, BEH_AddSameFile) {
 }
 
 TEST_F(DirectoryHandlerTest, BEH_DeleteDirectory) {
-  listing_handler_.reset(new detail::DirectoryHandler<nfs::FakeStore>(
+  listing_handler_ = detail::DirectoryHandler<nfs::FakeStore>::Create(
       data_store_, unique_user_id_, root_parent_id_,
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
-      asio_service_.service()));
+      asio_service_.service());
   std::string directory_name("Directory");
   FileContext file_context(directory_name, true);
   const FileContext* recovered_file_context(nullptr);
@@ -201,10 +201,10 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteDirectory) {
 }
 
 TEST_F(DirectoryHandlerTest, BEH_DeleteSameDirectory) {
-  listing_handler_.reset(new detail::DirectoryHandler<nfs::FakeStore>(
+  listing_handler_ = detail::DirectoryHandler<nfs::FakeStore>::Create(
       data_store_, unique_user_id_, root_parent_id_,
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
-      asio_service_.service()));
+      asio_service_.service());
   std::string directory_name("Directory");
   FileContext file_context(directory_name, true);
   const FileContext* recovered_file_context(nullptr);
@@ -226,10 +226,10 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteSameDirectory) {
 }
 
 TEST_F(DirectoryHandlerTest, BEH_DeleteFile) {
-  listing_handler_.reset(new detail::DirectoryHandler<nfs::FakeStore>(
+  listing_handler_ = detail::DirectoryHandler<nfs::FakeStore>::Create(
       data_store_, unique_user_id_, root_parent_id_,
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
-      asio_service_.service()));
+      asio_service_.service());
   std::string file_name("File");
   FileContext file_context(file_name, false);
   const FileContext* recovered_file_context(nullptr);
@@ -247,10 +247,10 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteFile) {
 }
 
 TEST_F(DirectoryHandlerTest, BEH_DeleteSameFile) {
-  listing_handler_.reset(new detail::DirectoryHandler<nfs::FakeStore>(
+  listing_handler_ = detail::DirectoryHandler<nfs::FakeStore>::Create(
       data_store_, unique_user_id_, root_parent_id_,
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
-      asio_service_.service()));
+      asio_service_.service());
   std::string file_name("File");
   FileContext file_context(file_name, false);
   const FileContext* recovered_file_context(nullptr);
@@ -270,10 +270,10 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteSameFile) {
 }
 
 TEST_F(DirectoryHandlerTest, BEH_RenameAndMoveDirectory) {
-  listing_handler_.reset(new detail::DirectoryHandler<nfs::FakeStore>(
+  listing_handler_ = detail::DirectoryHandler<nfs::FakeStore>::Create(
       data_store_, unique_user_id_, root_parent_id_,
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
-      asio_service_.service()));
+      asio_service_.service());
   std::string first_directory_name("Directory1"), second_directory_name("Directory2"),
       old_directory_name("OldName"), new_directory_name("NewName");
   FileContext first_file_context(first_directory_name, true),
@@ -371,10 +371,10 @@ TEST_F(DirectoryHandlerTest, BEH_RenameAndMoveDirectory) {
 }
 
 TEST_F(DirectoryHandlerTest, BEH_RenameAndMoveFile) {
-  listing_handler_.reset(new detail::DirectoryHandler<nfs::FakeStore>(
+  listing_handler_ = detail::DirectoryHandler<nfs::FakeStore>::Create(
       data_store_, unique_user_id_, root_parent_id_,
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
-      asio_service_.service()));
+      asio_service_.service());
   std::string first_directory_name("Directory1"), second_directory_name("Directory2"),
       old_file_name("OldName"), new_file_name("NewName");
   FileContext first_file_context(first_directory_name, true),

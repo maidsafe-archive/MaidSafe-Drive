@@ -77,7 +77,7 @@ struct MetaData {
   std::unique_ptr<DirectoryId> directory_id;
 
  private:
-  MetaData(const MetaData& other);
+  MetaData(const MetaData& other) = delete;
 };
 
 void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT;

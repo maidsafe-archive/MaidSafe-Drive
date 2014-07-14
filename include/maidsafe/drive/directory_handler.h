@@ -60,11 +60,12 @@ namespace detail {
 namespace test { class DirectoryHandlerTest; }
 
 template <typename Storage>
-class DirectoryHandler {
+class DirectoryHandler
+    : public std::enable_shared_from_this<DirectoryHandler<Storage>>,
+      public Directory::Listener {
  public:
-  DirectoryHandler(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
-                   const Identity& root_parent_id, const boost::filesystem::path& disk_buffer_path,
-                   bool create, boost::asio::io_service& asio_service);
+  template <typename... Types>
+  static std::shared_ptr<DirectoryHandler<Storage>> Create(Types&&... args);
   ~DirectoryHandler();
 
   void Add(const boost::filesystem::path& relative_path, FileContext&& file_context);
@@ -81,19 +82,33 @@ class DirectoryHandler {
   friend class test::DirectoryHandlerTest;
 
  private:
-  DirectoryHandler();
-  DirectoryHandler(const DirectoryHandler&);
-  DirectoryHandler(DirectoryHandler&&);
-  DirectoryHandler& operator=(const DirectoryHandler);
+  DirectoryHandler() = delete;
+  DirectoryHandler(const DirectoryHandler&) = delete;
+  DirectoryHandler(DirectoryHandler&&) = delete;
+  DirectoryHandler& operator=(const DirectoryHandler) = delete;
+  DirectoryHandler(std::shared_ptr<Storage> storage,
+                   const Identity& unique_user_id,
+                   const Identity& root_parent_id,
+                   const boost::filesystem::path& disk_buffer_path,
+                   bool create,
+                   boost::asio::io_service& asio_service);
+
+  void Initialise(std::shared_ptr<Storage> storage,
+                  const Identity& unique_user_id,
+                  const Identity& root_parent_id,
+                  const boost::filesystem::path& disk_buffer_path,
+                  bool create,
+                  boost::asio::io_service& asio_service);
 
   bool IsDirectory(const FileContext& file_context) const;
-  std::pair<Directory*, FileContext*> GetParent(const boost::filesystem::path& relative_path);
+  std::pair<std::shared_ptr<Directory>, FileContext*>
+      GetParent(const boost::filesystem::path& relative_path);
   void PrepareNewPath(const boost::filesystem::path& new_relative_path, Directory* new_parent);
   void RenameDifferentParent(const boost::filesystem::path& old_relative_path,
                              const boost::filesystem::path& new_relative_path,
                              std::shared_ptr<Directory> new_parent);
   void Put(std::shared_ptr<Directory> directory);
-  ImmutableData SerialiseDirectory(Directory* directory) const;
+  ImmutableData SerialiseDirectory(std::shared_ptr<Directory> directory) const;
   std::shared_ptr<Directory> GetFromStorage(const boost::filesystem::path& relative_path,
       const ParentId& parent_id, const DirectoryId& directory_id);
   std::shared_ptr<Directory> ParseDirectory(
@@ -102,14 +117,19 @@ class DirectoryHandler {
       std::vector<StructuredDataVersions::VersionName> versions);
   void DeleteOldestVersion(Directory* directory);
   void DeleteAllVersions(Directory* directory);
+  NonEmptyString GetChunkFromStore(const std::string& name) const;
+
+
+  std::shared_ptr<Directory::Listener> GetListener();
+
+  // Directory::Listener
+  virtual void DirectoryPut(std::shared_ptr<Directory>);
+  virtual void DirectoryPutChunk(const ImmutableData&);
+  virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&);
 
   std::shared_ptr<Storage> storage_;
   Identity unique_user_id_, root_parent_id_;
   mutable detail::FileContext::Buffer disk_buffer_;
-  std::function<NonEmptyString(const std::string&)> get_chunk_from_store_;
-  std::function<void(std::shared_ptr<Directory>)> put_functor_;  // NOLINT
-  std::function<void(const ImmutableData&)> put_chunk_functor_;
-  std::function<void(std::vector<ImmutableData::Name>)> increment_chunks_functor_;
   mutable std::mutex cache_mutex_;
   boost::asio::io_service& asio_service_;
   std::map<boost::filesystem::path, std::shared_ptr<Directory>> cache_;
@@ -117,11 +137,21 @@ class DirectoryHandler {
 
 // ==================== Implementation details ====================================================
 template <typename Storage>
+template <typename... Types>
+std::shared_ptr<DirectoryHandler<Storage>>
+DirectoryHandler<Storage>::Create(Types&&... args) {
+  std::shared_ptr<DirectoryHandler<Storage>> self
+    (new DirectoryHandler<Storage>{std::forward<Types>(args)...});
+  self->Initialise(std::forward<Types>(args)...);
+  return self;
+}
+
+template <typename Storage>
 DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
                                             const Identity& unique_user_id,
                                             const Identity& root_parent_id,
                                             const boost::filesystem::path& disk_buffer_path,
-                                            bool create,
+                                            bool,
                                             boost::asio::io_service& asio_service)
     : storage_(storage),
       unique_user_id_(unique_user_id),
@@ -130,12 +160,6 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
       // out of buffer, so allow pop_functor to be a no-op.
       disk_buffer_(MemoryUsage(Concurrency() * 1024 * 1024), DiskUsage(30 * 1024 * 1024),
                    [](const std::string&, const NonEmptyString&) {}, disk_buffer_path, true),
-      get_chunk_from_store_(),
-      put_functor_([this](std::shared_ptr<Directory> directory) { Put(directory); }),
-      put_chunk_functor_([this](const ImmutableData& chunk) { storage_->Put(chunk); }),
-      increment_chunks_functor_([this](const std::vector<ImmutableData::Name>& chunk_names) {
-                                  storage_->IncrementReferenceCount(chunk_names);
-                                }),
       cache_mutex_(),
       asio_service_(asio_service),
       cache_() {
@@ -143,16 +167,25 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::uninitialised));
   if (!root_parent_id.IsInitialised())
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::uninitialised));
-  get_chunk_from_store_ = [this](const std::string& name)->NonEmptyString {
-    try {
-      auto chunk(storage_->Get(ImmutableData::Name(Identity(name))).get());
-      return chunk.data();
-    }
-    catch (const std::exception& e) {
-      LOG(kError) << "Failed to get chunk from storage: " << e.what();
-      throw;
-    }
-  };
+}
+
+template <typename Storage>
+DirectoryHandler<Storage>::~DirectoryHandler() {
+  FlushAll();
+}
+
+template <typename Storage>
+std::shared_ptr<Directory::Listener> DirectoryHandler<Storage>::GetListener() {
+    return std::static_pointer_cast<Directory::Listener>(this->shared_from_this());
+}
+
+template <typename Storage>
+void DirectoryHandler<Storage>::Initialise(std::shared_ptr<Storage>,
+                                           const Identity&,
+                                           const Identity&,
+                                           const boost::filesystem::path&,
+                                           bool create,
+                                           boost::asio::io_service&) {
   if (!create) {
     try {
       cache_[""] = GetFromStorage("", ParentId(unique_user_id_), root_parent_id_);
@@ -163,23 +196,24 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
   if (create) {
     // TODO(Fraser#5#): 2013-12-05 - Fill 'root_file_context' attributes appropriately.
     FileContext root_file_context(kRoot, true);
-    std::shared_ptr<Directory> root_parent(Directory::Create(ParentId(unique_user_id_),
-        root_parent_id, asio_service_, put_functor_, put_chunk_functor_, increment_chunks_functor_,
-        ""));
-    std::shared_ptr<Directory> root(Directory::Create(ParentId(root_parent_id),
-        *root_file_context.meta_data.directory_id, asio_service_, put_functor_, put_chunk_functor_,
-        increment_chunks_functor_, kRoot));
+    std::shared_ptr<Directory>
+        root_parent(Directory::Create(ParentId(unique_user_id_),
+                                      root_parent_id_,
+                                      asio_service_,
+                                      GetListener(),
+                                      ""));
+    std::shared_ptr<Directory>
+        root(Directory::Create(ParentId(root_parent_id_),
+                               *root_file_context.meta_data.directory_id,
+                               asio_service_,
+                               GetListener(),
+                               kRoot));
     root_file_context.parent = root_parent;
     root_parent->AddChild(std::move(root_file_context));
     root->ScheduleForStoring();
     cache_[""] = std::move(root_parent);
     cache_[kRoot] = std::move(root);
   }
-}
-
-template <typename Storage>
-DirectoryHandler<Storage>::~DirectoryHandler() {
-  FlushAll();
 }
 
 template <typename Storage>
@@ -190,9 +224,12 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
   assert(parent.first && parent.second);
 
   if (IsDirectory(file_context)) {
-    std::shared_ptr<Directory> directory(Directory::Create(ParentId(parent.first->directory_id()),
-        *file_context.meta_data.directory_id, asio_service_, put_functor_, put_chunk_functor_,
-        increment_chunks_functor_, relative_path));
+    std::shared_ptr<Directory>
+        directory(Directory::Create(ParentId(parent.first->directory_id()),
+                                    *file_context.meta_data.directory_id,
+                                    asio_service_,
+                                    GetListener(),
+                                    relative_path));
     std::lock_guard<std::mutex> lock(cache_mutex_);
     cache_[relative_path] = std::move(directory);
   }
@@ -352,13 +389,13 @@ bool DirectoryHandler<Storage>::IsDirectory(const FileContext& file_context) con
 }
 
 template <typename Storage>
-std::pair<Directory*, FileContext*> DirectoryHandler<Storage>::GetParent(
-    const boost::filesystem::path& relative_path) {
+std::pair<std::shared_ptr<Directory>, FileContext*>
+DirectoryHandler<Storage>::GetParent(const boost::filesystem::path& relative_path) {
   auto grandparent(Get(relative_path.parent_path().parent_path()));
   auto parent_context(grandparent->GetMutableChild(relative_path.parent_path().filename()));
   if (!(parent_context->meta_data.directory_id))
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
-  return std::make_pair(Get(relative_path.parent_path()).get(), parent_context);
+  return std::make_pair(Get(relative_path.parent_path()), parent_context);
 }
 
 template <typename Storage>
@@ -459,7 +496,7 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
 
 template <typename Storage>
 void DirectoryHandler<Storage>::Put(std::shared_ptr<Directory> directory) {
-  ImmutableData encrypted_data_map(SerialiseDirectory(directory.get()));
+  ImmutableData encrypted_data_map(SerialiseDirectory(directory));
   storage_->Put(encrypted_data_map);
   if (directory->VersionsCount() == 0) {
     auto result(directory->InitialiseVersions(encrypted_data_map.name()));
@@ -475,11 +512,16 @@ void DirectoryHandler<Storage>::Put(std::shared_ptr<Directory> directory) {
 }
 
 template <typename Storage>
-ImmutableData DirectoryHandler<Storage>::SerialiseDirectory(Directory* directory) const {
+ImmutableData
+DirectoryHandler<Storage>::SerialiseDirectory(std::shared_ptr<Directory> directory) const {
   std::string serialised_directory(directory->Serialise());
   encrypt::DataMap data_map;
   {
-    encrypt::SelfEncryptor self_encryptor(data_map, disk_buffer_, get_chunk_from_store_);
+    encrypt::SelfEncryptor self_encryptor(data_map,
+                                          disk_buffer_,
+                                          std::bind(&DirectoryHandler<Storage>::GetChunkFromStore,
+                                                    this->shared_from_this(),
+                                                    std::placeholders::_1));
     assert(serialised_directory.size() <= std::numeric_limits<uint32_t>::max());
     if (!self_encryptor.Write(serialised_directory.c_str(),
                               static_cast<uint32_t>(serialised_directory.size()), 0)) {
@@ -491,7 +533,8 @@ ImmutableData DirectoryHandler<Storage>::SerialiseDirectory(Directory* directory
     storage_->Put(ImmutableData(content));
   }
   auto encrypted_data_map_contents(encrypt::EncryptDataMap(directory->parent_id(),
-                                                           directory->directory_id(), data_map));
+                                                           directory->directory_id(),
+                                                           data_map));
   return ImmutableData(encrypted_data_map_contents);
 }
 
@@ -528,16 +571,24 @@ std::shared_ptr<Directory> DirectoryHandler<Storage>::ParseDirectory(
     std::vector<StructuredDataVersions::VersionName> versions) {
   auto data_map(encrypt::DecryptDataMap(parent_id.data, directory_id,
                                         encrypted_data_map.data().string()));
-  encrypt::SelfEncryptor self_encryptor(data_map, disk_buffer_, get_chunk_from_store_);
+  encrypt::SelfEncryptor self_encryptor(data_map,
+                                        disk_buffer_,
+                                        std::bind(&DirectoryHandler<Storage>::GetChunkFromStore,
+                                                  this->shared_from_this(),
+                                                  std::placeholders::_1));
   uint32_t data_map_size(static_cast<uint32_t>(data_map.size()));
   std::string serialised_listing(data_map_size, 0);
 
   if (!self_encryptor.Read(const_cast<char*>(serialised_listing.c_str()), data_map_size, 0))
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
 
-  std::shared_ptr<Directory> directory(Directory::Create(parent_id, serialised_listing,
-      std::move(versions), asio_service_, put_functor_, put_chunk_functor_,
-      increment_chunks_functor_, relative_path));
+  std::shared_ptr<Directory>
+      directory(Directory::Create(parent_id,
+                                  serialised_listing,
+                                  std::move(versions),
+                                  asio_service_,
+                                  GetListener(),
+                                  relative_path));
   assert(directory->directory_id() == directory_id);
   return directory;
 }
@@ -574,6 +625,34 @@ void DirectoryHandler<Storage>::HandleDataPoppedFromBuffer(
   assert(data.name()->string() == name);
 //  storage_->Put(data);
   BOOST_THROW_EXCEPTION(MakeError(CommonErrors::file_too_large));
+}
+
+template <typename Storage>
+NonEmptyString DirectoryHandler<Storage>::GetChunkFromStore(const std::string& name) const {
+  try {
+    auto chunk(storage_->Get(ImmutableData::Name(Identity(name))).get());
+    return chunk.data();
+  }
+  catch (const std::exception& e) {
+    LOG(kError) << "Failed to get chunk from storage: " << e.what();
+    throw;
+  }
+}
+
+template <typename Storage>
+void DirectoryHandler<Storage>::DirectoryPut(std::shared_ptr<Directory> directory) {
+  Put(directory);
+}
+
+template <typename Storage>
+void DirectoryHandler<Storage>::DirectoryPutChunk(const ImmutableData& chunk) {
+  storage_->Put(chunk);
+}
+
+template <typename Storage>
+void DirectoryHandler<Storage>::DirectoryIncrementChunks(
+  const std::vector<ImmutableData::Name>& names) {
+  storage_->IncrementReferenceCount(names);
 }
 
 }  // namespace detail
