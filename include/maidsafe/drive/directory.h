@@ -49,7 +49,7 @@ class Directory;
 
 namespace test {
 
-class DirectoryComparator;
+void DirectoriesMatch(const Directory&, const Directory&);
 void SortAndResetChildrenCounter(Directory& lhs);
 
 }  // namespace test
@@ -138,7 +138,7 @@ class Directory : public std::enable_shared_from_this<Directory> {
   void StoreImmediatelyIfPending();
   bool HasPending() const;
 
-  friend class test::DirectoryComparator;
+  friend void test::DirectoriesMatch(const Directory&, const Directory&);
   friend void test::SortAndResetChildrenCounter(Directory& lhs);
 
   // TODO(Fraser#5#): 2014-01-30 - BEFORE_RELEASE - Make mutex_ private.

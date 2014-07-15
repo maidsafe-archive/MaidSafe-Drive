@@ -394,103 +394,84 @@ TEST_F(DirectoryTest, BEH_DirectoryHasChild) {
   ASSERT_TRUE(DirectoryHasChild(*main_test_dir_, relative_root_));
 }
 
-// Visual Studio warns that DirectoryComparator cannot be instantiated because
-// it lacks a default constructor. As we are not going to instantiate any
-// objects of this type, we have disabled the warning. If we accidentially
-// instantiated it we will get a compiler error instead.
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable: 4510 4610)
-#endif
-// This class may not add member variables
-class DirectoryComparator : public Directory {
- public:
-  void Match(const Directory& rhs) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    ASSERT_TRUE(directory_id_ == rhs.directory_id()) << "Directory ID mismatch.";
-    ASSERT_TRUE(children_.size() == rhs.children_.size());
-    auto itr1(children_.begin()), itr2(rhs.children_.begin());
-    for (; itr1 != children_.end(); ++itr1, ++itr2) {
-      ASSERT_TRUE((*itr1)->meta_data.name == (*itr2)->meta_data.name);
-      EXPECT_FALSE((*itr1)->meta_data.data_map == nullptr &&
-                   (*itr2)->meta_data.directory_id == nullptr);
-      if ((*itr1)->meta_data.data_map) {
-        ASSERT_TRUE(TotalSize(*(*itr1)->meta_data.data_map) ==
-                    TotalSize(*(*itr2)->meta_data.data_map));
-        ASSERT_TRUE((*itr1)->meta_data.data_map->chunks.size() ==
-                    (*itr2)->meta_data.data_map->chunks.size());
-        auto chunk_itr1((*itr1)->meta_data.data_map->chunks.begin());
-        auto chunk_itr2((*itr2)->meta_data.data_map->chunks.begin());
-        size_t chunk_no(0);
-        for (; chunk_itr1 != (*itr1)->meta_data.data_map->chunks.end();
-             ++chunk_itr1, ++chunk_itr2, ++chunk_no) {
-          ASSERT_TRUE((*chunk_itr1).hash != (*chunk_itr2).hash) << "DataMap chunk " << chunk_no
-                                                                << " hash mismatch.";
-          ASSERT_TRUE((*chunk_itr1).pre_hash != (*chunk_itr2).pre_hash)
-              << "DataMap chunk " << chunk_no << " pre_hash mismatch.";
-          ASSERT_TRUE((*chunk_itr1).size == (*chunk_itr2).size);
-        }
-        ASSERT_TRUE((*itr1)->meta_data.data_map->content == (*itr2)->meta_data.data_map->content)
-            << "DataMap content mismatch.";
+void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
+  std::lock_guard<std::mutex> lhsLock(lhs.mutex_);
+  std::lock_guard<std::mutex> rhsLock(rhs.mutex_);
+  // Do not call functions on lhs and rhs, otherwise they will deadlock
+  ASSERT_TRUE(lhs.directory_id_ == rhs.directory_id_) << "Directory ID mismatch.";
+  ASSERT_TRUE(lhs.children_.size() == rhs.children_.size());
+  auto itr1(lhs.children_.begin()), itr2(rhs.children_.begin());
+  for (; itr1 != lhs.children_.end(); ++itr1, ++itr2) {
+    ASSERT_TRUE((*itr1)->meta_data.name == (*itr2)->meta_data.name);
+    EXPECT_FALSE((*itr1)->meta_data.data_map == nullptr &&
+                 (*itr2)->meta_data.directory_id == nullptr);
+    if ((*itr1)->meta_data.data_map) {
+      ASSERT_TRUE(TotalSize(*(*itr1)->meta_data.data_map) ==
+                  TotalSize(*(*itr2)->meta_data.data_map));
+      ASSERT_TRUE((*itr1)->meta_data.data_map->chunks.size() ==
+                  (*itr2)->meta_data.data_map->chunks.size());
+      auto chunk_itr1((*itr1)->meta_data.data_map->chunks.begin());
+      auto chunk_itr2((*itr2)->meta_data.data_map->chunks.begin());
+      size_t chunk_no(0);
+      for (; chunk_itr1 != (*itr1)->meta_data.data_map->chunks.end();
+           ++chunk_itr1, ++chunk_itr2, ++chunk_no) {
+        ASSERT_TRUE((*chunk_itr1).hash != (*chunk_itr2).hash) << "DataMap chunk " << chunk_no
+                                                              << " hash mismatch.";
+        ASSERT_TRUE((*chunk_itr1).pre_hash != (*chunk_itr2).pre_hash)
+            << "DataMap chunk " << chunk_no << " pre_hash mismatch.";
+        ASSERT_TRUE((*chunk_itr1).size == (*chunk_itr2).size);
       }
-      //     if ((*itr1).end_of_file != (*itr2).end_of_file)
-      ASSERT_TRUE(GetSize((*itr1)->meta_data) == GetSize((*itr2)->meta_data));
-#ifdef MAIDSAFE_WIN32
-      ASSERT_TRUE((*itr1)->meta_data.allocation_size == (*itr2)->meta_data.allocation_size);
-      ASSERT_TRUE((*itr1)->meta_data.attributes == (*itr2)->meta_data.attributes);
-      ASSERT_TRUE((*itr1)->meta_data.creation_time.dwHighDateTime ==
-                  (*itr2)->meta_data.creation_time.dwHighDateTime);
-      if ((*itr1)->meta_data.creation_time.dwLowDateTime !=
-          (*itr2)->meta_data.creation_time.dwLowDateTime) {
-        uint32_t error = 0xA;
-        if ((*itr1)->meta_data.creation_time.dwLowDateTime >
-            (*itr2)->meta_data.creation_time.dwLowDateTime + error ||
-            (*itr1)->meta_data.creation_time.dwLowDateTime <
-            (*itr2)->meta_data.creation_time.dwLowDateTime - error)
-          GTEST_FAIL() << "Creation times low: " << (*itr1)->meta_data.creation_time.dwLowDateTime
-                       << " != " << (*itr2)->meta_data.creation_time.dwLowDateTime;
-      }
-      ASSERT_TRUE((*itr1)->meta_data.last_access_time.dwHighDateTime ==
-                  (*itr2)->meta_data.last_access_time.dwHighDateTime);
-      if ((*itr1)->meta_data.last_access_time.dwLowDateTime !=
-          (*itr2)->meta_data.last_access_time.dwLowDateTime) {
-        uint32_t error = 0xA;
-        if ((*itr1)->meta_data.last_access_time.dwLowDateTime >
-            (*itr2)->meta_data.last_access_time.dwLowDateTime + error ||
-            (*itr1)->meta_data.last_access_time.dwLowDateTime <
-            (*itr2)->meta_data.last_access_time.dwLowDateTime - error)
-          GTEST_FAIL() << "Last access times low: "
-                       << (*itr1)->meta_data.last_access_time.dwLowDateTime << " != "
-                       << (*itr2)->meta_data.last_access_time.dwLowDateTime;
-      }
-      ASSERT_TRUE((*itr1)->meta_data.last_write_time.dwHighDateTime ==
-                  (*itr2)->meta_data.last_write_time.dwHighDateTime);
-      if ((*itr1)->meta_data.last_write_time.dwLowDateTime !=
-          (*itr2)->meta_data.last_write_time.dwLowDateTime) {
-        uint32_t error = 0xA;
-        if ((*itr1)->meta_data.last_write_time.dwLowDateTime >
-            (*itr2)->meta_data.last_write_time.dwLowDateTime + error ||
-            (*itr1)->meta_data.last_write_time.dwLowDateTime <
-            (*itr2)->meta_data.last_write_time.dwLowDateTime - error)
-          GTEST_FAIL() << "Last write times low: "
-                       << (*itr1)->meta_data.last_write_time.dwLowDateTime
-                       << " != " << (*itr2)->meta_data.last_write_time.dwLowDateTime;
-      }
-#else
-      ASSERT_TRUE((*itr1)->meta_data.attributes.st_atime ==
-                  (*itr2)->meta_data.attributes.st_atime);
-      ASSERT_TRUE((*itr1)->meta_data.attributes.st_mtime ==
-                  (*itr2)->meta_data.attributes.st_mtime);
-#endif
+      ASSERT_TRUE((*itr1)->meta_data.data_map->content == (*itr2)->meta_data.data_map->content)
+          << "DataMap content mismatch.";
     }
-  }
-};
-#ifdef _MSC_VER
-#pragma warning(pop)
+    //     if ((*itr1).end_of_file != (*itr2).end_of_file)
+    ASSERT_TRUE(GetSize((*itr1)->meta_data) == GetSize((*itr2)->meta_data));
+#ifdef MAIDSAFE_WIN32
+    ASSERT_TRUE((*itr1)->meta_data.allocation_size == (*itr2)->meta_data.allocation_size);
+    ASSERT_TRUE((*itr1)->meta_data.attributes == (*itr2)->meta_data.attributes);
+    ASSERT_TRUE((*itr1)->meta_data.creation_time.dwHighDateTime ==
+                (*itr2)->meta_data.creation_time.dwHighDateTime);
+    if ((*itr1)->meta_data.creation_time.dwLowDateTime !=
+        (*itr2)->meta_data.creation_time.dwLowDateTime) {
+      uint32_t error = 0xA;
+      if ((*itr1)->meta_data.creation_time.dwLowDateTime >
+          (*itr2)->meta_data.creation_time.dwLowDateTime + error ||
+          (*itr1)->meta_data.creation_time.dwLowDateTime <
+          (*itr2)->meta_data.creation_time.dwLowDateTime - error)
+        GTEST_FAIL() << "Creation times low: " << (*itr1)->meta_data.creation_time.dwLowDateTime
+                     << " != " << (*itr2)->meta_data.creation_time.dwLowDateTime;
+    }
+    ASSERT_TRUE((*itr1)->meta_data.last_access_time.dwHighDateTime ==
+                (*itr2)->meta_data.last_access_time.dwHighDateTime);
+    if ((*itr1)->meta_data.last_access_time.dwLowDateTime !=
+        (*itr2)->meta_data.last_access_time.dwLowDateTime) {
+      uint32_t error = 0xA;
+      if ((*itr1)->meta_data.last_access_time.dwLowDateTime >
+          (*itr2)->meta_data.last_access_time.dwLowDateTime + error ||
+          (*itr1)->meta_data.last_access_time.dwLowDateTime <
+          (*itr2)->meta_data.last_access_time.dwLowDateTime - error)
+        GTEST_FAIL() << "Last access times low: "
+                     << (*itr1)->meta_data.last_access_time.dwLowDateTime << " != "
+                     << (*itr2)->meta_data.last_access_time.dwLowDateTime;
+    }
+    ASSERT_TRUE((*itr1)->meta_data.last_write_time.dwHighDateTime ==
+                (*itr2)->meta_data.last_write_time.dwHighDateTime);
+    if ((*itr1)->meta_data.last_write_time.dwLowDateTime !=
+        (*itr2)->meta_data.last_write_time.dwLowDateTime) {
+      uint32_t error = 0xA;
+      if ((*itr1)->meta_data.last_write_time.dwLowDateTime >
+          (*itr2)->meta_data.last_write_time.dwLowDateTime + error ||
+          (*itr1)->meta_data.last_write_time.dwLowDateTime <
+          (*itr2)->meta_data.last_write_time.dwLowDateTime - error)
+        GTEST_FAIL() << "Last write times low: "
+                     << (*itr1)->meta_data.last_write_time.dwLowDateTime
+                     << " != " << (*itr2)->meta_data.last_write_time.dwLowDateTime;
+    }
+#else
+    ASSERT_TRUE((*itr1)->meta_data.attributes.st_atime == (*itr2)->meta_data.attributes.st_atime);
+    ASSERT_TRUE((*itr1)->meta_data.attributes.st_mtime == (*itr2)->meta_data.attributes.st_mtime);
 #endif
-
-void DirectoriesMatch(const DirectoryComparator& lhs, const DirectoryComparator& rhs) {
-  lhs.Match(rhs);
+  }
 }
 
 void SortAndResetChildrenCounter(Directory& lhs) {
@@ -561,8 +542,7 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
                                              asio_service_.service(),
                                              GetListener(),
                                              ""));
-  DirectoriesMatch(static_cast<DirectoryComparator&>(*directory),
-                   static_cast<DirectoryComparator&>(*recovered_directory));
+  DirectoriesMatch(*directory, *recovered_directory);
 }
 
 TEST_F(DirectoryTest, BEH_IteratorReset) {
