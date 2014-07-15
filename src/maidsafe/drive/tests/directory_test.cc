@@ -394,6 +394,14 @@ TEST_F(DirectoryTest, BEH_DirectoryHasChild) {
   ASSERT_TRUE(DirectoryHasChild(*main_test_dir_, relative_root_));
 }
 
+// Visual Studio warns that DirectoryComparator cannot be instantiated because
+// it lacks a default constructor. As we are not going to instantiate any
+// objects of this type, we have disabled the warning. If we accidentially
+// instantiated it we will get a compiler error instead.
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4510 4610)
+#endif
 // This class may not add member variables
 class DirectoryComparator : public Directory {
  public:
@@ -477,6 +485,9 @@ class DirectoryComparator : public Directory {
     }
   }
 };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 void DirectoriesMatch(const DirectoryComparator& lhs, const DirectoryComparator& rhs) {
   lhs.Match(rhs);
