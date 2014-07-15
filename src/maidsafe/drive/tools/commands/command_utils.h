@@ -39,10 +39,10 @@ namespace drive {
 namespace tools {
 
 struct Environment {
-  Environment() : running(true), root(), temp(), storage() {}
+  Environment() : running(true), root(), temp() {}
 
   bool running;
-  boost::filesystem::path root, temp, storage;
+  boost::filesystem::path root, temp;
 #ifdef MAIDSAFE_WIN32
   std::map<boost::filesystem::path, std::pair<HANDLE, HANDLE>> files;
 #else
