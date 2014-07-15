@@ -241,8 +241,7 @@ int Mount(const Options& options) {
     std::thread poll_parent([&] { MonitorParentProcess(options); });
     g_network_drive->Mount();
     poll_parent.join();
-  }
-  else {
+  } else {
     g_network_drive->Mount();
   }
   return 0;
