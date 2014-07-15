@@ -49,34 +49,59 @@ class Directory;
 
 namespace test {
 
-void DirectoriesMatch(const Directory& lhs, const Directory& rhs);
+void DirectoriesMatch(const Directory&, const Directory&);
 void SortAndResetChildrenCounter(Directory& lhs);
 
 }  // namespace test
 
+template <typename Lock>
+class ScopedUnlocker {
+ public:
+  explicit ScopedUnlocker(Lock& lock) : lock(lock) {
+    lock.unlock();
+  }
+  ~ScopedUnlocker() {
+    lock.lock();
+  }
+  Lock &lock;
+};
+
 class Directory : public std::enable_shared_from_this<Directory> {
  public:
-  static std::shared_ptr<Directory>
-      Create(ParentId parent_id,
-             DirectoryId directory_id,
-             boost::asio::io_service& io_service,
-             std::function<void(std::shared_ptr<Directory>)> put_functor,  // NOLINT
-             std::function<void(const ImmutableData&)> put_chunk_functor,
-             std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
-             const boost::filesystem::path& path);  // NOLINT
-  static std::shared_ptr<Directory>
-      Create(ParentId parent_id,
-             const std::string& serialised_directory,
-             const std::vector<StructuredDataVersions::VersionName>& versions,
-             boost::asio::io_service& io_service,
-             std::function<void(std::shared_ptr<Directory>)> put_functor,  // NOLINT
-             std::function<void(const ImmutableData&)> put_chunk_functor,
-             std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
-             const boost::filesystem::path& path);
+  class Listener {
+  public:
+    virtual ~Listener() {}
+    virtual void DirectoryPut(std::shared_ptr<Directory>) = 0;
+    virtual void DirectoryPutChunk(const ImmutableData&) = 0;
+    virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&) = 0;
 
-  Directory(const Directory& other) = delete;
-  Directory(Directory&& other) = delete;
-  Directory& operator=(Directory other) = delete;
+  private:
+    friend class Directory;
+    template <typename Lock>
+    void Put(std::shared_ptr<Directory> directory, Lock& lock) {
+      ScopedUnlocker<Lock> unlocker(lock);
+      DirectoryPut(directory);
+    }
+    template <typename Lock>
+    void PutChunk(const ImmutableData& data, Lock& lock) {
+      ScopedUnlocker<Lock> unlocker(lock);
+      DirectoryPutChunk(data);
+    }
+    template <typename Lock>
+    void IncrementChunks(const std::vector<ImmutableData::Name>& names, Lock& lock) {
+      ScopedUnlocker<Lock> unlocker(lock);
+      DirectoryIncrementChunks(names);
+    }
+  };
+
+  // This class must always be constructed using a Create() call to ensure that it will be
+  // a shared_ptr. See the private constructors for the argument lists.
+  template <typename... Types>
+  static std::shared_ptr<Directory> Create(Types&&... args) {
+    std::shared_ptr<Directory> self(new Directory{std::forward<Types>(args)...});
+    self->Initialise(std::forward<Types>(args)...);
+    return self;
+  }
 
   ~Directory();
 
@@ -113,29 +138,40 @@ class Directory : public std::enable_shared_from_this<Directory> {
   void StoreImmediatelyIfPending();
   bool HasPending() const;
 
-  friend void test::DirectoriesMatch(const Directory& lhs, const Directory& rhs);
+  friend void test::DirectoriesMatch(const Directory&, const Directory&);
   friend void test::SortAndResetChildrenCounter(Directory& lhs);
 
   // TODO(Fraser#5#): 2014-01-30 - BEFORE_RELEASE - Make mutex_ private.
   mutable std::mutex mutex_;
 
  private:
+  Directory(const Directory& other) = delete;
+  Directory(Directory&& other) = delete;
+  Directory& operator=(Directory other) = delete;
+
   Directory(ParentId parent_id,
             DirectoryId directory_id,
             boost::asio::io_service& io_service,
-            std::function<void(std::shared_ptr<Directory>)> put_functor,  // NOLINT
-            std::function<void(const ImmutableData&)> put_chunk_functor,
-            std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
+            std::weak_ptr<Directory::Listener> listener,
             const boost::filesystem::path& path);  // NOLINT
   Directory(ParentId parent_id,
+            const std::string& serialised_directory,
             const std::vector<StructuredDataVersions::VersionName>& versions,
             boost::asio::io_service& io_service,
-            std::function<void(std::shared_ptr<Directory>)> put_functor,  // NOLINT
-            std::function<void(const ImmutableData&)> put_chunk_functor,
-            std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor,
+            std::weak_ptr<Directory::Listener> listener,
             const boost::filesystem::path& path);
 
-  void Initialise(const std::string& serialised_directory);
+  void Initialise(ParentId parent_id,
+                  DirectoryId directory_id,
+                  boost::asio::io_service& io_service,
+                  std::weak_ptr<Directory::Listener> listener,
+                  const boost::filesystem::path& path);  // NOLINT
+  void Initialise(ParentId parent_id,
+                  const std::string& serialised_directory,
+                  const std::vector<StructuredDataVersions::VersionName>& versions,
+                  boost::asio::io_service& io_service,
+                  std::weak_ptr<Directory::Listener> listener,
+                  const boost::filesystem::path& path);
 
   typedef std::vector<std::unique_ptr<FileContext>> Children;
 
@@ -149,9 +185,7 @@ class Directory : public std::enable_shared_from_this<Directory> {
   DirectoryId directory_id_;
   boost::asio::steady_timer timer_;
   boost::filesystem::path path_;
-  std::function<void(std::shared_ptr<Directory>)> put_functor_;
-  std::function<void(const ImmutableData&)> put_chunk_functor_;
-  std::function<void(std::vector<ImmutableData::Name>)> increment_chunks_functor_;
+  std::weak_ptr<Directory::Listener> weakListener;
   std::vector<ImmutableData::Name> chunks_to_be_incremented_;
   std::deque<StructuredDataVersions::VersionName> versions_;
   MaxVersions max_versions_;

@@ -102,7 +102,7 @@ class Drive {
  protected:
   AsioService asio_service_;
   // Needs to be destructed first so that 'get_chunk_from_store_' and 'storage_' outlive it.
-  detail::DirectoryHandler<Storage> directory_handler_;
+  std::shared_ptr<detail::DirectoryHandler<Storage>> directory_handler_;
 };
 
 // ==================== Implementation =============================================================
@@ -133,11 +133,12 @@ Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_u
       default_max_buffer_memory_(Concurrency() * 1024 * 1024),  // cores * default chunk size
       default_max_buffer_disk_(static_cast<uint64_t>(
           boost::filesystem::space(kUserAppDir_).available / 10)),
-      asio_service_(2),
-      directory_handler_(storage, unique_user_id, root_parent_id,
-          boost::filesystem::unique_path(*kBufferRoot_ / "%%%%%-%%%%%-%%%%%-%%%%%"),
-          create, asio_service_.service()) {
-  get_chunk_from_store_ = [this](const std::string& name)->NonEmptyString {
+      asio_service_(2) {
+    directory_handler_ = detail::DirectoryHandler<Storage>::Create
+        (storage, unique_user_id, root_parent_id,
+         boost::filesystem::unique_path(*kBufferRoot_ / "%%%%%-%%%%%-%%%%%-%%%%%"),
+         create, asio_service_.service());
+    get_chunk_from_store_ = [this](const std::string& name)->NonEmptyString {
     try {
       auto chunk(storage_->Get(ImmutableData::Name(Identity(name))).get());
       return chunk.data();
@@ -156,7 +157,7 @@ Drive<Storage>::~Drive() {
 
 template <typename Storage>
 Identity Drive<Storage>::root_parent_id() const {
-  return directory_handler_.root_parent_id();
+  return directory_handler_->root_parent_id();
 }
 
 template <typename Storage>
@@ -180,7 +181,7 @@ void Drive<Storage>::InitialiseEncryptor(const boost::filesystem::path& relative
   }
   auto buffer_pop_functor([this, relative_path](const std::string& name,
                                                 const NonEmptyString& content) {
-    directory_handler_.HandleDataPoppedFromBuffer(relative_path, name, content);
+    directory_handler_->HandleDataPoppedFromBuffer(relative_path, name, content);
   });
   auto disk_buffer_path(boost::filesystem::unique_path(*kBufferRoot_ / "%%%%%-%%%%%-%%%%%-%%%%%"));
   file_context.buffer.reset(new detail::FileContext::Buffer(default_max_buffer_memory_,
@@ -222,7 +223,7 @@ void Drive<Storage>::ScheduleDeletionOfEncryptor(detail::FileContext* file_conte
 template <typename Storage>
 const detail::FileContext* Drive<Storage>::GetContext(
     const boost::filesystem::path& relative_path) {
-  auto parent(directory_handler_.Get(relative_path.parent_path()));
+  auto parent(directory_handler_->Get(relative_path.parent_path()));
   return parent->GetChild(relative_path.filename());
 }
 
@@ -230,7 +231,7 @@ template <typename Storage>
 detail::FileContext* Drive<Storage>::GetMutableContext(
     const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
-  auto parent(directory_handler_.Get(relative_path.parent_path()));
+  auto parent(directory_handler_->Get(relative_path.parent_path()));
   return parent->GetMutableChild(relative_path.filename());
 }
 
@@ -241,12 +242,12 @@ void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
     InitialiseEncryptor(relative_path, file_context);
     *file_context.open_count = 1;
   }
-  directory_handler_.Add(relative_path, std::move(file_context));
+  directory_handler_->Add(relative_path, std::move(file_context));
 }
 
 template <typename Storage>
 void Drive<Storage>::Open(const boost::filesystem::path& relative_path) {
-  auto parent(directory_handler_.Get(relative_path.parent_path()));
+  auto parent(directory_handler_->Get(relative_path.parent_path()));
   auto file_context(parent->GetMutableChild(relative_path.filename()));
   if (!file_context->meta_data.directory_id) {
     LOG(kInfo) << "Opening " << relative_path << " open count: " << *file_context->open_count + 1;
@@ -281,19 +282,19 @@ void Drive<Storage>::Release(const boost::filesystem::path& relative_path) {
 template <typename Storage>
 void Drive<Storage>::ReleaseDir(const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
-  auto directory(directory_handler_.Get(relative_path));
+  auto directory(directory_handler_->Get(relative_path));
   directory->ResetChildrenCounter();
 }
 
 template <typename Storage>
 void Drive<Storage>::Delete(const boost::filesystem::path& relative_path) {
-  directory_handler_.Delete(relative_path);
+  directory_handler_->Delete(relative_path);
 }
 
 template <typename Storage>
 void Drive<Storage>::Rename(const boost::filesystem::path& old_relative_path,
                             const boost::filesystem::path& new_relative_path) {
-  directory_handler_.Rename(old_relative_path, new_relative_path);
+  directory_handler_->Rename(old_relative_path, new_relative_path);
 }
 
 template <typename Storage>

@@ -768,7 +768,7 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
   filler(buf, "..", nullptr, 0);
   std::shared_ptr<detail::Directory> directory;
   try {
-    directory = Global<Storage>::g_fuse_drive->directory_handler_.Get(path);
+    directory = Global<Storage>::g_fuse_drive->directory_handler_->Get(path);
   }
   catch (const std::exception& e) {
     LOG(kError) << "OpsReaddir: " << path << ", can't get directory: " << e.what();

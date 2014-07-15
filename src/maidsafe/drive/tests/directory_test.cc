@@ -59,6 +59,24 @@ inline uint64_t GetSize(const MetaData& meta_data) {
 #endif
 }
 
+class DirectoryTestListener
+  : public std::enable_shared_from_this<DirectoryTestListener>,
+    public Directory::Listener {
+ public:
+  // Directory::Listener
+  virtual void DirectoryPut(std::shared_ptr<Directory> directory) {
+    LOG(kInfo) << "Putting directory.";
+    ImmutableData contents(NonEmptyString(directory->Serialise()));
+    directory->AddNewVersion(contents.name());
+  }
+  virtual void DirectoryPutChunk(const ImmutableData&) {
+    LOG(kInfo) << "Putting chunk.";
+  }
+  virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&) {
+    LOG(kInfo) << "Incrementing chunks.";
+  }
+};
+
 class DirectoryTest : public testing::Test {
  public:
   DirectoryTest()
@@ -67,23 +85,8 @@ class DirectoryTest : public testing::Test {
         unique_id_(RandomAlphaNumericString(64)),
         parent_id_(crypto::Hash<crypto::SHA512>(main_test_dir_->string())),
         directory_id_(RandomAlphaNumericString(64)),
-        asio_service_(1),
-        put_chunk_functor_([](const ImmutableData&) { LOG(kInfo) << "Putting chunk."; }),
-        increment_chunks_functor_([](const std::vector<ImmutableData::Name>&) {
-          LOG(kInfo) << "Incrementing chunks.";
-        }),
-        put_functor_([&](std::shared_ptr<Directory> directory) {
-          LOG(kInfo) << "Putting directory.";
-          ImmutableData contents(NonEmptyString(directory->Serialise()));
-          directory->AddNewVersion(contents.name());
-        }),
-        directory_(Directory::Create(ParentId(unique_id_),
-                                     parent_id_,
-                                     asio_service_.service(),
-                                     put_functor_,
-                                     put_chunk_functor_,
-                                     increment_chunks_functor_,
-                                     "")) {
+        asio_service_(1) {
+      listener = std::make_shared<DirectoryTestListener>();
   }
 
   ~DirectoryTest() {
@@ -91,6 +94,10 @@ class DirectoryTest : public testing::Test {
   }
 
  protected:
+  std::shared_ptr<Directory::Listener> GetListener() {
+    return listener;
+  }
+
   void GenerateDirectoryListingEntryForDirectory(std::shared_ptr<Directory> directory,
                                                  fs::path const& path) {
     FileContext file_context(path.filename(), true);
@@ -113,13 +120,11 @@ class DirectoryTest : public testing::Test {
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
     DirectoryId directory_id(crypto::Hash<crypto::SHA512>(absolute_path.string()));
-    std::shared_ptr<Directory> directory(Directory::Create(parent_id,
-                                                           directory_id,
-                                                           asio_service_.service(),
-                                                           put_functor_,
-                                                           put_chunk_functor_,
-                                                           increment_chunks_functor_,
-                                                           relative_path));
+    auto directory(Directory::Create(parent_id,
+                                     directory_id,
+                                     asio_service_.service(),
+                                     GetListener(),
+                                     relative_path));
     fs::directory_iterator itr(path), end;
     try {
       for (; itr != end; ++itr) {
@@ -159,9 +164,7 @@ class DirectoryTest : public testing::Test {
                                      serialised_directory,
                                      versions,
                                      asio_service_.service(),
-                                     put_functor_,
-                                     put_chunk_functor_,
-                                     increment_chunks_functor_,
+                                     GetListener(),
                                      relative_path));
 
     FileContext* file_context(nullptr);
@@ -210,9 +213,7 @@ class DirectoryTest : public testing::Test {
                                      serialised_directory,
                                      versions,
                                      asio_service_.service(),
-                                     put_functor_,
-                                     put_chunk_functor_,
-                                     increment_chunks_functor_,
+                                     GetListener(),
                                      relative_path));
 
     FileContext* file_context(nullptr);
@@ -268,9 +269,7 @@ class DirectoryTest : public testing::Test {
                                      serialised_directory,
                                      versions,
                                      asio_service_.service(),
-                                     put_functor_,
-                                     put_chunk_functor_,
-                                     increment_chunks_functor_,
+                                     GetListener(),
                                      relative_path));
 
     std::string listing("msdir.listing");
@@ -311,9 +310,7 @@ class DirectoryTest : public testing::Test {
                                      serialised_directory,
                                      versions,
                                      asio_service_.service(),
-                                     put_functor_,
-                                     put_chunk_functor_,
-                                     increment_chunks_functor_,
+                                     GetListener(),
                                      relative_path));
 
     const FileContext* file_context(nullptr);
@@ -352,26 +349,23 @@ class DirectoryTest : public testing::Test {
     return true;
   }
 
-  void SortAndResetChildrenCounter() {
-      test::SortAndResetChildrenCounter(*directory_);
+  void SortAndResetChildrenCounter(std::shared_ptr<Directory> directory) {
+    test::SortAndResetChildrenCounter(*directory);
   }
 
-  void ResetChildrenCounter() {
-    directory_->ResetChildrenCounter();
+  void ResetChildrenCounter(std::shared_ptr<Directory> directory) {
+    directory->ResetChildrenCounter();
   }
 
   maidsafe::test::TestPath main_test_dir_;
   fs::path relative_root_;
   Identity unique_id_, parent_id_, directory_id_;
   AsioService asio_service_;
-  std::function<void(const ImmutableData&)> put_chunk_functor_;
-  std::function<void(const std::vector<ImmutableData::Name>&)> increment_chunks_functor_;
-  std::function<void(std::shared_ptr<Directory>)> put_functor_;  // NOLINT
-  std::shared_ptr<Directory> directory_;
+  std::shared_ptr<DirectoryTestListener> listener;
 
  private:
-  DirectoryTest(const DirectoryTest&);
-  DirectoryTest& operator=(const DirectoryTest&);
+  DirectoryTest(const DirectoryTest&) = delete;
+  DirectoryTest& operator=(const DirectoryTest&) = delete;
 };
 
 TEST_F(DirectoryTest, BEH_AddChildren) {
@@ -401,7 +395,10 @@ TEST_F(DirectoryTest, BEH_DirectoryHasChild) {
 }
 
 void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
-  ASSERT_TRUE(lhs.directory_id() == rhs.directory_id()) << "Directory ID mismatch.";
+  std::lock_guard<std::mutex> lhsLock(lhs.mutex_);
+  std::lock_guard<std::mutex> rhsLock(rhs.mutex_);
+  // Do not call functions on lhs and rhs, otherwise they will deadlock
+  ASSERT_TRUE(lhs.directory_id_ == rhs.directory_id_) << "Directory ID mismatch.";
   ASSERT_TRUE(lhs.children_.size() == rhs.children_.size());
   auto itr1(lhs.children_.begin()), itr2(rhs.children_.begin());
   for (; itr1 != lhs.children_.end(); ++itr1, ++itr2) {
@@ -438,11 +435,11 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
         (*itr2)->meta_data.creation_time.dwLowDateTime) {
       uint32_t error = 0xA;
       if ((*itr1)->meta_data.creation_time.dwLowDateTime >
-              (*itr2)->meta_data.creation_time.dwLowDateTime + error ||
+          (*itr2)->meta_data.creation_time.dwLowDateTime + error ||
           (*itr1)->meta_data.creation_time.dwLowDateTime <
-              (*itr2)->meta_data.creation_time.dwLowDateTime - error)
+          (*itr2)->meta_data.creation_time.dwLowDateTime - error)
         GTEST_FAIL() << "Creation times low: " << (*itr1)->meta_data.creation_time.dwLowDateTime
-            << " != " << (*itr2)->meta_data.creation_time.dwLowDateTime;
+                     << " != " << (*itr2)->meta_data.creation_time.dwLowDateTime;
     }
     ASSERT_TRUE((*itr1)->meta_data.last_access_time.dwHighDateTime ==
                 (*itr2)->meta_data.last_access_time.dwHighDateTime);
@@ -450,12 +447,12 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
         (*itr2)->meta_data.last_access_time.dwLowDateTime) {
       uint32_t error = 0xA;
       if ((*itr1)->meta_data.last_access_time.dwLowDateTime >
-              (*itr2)->meta_data.last_access_time.dwLowDateTime + error ||
+          (*itr2)->meta_data.last_access_time.dwLowDateTime + error ||
           (*itr1)->meta_data.last_access_time.dwLowDateTime <
-              (*itr2)->meta_data.last_access_time.dwLowDateTime - error)
+          (*itr2)->meta_data.last_access_time.dwLowDateTime - error)
         GTEST_FAIL() << "Last access times low: "
-            << (*itr1)->meta_data.last_access_time.dwLowDateTime << " != "
-            << (*itr2)->meta_data.last_access_time.dwLowDateTime;
+                     << (*itr1)->meta_data.last_access_time.dwLowDateTime << " != "
+                     << (*itr2)->meta_data.last_access_time.dwLowDateTime;
     }
     ASSERT_TRUE((*itr1)->meta_data.last_write_time.dwHighDateTime ==
                 (*itr2)->meta_data.last_write_time.dwHighDateTime);
@@ -463,11 +460,12 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
         (*itr2)->meta_data.last_write_time.dwLowDateTime) {
       uint32_t error = 0xA;
       if ((*itr1)->meta_data.last_write_time.dwLowDateTime >
-              (*itr2)->meta_data.last_write_time.dwLowDateTime + error ||
+          (*itr2)->meta_data.last_write_time.dwLowDateTime + error ||
           (*itr1)->meta_data.last_write_time.dwLowDateTime <
-              (*itr2)->meta_data.last_write_time.dwLowDateTime - error)
-        GTEST_FAIL() << "Last write times low: " << (*itr1)->meta_data.last_write_time.dwLowDateTime
-            << " != " << (*itr2)->meta_data.last_write_time.dwLowDateTime;
+          (*itr2)->meta_data.last_write_time.dwLowDateTime - error)
+        GTEST_FAIL() << "Last write times low: "
+                     << (*itr1)->meta_data.last_write_time.dwLowDateTime
+                     << " != " << (*itr2)->meta_data.last_write_time.dwLowDateTime;
     }
 #else
     ASSERT_TRUE((*itr1)->meta_data.attributes.st_atime == (*itr2)->meta_data.attributes.st_atime);
@@ -482,6 +480,11 @@ void SortAndResetChildrenCounter(Directory& lhs) {
 
 TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
   maidsafe::test::TestPath testpath(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
+  auto directory(Directory::Create(ParentId(unique_id_),
+                                   parent_id_,
+                                   asio_service_.service(),
+                                   GetListener(),
+                                   ""));
   boost::system::error_code error_code;
   int64_t file_size(0);
   std::string name(RandomAlphaNumericString(10));
@@ -526,76 +529,78 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
       file_context.meta_data.data_map->content = RandomString(10);
     }
     // file_contexts_before.emplace_back(std::move(file_context));
-    EXPECT_NO_THROW(directory_->AddChild(std::move(file_context)));
+    EXPECT_NO_THROW(directory->AddChild(std::move(file_context)));
   }
 
-  directory_->StoreImmediatelyIfPending();
+  directory->StoreImmediatelyIfPending();
 
-  std::string serialised_directory(directory_->Serialise());
+  std::string serialised_directory(directory->Serialise());
   std::vector<StructuredDataVersions::VersionName> versions;
-  auto recovered_directory(Directory::Create(directory_->parent_id(),
+  auto recovered_directory(Directory::Create(directory->parent_id(),
                                              serialised_directory,
                                              versions,
                                              asio_service_.service(),
-                                             put_functor_,
-                                             put_chunk_functor_,
-                                             increment_chunks_functor_,
+                                             GetListener(),
                                              ""));
-  DirectoriesMatch(*directory_, *recovered_directory);
+  DirectoriesMatch(*directory, *recovered_directory);
 }
 
 TEST_F(DirectoryTest, BEH_IteratorReset) {
+  auto directory(Directory::Create(ParentId(unique_id_),
+                                   parent_id_,
+                                   asio_service_.service(),
+                                   GetListener(),
+                                   ""));
   // Add elements
-  ASSERT_TRUE(directory_->empty());
   const size_t kTestCount(10);
-  ResetChildrenCounter();
+  ResetChildrenCounter(directory);
   EXPECT_TRUE(4U < kTestCount);
   char c('A');
   for (size_t i(0); i != kTestCount; ++i, ++c) {
     FileContext file_context(std::string(1, c), ((i % 2) == 0));
-    EXPECT_NO_THROW(directory_->AddChild(std::move(file_context)));
+    EXPECT_NO_THROW(directory->AddChild(std::move(file_context)));
   }
-  EXPECT_FALSE(directory_->empty());
+  EXPECT_FALSE(directory->empty());
 
   // Check internal iterator
   const FileContext* file_context(nullptr);
   c = 'A';
   for (size_t i(0); i != kTestCount; ++i, ++c) {
-    EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
+    EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
     EXPECT_TRUE(std::string(1, c) == file_context->meta_data.name);
     EXPECT_TRUE(((i % 2) == 0) == (file_context->meta_data.directory_id != nullptr));
   }
 
-  SortAndResetChildrenCounter();
+  SortAndResetChildrenCounter(directory);
 
-  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
+  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
   EXPECT_TRUE("A" == file_context->meta_data.name);
-  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
+  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
   EXPECT_TRUE("B" == file_context->meta_data.name);
 
   // Add another element and check iterator is reset
   ++c;
   FileContext new_file_context(std::string(1, c), false);
-  EXPECT_NO_THROW(directory_->AddChild(std::move(new_file_context)));
-  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
+  EXPECT_NO_THROW(directory->AddChild(std::move(new_file_context)));
+  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
   EXPECT_TRUE("A" == file_context->meta_data.name);
-  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
+  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
   EXPECT_TRUE("B" == file_context->meta_data.name);
 
   // Remove an element and check iterator is reset
-  ASSERT_TRUE(directory_->HasChild("C"));
-  EXPECT_NO_THROW(FileContext context(directory_->RemoveChild("C")));
-  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
+  ASSERT_TRUE(directory->HasChild("C"));
+  EXPECT_NO_THROW(FileContext context(directory->RemoveChild("C")));
+  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
   EXPECT_TRUE("A" == file_context->meta_data.name);
-  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
+  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
   EXPECT_TRUE("B" == file_context->meta_data.name);
 
   // Try to remove a non-existent element and check iterator is not reset
-  ASSERT_FALSE(directory_->HasChild("C"));
-  EXPECT_THROW(FileContext context(directory_->RemoveChild("C")), std::exception);
-  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
+  ASSERT_FALSE(directory->HasChild("C"));
+  EXPECT_THROW(FileContext context(directory->RemoveChild("C")), std::exception);
+  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
   EXPECT_TRUE("D" == file_context->meta_data.name);
-  EXPECT_NO_THROW(file_context = directory_->GetChildAndIncrementCounter());
+  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
   EXPECT_TRUE("E" == file_context->meta_data.name);
 
   // Check operator<
