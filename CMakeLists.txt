@@ -253,6 +253,9 @@ if(MaidsafeTesting)
   add_test(NAME "\"Local Drive Filesystem Test\""
            COMMAND filesystem_test --local${Console}
                    --name "filesystem_test ($<CONFIGURATION> build)")
+  add_test(NAME "\"Network Drive Filesystem Test\""
+           COMMAND filesystem_test --network${Console}
+                   --name "filesystem_test ($<CONFIGURATION> build)")
   set(Timeout 180)
   ms_update_test_timeout(Timeout)
   set_tests_properties("\"Real Disk Filesystem Test\"" "\"Local Drive Filesystem Test\"" PROPERTIES
