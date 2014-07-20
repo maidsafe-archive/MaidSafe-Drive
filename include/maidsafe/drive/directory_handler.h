@@ -71,7 +71,7 @@ class DirectoryHandler
   static std::shared_ptr<DirectoryHandler<Storage>> Create(Types&&... args);
   ~DirectoryHandler();
 
-  void Add(const boost::filesystem::path& relative_path, File&& file_context);
+  void Add(const boost::filesystem::path& relative_path, std::shared_ptr<File> file);
   std::shared_ptr<Directory> Get(const boost::filesystem::path& relative_path);
   void FlushAll();
   void Delete(const boost::filesystem::path& relative_path);
@@ -103,9 +103,9 @@ class DirectoryHandler
                   bool create,
                   boost::asio::io_service& asio_service);
 
-  bool IsDirectory(const File& file_context) const;
-  std::pair<std::shared_ptr<Directory>, File*>
-      GetParent(const boost::filesystem::path& relative_path);
+  bool IsDirectory(std::shared_ptr<const File> file) const;
+  std::pair<std::shared_ptr<Directory>, std::shared_ptr<File>>
+    GetParent(const boost::filesystem::path& relative_path);
   void PrepareNewPath(const boost::filesystem::path& new_relative_path, Directory* new_parent);
   void RenameDifferentParent(const boost::filesystem::path& old_relative_path,
                              const boost::filesystem::path& new_relative_path,
@@ -197,8 +197,8 @@ void DirectoryHandler<Storage>::Initialise(std::shared_ptr<Storage>,
     }
   }
   if (create) {
-    // TODO(Fraser#5#): 2013-12-05 - Fill 'root_file_context' attributes appropriately.
-    File root_file_context(kRoot, true);
+    // TODO(Fraser#5#): 2013-12-05 - Fill 'root_file' attributes appropriately.
+    auto root_file(File::Create(kRoot, true));
     std::shared_ptr<Directory>
         root_parent(Directory::Create(ParentId(unique_user_id_),
                                       root_parent_id_,
@@ -207,12 +207,12 @@ void DirectoryHandler<Storage>::Initialise(std::shared_ptr<Storage>,
                                       ""));
     std::shared_ptr<Directory>
         root(Directory::Create(ParentId(root_parent_id_),
-                               *root_file_context.meta_data.directory_id,
+                               *root_file->meta_data.directory_id,
                                asio_service_,
                                GetListener(),
                                kRoot));
-    root_file_context.parent = root_parent;
-    root_parent->AddChild(std::move(root_file_context));
+    root_file->parent = root_parent;
+    root_parent->AddChild(root_file);
     root->ScheduleForStoring();
     cache_[""] = std::move(root_parent);
     cache_[kRoot] = std::move(root);
@@ -221,15 +221,15 @@ void DirectoryHandler<Storage>::Initialise(std::shared_ptr<Storage>,
 
 template <typename Storage>
 void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path,
-                                    File&& file_context) {
+                                    std::shared_ptr<File> file) {
   SCOPED_PROFILE
   auto parent(GetParent(relative_path));
   assert(parent.first && parent.second);
 
-  if (IsDirectory(file_context)) {
+  if (IsDirectory(file)) {
     std::shared_ptr<Directory>
         directory(Directory::Create(ParentId(parent.first->directory_id()),
-                                    *file_context.meta_data.directory_id,
+                                    *file->meta_data.directory_id,
                                     asio_service_,
                                     GetListener(),
                                     relative_path));
@@ -241,14 +241,14 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
 
 #ifndef MAIDSAFE_WIN32
   parent.second->meta_data.attributes.st_ctime = parent.second->meta_data.attributes.st_mtime;
-  if (IsDirectory(file_context)) {
+  if (IsDirectory(file)) {
     ++parent.second->meta_data.attributes.st_nlink;
     parent.second->ScheduleForStoring();
   }
 #endif
 
   // TODO(Fraser#5#): 2013-11-28 - Use on_scope_exit or similar to undo changes if AddChild throws.
-  parent.first->AddChild(std::move(file_context));
+  parent.first->AddChild(file);
 }
 
 template <typename Storage>
@@ -275,22 +275,22 @@ std::shared_ptr<Directory>
   }
 
   // Recover the decendent directories until we reach the target
-  const File* file_context(nullptr);
+  std::shared_ptr<const File> file;
   auto path_itr(std::begin(relative_path));
   std::advance(path_itr, std::distance(std::begin(antecedent), std::end(antecedent)));
   while (path_itr != std::end(relative_path)) {
     if (path_itr == std::begin(relative_path)) {
-      file_context = parent->GetChild(kRoot);
+      file = parent->GetChild(kRoot);
       antecedent = kRoot;
     } else {
-      file_context = parent->GetChild(*path_itr);
+      file = parent->GetChild(*path_itr);
       antecedent = (antecedent / *path_itr).make_preferred();
     }
 
-    if (!file_context->meta_data.directory_id)
+    if (!file->meta_data.directory_id)
       BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
     auto directory(GetFromStorage(antecedent, ParentId(parent->directory_id()),
-                                  *file_context->meta_data.directory_id));
+                                  *file->meta_data.directory_id));
     {
       std::lock_guard<std::mutex> lock(cache_mutex_);
       parent = directory;
@@ -331,8 +331,8 @@ void DirectoryHandler<Storage>::Delete(const boost::filesystem::path& relative_p
   auto parent(GetParent(relative_path));
   assert(parent.first && parent.second);
 
-  auto file_context(parent.first->GetChild(relative_path.filename()));
-  bool is_directory(IsDirectory(*file_context));
+  auto file(parent.first->GetChild(relative_path.filename()));
+  bool is_directory(IsDirectory(file));
   if (is_directory) {
     auto directory(Get(relative_path));
     DeleteAllVersions(directory.get());
@@ -367,7 +367,7 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
   else
     RenameDifferentParent(old_relative_path, new_relative_path, new_parent);
 
-  if (IsDirectory(File(old_relative_path, true))) {
+  if (IsDirectory(File::Create(old_relative_path, true))) {
     std::lock_guard<std::mutex> lock(cache_mutex_);
     // Fix old entry (if it's still there) and any children entries in the cache (effectively
     // renaming the key part of each such entry).
@@ -387,12 +387,12 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
 }
 
 template <typename Storage>
-bool DirectoryHandler<Storage>::IsDirectory(const File& file_context) const {
-  return static_cast<bool>(file_context.meta_data.directory_id);
+bool DirectoryHandler<Storage>::IsDirectory(std::shared_ptr<const File> file) const {
+  return static_cast<bool>(file->meta_data.directory_id);
 }
 
 template <typename Storage>
-std::pair<std::shared_ptr<Directory>, File*>
+std::pair<std::shared_ptr<Directory>, std::shared_ptr<File>>
 DirectoryHandler<Storage>::GetParent(const boost::filesystem::path& relative_path) {
   auto grandparent(Get(relative_path.parent_path().parent_path()));
   auto parent_context(grandparent->GetMutableChild(relative_path.parent_path().filename()));
@@ -410,8 +410,7 @@ void DirectoryHandler<Storage>::PrepareNewPath(const boost::filesystem::path& ne
   // existing directory, it is removed if empty on ISO/IEC 9945 but is an error on Windows. A
   // symbolic link is itself renamed, rather than the file it resolves to being renamed."
   try {
-    auto existing_child(new_parent->GetChild(new_relative_path.filename()));
-    if (IsDirectory(*existing_child)) {
+    if (IsDirectory(new_parent->GetChild(new_relative_path.filename()))) {
 #ifdef MAIDSAFE_WIN32
       BOOST_THROW_EXCEPTION(MakeError(DriveErrors::file_exists));
 #else
@@ -442,7 +441,7 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
     std::shared_ptr<Directory> new_parent) {
   auto old_parent(GetParent(old_relative_path));
   assert(old_parent.first && old_parent.second && new_parent);
-  auto file_context(old_parent.first->RemoveChild(old_relative_path.filename()));
+  auto file(old_parent.first->RemoveChild(old_relative_path.filename()));
 
 // #ifndef MAIDSAFE_WIN32
 //   struct stat old;
@@ -451,7 +450,7 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
 //   time(&meta_data.attributes.st_mtime);
 //   meta_data.attributes.st_ctime = meta_data.attributes.st_mtime;
 // #endif
-  if (IsDirectory(file_context)) {
+  if (IsDirectory(file)) {
     auto directory(Get(old_relative_path));
     DeleteAllVersions(directory.get());
     {
@@ -471,9 +470,9 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
     directory->ScheduleForStoring();
   }
 
-  file_context.meta_data.name = new_relative_path.filename();
-  file_context.parent = new_parent;
-  new_parent->AddChild(std::move(file_context));
+  file->meta_data.name = new_relative_path.filename();
+  file->parent = new_parent;
+  new_parent->AddChild(file);
 
 #ifdef MAIDSAFE_WIN32
   GetSystemTimeAsFileTime(&old_parent.second->meta_data.last_write_time);
@@ -488,7 +487,7 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
 #else
   // old_parent_meta_data.attributes.st_ctime = old_parent_meta_data.attributes.st_mtime =
   //     meta_data.attributes.st_mtime;
-  // if (IsDirectory(file_context)) {
+  // if (IsDirectory(file)) {
   //   --old_parent_meta_data.attributes.st_nlink;
   //   ++new_parent_meta_data.attributes.st_nlink;
   //   new_parent_meta_data.attributes.st_ctime = new_parent_meta_data.attributes.st_mtime =

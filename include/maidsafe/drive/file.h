@@ -30,6 +30,7 @@
 #include "maidsafe/encrypt/self_encryptor.h"
 
 #include "maidsafe/drive/meta_data.h"
+#include "maidsafe/drive/path.h"
 
 namespace maidsafe {
 
@@ -39,14 +40,18 @@ namespace detail {
 
 class Directory;
 
-struct File {
+class File : public Path {
+ public:
   typedef DataBuffer<std::string> Buffer;
 
-  File();
-  File(File&& other);
-  File(MetaData meta_data_in, std::shared_ptr<Directory> parent_in);
-  File(const boost::filesystem::path& name, bool is_directory);
-  File& operator=(File other);
+  // This class must always be constructed using a Create() call to ensure that it will be
+  // a shared_ptr. See the private constructors for the argument lists.
+  template <typename... Types>
+  static std::shared_ptr<File> Create(Types&&... args) {
+    std::shared_ptr<File> self(new File{std::forward<Types>(args)...});
+    return self;
+  }
+
   ~File();
 
   void Flush();
@@ -59,6 +64,13 @@ struct File {
   std::unique_ptr<std::atomic<int>> open_count;
   std::weak_ptr<Directory> parent;
   bool flushed;
+
+ private:
+  File();
+  File(File&& other);
+  File(MetaData meta_data_in, std::shared_ptr<Directory> parent_in);
+  File(const boost::filesystem::path& name, bool is_directory);
+  File& operator=(File other);
 };
 
 void swap(File& lhs, File& rhs) MAIDSAFE_NOEXCEPT;

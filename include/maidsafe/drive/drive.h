@@ -65,9 +65,9 @@ class Drive {
   virtual void Mount() = 0;
   virtual void Unmount() = 0;
 
-  const detail::File* GetContext(const boost::filesystem::path& relative_path);
-  detail::File* GetMutableContext(const boost::filesystem::path& relative_path);
-  void Create(const boost::filesystem::path& relative_path, detail::File&& file);
+  std::shared_ptr<const detail::File> GetContext(const boost::filesystem::path& relative_path);
+  std::shared_ptr<detail::File> GetMutableContext(const boost::filesystem::path& relative_path);
+  void Create(const boost::filesystem::path& relative_path, std::shared_ptr<detail::File> file);
   void Open(const boost::filesystem::path& relative_path);
   void Flush(const boost::filesystem::path& relative_path);
   void Release(const boost::filesystem::path& relative_path);
@@ -93,7 +93,7 @@ class Drive {
   typedef detail::File::Buffer Buffer;
   void InitialiseEncryptor(const boost::filesystem::path& relative_path,
                            detail::File& file);
-  void ScheduleDeletionOfEncryptor(detail::File* file);
+  void ScheduleDeletionOfEncryptor(std::shared_ptr<detail::File> file);
 
   std::function<NonEmptyString(const std::string&)> get_chunk_from_store_;
   MemoryUsage default_max_buffer_memory_;
@@ -191,7 +191,7 @@ void Drive<Storage>::InitialiseEncryptor(const boost::filesystem::path& relative
 }
 
 template <typename Storage>
-void Drive<Storage>::ScheduleDeletionOfEncryptor(detail::File* file) {
+void Drive<Storage>::ScheduleDeletionOfEncryptor(std::shared_ptr<detail::File> file) {
   auto cancelled_count(file->timer->expires_from_now(detail::kFileInactivityDelay));
 #ifndef NDEBUG
   if (cancelled_count > 0) {
@@ -221,14 +221,14 @@ void Drive<Storage>::ScheduleDeletionOfEncryptor(detail::File* file) {
 }
 
 template <typename Storage>
-const detail::File* Drive<Storage>::GetContext(
+std::shared_ptr<const detail::File> Drive<Storage>::GetContext(
     const boost::filesystem::path& relative_path) {
   auto parent(directory_handler_->Get(relative_path.parent_path()));
   return parent->GetChild(relative_path.filename());
 }
 
 template <typename Storage>
-detail::File* Drive<Storage>::GetMutableContext(
+std::shared_ptr<detail::File> Drive<Storage>::GetMutableContext(
     const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
   auto parent(directory_handler_->Get(relative_path.parent_path()));
@@ -237,12 +237,12 @@ detail::File* Drive<Storage>::GetMutableContext(
 
 template <typename Storage>
 void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
-                            detail::File&& file) {
-  if (!file.meta_data.directory_id) {
-    InitialiseEncryptor(relative_path, file);
-    *file.open_count = 1;
+                            std::shared_ptr<detail::File> file) {
+  if (!file->meta_data.directory_id) {
+    InitialiseEncryptor(relative_path, *file);
+    *file->open_count = 1;
   }
-  directory_handler_->Add(relative_path, std::move(file));
+  directory_handler_->Add(relative_path, file);
 }
 
 template <typename Storage>

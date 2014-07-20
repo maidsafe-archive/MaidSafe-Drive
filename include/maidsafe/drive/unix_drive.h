@@ -780,11 +780,11 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
   if (offset == 0)
     directory->ResetChildrenCounter();
 
-  const detail::File* file_context(directory->GetChildAndIncrementCounter());
-  while (file_context) {
-    if (filler(buf, file_context->meta_data.name.c_str(), &file_context->meta_data.attributes, 0))
+  std::shared_ptr<const detail::File> file(directory->GetChildAndIncrementCounter());
+  while (file) {
+    if (filler(buf, file->meta_data.name.c_str(), &file->meta_data.attributes, 0))
       break;
-    file_context = directory->GetChildAndIncrementCounter();
+    file = directory->GetChildAndIncrementCounter();
   }
 
 //  if (file_context) {
@@ -943,8 +943,8 @@ int FuseDrive<Storage>::OpsSymlink(const char* to, const char* from) {
   try {
     fs::path path_to(to), path_from(from);
     CreateNew(path_from, S_IFLNK);
-    detail::File* file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path_from));
-    file_context->meta_data.link_to = path_to;
+    auto file(Global<Storage>::g_fuse_drive->GetMutableContext(path_from));
+    file->meta_data.link_to = path_to;
   }
   catch (const std::exception&) {
     return -EIO;
@@ -986,9 +986,9 @@ int FuseDrive<Storage>::OpsUnlink(const char* path) {
 template <typename Storage>
 int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]) {
   LOG(kInfo) << "OpsUtimens: " << path;
-  detail::File* file_context(nullptr);
+  std::shared_ptr<detail::File> file;
   try {
-    file_context = Global<Storage>::g_fuse_drive->GetMutableContext(path);
+    file = Global<Storage>::g_fuse_drive->GetMutableContext(path);
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to change times for " << path << ": " << e.what();
@@ -1001,14 +1001,14 @@ int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]
   gettimeofday(&_tspec, NULL);
   tspec.tv_sec = _tspec.tv_sec;
   tspec.tv_nsec = _tspec.tv_usec * 1000;
-  timespec &st_ctim = file_context->meta_data.attributes.st_ctimespec;
-  timespec &st_atim = file_context->meta_data.attributes.st_atimespec;
-  timespec &st_mtim = file_context->meta_data.attributes.st_mtimespec;
+  timespec &st_ctim = file->meta_data.attributes.st_ctimespec;
+  timespec &st_atim = file->meta_data.attributes.st_atimespec;
+  timespec &st_mtim = file->meta_data.attributes.st_mtimespec;
 #else
   clock_gettime(CLOCK_REALTIME, &tspec);
-  timespec &st_ctim = file_context->meta_data.attributes.st_ctim;
-  timespec &st_atim = file_context->meta_data.attributes.st_atim;
-  timespec &st_mtim = file_context->meta_data.attributes.st_mtim;
+  timespec &st_ctim = file->meta_data.attributes.st_ctim;
+  timespec &st_atim = file->meta_data.attributes.st_atim;
+  timespec &st_mtim = file->meta_data.attributes.st_mtim;
   // Really ought to support st_birthtim where available
 #endif
   st_ctim = tspec;
@@ -1019,7 +1019,7 @@ int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]
     st_atim = tspec;
     st_mtim = tspec;
   }
-  file_context->ScheduleForStoring();
+  file->ScheduleForStoring();
   return 0;
 }
 
@@ -1102,19 +1102,19 @@ int FuseDrive<Storage>::CreateNew(const fs::path& full_path, mode_t mode, dev_t 
     return -EINVAL;
   }
   bool is_directory(S_ISDIR(mode));
-  detail::File file_context(full_path.filename(), is_directory);
+  auto file(detail::File::Create(full_path.filename(), is_directory));
 
-  time(&file_context.meta_data.attributes.st_atime);
-  file_context.meta_data.attributes.st_ctime = file_context.meta_data.attributes.st_mtime =
-      file_context.meta_data.attributes.st_atime;
-  file_context.meta_data.attributes.st_mode = mode;
-  file_context.meta_data.attributes.st_rdev = rdev;
-  file_context.meta_data.attributes.st_nlink = (is_directory ? 2 : 1);
-  file_context.meta_data.attributes.st_uid = fuse_get_context()->uid;
-  file_context.meta_data.attributes.st_gid = fuse_get_context()->gid;
+  time(&file->meta_data.attributes.st_atime);
+  file->meta_data.attributes.st_ctime = file->meta_data.attributes.st_mtime =
+      file->meta_data.attributes.st_atime;
+  file->meta_data.attributes.st_mode = mode;
+  file->meta_data.attributes.st_rdev = rdev;
+  file->meta_data.attributes.st_nlink = (is_directory ? 2 : 1);
+  file->meta_data.attributes.st_uid = fuse_get_context()->uid;
+  file->meta_data.attributes.st_gid = fuse_get_context()->gid;
 
   try {
-    Global<Storage>::g_fuse_drive->Create(full_path, std::move(file_context));
+    Global<Storage>::g_fuse_drive->Create(full_path, file);
   }
   catch (const std::exception& e) {
     LOG(kError) << "CreateNew: " << full_path << ": " << e.what();
@@ -1127,23 +1127,23 @@ int FuseDrive<Storage>::CreateNew(const fs::path& full_path, mode_t mode, dev_t 
 template <typename Storage>
 int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
   try {
-    auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
-    *stbuf = file_context->meta_data.attributes;
+    auto file(Global<Storage>::g_fuse_drive->GetContext(path));
+    *stbuf = file->meta_data.attributes;
     LOG(kVerbose) << " meta_data info  = ";
-    LOG(kVerbose) << "     name =  " << file_context->meta_data.name.c_str();
-    LOG(kVerbose) << "     st_dev = " << file_context->meta_data.attributes.st_dev;
-    LOG(kVerbose) << "     st_ino = " << file_context->meta_data.attributes.st_ino;
-    LOG(kVerbose) << "     st_mode = " << file_context->meta_data.attributes.st_mode;
-    LOG(kVerbose) << "     st_nlink = " << file_context->meta_data.attributes.st_nlink;
-    LOG(kVerbose) << "     st_uid = " << file_context->meta_data.attributes.st_uid;
-    LOG(kVerbose) << "     st_gid = " << file_context->meta_data.attributes.st_gid;
-    LOG(kVerbose) << "     st_rdev = " << file_context->meta_data.attributes.st_rdev;
-    LOG(kVerbose) << "     st_size = " << file_context->meta_data.attributes.st_size;
-    LOG(kVerbose) << "     st_blksize = " << file_context->meta_data.attributes.st_blksize;
-    LOG(kVerbose) << "     st_blocks = " << file_context->meta_data.attributes.st_blocks;
-    LOG(kVerbose) << "     st_atim = " << file_context->meta_data.attributes.st_atime;
-    LOG(kVerbose) << "     st_mtim = " << file_context->meta_data.attributes.st_mtime;
-    LOG(kVerbose) << "     st_ctim = " << file_context->meta_data.attributes.st_ctime;
+    LOG(kVerbose) << "     name =  " << file->meta_data.name.c_str();
+    LOG(kVerbose) << "     st_dev = " << file->meta_data.attributes.st_dev;
+    LOG(kVerbose) << "     st_ino = " << file->meta_data.attributes.st_ino;
+    LOG(kVerbose) << "     st_mode = " << file->meta_data.attributes.st_mode;
+    LOG(kVerbose) << "     st_nlink = " << file->meta_data.attributes.st_nlink;
+    LOG(kVerbose) << "     st_uid = " << file->meta_data.attributes.st_uid;
+    LOG(kVerbose) << "     st_gid = " << file->meta_data.attributes.st_gid;
+    LOG(kVerbose) << "     st_rdev = " << file->meta_data.attributes.st_rdev;
+    LOG(kVerbose) << "     st_size = " << file->meta_data.attributes.st_size;
+    LOG(kVerbose) << "     st_blksize = " << file->meta_data.attributes.st_blksize;
+    LOG(kVerbose) << "     st_blocks = " << file->meta_data.attributes.st_blocks;
+    LOG(kVerbose) << "     st_atim = " << file->meta_data.attributes.st_atime;
+    LOG(kVerbose) << "     st_mtim = " << file->meta_data.attributes.st_mtime;
+    LOG(kVerbose) << "     st_ctim = " << file->meta_data.attributes.st_ctime;
   }
   catch (const std::exception& e) {
 //    if (full_path.filename().string().size() > 255) {
@@ -1159,14 +1159,14 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
 template <typename Storage>
 int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
   try {
-    auto file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path));
-    assert(file_context->self_encryptor);
-    file_context->self_encryptor->Truncate(size);
-    file_context->meta_data.attributes.st_size = size;
-    time(&file_context->meta_data.attributes.st_mtime);
-    file_context->meta_data.attributes.st_ctime = file_context->meta_data.attributes.st_atime =
-        file_context->meta_data.attributes.st_mtime;
-    file_context->ScheduleForStoring();
+    auto file(Global<Storage>::g_fuse_drive->GetMutableContext(path));
+    assert(file->self_encryptor);
+    file->self_encryptor->Truncate(size);
+    file->meta_data.attributes.st_size = size;
+    time(&file->meta_data.attributes.st_mtime);
+    file->meta_data.attributes.st_ctime = file->meta_data.attributes.st_atime =
+        file->meta_data.attributes.st_mtime;
+    file->ScheduleForStoring();
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to truncate " << path << ": " << e.what();
