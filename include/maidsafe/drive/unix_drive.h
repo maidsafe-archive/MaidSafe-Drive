@@ -42,7 +42,7 @@
 #include "maidsafe/common/on_scope_exit.h"
 
 #include "maidsafe/drive/drive.h"
-#include "maidsafe/drive/file_context.h"
+#include "maidsafe/drive/file.h"
 #include "maidsafe/drive/utils.h"
 
 namespace fs = boost::filesystem;
@@ -79,7 +79,7 @@ inline std::string GetFileType(mode_t mode) {
 }
 
 // template <typename Storage>
-// bool ForceFlush(RootHandler<Storage>& root_handler, FileContext<Storage>* file_context) {
+// bool ForceFlush(RootHandler<Storage>& root_handler, File<Storage>* file_context) {
 //   assert(file_context);
 //   file_context->self_encryptor->Flush();
 //
@@ -499,7 +499,7 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsFsync(const char* path, int isdatasync,
                                  struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsFsync: " << path;
-  detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
+  detail::File<Storage>* file_context(detail::RecoverFile<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -529,7 +529,7 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsFsyncDir(const char* path, int isdatasync,
                                     struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsFsyncDir: " << path;
-  detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
+  detail::File<Storage>* file_context(detail::RecoverFile<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -597,7 +597,7 @@ int FuseDrive<Storage>::OpsLink(const char* to, const char* from) {
   fs::path path_to(to), path_from(from);
 
   try {
-    auto file_context_to(Global<Storage>::g_fuse_drive->GetFileContext(path_to));
+    auto file_context_to(Global<Storage>::g_fuse_drive->GetFile(path_to));
     if (!S_ISDIR(file_context_to.meta_data.attributes.st_mode))
       ++file_context_to.meta_data.attributes.st_nlink;
     time(&file_context_to.meta_data.attributes.st_ctime);
@@ -780,7 +780,7 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
   if (offset == 0)
     directory->ResetChildrenCounter();
 
-  const detail::FileContext* file_context(directory->GetChildAndIncrementCounter());
+  const detail::File* file_context(directory->GetChildAndIncrementCounter());
   while (file_context) {
     if (filler(buf, file_context->meta_data.name.c_str(), &file_context->meta_data.attributes, 0))
       break;
@@ -943,7 +943,7 @@ int FuseDrive<Storage>::OpsSymlink(const char* to, const char* from) {
   try {
     fs::path path_to(to), path_from(from);
     CreateNew(path_from, S_IFLNK);
-    detail::FileContext* file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path_from));
+    detail::File* file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path_from));
     file_context->meta_data.link_to = path_to;
   }
   catch (const std::exception&) {
@@ -986,7 +986,7 @@ int FuseDrive<Storage>::OpsUnlink(const char* path) {
 template <typename Storage>
 int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]) {
   LOG(kInfo) << "OpsUtimens: " << path;
-  detail::FileContext* file_context(nullptr);
+  detail::File* file_context(nullptr);
   try {
     file_context = Global<Storage>::g_fuse_drive->GetMutableContext(path);
   }
@@ -1102,7 +1102,7 @@ int FuseDrive<Storage>::CreateNew(const fs::path& full_path, mode_t mode, dev_t 
     return -EINVAL;
   }
   bool is_directory(S_ISDIR(mode));
-  detail::FileContext file_context(full_path.filename(), is_directory);
+  detail::File file_context(full_path.filename(), is_directory);
 
   time(&file_context.meta_data.attributes.st_atime);
   file_context.meta_data.attributes.st_ctime = file_context.meta_data.attributes.st_mtime =

@@ -100,19 +100,19 @@ class DirectoryTest : public testing::Test {
 
   void GenerateDirectoryListingEntryForDirectory(std::shared_ptr<Directory> directory,
                                                  fs::path const& path) {
-    FileContext file_context(path.filename(), true);
+    File file(path.filename(), true);
 #ifdef MAIDSAFE_WIN32
-    file_context.meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
-    GetSystemTimeAsFileTime(&file_context.meta_data.creation_time);
-    GetSystemTimeAsFileTime(&file_context.meta_data.last_access_time);
-    GetSystemTimeAsFileTime(&file_context.meta_data.last_write_time);
+    file.meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
+    GetSystemTimeAsFileTime(&file.meta_data.creation_time);
+    GetSystemTimeAsFileTime(&file.meta_data.last_access_time);
+    GetSystemTimeAsFileTime(&file.meta_data.last_write_time);
 #else
-    time(&file_context.meta_data.attributes.st_atime);
-    time(&file_context.meta_data.attributes.st_mtime);
+    time(&file.meta_data.attributes.st_atime);
+    time(&file.meta_data.attributes.st_mtime);
 #endif
-    *file_context.meta_data.directory_id =
+    *file.meta_data.directory_id =
         Identity(crypto::Hash<crypto::SHA512>((*main_test_dir_ / path).string()));
-    EXPECT_NO_THROW(directory->AddChild(std::move(file_context)));
+    EXPECT_NO_THROW(directory->AddChild(std::move(file)));
   }
 
   bool GenerateDirectoryListings(fs::path const& path, fs::path relative_path) {
@@ -167,7 +167,7 @@ class DirectoryTest : public testing::Test {
                                      GetListener(),
                                      relative_path));
 
-    FileContext* file_context(nullptr);
+    File* file(nullptr);
     // Remove the directory listing file
     boost::system::error_code error_code;
     EXPECT_TRUE(fs::remove(path / "msdir.listing", error_code));
@@ -177,13 +177,13 @@ class DirectoryTest : public testing::Test {
         if (fs::is_directory(*itr)) {
           EXPECT_TRUE(
               RemoveDirectoryListingsEntries(itr->path(), relative_path / itr->path().filename()));
-          EXPECT_NO_THROW(file_context = directory->GetMutableChild(itr->path().filename()));
-          EXPECT_NO_THROW(FileContext(directory->RemoveChild(file_context->meta_data.name)));
+          EXPECT_NO_THROW(file = directory->GetMutableChild(itr->path().filename()));
+          EXPECT_NO_THROW(File(directory->RemoveChild(file->meta_data.name)));
           // Remove the disk directory also
           CheckedRemove(itr->path());
         } else if (fs::is_regular_file(*itr)) {
-          EXPECT_NO_THROW(file_context = directory->GetMutableChild(itr->path().filename()));
-          EXPECT_NO_THROW(FileContext(directory->RemoveChild(file_context->meta_data.name)));
+          EXPECT_NO_THROW(file = directory->GetMutableChild(itr->path().filename()));
+          EXPECT_NO_THROW(File(directory->RemoveChild(file->meta_data.name)));
           // Remove the disk file also
           CheckedRemove(itr->path());
         } else {
@@ -216,7 +216,7 @@ class DirectoryTest : public testing::Test {
                                      GetListener(),
                                      relative_path));
 
-    FileContext* file_context(nullptr);
+    File* file(nullptr);
     std::string listing("msdir.listing");
     fs::directory_iterator itr(path), end;
     try {
@@ -224,9 +224,9 @@ class DirectoryTest : public testing::Test {
         if (fs::is_directory(*itr)) {
           fs::path new_path(relative_path / itr->path().filename());
           EXPECT_TRUE(RenameDirectoryEntries(itr->path(), new_path));
-          EXPECT_NO_THROW(file_context = directory->GetMutableChild(itr->path().filename()));
-          FileContext removed_context;
-          EXPECT_NO_THROW(removed_context = directory->RemoveChild(file_context->meta_data.name));
+          EXPECT_NO_THROW(file = directory->GetMutableChild(itr->path().filename()));
+          File removed_context;
+          EXPECT_NO_THROW(removed_context = directory->RemoveChild(file->meta_data.name));
           std::string new_name(RandomAlphaNumericString(5));
           removed_context.meta_data.name = fs::path(new_name);
           EXPECT_NO_THROW(directory->AddChild(std::move(removed_context)));
@@ -234,9 +234,9 @@ class DirectoryTest : public testing::Test {
           CheckedRename(itr->path(), (itr->path().parent_path() / new_name));
         } else if (fs::is_regular_file(*itr)) {
           if (itr->path().filename().string() != listing) {
-            EXPECT_NO_THROW(file_context = directory->GetMutableChild(itr->path().filename()));
-            FileContext removed_context;
-            EXPECT_NO_THROW(removed_context = directory->RemoveChild(file_context->meta_data.name));
+            EXPECT_NO_THROW(file = directory->GetMutableChild(itr->path().filename()));
+            File removed_context;
+            EXPECT_NO_THROW(removed_context = directory->RemoveChild(file->meta_data.name));
             std::string new_name(RandomAlphaNumericString(5) + ".txt");
             removed_context.meta_data.name = fs::path(new_name);
             EXPECT_NO_THROW(directory->AddChild(std::move(removed_context)));
@@ -313,7 +313,7 @@ class DirectoryTest : public testing::Test {
                                      GetListener(),
                                      relative_path));
 
-    const FileContext* file_context(nullptr);
+    const File* file(nullptr);
     std::string listing("msdir.listing");
     fs::directory_iterator itr(path), end;
 
@@ -321,13 +321,13 @@ class DirectoryTest : public testing::Test {
       for (; itr != end; ++itr) {
         if (fs::is_directory(*itr)) {
           EXPECT_TRUE(MatchEntries(itr->path(), relative_path / itr->path().filename()));
-          EXPECT_NO_THROW(file_context = directory->GetChild(itr->path().filename()));
-          EXPECT_TRUE(file_context->meta_data.name == itr->path().filename());
+          EXPECT_NO_THROW(file = directory->GetChild(itr->path().filename()));
+          EXPECT_TRUE(file->meta_data.name == itr->path().filename());
         } else if (fs::is_regular_file(*itr)) {
           if (itr->path().filename().string() != listing) {
-            EXPECT_NO_THROW(file_context = directory->GetChild(itr->path().filename()));
-            EXPECT_TRUE(file_context->meta_data.name == itr->path().filename());
-            // EXPECT_TRUE(GetSize(file_context->meta_data) ==
+            EXPECT_NO_THROW(file = directory->GetChild(itr->path().filename()));
+            EXPECT_TRUE(file->meta_data.name == itr->path().filename());
+            // EXPECT_TRUE(GetSize(file->meta_data) ==
             // fs::file_size(itr->path()));
           }
         } else {
@@ -493,43 +493,43 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
   RequiredExists(*testpath / name);
   fs::path file(CreateTestFile(*testpath / name, file_size));
 
-  // std::vector<FileContext> file_contexts_before;
+  // std::vector<File> files_before;
   for (int i = 0; i != 10; ++i) {
     bool is_dir((i % 2) == 0);
     std::string child_name("Child " + std::to_string(i));
-    FileContext file_context(child_name, is_dir);
+    File file(child_name, is_dir);
     if (is_dir) {
 #ifdef MAIDSAFE_WIN32
-      file_context.meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
-      GetSystemTimeAsFileTime(&file_context.meta_data.creation_time);
-      GetSystemTimeAsFileTime(&file_context.meta_data.last_access_time);
-      GetSystemTimeAsFileTime(&file_context.meta_data.last_write_time);
+      file.meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
+      GetSystemTimeAsFileTime(&file.meta_data.creation_time);
+      GetSystemTimeAsFileTime(&file.meta_data.last_access_time);
+      GetSystemTimeAsFileTime(&file.meta_data.last_write_time);
 #else
-      time(&file_context.meta_data.attributes.st_atime);
-      time(&file_context.meta_data.attributes.st_mtime);
+      time(&file.meta_data.attributes.st_atime);
+      time(&file.meta_data.attributes.st_mtime);
 #endif
     } else {
 #ifdef MAIDSAFE_WIN32
-      file_context.meta_data.end_of_file = RandomUint32();
+      file.meta_data.end_of_file = RandomUint32();
       // When archiving MetaData the following assumption is made: end_of_file == allocation_size.
       // This is reasonable since when file info is queried or on closing a file we set those values
       // equal.  This stemmed from cbfs asserting when end_of_file.QuadPart was less than
       // allocation_size.QuadPart, although they were not always set in an order that avoided this,
       // so, to allow the test to pass: meta_data.allocation_size = RandomUint32();
-      file_context.meta_data.allocation_size = file_context.meta_data.end_of_file;
-      file_context.meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
-      GetSystemTimeAsFileTime(&file_context.meta_data.creation_time);
-      GetSystemTimeAsFileTime(&file_context.meta_data.last_access_time);
-      GetSystemTimeAsFileTime(&file_context.meta_data.last_write_time);
+      file.meta_data.allocation_size = file.meta_data.end_of_file;
+      file.meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
+      GetSystemTimeAsFileTime(&file.meta_data.creation_time);
+      GetSystemTimeAsFileTime(&file.meta_data.last_access_time);
+      GetSystemTimeAsFileTime(&file.meta_data.last_write_time);
 #else
-      time(&file_context.meta_data.attributes.st_atime);
-      time(&file_context.meta_data.attributes.st_mtime);
-      file_context.meta_data.attributes.st_size = RandomUint32();
+      time(&file.meta_data.attributes.st_atime);
+      time(&file.meta_data.attributes.st_mtime);
+      file.meta_data.attributes.st_size = RandomUint32();
 #endif
-      file_context.meta_data.data_map->content = RandomString(10);
+      file.meta_data.data_map->content = RandomString(10);
     }
-    // file_contexts_before.emplace_back(std::move(file_context));
-    EXPECT_NO_THROW(directory->AddChild(std::move(file_context)));
+    // files_before.emplace_back(std::move(file));
+    EXPECT_NO_THROW(directory->AddChild(std::move(file)));
   }
 
   directory->StoreImmediatelyIfPending();
@@ -557,51 +557,51 @@ TEST_F(DirectoryTest, BEH_IteratorReset) {
   EXPECT_TRUE(4U < kTestCount);
   char c('A');
   for (size_t i(0); i != kTestCount; ++i, ++c) {
-    FileContext file_context(std::string(1, c), ((i % 2) == 0));
-    EXPECT_NO_THROW(directory->AddChild(std::move(file_context)));
+    File file(std::string(1, c), ((i % 2) == 0));
+    EXPECT_NO_THROW(directory->AddChild(std::move(file)));
   }
   EXPECT_FALSE(directory->empty());
 
   // Check internal iterator
-  const FileContext* file_context(nullptr);
+  const File* file(nullptr);
   c = 'A';
   for (size_t i(0); i != kTestCount; ++i, ++c) {
-    EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
-    EXPECT_TRUE(std::string(1, c) == file_context->meta_data.name);
-    EXPECT_TRUE(((i % 2) == 0) == (file_context->meta_data.directory_id != nullptr));
+    EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
+    EXPECT_TRUE(std::string(1, c) == file->meta_data.name);
+    EXPECT_TRUE(((i % 2) == 0) == (file->meta_data.directory_id != nullptr));
   }
 
   SortAndResetChildrenCounter(directory);
 
-  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("A" == file_context->meta_data.name);
-  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("B" == file_context->meta_data.name);
+  EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
+  EXPECT_TRUE("A" == file->meta_data.name);
+  EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
+  EXPECT_TRUE("B" == file->meta_data.name);
 
   // Add another element and check iterator is reset
   ++c;
-  FileContext new_file_context(std::string(1, c), false);
-  EXPECT_NO_THROW(directory->AddChild(std::move(new_file_context)));
-  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("A" == file_context->meta_data.name);
-  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("B" == file_context->meta_data.name);
+  File new_file(std::string(1, c), false);
+  EXPECT_NO_THROW(directory->AddChild(std::move(new_file)));
+  EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
+  EXPECT_TRUE("A" == file->meta_data.name);
+  EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
+  EXPECT_TRUE("B" == file->meta_data.name);
 
   // Remove an element and check iterator is reset
   ASSERT_TRUE(directory->HasChild("C"));
-  EXPECT_NO_THROW(FileContext context(directory->RemoveChild("C")));
-  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("A" == file_context->meta_data.name);
-  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("B" == file_context->meta_data.name);
+  EXPECT_NO_THROW(File context(directory->RemoveChild("C")));
+  EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
+  EXPECT_TRUE("A" == file->meta_data.name);
+  EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
+  EXPECT_TRUE("B" == file->meta_data.name);
 
   // Try to remove a non-existent element and check iterator is not reset
   ASSERT_FALSE(directory->HasChild("C"));
-  EXPECT_THROW(FileContext context(directory->RemoveChild("C")), std::exception);
-  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("D" == file_context->meta_data.name);
-  EXPECT_NO_THROW(file_context = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("E" == file_context->meta_data.name);
+  EXPECT_THROW(File context(directory->RemoveChild("C")), std::exception);
+  EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
+  EXPECT_TRUE("D" == file->meta_data.name);
+  EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
+  EXPECT_TRUE("E" == file->meta_data.name);
 
   // Check operator<
   // DirectoryListing directory_listing1(Identity(crypto::Hash<crypto::SHA512>(std::string("A")))),

@@ -38,7 +38,7 @@
 
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/path.h"
-#include "maidsafe/drive/file_context.h"
+#include "maidsafe/drive/file.h"
 
 namespace maidsafe {
 
@@ -116,7 +116,7 @@ class Directory : public Path {
   std::string Serialise();
   // Stores all new chunks from 'child', increments all the other chunks, and resets child's
   // self_encryptor & buffer.
-  void FlushChildAndDeleteEncryptor(FileContext* child);
+  void FlushChildAndDeleteEncryptor(File* child);
 
   size_t VersionsCount() const;
   std::tuple<DirectoryId, StructuredDataVersions::VersionName>
@@ -127,11 +127,11 @@ class Directory : public Path {
       AddNewVersion(ImmutableData::Name version_id);
 
   bool HasChild(const boost::filesystem::path& name) const;
-  const FileContext* GetChild(const boost::filesystem::path& name) const;
-  FileContext* GetMutableChild(const boost::filesystem::path& name);
-  const FileContext* GetChildAndIncrementCounter();
-  void AddChild(FileContext&& child);
-  FileContext RemoveChild(const boost::filesystem::path& name);
+  const File* GetChild(const boost::filesystem::path& name) const;
+  File* GetMutableChild(const boost::filesystem::path& name);
+  const File* GetChildAndIncrementCounter();
+  void AddChild(File&& child);
+  File RemoveChild(const boost::filesystem::path& name);
   void RenameChild(const boost::filesystem::path& old_name,
                    const boost::filesystem::path& new_name);
   void ResetChildrenCounter();
@@ -178,7 +178,7 @@ class Directory : public Path {
                   std::weak_ptr<Directory::Listener> listener,
                   const boost::filesystem::path& path);
 
-  typedef std::vector<std::unique_ptr<FileContext>> Children;
+  typedef std::vector<std::unique_ptr<File>> Children;
 
   Children::iterator Find(const boost::filesystem::path& name);
   Children::const_iterator Find(const boost::filesystem::path& name) const;

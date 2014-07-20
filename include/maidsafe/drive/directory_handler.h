@@ -49,7 +49,7 @@
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/directory.h"
 #include "maidsafe/drive/utils.h"
-#include "maidsafe/drive/file_context.h"
+#include "maidsafe/drive/file.h"
 
 namespace maidsafe {
 
@@ -68,7 +68,7 @@ class DirectoryHandler
   static std::shared_ptr<DirectoryHandler<Storage>> Create(Types&&... args);
   ~DirectoryHandler();
 
-  void Add(const boost::filesystem::path& relative_path, FileContext&& file_context);
+  void Add(const boost::filesystem::path& relative_path, File&& file_context);
   std::shared_ptr<Directory> Get(const boost::filesystem::path& relative_path);
   void FlushAll();
   void Delete(const boost::filesystem::path& relative_path);
@@ -100,8 +100,8 @@ class DirectoryHandler
                   bool create,
                   boost::asio::io_service& asio_service);
 
-  bool IsDirectory(const FileContext& file_context) const;
-  std::pair<std::shared_ptr<Directory>, FileContext*>
+  bool IsDirectory(const File& file_context) const;
+  std::pair<std::shared_ptr<Directory>, File*>
       GetParent(const boost::filesystem::path& relative_path);
   void PrepareNewPath(const boost::filesystem::path& new_relative_path, Directory* new_parent);
   void RenameDifferentParent(const boost::filesystem::path& old_relative_path,
@@ -129,7 +129,7 @@ class DirectoryHandler
 
   std::shared_ptr<Storage> storage_;
   Identity unique_user_id_, root_parent_id_;
-  mutable detail::FileContext::Buffer disk_buffer_;
+  mutable detail::File::Buffer disk_buffer_;
   mutable std::mutex cache_mutex_;
   boost::asio::io_service& asio_service_;
   std::map<boost::filesystem::path, std::shared_ptr<Directory>> cache_;
@@ -195,7 +195,7 @@ void DirectoryHandler<Storage>::Initialise(std::shared_ptr<Storage>,
   }
   if (create) {
     // TODO(Fraser#5#): 2013-12-05 - Fill 'root_file_context' attributes appropriately.
-    FileContext root_file_context(kRoot, true);
+    File root_file_context(kRoot, true);
     std::shared_ptr<Directory>
         root_parent(Directory::Create(ParentId(unique_user_id_),
                                       root_parent_id_,
@@ -218,7 +218,7 @@ void DirectoryHandler<Storage>::Initialise(std::shared_ptr<Storage>,
 
 template <typename Storage>
 void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path,
-                                    FileContext&& file_context) {
+                                    File&& file_context) {
   SCOPED_PROFILE
   auto parent(GetParent(relative_path));
   assert(parent.first && parent.second);
@@ -272,7 +272,7 @@ std::shared_ptr<Directory>
   }
 
   // Recover the decendent directories until we reach the target
-  const FileContext* file_context(nullptr);
+  const File* file_context(nullptr);
   auto path_itr(std::begin(relative_path));
   std::advance(path_itr, std::distance(std::begin(antecedent), std::end(antecedent)));
   while (path_itr != std::end(relative_path)) {
@@ -364,7 +364,7 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
   else
     RenameDifferentParent(old_relative_path, new_relative_path, new_parent);
 
-  if (IsDirectory(FileContext(old_relative_path, true))) {
+  if (IsDirectory(File(old_relative_path, true))) {
     std::lock_guard<std::mutex> lock(cache_mutex_);
     // Fix old entry (if it's still there) and any children entries in the cache (effectively
     // renaming the key part of each such entry).
@@ -384,12 +384,12 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
 }
 
 template <typename Storage>
-bool DirectoryHandler<Storage>::IsDirectory(const FileContext& file_context) const {
+bool DirectoryHandler<Storage>::IsDirectory(const File& file_context) const {
   return static_cast<bool>(file_context.meta_data.directory_id);
 }
 
 template <typename Storage>
-std::pair<std::shared_ptr<Directory>, FileContext*>
+std::pair<std::shared_ptr<Directory>, File*>
 DirectoryHandler<Storage>::GetParent(const boost::filesystem::path& relative_path) {
   auto grandparent(Get(relative_path.parent_path().parent_path()));
   auto parent_context(grandparent->GetMutableChild(relative_path.parent_path().filename()));
