@@ -37,6 +37,7 @@
 #include "maidsafe/common/data_types/structured_data_versions.h"
 
 #include "maidsafe/drive/config.h"
+#include "maidsafe/drive/path.h"
 #include "maidsafe/drive/file_context.h"
 
 namespace maidsafe {
@@ -66,7 +67,7 @@ class ScopedUnlocker {
   Lock &lock;
 };
 
-class Directory : public std::enable_shared_from_this<Directory> {
+class Directory : public Path {
  public:
   class Listener {
   public:
@@ -101,6 +102,10 @@ class Directory : public std::enable_shared_from_this<Directory> {
     std::shared_ptr<Directory> self(new Directory{std::forward<Types>(args)...});
     self->Initialise(std::forward<Types>(args)...);
     return self;
+  }
+
+  std::shared_ptr<Directory> shared_from_this() {
+    return std::static_pointer_cast<Directory>(Path::shared_from_this());
   }
 
   ~Directory();
