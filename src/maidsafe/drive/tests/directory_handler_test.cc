@@ -81,8 +81,8 @@ TEST_F(DirectoryHandlerTest, BEH_Construct) {
       data_store_, unique_user_id_, root_parent_id_,
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
-  std::shared_ptr<Directory> recovered_directory(nullptr);
-  const File* recovered_file(nullptr);
+  std::shared_ptr<Directory> recovered_directory;
+  std::shared_ptr<const File> recovered_file;
 
   EXPECT_NO_THROW(recovered_directory = listing_handler_->Get(""));
   EXPECT_TRUE(recovered_directory->parent_id().data == unique_user_id_);
@@ -100,11 +100,11 @@ TEST_F(DirectoryHandlerTest, BEH_AddDirectory) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string directory_name("Directory");
-  File file(directory_name, true);
-  const File* recovered_file(nullptr);
+  auto file(File::Create(directory_name, true));
+  std::shared_ptr<const File> recovered_file;
   std::shared_ptr<Directory> directory;
-  DirectoryId dir(*file.meta_data.directory_id);
-  EXPECT_NO_THROW(listing_handler_->Add(kRoot / directory_name, std::move(file)));
+  DirectoryId dir(*file->meta_data.directory_id);
+  EXPECT_NO_THROW(listing_handler_->Add(kRoot / directory_name, file));
   EXPECT_NO_THROW(directory = listing_handler_->Get(kRoot / directory_name));
   EXPECT_TRUE(directory->directory_id() == dir);
   EXPECT_NO_THROW(directory = listing_handler_->Get(kRoot));
@@ -118,19 +118,19 @@ TEST_F(DirectoryHandlerTest, BEH_AddSameDirectory) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string directory_name("Directory");
-  File file(directory_name, true);
-  DirectoryId dir(*file.meta_data.directory_id);
-  const File* recovered_file(nullptr);
+  auto file(File::Create(directory_name, true));
+  DirectoryId dir(*file->meta_data.directory_id);
+  std::shared_ptr<const File> recovered_file;
   std::shared_ptr<Directory> directory;
-  boost::filesystem::path meta_data_name(file.meta_data.name);
-  EXPECT_NO_THROW(listing_handler_->Add(kRoot / directory_name, std::move(file)));
+  boost::filesystem::path meta_data_name(file->meta_data.name);
+  EXPECT_NO_THROW(listing_handler_->Add(kRoot / directory_name, file));
   EXPECT_NO_THROW(directory = listing_handler_->Get(kRoot / directory_name));
   EXPECT_TRUE(directory->directory_id() == dir);
   EXPECT_NO_THROW(directory = listing_handler_->Get(kRoot));
   EXPECT_NO_THROW(recovered_file = directory->GetChild(directory_name));
   EXPECT_TRUE(meta_data_name == recovered_file->meta_data.name);
 
-  EXPECT_THROW(listing_handler_->Add(kRoot / directory_name, File(directory_name, true)),
+  EXPECT_THROW(listing_handler_->Add(kRoot / directory_name, File::Create(directory_name, true)),
                std::exception);
   EXPECT_NO_THROW(recovered_file = directory->GetChild(directory_name));
   EXPECT_TRUE(meta_data_name == recovered_file->meta_data.name);
@@ -142,11 +142,11 @@ TEST_F(DirectoryHandlerTest, BEH_AddFile) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string file_name("File");
-  File file(file_name, false);
-  const File* recovered_file(nullptr);
+  auto file(File::Create(file_name, false));
+  std::shared_ptr<const File> recovered_file;
   std::shared_ptr<Directory> directory;
 
-  EXPECT_NO_THROW(listing_handler_->Add(kRoot / file_name, std::move(file)));
+  EXPECT_NO_THROW(listing_handler_->Add(kRoot / file_name, file));
   EXPECT_THROW(directory = listing_handler_->Get(kRoot / file_name), std::exception);
   EXPECT_NO_THROW(directory = listing_handler_->Get(kRoot));
   EXPECT_TRUE(directory->HasChild(file_name));
@@ -160,11 +160,11 @@ TEST_F(DirectoryHandlerTest, BEH_AddSameFile) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string file_name("File");
-  File file(file_name, false);
-  const File* recovered_file(nullptr);
+  auto file(File::Create(file_name, false));
+  std::shared_ptr<const File> recovered_file;
   std::shared_ptr<Directory> directory;
 
-  EXPECT_NO_THROW(listing_handler_->Add(kRoot / file_name, std::move(file)));
+  EXPECT_NO_THROW(listing_handler_->Add(kRoot / file_name, file));
   EXPECT_THROW(directory = listing_handler_->Get(kRoot / file_name), std::exception);
   EXPECT_NO_THROW(directory = listing_handler_->Get(kRoot));
   EXPECT_TRUE(directory->HasChild(file_name));
@@ -182,12 +182,12 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteDirectory) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string directory_name("Directory");
-  File file(directory_name, true);
-  const File* recovered_file(nullptr);
+  auto file(File::Create(directory_name, true));
+  std::shared_ptr<const File> recovered_file;
   std::shared_ptr<Directory> directory;
-  DirectoryId dir(*file.meta_data.directory_id);
+  DirectoryId dir(*file->meta_data.directory_id);
 
-  EXPECT_NO_THROW(listing_handler_->Add(kRoot / directory_name, std::move(file)));
+  EXPECT_NO_THROW(listing_handler_->Add(kRoot / directory_name, file));
   EXPECT_NO_THROW(directory = listing_handler_->Get(kRoot / directory_name));
   EXPECT_TRUE(directory->directory_id() == dir);
   EXPECT_NO_THROW(directory = listing_handler_->Get(kRoot));
@@ -206,12 +206,12 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteSameDirectory) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string directory_name("Directory");
-  File file(directory_name, true);
-  const File* recovered_file(nullptr);
+  auto file(File::Create(directory_name, true));
+  std::shared_ptr<const File> recovered_file;
   std::shared_ptr<Directory> directory;
-  DirectoryId dir(*file.meta_data.directory_id);
+  DirectoryId dir(*file->meta_data.directory_id);
 
-  EXPECT_NO_THROW(listing_handler_->Add(kRoot / directory_name, std::move(file)));
+  EXPECT_NO_THROW(listing_handler_->Add(kRoot / directory_name, file));
   EXPECT_NO_THROW(directory = listing_handler_->Get(kRoot / directory_name));
   EXPECT_TRUE(directory->directory_id() == dir);
   EXPECT_NO_THROW(directory = listing_handler_->Get(kRoot));
@@ -231,11 +231,11 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteFile) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string file_name("File");
-  File file(file_name, false);
-  const File* recovered_file(nullptr);
+  auto file(File::Create(file_name, false));
+  std::shared_ptr<const File> recovered_file;
   std::shared_ptr<Directory> directory;
 
-  EXPECT_NO_THROW(listing_handler_->Add(kRoot / file_name, std::move(file)));
+  EXPECT_NO_THROW(listing_handler_->Add(kRoot / file_name, file));
   EXPECT_THROW(directory = listing_handler_->Get(kRoot / file_name), std::exception);
   EXPECT_NO_THROW(directory = listing_handler_->Get(kRoot));
   EXPECT_NO_THROW(recovered_file = directory->GetChild(file_name));
@@ -252,11 +252,11 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteSameFile) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string file_name("File");
-  File file(file_name, false);
-  const File* recovered_file(nullptr);
+  auto file(File::Create(file_name, false));
+  std::shared_ptr<const File> recovered_file;
   std::shared_ptr<Directory> directory;
 
-  EXPECT_NO_THROW(listing_handler_->Add(kRoot / file_name, std::move(file)));
+  EXPECT_NO_THROW(listing_handler_->Add(kRoot / file_name, file));
   EXPECT_THROW(directory = listing_handler_->Get(kRoot / file_name), std::exception);
   EXPECT_NO_THROW(directory = listing_handler_->Get(kRoot));
   EXPECT_NO_THROW(recovered_file = directory->GetChild(file_name));
@@ -276,21 +276,22 @@ TEST_F(DirectoryHandlerTest, BEH_RenameAndMoveDirectory) {
       asio_service_.service());
   std::string first_directory_name("Directory1"), second_directory_name("Directory2"),
       old_directory_name("OldName"), new_directory_name("NewName");
-  File first_file(first_directory_name, true),
-      second_file(second_directory_name, true), file(old_directory_name, true);
-  const File* recovered_file(nullptr);
+  auto first_file(File::Create(first_directory_name, true));
+  auto second_file(File::Create(second_directory_name, true));
+  auto file(File::Create(old_directory_name, true));
+  std::shared_ptr<const File> recovered_file;
   std::shared_ptr<Directory> old_parent_directory, new_parent_directory, directory;
 
   EXPECT_NO_THROW(
-      listing_handler_->Add(kRoot / first_directory_name, std::move(first_file)));
+      listing_handler_->Add(kRoot / first_directory_name, first_file));
   EXPECT_NO_THROW(
-      listing_handler_->Add(kRoot / second_directory_name, std::move(second_file)));
+      listing_handler_->Add(kRoot / second_directory_name, second_file));
 
   EXPECT_NO_THROW(old_parent_directory = listing_handler_->Get(kRoot / first_directory_name));
-  EXPECT_NO_THROW(file.parent = old_parent_directory);
-  DirectoryId dir(*file.meta_data.directory_id);
+  EXPECT_NO_THROW(file->parent = old_parent_directory);
+  DirectoryId dir(*file->meta_data.directory_id);
   EXPECT_NO_THROW(listing_handler_->Add(kRoot / first_directory_name / old_directory_name,
-                                        std::move(file)));
+                                        file));
 
   EXPECT_NO_THROW(recovered_file = old_parent_directory->GetChild(old_directory_name));
   EXPECT_TRUE(old_directory_name == recovered_file->meta_data.name);
@@ -377,19 +378,20 @@ TEST_F(DirectoryHandlerTest, BEH_RenameAndMoveFile) {
       asio_service_.service());
   std::string first_directory_name("Directory1"), second_directory_name("Directory2"),
       old_file_name("OldName"), new_file_name("NewName");
-  File first_file(first_directory_name, true),
-      second_file(second_directory_name, true), file(old_file_name, false);
-  const File* recovered_file(nullptr);
+  auto first_file(File::Create(first_directory_name, true));
+  auto second_file(File::Create(second_directory_name, true));
+  auto file(File::Create(old_file_name, false));
+  std::shared_ptr<const File> recovered_file;
   std::shared_ptr<Directory> old_parent_directory, new_parent_directory;
   EXPECT_NO_THROW(
-      listing_handler_->Add(kRoot / first_directory_name, std::move(first_file)));
+      listing_handler_->Add(kRoot / first_directory_name, first_file));
   EXPECT_NO_THROW(
-      listing_handler_->Add(kRoot / second_directory_name, std::move(second_file)));
+      listing_handler_->Add(kRoot / second_directory_name, second_file));
 
   EXPECT_NO_THROW(old_parent_directory = listing_handler_->Get(kRoot / first_directory_name));
-  EXPECT_NO_THROW(file.parent = old_parent_directory);
+  EXPECT_NO_THROW(file->parent = old_parent_directory);
   EXPECT_NO_THROW(
-      listing_handler_->Add(kRoot / first_directory_name / old_file_name, std::move(file)));
+      listing_handler_->Add(kRoot / first_directory_name / old_file_name, file));
 
   EXPECT_NO_THROW(recovered_file = old_parent_directory->GetChild(old_file_name));
   EXPECT_TRUE(old_file_name == recovered_file->meta_data.name);

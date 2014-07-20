@@ -537,9 +537,9 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
 
   bool is_directory((file_attributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY);
   try {
-    detail::File file(relative_path.filename(), is_directory);
-    file.meta_data.attributes = file_attributes;
-    detail::GetDrive<Storage>(sender)->Create(relative_path, std::move(file));
+    auto file(detail::File::Create(relative_path.filename(), is_directory));
+    file->meta_data.attributes = file_attributes;
+    detail::GetDrive<Storage>(sender)->Create(relative_path, file);
   }
   catch (const drive_error& error) {
     LOG(kWarning) << "CbfsCreateFile: " << relative_path << ": " << error.what();
@@ -664,7 +664,7 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
   SCOPED_PROFILE
   boost::filesystem::path relative_path(file_name);
   LOG(kInfo) << "CbFsGetFileInfo - " << relative_path;
-  const detail::File* file(nullptr);
+  std::shared_ptr<const detail::File> file;
   try {
     auto cbfs_drive(detail::GetDrive<Storage>(sender));
     file = cbfs_drive->GetContext(relative_path);

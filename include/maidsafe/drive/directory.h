@@ -127,11 +127,11 @@ class Directory : public Path {
       AddNewVersion(ImmutableData::Name version_id);
 
   bool HasChild(const boost::filesystem::path& name) const;
-  const File* GetChild(const boost::filesystem::path& name) const;
-  File* GetMutableChild(const boost::filesystem::path& name);
-  const File* GetChildAndIncrementCounter();
-  void AddChild(File&& child);
-  File RemoveChild(const boost::filesystem::path& name);
+  std::shared_ptr<const File> GetChild(const boost::filesystem::path& name) const;
+  std::shared_ptr<File> GetMutableChild(const boost::filesystem::path& name);
+  std::shared_ptr<const File> GetChildAndIncrementCounter();
+  void AddChild(std::shared_ptr<File> child);
+  std::shared_ptr<File> RemoveChild(const boost::filesystem::path& name);
   void RenameChild(const boost::filesystem::path& old_name,
                    const boost::filesystem::path& new_name);
   void ResetChildrenCounter();
@@ -178,7 +178,7 @@ class Directory : public Path {
                   std::weak_ptr<Directory::Listener> listener,
                   const boost::filesystem::path& path);
 
-  typedef std::vector<std::unique_ptr<File>> Children;
+  typedef std::vector<std::shared_ptr<File>> Children;
 
   Children::iterator Find(const boost::filesystem::path& name);
   Children::const_iterator Find(const boost::filesystem::path& name) const;
