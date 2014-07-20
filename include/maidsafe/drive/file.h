@@ -16,8 +16,8 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
-#ifndef MAIDSAFE_DRIVE_FILE_CONTEXT_H_
-#define MAIDSAFE_DRIVE_FILE_CONTEXT_H_
+#ifndef MAIDSAFE_DRIVE_FILE_H_
+#define MAIDSAFE_DRIVE_FILE_H_
 
 #include <memory>
 #include <string>
@@ -39,15 +39,15 @@ namespace detail {
 
 class Directory;
 
-struct FileContext {
+struct File {
   typedef DataBuffer<std::string> Buffer;
 
-  FileContext();
-  FileContext(FileContext&& other);
-  FileContext(MetaData meta_data_in, std::shared_ptr<Directory> parent_in);
-  FileContext(const boost::filesystem::path& name, bool is_directory);
-  FileContext& operator=(FileContext other);
-  ~FileContext();
+  File();
+  File(File&& other);
+  File(MetaData meta_data_in, std::shared_ptr<Directory> parent_in);
+  File(const boost::filesystem::path& name, bool is_directory);
+  File& operator=(File other);
+  ~File();
 
   void Flush();
   void ScheduleForStoring();
@@ -61,9 +61,9 @@ struct FileContext {
   bool flushed;
 };
 
-void swap(FileContext& lhs, FileContext& rhs) MAIDSAFE_NOEXCEPT;
+void swap(File& lhs, File& rhs) MAIDSAFE_NOEXCEPT;
 
-bool operator<(const FileContext& lhs, const FileContext& rhs);
+bool operator<(const File& lhs, const File& rhs);
 
 }  // namespace detail
 
@@ -71,4 +71,4 @@ bool operator<(const FileContext& lhs, const FileContext& rhs);
 
 }  // namespace maidsafe
 
-#endif  // MAIDSAFE_DRIVE_FILE_CONTEXT_H_
+#endif  // MAIDSAFE_DRIVE_FILE_H_

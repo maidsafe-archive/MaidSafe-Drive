@@ -40,7 +40,7 @@ namespace detail {
 namespace {
 
 template <typename PutChunkClosure>
-void FlushEncryptor(FileContext* file_context,
+void FlushEncryptor(File* file_context,
                     PutChunkClosure put_chunk_closure,
                     std::vector<ImmutableData::Name>& chunks_to_be_incremented) {
   file_context->self_encryptor->Flush();
@@ -148,8 +148,8 @@ void Directory::Initialise(ParentId,
     max_versions_ = MaxVersions(proto_directory.max_versions());
 
     for (int i(0); i != proto_directory.children_size(); ++i)
-        children_.emplace_back(new FileContext(MetaData(proto_directory.children(i)),
-                                               shared_from_this()));
+        children_.emplace_back(new File(MetaData(proto_directory.children(i)),
+                                        shared_from_this()));
     SortAndResetChildrenCounter();
 }
 
@@ -190,7 +190,7 @@ std::string Directory::Serialise() {
   return proto_directory.SerializeAsString();
 }
 
-void Directory::FlushChildAndDeleteEncryptor(FileContext* child) {
+void Directory::FlushChildAndDeleteEncryptor(File* child) {
   std::unique_lock<std::mutex> lock(mutex_);
   if (child->self_encryptor)  // Child could already have been flushed via 'Directory::Serialise'
     FlushEncryptor(child,
@@ -256,7 +256,7 @@ Directory::Children::const_iterator Directory::Find(const fs::path& name) const 
 
 void Directory::SortAndResetChildrenCounter() {
   std::sort(std::begin(children_), std::end(children_),
-            [](const std::unique_ptr<FileContext>& lhs, const std::unique_ptr<FileContext>& rhs) {
+            [](const std::unique_ptr<File>& lhs, const std::unique_ptr<File>& rhs) {
               return *lhs < *rhs;
             });
   children_count_position_ = 0;
@@ -335,7 +335,7 @@ bool Directory::HasChild(const fs::path& name) const {
           return file_context->meta_data.name == name; });
 }
 
-const FileContext* Directory::GetChild(const fs::path& name) const {
+const File* Directory::GetChild(const fs::path& name) const {
   std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(name));
   if (itr == std::end(children_))
@@ -348,7 +348,7 @@ const FileContext* Directory::GetChild(const fs::path& name) const {
   return itr->get();
 }
 
-FileContext* Directory::GetMutableChild(const fs::path& name) {
+File* Directory::GetMutableChild(const fs::path& name) {
   SCOPED_PROFILE
   std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(name));
@@ -362,33 +362,33 @@ FileContext* Directory::GetMutableChild(const fs::path& name) {
   return itr->get();
 }
 
-const FileContext* Directory::GetChildAndIncrementCounter() {
+const File* Directory::GetChildAndIncrementCounter() {
   std::lock_guard<std::mutex> lock(mutex_);
   if (children_count_position_ < children_.size()) {
-    const FileContext* file_context(children_[children_count_position_].get());
+    const File* file_context(children_[children_count_position_].get());
     ++children_count_position_;
     return file_context;
   }
   return nullptr;
 }
 
-void Directory::AddChild(FileContext&& child) {
+void Directory::AddChild(File&& child) {
   std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(child.meta_data.name));
   if (itr != std::end(children_))
     BOOST_THROW_EXCEPTION(MakeError(DriveErrors::file_exists));
   child.parent = shared_from_this();
-  children_.emplace_back(new FileContext(std::move(child)));
+  children_.emplace_back(new File(std::move(child)));
   SortAndResetChildrenCounter();
   DoScheduleForStoring();
 }
 
-FileContext Directory::RemoveChild(const fs::path& name) {
+File Directory::RemoveChild(const fs::path& name) {
   std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(name));
   if (itr == std::end(children_))
     BOOST_THROW_EXCEPTION(MakeError(DriveErrors::no_such_file));
-  FileContext file_context(std::move(*(*itr)));
+  File file_context(std::move(*(*itr)));
   children_.erase(itr);
   SortAndResetChildrenCounter();
   DoScheduleForStoring();
