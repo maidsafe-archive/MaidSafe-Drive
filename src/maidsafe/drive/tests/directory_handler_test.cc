@@ -288,7 +288,7 @@ TEST_F(DirectoryHandlerTest, BEH_RenameAndMoveDirectory) {
       listing_handler_->Add(kRoot / second_directory_name, second_file));
 
   EXPECT_NO_THROW(old_parent_directory = listing_handler_->Get(kRoot / first_directory_name));
-  EXPECT_NO_THROW(file->parent = old_parent_directory);
+  EXPECT_NO_THROW(file->SetParent(old_parent_directory));
   DirectoryId dir(*file->meta_data.directory_id);
   EXPECT_NO_THROW(listing_handler_->Add(kRoot / first_directory_name / old_directory_name,
                                         file));
@@ -389,7 +389,7 @@ TEST_F(DirectoryHandlerTest, BEH_RenameAndMoveFile) {
       listing_handler_->Add(kRoot / second_directory_name, second_file));
 
   EXPECT_NO_THROW(old_parent_directory = listing_handler_->Get(kRoot / first_directory_name));
-  EXPECT_NO_THROW(file->parent = old_parent_directory);
+  EXPECT_NO_THROW(file->SetParent(old_parent_directory));
   EXPECT_NO_THROW(
       listing_handler_->Add(kRoot / first_directory_name / old_file_name, file));
 
