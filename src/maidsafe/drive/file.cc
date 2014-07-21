@@ -30,18 +30,22 @@ namespace detail {
 
 File::File()
     : Path(),
-      meta_data(), buffer(), self_encryptor(), timer(), open_count(new std::atomic<int>(0)),
+      buffer(), self_encryptor(), timer(), open_count(new std::atomic<int>(0)),
       flushed(false) {}
 
 File::File(MetaData meta_data_in, std::shared_ptr<Directory> parent_in)
     : Path(parent_in),
-      meta_data(std::move(meta_data_in)), buffer(), self_encryptor(), timer(),
-      open_count(new std::atomic<int>(0)), flushed(false) {}
+      buffer(), self_encryptor(), timer(),
+      open_count(new std::atomic<int>(0)), flushed(false) {
+  meta_data = std::move(meta_data_in);
+}
 
 File::File(const boost::filesystem::path& name, bool is_directory)
     : Path(),
-      meta_data(name, is_directory), buffer(), self_encryptor(), timer(),
-      open_count(new std::atomic<int>(0)), flushed(false) {}
+      buffer(), self_encryptor(), timer(),
+      open_count(new std::atomic<int>(0)), flushed(false) {
+  meta_data = MetaData(name, is_directory);
+}
 
 File::~File() {
   if (timer) {

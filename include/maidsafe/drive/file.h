@@ -29,7 +29,6 @@
 #include "maidsafe/common/data_buffer.h"
 #include "maidsafe/encrypt/self_encryptor.h"
 
-#include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/path.h"
 
 namespace maidsafe {
@@ -57,7 +56,6 @@ class File : public Path {
   void Flush();
   void ScheduleForStoring();
 
-  MetaData meta_data;
   std::unique_ptr<Buffer> buffer;
   std::unique_ptr<encrypt::SelfEncryptor> self_encryptor;
   std::unique_ptr<boost::asio::steady_timer> timer;

@@ -22,6 +22,7 @@
 #include <memory>
 
 #include "maidsafe/common/config.h"
+#include "maidsafe/drive/meta_data.h"
 
 namespace maidsafe {
 
@@ -43,6 +44,9 @@ class Path : public std::enable_shared_from_this<Path> {
 
  private:
   std::weak_ptr<Directory> parent_;
+
+ public:
+  MetaData meta_data;
 };
 
 }  // namespace detail
