@@ -62,18 +62,17 @@ class File : public Path {
   std::unique_ptr<encrypt::SelfEncryptor> self_encryptor;
   std::unique_ptr<boost::asio::steady_timer> timer;
   std::unique_ptr<std::atomic<int>> open_count;
-  std::weak_ptr<Directory> parent;
   bool flushed;
 
  private:
   File();
-  File(File&& other);
   File(MetaData meta_data_in, std::shared_ptr<Directory> parent_in);
   File(const boost::filesystem::path& name, bool is_directory);
-  File& operator=(File other);
+  File(File&&) = delete;
+  File& operator=(File) = delete;
 };
 
-void swap(File& lhs, File& rhs) MAIDSAFE_NOEXCEPT;
+// void swap(File& lhs, File& rhs) MAIDSAFE_NOEXCEPT;
 
 bool operator<(const File& lhs, const File& rhs);
 

@@ -208,7 +208,7 @@ void DirectoryHandler<Storage>::Initialise(std::shared_ptr<Storage>,
                                asio_service_,
                                GetListener(),
                                kRoot));
-    root_file->parent = root_parent;
+    root_file->SetParent(root_parent);
     root_parent->AddChild(root_file);
     root->ScheduleForStoring();
     cache_[""] = std::move(root_parent);
@@ -468,7 +468,7 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
   }
 
   file->meta_data.name = new_relative_path.filename();
-  file->parent = new_parent;
+  file->SetParent(new_parent);
   new_parent->AddChild(file);
 
 #ifdef MAIDSAFE_WIN32

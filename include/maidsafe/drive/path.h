@@ -21,13 +21,28 @@
 
 #include <memory>
 
+#include "maidsafe/common/config.h"
+
 namespace maidsafe {
 
 namespace drive {
 
 namespace detail {
 
+class Directory;
+
 class Path : public std::enable_shared_from_this<Path> {
+ public:
+  std::shared_ptr<Directory> Parent() const;
+  void SetParent(std::shared_ptr<Directory>);
+
+ protected:
+  Path() = default;
+  Path(const Path&) = delete;
+  Path(std::shared_ptr<Directory> parent);
+
+ private:
+  std::weak_ptr<Directory> parent_;
 };
 
 }  // namespace detail

@@ -372,7 +372,7 @@ void Directory::AddChild(std::shared_ptr<File> child) {
   auto itr(Find(child->meta_data.name));
   if (itr != std::end(children_))
     BOOST_THROW_EXCEPTION(MakeError(DriveErrors::file_exists));
-  child->parent = shared_from_this();
+  child->SetParent(shared_from_this());
   children_.emplace_back(child);
   SortAndResetChildrenCounter();
   DoScheduleForStoring();
