@@ -376,10 +376,10 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsChmod(const char* path, mode_t mode) {
   LOG(kInfo) << "OpsChmod: " << path << ", to " << std::oct << mode;
   try {
-    auto file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path));
-    file_context->meta_data.attributes.st_mode = mode;
-    time(&file_context->meta_data.attributes.st_ctime);
-    file_context->ScheduleForStoring();
+    auto file(Global<Storage>::g_fuse_drive->template GetMutableContext<detail::File>(path));
+    file->meta_data.attributes.st_mode = mode;
+    time(&file->meta_data.attributes.st_ctime);
+    file->ScheduleForStoring();
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to chmod " << path << ": " << e.what();
@@ -399,13 +399,13 @@ int FuseDrive<Storage>::OpsChown(const char* path, uid_t uid, gid_t gid) {
   if (!change_uid && !change_gid)
     return 0;
   try {
-    auto file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path));
+    auto file(Global<Storage>::g_fuse_drive->template GetMutableContext<detail::File>(path));
     if (change_uid)
-      file_context->meta_data.attributes.st_uid = uid;
+      file->meta_data.attributes.st_uid = uid;
     if (change_gid)
-      file_context->meta_data.attributes.st_gid = gid;
-    time(&file_context->meta_data.attributes.st_ctime);
-    file_context->ScheduleForStoring();
+      file->meta_data.attributes.st_gid = gid;
+    time(&file->meta_data.attributes.st_ctime);
+    file->ScheduleForStoring();
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to chown " << path << ": " << e.what();
@@ -768,7 +768,8 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
   filler(buf, "..", nullptr, 0);
   std::shared_ptr<detail::Directory> directory;
   try {
-    directory = Global<Storage>::g_fuse_drive->directory_handler_->Get(path);
+    directory =
+        Global<Storage>::g_fuse_drive->directory_handler_->template Get<detail::Directory>(path);
   }
   catch (const std::exception& e) {
     LOG(kError) << "OpsReaddir: " << path << ", can't get directory: " << e.what();
@@ -780,7 +781,7 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
   if (offset == 0)
     directory->ResetChildrenCounter();
 
-  std::shared_ptr<const detail::File> file(directory->GetChildAndIncrementCounter());
+  auto file(directory->GetChildAndIncrementCounter());
   while (file) {
     if (filler(buf, file->meta_data.name.c_str(), &file->meta_data.attributes, 0))
       break;
@@ -988,7 +989,7 @@ int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]
   LOG(kInfo) << "OpsUtimens: " << path;
   std::shared_ptr<detail::File> file;
   try {
-    file = Global<Storage>::g_fuse_drive->GetMutableContext(path);
+    file = Global<Storage>::g_fuse_drive->template GetMutableContext<detail::File>(path);
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to change times for " << path << ": " << e.what();
@@ -1159,7 +1160,7 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
 template <typename Storage>
 int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
   try {
-    auto file(Global<Storage>::g_fuse_drive->GetMutableContext(path));
+    auto file(Global<Storage>::g_fuse_drive->template GetMutableContext<detail::File>(path));
     assert(file->self_encryptor);
     file->self_encryptor->Truncate(size);
     file->meta_data.attributes.st_size = size;

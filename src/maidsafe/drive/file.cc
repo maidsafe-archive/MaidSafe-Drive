@@ -30,20 +30,23 @@ namespace detail {
 
 File::File()
     : Path(),
-      buffer(), self_encryptor(), timer(), open_count(new std::atomic<int>(0)),
+      buffer(),
+      timer(),
       flushed(false) {}
 
 File::File(MetaData meta_data_in, std::shared_ptr<Directory> parent_in)
     : Path(parent_in),
-      buffer(), self_encryptor(), timer(),
-      open_count(new std::atomic<int>(0)), flushed(false) {
+      buffer(),
+      timer(),
+      flushed(false) {
   meta_data = std::move(meta_data_in);
 }
 
 File::File(const boost::filesystem::path& name, bool is_directory)
     : Path(),
-      buffer(), self_encryptor(), timer(),
-      open_count(new std::atomic<int>(0)), flushed(false) {
+      buffer(),
+      timer(),
+      flushed(false) {
   meta_data = MetaData(name, is_directory);
 }
 
@@ -54,22 +57,53 @@ File::~File() {
   }
 }
 
+bool File::Valid() const {
+  // The open_count must be >=0.  If > 0 and the context doesn't represent a directory, the buffer
+  // and encryptor should be non-null.
+  return ((open_count == 0) ||
+          ((open_count > 0) && (meta_data.directory_id || (buffer && self_encryptor && timer))));
+}
+
+std::string File::Serialise() {
+  return std::string();
+}
+
+void File::Serialise(protobuf::Directory& proto_directory,
+                     std::vector<ImmutableData::Name> chunks,
+                     std::unique_lock<std::mutex>& lock) {
+  meta_data.ToProtobuf(proto_directory.add_children());
+  if (self_encryptor) {  // File has been opened
+    timer->cancel();
+    FlushEncryptor([this, &lock](const ImmutableData& data) {
+        std::shared_ptr<Directory::Listener> listener = listener_.lock();
+        if (listener) {
+          listener->PutChunk(data, lock);
+        }
+      },
+      chunks);
+    flushed = false;
+  } else if (meta_data.data_map) {
+    if (flushed) {  // File has already been flushed
+      flushed = false;
+    } else {  // File has not been opened
+      for (const auto& chunk : meta_data.data_map->chunks)
+        chunks.emplace_back(Identity(chunk.hash));
+    }
+  }
+}
+
 void File::Flush() {
-  std::shared_ptr<Directory> p = Parent();
-  if (p) {
-      p->FlushChildAndDeleteEncryptor(this);
+  std::shared_ptr<Directory> parent = Parent();
+  if (parent) {
+      parent->FlushChildAndDeleteEncryptor(this);
   }
 }
 
 void File::ScheduleForStoring() {
-  std::shared_ptr<Directory> p = Parent();
-  if (p) {
-      p->ScheduleForStoring();
+  std::shared_ptr<Directory> parent = Parent();
+  if (parent) {
+      parent->ScheduleForStoring();
   }
-}
-
-bool operator<(const File& lhs, const File& rhs) {
-  return lhs.meta_data.name < rhs.meta_data.name;
 }
 
 }  // namespace detail

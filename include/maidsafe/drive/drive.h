@@ -65,8 +65,12 @@ class Drive {
   virtual void Mount() = 0;
   virtual void Unmount() = 0;
 
-  std::shared_ptr<const detail::File> GetContext(const boost::filesystem::path& relative_path);
-  std::shared_ptr<detail::File> GetMutableContext(const boost::filesystem::path& relative_path);
+  template <typename T = detail::Path>
+  typename std::enable_if<std::is_base_of<detail::Path, T>::value, const std::shared_ptr<const T>>::type
+  GetContext(const boost::filesystem::path& relative_path) const;
+  template <typename T = detail::Path>
+  typename std::enable_if<std::is_base_of<detail::Path, T>::value, std::shared_ptr<T>>::type
+  GetMutableContext(const boost::filesystem::path& relative_path);
   void Create(const boost::filesystem::path& relative_path, std::shared_ptr<detail::File> file);
   void Open(const boost::filesystem::path& relative_path);
   void Flush(const boost::filesystem::path& relative_path);
@@ -168,7 +172,7 @@ boost::future<void> Drive<Storage>::GetMountFuture() {
 template <typename Storage>
 void Drive<Storage>::InitialiseEncryptor(const boost::filesystem::path& relative_path,
                                          detail::File& file) {
-  assert(*file.open_count == 0 || *file.open_count == 1);
+  assert(file.open_count == 0 || file.open_count == 1);
   if (!file.timer) {
     file.timer.reset(new boost::asio::steady_timer(asio_service_.service()));
   } else if (file.timer->cancel() > 0) {
@@ -203,7 +207,7 @@ void Drive<Storage>::ScheduleDeletionOfEncryptor(std::shared_ptr<detail::File> f
   static_cast<void>(cancelled_count);
   file->timer->async_wait([=](const boost::system::error_code& ec) {
       if (ec != boost::asio::error::operation_aborted) {
-        if (*file->open_count == 0) {
+        if (file->open_count == 0) {
 #ifndef NDEBUG
           LOG(kInfo) << "Deleting encryptor and buffer for " << name;
 #endif
@@ -221,18 +225,20 @@ void Drive<Storage>::ScheduleDeletionOfEncryptor(std::shared_ptr<detail::File> f
 }
 
 template <typename Storage>
-std::shared_ptr<const detail::File> Drive<Storage>::GetContext(
-    const boost::filesystem::path& relative_path) {
-  auto parent(directory_handler_->Get(relative_path.parent_path()));
-  return parent->GetChild(relative_path.filename());
+template <typename T>
+typename std::enable_if<std::is_base_of<detail::Path, T>::value, const std::shared_ptr<const T>>::type
+Drive<Storage>::GetContext(const boost::filesystem::path& relative_path) const {
+  auto parent(directory_handler_->template Get<detail::Directory>(relative_path.parent_path()));
+  return std::dynamic_pointer_cast<const T>(parent->GetChild(relative_path.filename()));
 }
 
 template <typename Storage>
-std::shared_ptr<detail::File> Drive<Storage>::GetMutableContext(
-    const boost::filesystem::path& relative_path) {
+template <typename T>
+typename std::enable_if<std::is_base_of<detail::Path, T>::value, std::shared_ptr<T>>::type
+Drive<Storage>::GetMutableContext(const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
-  auto parent(directory_handler_->Get(relative_path.parent_path()));
-  return parent->GetMutableChild(relative_path.filename());
+  auto parent(directory_handler_->template Get<detail::Directory>(relative_path.parent_path()));
+  return std::dynamic_pointer_cast<T>(parent->GetMutableChild(relative_path.filename()));
 }
 
 template <typename Storage>
@@ -240,18 +246,18 @@ void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
                             std::shared_ptr<detail::File> file) {
   if (!file->meta_data.directory_id) {
     InitialiseEncryptor(relative_path, *file);
-    *file->open_count = 1;
+    file->open_count = 1;
   }
   directory_handler_->Add(relative_path, file);
 }
 
 template <typename Storage>
 void Drive<Storage>::Open(const boost::filesystem::path& relative_path) {
-  auto parent(directory_handler_->Get(relative_path.parent_path()));
-  auto file(parent->GetMutableChild(relative_path.filename()));
+  auto parent(directory_handler_->template Get<detail::Directory>(relative_path.parent_path()));
+  auto file(parent->template GetMutableChild<detail::File>(relative_path.filename()));
   if (!file->meta_data.directory_id) {
-    LOG(kInfo) << "Opening " << relative_path << " open count: " << *file->open_count + 1;
-    if (++(*file->open_count) == 1) {
+    LOG(kInfo) << "Opening " << relative_path << " open count: " << file->open_count + 1;
+    if (++file->open_count == 1) {
       std::lock_guard<std::mutex> lock(parent->mutex_);
       InitialiseEncryptor(relative_path, *file);
     }
@@ -270,11 +276,11 @@ void Drive<Storage>::Flush(const boost::filesystem::path& relative_path) {
 template <typename Storage>
 void Drive<Storage>::Release(const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
-  auto file(GetMutableContext(relative_path));
+  auto file(GetMutableContext<detail::File>(relative_path));
   if (!file->meta_data.directory_id) {
-    LOG(kInfo) << "Releasing " << relative_path << " open count: " << *file->open_count - 1;
-    --(*file->open_count);
-    if (*file->open_count == 0)
+    LOG(kInfo) << "Releasing " << relative_path << " open count: " << file->open_count - 1;
+    --file->open_count;
+    if (file->open_count == 0)
       ScheduleDeletionOfEncryptor(file);
   }
 }
@@ -282,7 +288,7 @@ void Drive<Storage>::Release(const boost::filesystem::path& relative_path) {
 template <typename Storage>
 void Drive<Storage>::ReleaseDir(const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
-  auto directory(directory_handler_->Get(relative_path));
+  auto directory(directory_handler_->template Get<detail::Directory>(relative_path));
   directory->ResetChildrenCounter();
 }
 
@@ -317,7 +323,7 @@ uint32_t Drive<Storage>::Read(const boost::filesystem::path& relative_path, char
 template <typename Storage>
 uint32_t Drive<Storage>::Write(const boost::filesystem::path& relative_path, const char* data,
                                uint32_t size, uint64_t offset) {
-  auto file(GetMutableContext(relative_path));
+  auto file(GetMutableContext<detail::File>(relative_path));
   assert(file->self_encryptor);
   LOG(kInfo) << "For "  << relative_path << ", writing " << size << " bytes at offset " << offset;
   if (!file->self_encryptor->Write(data, size, offset))

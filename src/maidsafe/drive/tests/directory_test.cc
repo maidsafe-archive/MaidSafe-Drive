@@ -61,18 +61,18 @@ inline uint64_t GetSize(const MetaData& meta_data) {
 
 class DirectoryTestListener
   : public std::enable_shared_from_this<DirectoryTestListener>,
-    public Directory::Listener {
+    public Path::Listener {
  public:
   // Directory::Listener
-  virtual void DirectoryPut(std::shared_ptr<Directory> directory) {
+  virtual void PathPut(std::shared_ptr<Path> path) {
     LOG(kInfo) << "Putting directory.";
-    ImmutableData contents(NonEmptyString(directory->Serialise()));
-    directory->AddNewVersion(contents.name());
+    ImmutableData contents(NonEmptyString(path->Serialise()));
+    std::static_pointer_cast<Directory>(path)->AddNewVersion(contents.name());
   }
-  virtual void DirectoryPutChunk(const ImmutableData&) {
+  virtual void PathPutChunk(const ImmutableData&) {
     LOG(kInfo) << "Putting chunk.";
   }
-  virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&) {
+  virtual void PathIncrementChunks(const std::vector<ImmutableData::Name>&) {
     LOG(kInfo) << "Incrementing chunks.";
   }
 };
@@ -167,7 +167,7 @@ class DirectoryTest : public testing::Test {
                                      GetListener(),
                                      relative_path));
 
-    std::shared_ptr<File> file;
+    std::shared_ptr<Path> file;
     // Remove the directory listing file
     boost::system::error_code error_code;
     EXPECT_TRUE(fs::remove(path / "msdir.listing", error_code));
@@ -216,7 +216,7 @@ class DirectoryTest : public testing::Test {
                                      GetListener(),
                                      relative_path));
 
-    std::shared_ptr<File> file;
+    std::shared_ptr<Path> file;
     std::string listing("msdir.listing");
     fs::directory_iterator itr(path), end;
     try {
@@ -225,7 +225,7 @@ class DirectoryTest : public testing::Test {
           fs::path new_path(relative_path / itr->path().filename());
           EXPECT_TRUE(RenameDirectoryEntries(itr->path(), new_path));
           EXPECT_NO_THROW(file = directory->GetMutableChild(itr->path().filename()));
-          std::shared_ptr<File> removed_context;
+          std::shared_ptr<Path> removed_context;
           EXPECT_NO_THROW(removed_context = directory->RemoveChild(file->meta_data.name));
           std::string new_name(RandomAlphaNumericString(5));
           removed_context->meta_data.name = fs::path(new_name);
@@ -235,7 +235,7 @@ class DirectoryTest : public testing::Test {
         } else if (fs::is_regular_file(*itr)) {
           if (itr->path().filename().string() != listing) {
             EXPECT_NO_THROW(file = directory->GetMutableChild(itr->path().filename()));
-            std::shared_ptr<File> removed_context;
+            std::shared_ptr<Path> removed_context;
             EXPECT_NO_THROW(removed_context = directory->RemoveChild(file->meta_data.name));
             std::string new_name(RandomAlphaNumericString(5) + ".txt");
             removed_context->meta_data.name = fs::path(new_name);
@@ -313,7 +313,7 @@ class DirectoryTest : public testing::Test {
                                      GetListener(),
                                      relative_path));
 
-    std::shared_ptr<const File> file;
+    std::shared_ptr<const Path> file;
     std::string listing("msdir.listing");
     fs::directory_iterator itr(path), end;
 
@@ -563,7 +563,7 @@ TEST_F(DirectoryTest, BEH_IteratorReset) {
   EXPECT_FALSE(directory->empty());
 
   // Check internal iterator
-  std::shared_ptr<const File> file;
+  std::shared_ptr<const Path> file;
   c = 'A';
   for (size_t i(0); i != kTestCount; ++i, ++c) {
     EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
