@@ -101,7 +101,7 @@ class Directory : public Path {
   ParentId parent_id() const;
   void SetNewParent(const ParentId parent_id, const boost::filesystem::path& path);
   DirectoryId directory_id() const;
-  void ScheduleForStoring();
+  virtual void ScheduleForStoring();
   void StoreImmediatelyIfPending();
   bool HasPending() const;
 
