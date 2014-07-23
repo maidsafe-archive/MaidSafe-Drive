@@ -667,7 +667,7 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
   std::shared_ptr<const detail::File> file;
   try {
     auto cbfs_drive(detail::GetDrive<Storage>(sender));
-    file = cbfs_drive->GetContext(relative_path);
+    file = cbfs_drive->template GetContext<detail::File>(relative_path);
   }
   catch (const std::exception&) {
     *file_exists = false;
@@ -748,7 +748,7 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
 
   std::shared_ptr<detail::Directory> directory(nullptr);
   try {
-    directory = cbfs_drive->directory_handler_->Get(relative_path);
+    directory = cbfs_drive->directory_handler_->template Get<detail::Directory>(relative_path);
     if (restart)
       directory->ResetChildrenCounter();
   }
@@ -824,7 +824,7 @@ void CbfsDrive<Storage>::CbFsSetAllocationSize(CallbackFileSystem* sender, CbFsF
   try {
     auto file(cbfs_drive->GetMutableContext(relative_path));
     file->meta_data.allocation_size = allocation_size;
-    file->parent.lock()->ScheduleForStoring();
+    file->Parent()->ScheduleForStoring();
   }
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -856,7 +856,7 @@ void CbfsDrive<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileIn
     assert(file->self_encryptor);
     file->self_encryptor->Truncate(end_of_file);
     file->meta_data.end_of_file = end_of_file;
-    file->parent.lock()->ScheduleForStoring();
+    file->Parent()->ScheduleForStoring();
   }
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -901,7 +901,7 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
       detail::SetFiletime(file->meta_data.last_access_time, last_access_time);
     changed |= detail::SetFiletime(file->meta_data.last_write_time, last_write_time);
     if (changed)
-      file->parent.lock()->ScheduleForStoring();
+      file->Parent()->ScheduleForStoring();
   }
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -1028,7 +1028,7 @@ void CbfsDrive<Storage>::CbFsIsDirectoryEmpty(CallbackFileSystem* sender,
   LOG(kInfo) << "CbFsIsDirectoryEmpty - " << boost::filesystem::path(file_name);
   try {
     auto cbfs_drive(detail::GetDrive<Storage>(sender));
-    *is_empty = cbfs_drive->directory_handler_->Get(file_name)->empty();
+    *is_empty = cbfs_drive->directory_handler_->template Get<detail::Directory>(file_name)->empty();
   }
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
