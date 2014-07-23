@@ -824,7 +824,7 @@ void CbfsDrive<Storage>::CbFsSetAllocationSize(CallbackFileSystem* sender, CbFsF
   try {
     auto file(cbfs_drive->GetMutableContext(relative_path));
     file->meta_data.allocation_size = allocation_size;
-    file->Parent()->ScheduleForStoring();
+    file->ScheduleForStoring();
   }
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -856,7 +856,7 @@ void CbfsDrive<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileIn
     assert(file->self_encryptor);
     file->self_encryptor->Truncate(end_of_file);
     file->meta_data.end_of_file = end_of_file;
-    file->Parent()->ScheduleForStoring();
+    file->ScheduleForStoring();
   }
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -901,7 +901,7 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
       detail::SetFiletime(file->meta_data.last_access_time, last_access_time);
     changed |= detail::SetFiletime(file->meta_data.last_write_time, last_write_time);
     if (changed)
-      file->Parent()->ScheduleForStoring();
+      file->ScheduleForStoring();
   }
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);

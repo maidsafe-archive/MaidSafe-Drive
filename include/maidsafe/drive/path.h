@@ -83,6 +83,7 @@ class Path : public std::enable_shared_from_this<Path> {
   virtual void Serialise(protobuf::Directory&,
                          std::vector<ImmutableData::Name>,
                          std::unique_lock<std::mutex>&) = 0;
+  virtual void ScheduleForStoring() = 0;
 
   std::shared_ptr<Directory> Parent() const;
   void SetParent(std::shared_ptr<Directory>);

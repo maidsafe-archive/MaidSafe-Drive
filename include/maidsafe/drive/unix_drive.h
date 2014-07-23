@@ -376,7 +376,7 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsChmod(const char* path, mode_t mode) {
   LOG(kInfo) << "OpsChmod: " << path << ", to " << std::oct << mode;
   try {
-    auto file(Global<Storage>::g_fuse_drive->template GetMutableContext<detail::File>(path));
+    auto file(Global<Storage>::g_fuse_drive->GetMutableContext(path));
     file->meta_data.attributes.st_mode = mode;
     time(&file->meta_data.attributes.st_ctime);
     file->ScheduleForStoring();
@@ -399,7 +399,7 @@ int FuseDrive<Storage>::OpsChown(const char* path, uid_t uid, gid_t gid) {
   if (!change_uid && !change_gid)
     return 0;
   try {
-    auto file(Global<Storage>::g_fuse_drive->template GetMutableContext<detail::File>(path));
+    auto file(Global<Storage>::g_fuse_drive->GetMutableContext(path));
     if (change_uid)
       file->meta_data.attributes.st_uid = uid;
     if (change_gid)
@@ -987,9 +987,9 @@ int FuseDrive<Storage>::OpsUnlink(const char* path) {
 template <typename Storage>
 int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]) {
   LOG(kInfo) << "OpsUtimens: " << path;
-  std::shared_ptr<detail::File> file;
+  std::shared_ptr<detail::Path> file;
   try {
-    file = Global<Storage>::g_fuse_drive->template GetMutableContext<detail::File>(path);
+    file = Global<Storage>::g_fuse_drive->GetMutableContext(path);
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to change times for " << path << ": " << e.what();
@@ -1160,7 +1160,7 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
 template <typename Storage>
 int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
   try {
-    auto file(Global<Storage>::g_fuse_drive->template GetMutableContext<detail::File>(path));
+    auto file(Global<Storage>::g_fuse_drive->GetMutableContext(path));
     assert(file->self_encryptor);
     file->self_encryptor->Truncate(size);
     file->meta_data.attributes.st_size = size;

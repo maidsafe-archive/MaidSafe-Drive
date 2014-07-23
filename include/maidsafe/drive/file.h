@@ -57,9 +57,9 @@ class File : public Path {
   virtual void Serialise(protobuf::Directory&,
                          std::vector<ImmutableData::Name>,
                          std::unique_lock<std::mutex>&);
+  virtual void ScheduleForStoring();
 
   void Flush();
-  void ScheduleForStoring();
 
   template <typename PutChunkClosure>
   void FlushEncryptor(PutChunkClosure put_chunk_closure,

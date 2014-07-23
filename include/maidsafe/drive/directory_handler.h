@@ -242,7 +242,7 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
   parent.second->meta_data.attributes.st_ctime = parent.second->meta_data.attributes.st_mtime;
   if (IsDirectory(file)) {
     ++parent.second->meta_data.attributes.st_nlink;
-    std::static_pointer_cast<File>(parent.second)->ScheduleForStoring();
+    parent.second->ScheduleForStoring();
   }
 #endif
 
