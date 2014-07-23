@@ -1498,7 +1498,7 @@ TEST(FileSystemTest, DISABLED_FUNC_DownloadMovieThenCopyToDrive) {
 }
 
 #ifndef MAIDSAFE_WIN32
-TEST(FileSystemTest, FUND_Runfstest) {
+TEST(FileSystemTest, FUNC_Runfstest) {
   on_scope_exit cleanup(clean_root);
   // ASSERT_NO_THROW(RunFsTest(g_temp));
   // ASSERT_NO_THROW(RunFsTest(g_root));
@@ -1506,7 +1506,7 @@ TEST(FileSystemTest, FUND_Runfstest) {
 }
 #endif
 
-TEST(FileSystemTest, FUND_RemountDrive) {
+TEST(FileSystemTest, FUNC_RemountDrive) {
   bool do_test(g_test_type == drive::DriveType::kLocal ||
                g_test_type == drive::DriveType::kLocalConsole ||
                g_test_type == drive::DriveType::kNetwork ||
@@ -1546,7 +1546,7 @@ TEST(FileSystemTest, FUND_RemountDrive) {
   }
 }
 
-TEST(FileSystemTest, FUND_CrossPlatformFileCheck) {
+TEST(FileSystemTest, FUNC_CrossPlatformFileCheck) {
   // Involves mounting a drive of type g_test_type so don't attempt it if we're doing a disk test
   if (g_test_type == drive::DriveType::kLocal || g_test_type == drive::DriveType::kLocalConsole ||
       g_test_type == drive::DriveType::kNetwork ||
