@@ -444,7 +444,7 @@ void WriteUtf8FileAndEdit(const fs::path& start_directory) {
 #else
   int exit_code(0);
   fs::path shell_path(boost::process::shell_path());
-  std::string script("utf.sh"), content = std::string("#!/bin/bash\n") + "sed -i '1,38d' " +
+  std::string script("utf.sh"), content = std::string("#!/bin/bash\n") + "sed -i.bak '1,38d' " +
                                           utf8_file.string() + " 1>/dev/null 2>/dev/null\n" +
                                           "exit";
 
