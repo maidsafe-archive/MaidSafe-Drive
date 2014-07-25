@@ -242,7 +242,12 @@ endif()
 # Tests                                                                                            #
 #==================================================================================================#
 if(MaidsafeTesting)
-  ms_add_style_test()
+  if(WIN32)
+    set(Exclusions "maidsafe/drive/unix_drive.h")
+  else()
+    set(Exclusions "maidsafe/drive/win_drive.h")
+  endif()
+  ms_add_default_tests()
   ms_add_gtests(TESTdrive)
   add_test(NAME "\"Real Disk Filesystem Test\""
            COMMAND filesystem_test --disk
@@ -278,7 +283,6 @@ if(MaidsafeTesting)
                          LABELS "Drive;Filesystem;Weekly")
   endif()
 
-  ms_add_project_experimental()
   ms_test_summary_output()
 endif()
 
