@@ -444,7 +444,7 @@ void WriteUtf8FileAndEdit(const fs::path& start_directory) {
 #else
   int exit_code(0);
   fs::path shell_path(boost::process::shell_path());
-  std::string script("utf.sh"), content = std::string("#!/bin/bash\n") + "sed -i '1,38d' " +
+  std::string script("utf.sh"), content = std::string("#!/bin/bash\n") + "sed -i.bak '1,38d' " +
                                           utf8_file.string() + " 1>/dev/null 2>/dev/null\n" +
                                           "exit";
 
@@ -1527,20 +1527,20 @@ TEST(FileSystemTest, FUNC_RemountDrive) {
       ASSERT_TRUE(error_code.value() == 0);
       RequireDirectoriesEqual(directories.front(), copied_directory, true);
 
-      g_launcher->StopDriveProcess();
+      Sleep(std::chrono::seconds(3));
+      g_launcher->StopDriveProcess(true);
       g_launcher.reset();
     }
     {
       // Remount and check hierarchy for equality
       g_options.create_store = false;
       g_launcher.reset(new drive::Launcher(g_options));
-      g_root = g_launcher->kMountPath();
 
       auto directory(g_root / directories.front().filename());
       RequireExists(directory);
       boost::system::error_code error_code;
       ASSERT_TRUE(!fs::is_empty(directory, error_code));
-      ASSERT_TRUE(error_code.value() == 0);
+      ASSERT_TRUE(error_code.value() == 0) << error_code.value();
       RequireDirectoriesEqual(directories.front(), directory, true);
     }
   }
