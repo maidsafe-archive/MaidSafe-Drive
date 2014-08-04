@@ -67,7 +67,6 @@ class File : public Path {
 
   std::unique_ptr<Buffer> buffer;
   std::unique_ptr<boost::asio::steady_timer> timer;
-  bool flushed;
 
  private:
   File();
@@ -75,6 +74,9 @@ class File : public Path {
   File(const boost::filesystem::path& name, bool is_directory);
   File(File&&) = delete;
   File& operator=(File) = delete;
+
+ private:
+  bool flushed;
 };
 
 template <typename PutChunkClosure>
