@@ -160,9 +160,9 @@ void RemoveStorageDirectory(const fs::path& storage_path) {
   }
 }
 
-passport::MaidAndSigner CreateAccount(const routing::BootstrapContacts& bootstrap_contacts) {
+passport::MaidAndSigner CreateAccount() {
   passport::MaidAndSigner maid_and_signer{ passport::CreateMaidAndSigner() };
-  auto maid_node_nfs = nfs_client::MaidNodeNfs::MakeShared(maid_and_signer, bootstrap_contacts);
+  auto maid_node_nfs = nfs_client::MaidNodeNfs::MakeShared(maid_and_signer);
   maid_node_nfs->Stop();
   LOG(kSuccess) << " Account created for MAID : " << DebugId(maid_and_signer.first.name());
   return maid_and_signer;
@@ -307,8 +307,7 @@ std::function<void()> PrepareNetworkVfs() {
 
   routing::Parameters::append_local_live_port_endpoint = true;
   drive::Options options;
-  routing::BootstrapContacts bootstrap_contacts;
-  auto maid_and_signer = CreateAccount(bootstrap_contacts);
+  auto maid_and_signer = CreateAccount();
 
   crypto::AES256Key symm_key{ RandomString(crypto::AES256_KeySize) };
   crypto::AES256InitialisationVector symm_iv{ RandomString(crypto::AES256_IVSize) };

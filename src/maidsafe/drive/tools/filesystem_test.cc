@@ -444,7 +444,7 @@ void WriteUtf8FileAndEdit(const fs::path& start_directory) {
 #else
   int exit_code(0);
   fs::path shell_path(boost::process::shell_path());
-  std::string script("utf.sh"), content = std::string("#!/bin/bash\n") + "sed -i '1,38d' " +
+  std::string script("utf.sh"), content = std::string("#!/bin/bash\n") + "sed -i.bak '1,38d' " +
                                           utf8_file.string() + " 1>/dev/null 2>/dev/null\n" +
                                           "exit";
 
@@ -1498,7 +1498,7 @@ TEST(FileSystemTest, DISABLED_FUNC_DownloadMovieThenCopyToDrive) {
 }
 
 #ifndef MAIDSAFE_WIN32
-TEST(FileSystemTest, FUND_Runfstest) {
+TEST(FileSystemTest, FUNC_Runfstest) {
   on_scope_exit cleanup(clean_root);
   // ASSERT_NO_THROW(RunFsTest(g_temp));
   // ASSERT_NO_THROW(RunFsTest(g_root));
@@ -1506,7 +1506,7 @@ TEST(FileSystemTest, FUND_Runfstest) {
 }
 #endif
 
-TEST(FileSystemTest, FUND_RemountDrive) {
+TEST(FileSystemTest, FUNC_RemountDrive) {
   bool do_test(g_test_type == drive::DriveType::kLocal ||
                g_test_type == drive::DriveType::kLocalConsole ||
                g_test_type == drive::DriveType::kNetwork ||
@@ -1527,26 +1527,26 @@ TEST(FileSystemTest, FUND_RemountDrive) {
       ASSERT_TRUE(error_code.value() == 0);
       RequireDirectoriesEqual(directories.front(), copied_directory, true);
 
-      g_launcher->StopDriveProcess();
+      Sleep(std::chrono::seconds(3));
+      g_launcher->StopDriveProcess(true);
       g_launcher.reset();
     }
     {
       // Remount and check hierarchy for equality
       g_options.create_store = false;
       g_launcher.reset(new drive::Launcher(g_options));
-      g_root = g_launcher->kMountPath();
 
       auto directory(g_root / directories.front().filename());
       RequireExists(directory);
       boost::system::error_code error_code;
       ASSERT_TRUE(!fs::is_empty(directory, error_code));
-      ASSERT_TRUE(error_code.value() == 0);
+      ASSERT_TRUE(error_code.value() == 0) << error_code.value();
       RequireDirectoriesEqual(directories.front(), directory, true);
     }
   }
 }
 
-TEST(FileSystemTest, FUND_CrossPlatformFileCheck) {
+TEST(FileSystemTest, FUNC_CrossPlatformFileCheck) {
   // Involves mounting a drive of type g_test_type so don't attempt it if we're doing a disk test
   if (g_test_type == drive::DriveType::kLocal || g_test_type == drive::DriveType::kLocalConsole ||
       g_test_type == drive::DriveType::kNetwork ||

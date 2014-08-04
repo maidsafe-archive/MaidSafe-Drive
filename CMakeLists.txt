@@ -147,16 +147,16 @@ if(WIN32)
 endif()
 
 if(MaidsafeTesting)
-  ms_add_executable(filesystem_weekly "Tests/Drive"
+  ms_add_executable(weekly_test_filesystem "Tests/Drive"
                     ${DriveSourcesDir}/tools/filesystem_weekly.cc
                     ${DriveSourcesDir}/tools/tool_main.cc)
   if(WIN32)
-    ms_add_executable(filesystem_test "Tests/Drive"
+    ms_add_executable(test_filesystem "Tests/Drive"
                       ${DriveSourcesDir}/tools/filesystem_test.cc
                       ${DriveSourcesDir}/tools/tool_main.cc
                       ${WindowsFileCommands})
   else()
-    ms_add_executable(filesystem_test "Tests/Drive"
+    ms_add_executable(test_filesystem "Tests/Drive"
                       ${DriveSourcesDir}/tools/filesystem_test.cc
                       ${DriveSourcesDir}/tools/tool_main.cc
                       ${UnixFileCommands})
@@ -166,32 +166,32 @@ if(MaidsafeTesting)
                     ${DriveSourcesDir}/tools/filesystem_commands.cc
                     ${DriveSourcesDir}/tools/tool_main.cc
                     ${DriveToolsCommandsAllFiles})
-  ms_add_executable(TESTdrive "Tests/Drive" ${DriveTestsAllFiles})
-  target_include_directories(TESTdrive PRIVATE ${PROJECT_SOURCE_DIR}/src)
+  ms_add_executable(test_drive "Tests/Drive" ${DriveTestsAllFiles})
+  target_include_directories(test_drive PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
-  add_dependencies(filesystem_weekly local_drive drive)
-  add_dependencies(filesystem_test local_drive drive)
+  add_dependencies(weekly_test_filesystem local_drive drive)
+  add_dependencies(test_filesystem local_drive drive)
   add_dependencies(filesystem_commands local_drive drive)
   if(WIN32)
-    add_dependencies(filesystem_weekly local_drive_console drive_console)
-    add_dependencies(filesystem_test local_drive_console drive_console)
+    add_dependencies(weekly_test_filesystem local_drive_console drive_console)
+    add_dependencies(test_filesystem local_drive_console drive_console)
     add_dependencies(filesystem_commands local_drive_console drive_console)
   endif()
-  target_include_directories(filesystem_weekly PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
-  target_include_directories(filesystem_test PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
-  target_include_directories(filesystem_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
+  target_include_directories(weekly_test_filesystem PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
+  target_include_directories(test_filesystem PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_INCLUDE_DIRECTORIES>)
+  target_include_directories(test_filesystem PRIVATE ${PROJECT_SOURCE_DIR}/src)
   target_include_directories(filesystem_commands PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
-  target_link_libraries(filesystem_weekly maidsafe_drive_launcher maidsafe_test)
-  target_link_libraries(filesystem_test maidsafe_drive_launcher maidsafe_test)
+  target_link_libraries(weekly_test_filesystem maidsafe_drive_launcher maidsafe_test)
+  target_link_libraries(test_filesystem maidsafe_drive_launcher maidsafe_test)
   target_link_libraries(filesystem_commands maidsafe_drive_launcher maidsafe_drive)
-  target_link_libraries(TESTdrive maidsafe_drive maidsafe_nfs_client maidsafe_test)
+  target_link_libraries(test_drive maidsafe_drive maidsafe_nfs_client maidsafe_test)
 endif()
 
 ms_rename_outdated_built_exes()
 
 if(WIN32 AND NOT CbfsFound)
-  foreach(Target maidsafe_drive cbfs_driver_installer local_drive drive local_drive_console drive_console filesystem_weekly filesystem_test filesystem_commands TESTdrive)
+  foreach(Target maidsafe_drive cbfs_driver_installer local_drive drive local_drive_console drive_console weekly_test_filesystem test_filesystem filesystem_commands test_drive)
     if(TARGET ${Target})
       set_target_properties(${Target} PROPERTIES EXCLUDE_FROM_ALL ON EXCLUDE_FROM_DEFAULT_BUILD ON)
     endif()
@@ -209,19 +209,19 @@ target_compile_definitions(local_drive PRIVATE $<$<BOOL:${WIN32}>:USES_WINMAIN>)
 target_compile_definitions(drive PRIVATE $<$<BOOL:${WIN32}>:USES_WINMAIN>)
 
 if(MaidsafeTesting)
-  target_compile_definitions(filesystem_weekly PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
-  target_compile_definitions(filesystem_test PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
-  set_property(TARGET filesystem_weekly APPEND PROPERTY COMPILE_DEFINITIONS "CMAKE_GENERATOR=\"${CMAKE_GENERATOR}\"")
-  set_property(TARGET filesystem_test APPEND PROPERTY COMPILE_DEFINITIONS "CMAKE_GENERATOR=\"${CMAKE_GENERATOR}\"")
-  set_property(TARGET filesystem_weekly APPEND PROPERTY COMPILE_DEFINITIONS "DRIVE_TESTS_RESOURCES=${DriveTestsResourcesDir}")
-  set_property(TARGET filesystem_test APPEND PROPERTY COMPILE_DEFINITIONS "DRIVE_TESTS_RESOURCES=${DriveTestsResourcesDir}")
+  target_compile_definitions(weekly_test_filesystem PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
+  target_compile_definitions(test_filesystem PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
+  set_property(TARGET weekly_test_filesystem APPEND PROPERTY COMPILE_DEFINITIONS "CMAKE_GENERATOR=\"${CMAKE_GENERATOR}\"")
+  set_property(TARGET test_filesystem APPEND PROPERTY COMPILE_DEFINITIONS "CMAKE_GENERATOR=\"${CMAKE_GENERATOR}\"")
+  set_property(TARGET weekly_test_filesystem APPEND PROPERTY COMPILE_DEFINITIONS "DRIVE_TESTS_RESOURCES=${DriveTestsResourcesDir}")
+  set_property(TARGET test_filesystem APPEND PROPERTY COMPILE_DEFINITIONS "DRIVE_TESTS_RESOURCES=${DriveTestsResourcesDir}")
   if(WIN32)
     if(CMAKE_CL_64)
-      set_property(TARGET filesystem_weekly APPEND PROPERTY COMPILE_DEFINITIONS "VS_DEV_CMD=\"$ENV{VCInstallDir}vcvarsall.bat\" x86_amd64")
-      set_property(TARGET filesystem_test APPEND PROPERTY COMPILE_DEFINITIONS "VS_DEV_CMD=\"$ENV{VCInstallDir}vcvarsall.bat\" x86_amd64")
+      set_property(TARGET weekly_test_filesystem APPEND PROPERTY COMPILE_DEFINITIONS "VS_DEV_CMD=\"$ENV{VCInstallDir}vcvarsall.bat\" x86_amd64")
+      set_property(TARGET test_filesystem APPEND PROPERTY COMPILE_DEFINITIONS "VS_DEV_CMD=\"$ENV{VCInstallDir}vcvarsall.bat\" x86_amd64")
     else()
-      set_property(TARGET filesystem_weekly APPEND PROPERTY COMPILE_DEFINITIONS "VS_DEV_CMD=\"$ENV{VCInstallDir}vcvarsall.bat\" x86")
-      set_property(TARGET filesystem_test APPEND PROPERTY COMPILE_DEFINITIONS "VS_DEV_CMD=\"$ENV{VCInstallDir}vcvarsall.bat\" x86")
+      set_property(TARGET weekly_test_filesystem APPEND PROPERTY COMPILE_DEFINITIONS "VS_DEV_CMD=\"$ENV{VCInstallDir}vcvarsall.bat\" x86")
+      set_property(TARGET test_filesystem APPEND PROPERTY COMPILE_DEFINITIONS "VS_DEV_CMD=\"$ENV{VCInstallDir}vcvarsall.bat\" x86")
     endif()
   endif()
 endif()
@@ -242,40 +242,53 @@ endif()
 # Tests                                                                                            #
 #==================================================================================================#
 if(MaidsafeTesting)
-  ms_add_style_test()
-  ms_add_gtests(TESTdrive)
-  add_test(NAME "\"Real Disk Filesystem Test\""
-           COMMAND filesystem_test --disk
-                   --name "filesystem_test ($<CONFIGURATION> build)")
+  if(WIN32)
+    set(Exclusions "maidsafe/drive/unix_drive.h")
+  else()
+    set(Exclusions "maidsafe/drive/win_drive.h")
+  endif()
+  ms_add_default_tests()
+  ms_add_gtests(test_drive)
+
+  if(RUNNING_AS_CTEST_SCRIPT)
+    set(CATCH_EXCEPTIONS "1")
+  else()
+    set(CATCH_EXCEPTIONS "0")
+  endif()
   if(WIN32)
     set(Console _console)
   endif()
+
+  add_test(NAME "\"Real Disk Filesystem Test\""
+           COMMAND test_filesystem --disk --gtest_catch_exceptions=${CATCH_EXCEPTIONS})
+
   add_test(NAME "\"Local Drive Filesystem Test\""
-           COMMAND filesystem_test --local${Console}
-                   --name "filesystem_test ($<CONFIGURATION> build)")
+           COMMAND test_filesystem --local${Console} --gtest_catch_exceptions=${CATCH_EXCEPTIONS})
+
+  get_network_test_arg()
+  add_test(NAME "\"Network Drive Filesystem Test\""
+           COMMAND test_filesystem --network${Console} --gtest_catch_exceptions=${CATCH_EXCEPTIONS}
+                   $<$<BOOL:${NetworkTestArg}>:--bootstrap_file> $<$<BOOL:${NetworkTestArg}>:${NetworkTestArg}>)
+
   set(Timeout 180)
   ms_update_test_timeout(Timeout)
-  set_tests_properties("\"Real Disk Filesystem Test\"" "\"Local Drive Filesystem Test\"" PROPERTIES
-                       FAIL_REGULAR_EXPRESSION "No tests ran"
-                       TIMEOUT ${Timeout}
-                       LABELS "Drive;Filesystem")
+  set_tests_properties("\"Real Disk Filesystem Test\"" "\"Local Drive Filesystem Test\"" "\"Network Drive Filesystem Test\"" PROPERTIES
+                       TIMEOUT ${Timeout} LABELS "Drive;Filesystem")
 
   if(WEEKLY)
-    add_test(NAME "\"Real Disk Weekly\""
-             COMMAND filesystem_weekly --disk
-                     --name "filesystem_weekly ($<CONFIGURATION> build)")
-    add_test(NAME "\"Local Drive Weekly\""
-             COMMAND filesystem_weekly --local${Console}
-                     --name "filesystem_weekly ($<CONFIGURATION> build)")
+    add_test(NAME "\"Real Disk Weekly Test\""
+             COMMAND weekly_test_filesystem --disk --gtest_catch_exceptions=${CATCH_EXCEPTIONS})
+    add_test(NAME "\"Local Drive Weekly Test\""
+             COMMAND weekly_test_filesystem --local${Console} --gtest_catch_exceptions=${CATCH_EXCEPTIONS})
+    add_test(NAME "\"Network Drive Weekly Test\""
+             COMMAND weekly_test_filesystem --network${Console} --gtest_catch_exceptions=${CATCH_EXCEPTIONS}
+                     $<$<BOOL:${NetworkTestArg}>:--bootstrap_file> $<$<BOOL:${NetworkTestArg}>:${NetworkTestArg}>)
     set(Timeout 10800)
     ms_update_test_timeout(Timeout)
-    set_tests_properties("\"Real Disk Weekly\"" "\"Local Drive Weekly\"" PROPERTIES
-                         FAIL_REGULAR_EXPRESSION "No tests ran"
-                         TIMEOUT ${Timeout}
-                         LABELS "Drive;Filesystem;Weekly")
+    set_tests_properties("\"Real Disk Weekly Test\"" "\"Local Drive Weekly Test\"" "\"Network Drive Weekly Test\"" PROPERTIES
+                         TIMEOUT ${Timeout} LABELS "Drive;Filesystem;Weekly")
   endif()
 
-  ms_add_project_experimental()
   ms_test_summary_output()
 endif()
 
@@ -302,7 +315,7 @@ endforeach()
 install(TARGETS drive COMPONENT Apps CONFIGURATIONS Debug RUNTIME DESTINATION bin/debug)
 install(TARGETS drive COMPONENT Apps CONFIGURATIONS Release RUNTIME DESTINATION bin)
 
-foreach(Target filesystem_weekly filesystem_test filesystem_commands TESTdrive)
+foreach(Target weekly_test_filesystem test_filesystem filesystem_commands test_drive)
   if(TARGET ${Target})
     install(TARGETS ${Target} COMPONENT Tests CONFIGURATIONS Debug RUNTIME DESTINATION bin/debug)
     install(TARGETS ${Target} COMPONENT Tests CONFIGURATIONS Release RUNTIME DESTINATION bin)
