@@ -305,7 +305,6 @@ std::function<void()> PrepareNetworkVfs() {
   SetUpTempDirectory();
   SetUpRootDirectory(GetHomeDir());
 
-  routing::Parameters::append_local_live_port_endpoint = true;
   drive::Options options;
   auto maid_and_signer = CreateAccount();
 
