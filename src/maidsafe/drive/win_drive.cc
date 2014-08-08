@@ -69,10 +69,10 @@ bool SetAttributes(DWORD& attributes, DWORD new_value) {
   return false;
 }
 
-bool SetFiletime(FILETIME& filetime, PFILETIME new_value) {
+bool SetFiletime(MaidSafeClock::time_point& filetime, PFILETIME new_value) {
   if (new_value && filetime.dwLowDateTime != new_value->dwLowDateTime &&
       filetime.dwHighDateTime != new_value->dwHighDateTime) {
-    filetime = *new_value;
+    filetime = ToTimePoint(*new_value);
     return true;
   }
   return false;
@@ -80,6 +80,29 @@ bool SetFiletime(FILETIME& filetime, PFILETIME new_value) {
 
 void ErrorMessage(const std::string &method_name, ECBFSError error) {
   LOG(kError) << "Cbfs::" << method_name << ": " << WstringToString(error.Message());
+}
+
+FILETIME ToFileTime(const MaidSafeClock::time_point& input) {
+  // FILETIME epoch = 1601-01-01T00:00:00Z in 100 nanosecond ticks
+  // MaidSafe epoch = 2000-01-01T00:00:00Z in 1 millisecond ticks
+  const ULONGLONG filetimeTicks = 100ULL;
+  const ULONGLONG millisecondTicks = 1000000ULL;
+  const ULONGLONG epochDifference = 12590294400ULL * (millisecondTicks / filetimeTicks);
+  ULONGLONG stamp = epochDifference + (input.time_since_epoch().count() / filetimeTicks);
+  FILETIME result;
+  result.dwHighDateTime = stamp >> 32;
+  result.dwLowDateTime = stamp & 0xFFFFFFFF;
+  return result;
+}
+
+MaidSafeClock::time_point ToTimePoint(const FILETIME& input) {
+  // See ToFileTime
+  const ULONGLONG nanosecondTicks = 100ULL;
+  const ULONGLONG millisecondTicks = 1000000ULL;
+  const ULONGLONG epochDifference = 12590294400ULL  * (millisecondTicks / nanosecondTicks);
+  ULONGLONG filetime = ((ULONGLONG)(input.dwHighDateTime) << 32) + input.dwLowDateTime;
+  ULONGLONG stamp = (filetime - epochDifference) * nanosecondTicks;
+  return MaidSafeClock::time_point(std::chrono::nanoseconds(stamp));
 }
 
 }  // namespace detail
