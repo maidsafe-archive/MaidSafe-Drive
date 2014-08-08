@@ -30,7 +30,6 @@
 #include <memory>
 
 #include "boost/filesystem/path.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
 
 #include "maidsafe/common/config.h"
 #include "maidsafe/encrypt/data_map.h"
@@ -55,8 +54,6 @@ struct MetaData {
 
   void ToProtobuf(protobuf::MetaData* protobuf_meta_data) const;
 
-  boost::posix_time::ptime creation_posix_time() const;
-  boost::posix_time::ptime last_write_posix_time() const;
   bool operator<(const MetaData& other) const;
   void UpdateLastModifiedTime();
   uint64_t GetAllocatedSize() const;
