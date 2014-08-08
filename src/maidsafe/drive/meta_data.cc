@@ -303,22 +303,6 @@ void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
   }
 }
 
-bptime::ptime MetaData::creation_posix_time() const {
-#ifdef MAIDSAFE_WIN32
-  return FileTimeToBptime(creation_time);
-#else
-  return bptime::from_time_t(attributes.st_ctime);
-#endif
-}
-
-bptime::ptime MetaData::last_write_posix_time() const {
-#ifdef MAIDSAFE_WIN32
-  return FileTimeToBptime(last_write_time);
-#else
-  return bptime::from_time_t(attributes.st_mtime);
-#endif
-}
-
 bool MetaData::operator<(const MetaData& other) const {
   return boost::ilexicographical_compare(name.wstring(), other.name.wstring());
 }
