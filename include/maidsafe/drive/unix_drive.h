@@ -78,6 +78,17 @@ inline std::string GetFileType(mode_t mode) {
   return "";
 }
 
+inline MaidSafeClock::time_point ToTimePoint(const struct timespec& ts) {
+  // timespec epoch = 1970-01-01T00:00:00Z
+  // MaidSafe epoch = 2001-01-01T00:00:00Z
+  const MaidSafeClock::duration maidSafeEpochInSeconds = std::chrono::hours(262968); // 30 years
+  return MaidSafeClock::time_point
+      (std::chrono::duration_cast<MaidSafeClock::duration>
+       (std::chrono::seconds(ts.tv_sec)
+        + std::chrono::nanoseconds(ts.tv_nsec)
+        - maidSafeEpochInSeconds));
+}
+
 // template <typename Storage>
 // bool ForceFlush(RootHandler<Storage>& root_handler, File<Storage>* file_context) {
 //   assert(file_context);
@@ -990,36 +1001,14 @@ int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]
   std::shared_ptr<detail::Path> file;
   try {
     file = Global<Storage>::g_fuse_drive->GetMutableContext(path);
+    file->meta_data.last_access_time = detail::ToTimePoint(ts[0]);
+    file->meta_data.last_write_time = detail::ToTimePoint(ts[1]);
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to change times for " << path << ": " << e.what();
     return -ENOENT;
   }
 
-  timespec tspec;
-#ifdef MAIDSAFE_APPLE
-  struct timeval _tspec;
-  gettimeofday(&_tspec, NULL);
-  tspec.tv_sec = _tspec.tv_sec;
-  tspec.tv_nsec = _tspec.tv_usec * 1000;
-  timespec &st_ctim = file->meta_data.attributes.st_ctimespec;
-  timespec &st_atim = file->meta_data.attributes.st_atimespec;
-  timespec &st_mtim = file->meta_data.attributes.st_mtimespec;
-#else
-  clock_gettime(CLOCK_REALTIME, &tspec);
-  timespec &st_ctim = file->meta_data.attributes.st_ctim;
-  timespec &st_atim = file->meta_data.attributes.st_atim;
-  timespec &st_mtim = file->meta_data.attributes.st_mtim;
-  // Really ought to support st_birthtim where available
-#endif
-  st_ctim = tspec;
-  if (ts) {
-    st_atim = ts[0];
-    st_mtim = ts[1];
-  } else {
-    st_atim = tspec;
-    st_mtim = tspec;
-  }
   file->ScheduleForStoring();
   return 0;
 }
@@ -1105,9 +1094,10 @@ int FuseDrive<Storage>::CreateNew(const fs::path& full_path, mode_t mode, dev_t 
   bool is_directory(S_ISDIR(mode));
   auto file(detail::File::Create(full_path.filename(), is_directory));
 
-  time(&file->meta_data.attributes.st_atime);
-  file->meta_data.attributes.st_ctime = file->meta_data.attributes.st_mtime =
-      file->meta_data.attributes.st_atime;
+  file->meta_data.creation_time
+      = file->meta_data.last_write_time
+      = file->meta_data.last_access_time
+      = detail::MaidSafeClock::now();
   file->meta_data.attributes.st_mode = mode;
   file->meta_data.attributes.st_rdev = rdev;
   file->meta_data.attributes.st_nlink = (is_directory ? 2 : 1);
@@ -1128,23 +1118,28 @@ int FuseDrive<Storage>::CreateNew(const fs::path& full_path, mode_t mode, dev_t 
 template <typename Storage>
 int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
   try {
+    using namespace std::chrono;
+
     auto file(Global<Storage>::g_fuse_drive->GetContext(path));
     *stbuf = file->meta_data.attributes;
+    stbuf->st_atime = detail::MaidSafeClock::to_time_t(file->meta_data.last_access_time);
+    stbuf->st_mtime = detail::MaidSafeClock::to_time_t(file->meta_data.last_write_time);
+    stbuf->st_ctime = detail::MaidSafeClock::to_time_t(file->meta_data.creation_time);
     LOG(kVerbose) << " meta_data info  = ";
     LOG(kVerbose) << "     name =  " << file->meta_data.name.c_str();
-    LOG(kVerbose) << "     st_dev = " << file->meta_data.attributes.st_dev;
-    LOG(kVerbose) << "     st_ino = " << file->meta_data.attributes.st_ino;
-    LOG(kVerbose) << "     st_mode = " << file->meta_data.attributes.st_mode;
-    LOG(kVerbose) << "     st_nlink = " << file->meta_data.attributes.st_nlink;
-    LOG(kVerbose) << "     st_uid = " << file->meta_data.attributes.st_uid;
-    LOG(kVerbose) << "     st_gid = " << file->meta_data.attributes.st_gid;
-    LOG(kVerbose) << "     st_rdev = " << file->meta_data.attributes.st_rdev;
-    LOG(kVerbose) << "     st_size = " << file->meta_data.attributes.st_size;
-    LOG(kVerbose) << "     st_blksize = " << file->meta_data.attributes.st_blksize;
-    LOG(kVerbose) << "     st_blocks = " << file->meta_data.attributes.st_blocks;
-    LOG(kVerbose) << "     st_atim = " << file->meta_data.attributes.st_atime;
-    LOG(kVerbose) << "     st_mtim = " << file->meta_data.attributes.st_mtime;
-    LOG(kVerbose) << "     st_ctim = " << file->meta_data.attributes.st_ctime;
+    LOG(kVerbose) << "     st_dev = " << stbuf->st_dev;
+    LOG(kVerbose) << "     st_ino = " << stbuf->st_ino;
+    LOG(kVerbose) << "     st_mode = " << stbuf->st_mode;
+    LOG(kVerbose) << "     st_nlink = " << stbuf->st_nlink;
+    LOG(kVerbose) << "     st_uid = " << stbuf->st_uid;
+    LOG(kVerbose) << "     st_gid = " << stbuf->st_gid;
+    LOG(kVerbose) << "     st_rdev = " << stbuf->st_rdev;
+    LOG(kVerbose) << "     st_size = " << stbuf->st_size;
+    LOG(kVerbose) << "     st_blksize = " << stbuf->st_blksize;
+    LOG(kVerbose) << "     st_blocks = " << stbuf->st_blocks;
+    LOG(kVerbose) << "     st_atim = " << stbuf->st_atime;
+    LOG(kVerbose) << "     st_mtim = " << stbuf->st_mtime;
+    LOG(kVerbose) << "     st_ctim = " << stbuf->st_ctime;
   }
   catch (const std::exception& e) {
 //    if (full_path.filename().string().size() > 255) {
@@ -1164,9 +1159,10 @@ int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
     assert(file->self_encryptor);
     file->self_encryptor->Truncate(size);
     file->meta_data.attributes.st_size = size;
-    time(&file->meta_data.attributes.st_mtime);
-    file->meta_data.attributes.st_ctime = file->meta_data.attributes.st_atime =
-        file->meta_data.attributes.st_mtime;
+    file->meta_data.creation_time
+        = file->meta_data.last_write_time
+        = file->meta_data.last_access_time
+        = detail::MaidSafeClock::now();
     file->ScheduleForStoring();
   }
   catch (const std::exception& e) {

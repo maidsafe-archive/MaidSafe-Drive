@@ -28,6 +28,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <chrono>
 
 #include "boost/filesystem/path.hpp"
 
@@ -44,8 +45,33 @@ namespace detail {
 
 namespace protobuf { class MetaData; }
 
+struct MaidSafeClock {
+  // Chrono clock that uses MaidSafe epoch: 2000-01-01T00:00:00Z in 1 millisecond ticks
+  typedef std::chrono::milliseconds duration;
+  typedef duration::rep rep;
+  typedef duration::period period;
+  typedef std::chrono::time_point<MaidSafeClock> time_point;
+
+  static const bool is_steady = std::chrono::system_clock::is_steady;
+
+  static time_point now() MAIDSAFE_NOEXCEPT {
+    // std::chrono::system_clock uses Unix epoch: 1970-01-01T00:00:00Z in 1 second ticks
+    std::chrono::system_clock::time_point current = std::chrono::system_clock::now();
+    const duration maidSafeEpochInSeconds = std::chrono::hours(262968); // 30 years
+    return time_point
+        (std::chrono::duration_cast<duration>
+         (current.time_since_epoch() - maidSafeEpochInSeconds));
+  }
+
+  static std::time_t to_time_t(const time_point& t) {
+    return std::chrono::duration_cast<std::chrono::seconds>(t.time_since_epoch()).count();
+  }
+};
+
 // Represents directory and file information
 struct MetaData {
+  using TimePoint = MaidSafeClock::time_point;
+
   MetaData();
   MetaData(const boost::filesystem::path& name, bool is_directory);
   explicit MetaData(const protobuf::MetaData& protobuf_meta_data);
@@ -59,13 +85,14 @@ struct MetaData {
   uint64_t GetAllocatedSize() const;
 
   boost::filesystem::path name;
+  TimePoint creation_time;
+  TimePoint last_access_time;
+  TimePoint last_write_time;
+
 #ifdef MAIDSAFE_WIN32
   uint64_t end_of_file;
   uint64_t allocation_size;
   DWORD attributes;
-  FILETIME creation_time;
-  FILETIME last_access_time;
-  FILETIME last_write_time;
 #else
   struct stat attributes;
   boost::filesystem::path link_to;

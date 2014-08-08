@@ -19,7 +19,6 @@
 #include "maidsafe/drive/meta_data.h"
 
 #include "boost/algorithm/string/predicate.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
 
 #include "maidsafe/common/log.h"
 #include "maidsafe/common/utils.h"
@@ -28,7 +27,6 @@
 #include "maidsafe/drive/utils.h"
 
 
-namespace bptime = boost::posix_time;
 namespace fs = boost::filesystem;
 
 namespace maidsafe {
@@ -45,53 +43,6 @@ namespace {
 const uint32_t kAttributesFormat = 0x0FFF;
 const uint32_t kAttributesRegular = 0x8000;
 
-FILETIME BptimeToFileTime(bptime::ptime const& ptime) {
-  SYSTEMTIME system_time;
-  boost::gregorian::date::ymd_type year_month_day = ptime.date().year_month_day();
-
-  system_time.wYear = year_month_day.year;
-  system_time.wMonth = year_month_day.month;
-  system_time.wDay = year_month_day.day;
-  system_time.wDayOfWeek = ptime.date().day_of_week();
-
-  // Now extract the hour/min/second field from time_duration
-  bptime::time_duration time_duration = ptime.time_of_day();
-  system_time.wHour = static_cast<WORD>(time_duration.hours());
-  system_time.wMinute = static_cast<WORD>(time_duration.minutes());
-  system_time.wSecond = static_cast<WORD>(time_duration.seconds());
-
-  // Although ptime has a fractional second field, SYSTEMTIME millisecond
-  // field is 16 bit, and will not store microsecond. We will treat this
-  // field separately later.
-  system_time.wMilliseconds = 0;
-
-  // Convert SYSTEMTIME to FILETIME structure
-  FILETIME file_time;
-  SystemTimeToFileTime(&system_time, &file_time);
-
-  // Now we are almost done. The FILETIME has date, and time. It is
-  // only missing fractional second.
-
-  // Extract the raw FILETIME into a 64 bit integer.
-  boost::uint64_t hundreds_of_nanosecond_since_1601 = file_time.dwHighDateTime;
-  hundreds_of_nanosecond_since_1601 <<= 32;
-  hundreds_of_nanosecond_since_1601 |= file_time.dwLowDateTime;
-
-  // Add in the fractional second, which is in microsecond * 10 to get
-  // 100s of nanosecond
-  hundreds_of_nanosecond_since_1601 += time_duration.fractional_seconds() * 10;
-
-  // Now put the time back inside filetime.
-  file_time.dwHighDateTime = hundreds_of_nanosecond_since_1601 >> 32;
-  file_time.dwLowDateTime = hundreds_of_nanosecond_since_1601 & 0x00000000FFFFFFFF;
-
-  return file_time;
-}
-
-bptime::ptime FileTimeToBptime(FILETIME const& ftime) {
-  return bptime::from_ftime<bptime::ptime>(ftime);
-}
-
 }  // unnamed namespace
 #endif
 
@@ -103,9 +54,6 @@ MetaData::MetaData()
       end_of_file(0),
       allocation_size(0),
       attributes(0xFFFFFFFF),
-      creation_time(),
-      last_access_time(),
-      last_write_time(),
       data_map(),
       directory_id() {}
 #else
@@ -122,38 +70,32 @@ MetaData::MetaData()
 
 MetaData::MetaData(const fs::path& name, bool is_directory)
     : name(name),
+      creation_time(MaidSafeClock::now()),
+      last_access_time(creation_time),
+      last_write_time(creation_time),
 #ifdef MAIDSAFE_WIN32
       end_of_file(0),
       allocation_size(0),
       attributes(is_directory?FILE_ATTRIBUTE_DIRECTORY:0xFFFFFFFF),
-      creation_time(),
-      last_access_time(),
-      last_write_time(),
-      data_map(is_directory ? nullptr : new encrypt::DataMap()),
-      directory_id(is_directory ? new DirectoryId(RandomString(64)) : nullptr) {
-    FILETIME file_time;
-    GetSystemTimeAsFileTime(&file_time);
-    creation_time = file_time;
-    last_access_time = file_time;
-    last_write_time = file_time;
-}
 #else
       attributes(),
       link_to(),
+#endif
       data_map(is_directory ? nullptr : new encrypt::DataMap()),
       directory_id(is_directory ? new DirectoryId(RandomString(64)) : nullptr) {
+#ifdef MAIDSAFE_WIN32
+#else
   attributes.st_gid = getgid();
   attributes.st_uid = getuid();
   attributes.st_mode = 0644;
   attributes.st_nlink = 1;
-  attributes.st_ctime = attributes.st_mtime = time(&attributes.st_atime);
 
   if (is_directory) {
     attributes.st_mode = (0755 | S_IFDIR);
     attributes.st_size = 4096;  // #BEFORE_RELEASE detail::kDirectorySize;
   }
-}
 #endif
+}
 
 MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
     : name(protobuf_meta_data.name()),
@@ -161,12 +103,6 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
       end_of_file(protobuf_meta_data.attributes_archive().st_size()),
       allocation_size(protobuf_meta_data.attributes_archive().st_size()),
       attributes(0xFFFFFFFF),
-      creation_time(BptimeToFileTime(bptime::from_iso_string(
-          protobuf_meta_data.attributes_archive().creation_time()))),
-      last_access_time(BptimeToFileTime(bptime::from_iso_string(
-          protobuf_meta_data.attributes_archive().last_access_time()))),
-      last_write_time(BptimeToFileTime(bptime::from_iso_string(
-          protobuf_meta_data.attributes_archive().last_write_time()))),
 #else
       attributes(),
       link_to(),
@@ -178,6 +114,10 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
     name = kRoot;
 
   const protobuf::AttributesArchive& attributes_archive = protobuf_meta_data.attributes_archive();
+
+  creation_time = TimePoint(MaidSafeClock::duration(attributes_archive.creation_time()));
+  last_access_time = TimePoint(MaidSafeClock::duration(attributes_archive.last_access_time()));
+  last_write_time = TimePoint(MaidSafeClock::duration(attributes_archive.last_write_time()));
 
 #ifdef MAIDSAFE_WIN32
   if ((attributes_archive.st_mode() & kAttributesDir) == kAttributesDir) {
@@ -191,15 +131,6 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
   if (attributes_archive.has_link_to())
     link_to = attributes_archive.link_to();
   attributes.st_size = attributes_archive.st_size();
-
-  static bptime::ptime epoch(boost::gregorian::date(1970, 1, 1));
-  bptime::time_duration diff(
-      bptime::from_iso_string(attributes_archive.last_access_time()) - epoch);
-  attributes.st_atime = diff.ticks() / diff.ticks_per_second();
-  diff = bptime::from_iso_string(attributes_archive.last_write_time()) - epoch;
-  attributes.st_mtime = diff.ticks() / diff.ticks_per_second();
-  diff = bptime::from_iso_string(attributes_archive.creation_time()) - epoch;
-  attributes.st_ctime = diff.ticks() / diff.ticks_per_second();
 
   attributes.st_mode = attributes_archive.st_mode();
 
@@ -248,11 +179,11 @@ void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
   protobuf_meta_data->set_name(name.string());
   auto attributes_archive = protobuf_meta_data->mutable_attributes_archive();
 
+  attributes_archive->set_creation_time(creation_time.time_since_epoch().count());
+  attributes_archive->set_last_access_time(last_access_time.time_since_epoch().count());
+  attributes_archive->set_last_write_time(last_write_time.time_since_epoch().count());
+
 #ifdef MAIDSAFE_WIN32
-  attributes_archive->set_creation_time(bptime::to_iso_string(FileTimeToBptime(creation_time)));
-  attributes_archive->set_last_access_time(
-      bptime::to_iso_string(FileTimeToBptime(last_access_time)));
-  attributes_archive->set_last_write_time(bptime::to_iso_string(FileTimeToBptime(last_write_time)));
   attributes_archive->set_st_size(end_of_file);
 
   uint32_t st_mode(0x01FF);
@@ -266,13 +197,6 @@ void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
 #else
   attributes_archive->set_link_to(link_to.string());
   attributes_archive->set_st_size(attributes.st_size);
-
-  attributes_archive->set_last_access_time(
-      bptime::to_iso_string(bptime::from_time_t(attributes.st_atime)));
-  attributes_archive->set_last_write_time(
-      bptime::to_iso_string(bptime::from_time_t(attributes.st_mtime)));
-  attributes_archive->set_creation_time(
-      bptime::to_iso_string(bptime::from_time_t(attributes.st_ctime)));
 
   attributes_archive->set_st_dev(attributes.st_dev);
   attributes_archive->set_st_ino(attributes.st_ino);
@@ -326,13 +250,13 @@ uint64_t MetaData::GetAllocatedSize() const {
 void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT {
   using std::swap;
   swap(lhs.name, rhs.name);
+  swap(lhs.creation_time, rhs.creation_time);
+  swap(lhs.last_access_time, rhs.last_access_time);
+  swap(lhs.last_write_time, rhs.last_write_time);
 #ifdef MAIDSAFE_WIN32
   swap(lhs.end_of_file, rhs.end_of_file);
   swap(lhs.allocation_size, rhs.allocation_size);
   swap(lhs.attributes, rhs.attributes);
-  swap(lhs.creation_time, rhs.creation_time);
-  swap(lhs.last_access_time, rhs.last_access_time);
-  swap(lhs.last_write_time, rhs.last_write_time);
 #else
   swap(lhs.attributes, rhs.attributes);
   swap(lhs.link_to, rhs.link_to);

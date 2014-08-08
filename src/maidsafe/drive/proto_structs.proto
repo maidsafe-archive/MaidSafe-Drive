@@ -22,9 +22,9 @@ package maidsafe.drive.detail.protobuf;
 
 message AttributesArchive {
   required uint64 st_size = 1;
-  required bytes creation_time = 2;
-  required bytes last_access_time = 3;
-  required bytes last_write_time = 4;
+  required uint64 creation_time = 2;
+  required uint64 last_access_time = 3;
+  required uint64 last_write_time = 4;
   required uint32 st_mode = 5;
   optional uint64 win_attributes = 6;
   optional bytes link_to = 7;

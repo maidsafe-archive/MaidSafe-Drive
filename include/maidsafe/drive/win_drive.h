@@ -77,9 +77,13 @@ bool LastAccessUpdateIsDisabled();
 // Returns true if 'attributes' was changed
 bool SetAttributes(DWORD& attributes, DWORD new_value);
 // Returns true if 'filetime' was changed
-bool SetFiletime(FILETIME& filetime, PFILETIME new_value);
+bool SetFiletime(MaidSafeClock::time_point& filetime, PFILETIME new_value);
 
 void ErrorMessage(const std::string& method_name, ECBFSError error);
+
+// ToFileTime is inherently lossy because FILETIME cannot represent nanosecond accuracy
+FILETIME ToFileTime(const MaidSafeClock::time_point&);
+MaidSafeClock::time_point ToTimePoint(const FILETIME&);
 
 }  // namespace detail
 
@@ -676,9 +680,9 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
   }
 
   *file_exists = true;
-  *creation_time = file->meta_data.creation_time;
-  *last_access_time = file->meta_data.last_access_time;
-  *last_write_time = file->meta_data.last_write_time;
+  *creation_time = ToFileTime(file->meta_data.creation_time);
+  *last_access_time = ToFileTime(file->meta_data.last_access_time);
+  *last_write_time = ToFileTime(file->meta_data.last_write_time);
   // if (file->meta_data.end_of_file < file->meta_data.allocation_size)
   //   file->meta_data.end_of_file = file->meta_data.allocation_size;
   // else if (file->meta_data.allocation_size < file->meta_data.end_of_file)
@@ -776,9 +780,9 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     // this is done.
     wcscpy(file_name, file->meta_data.name.wstring().c_str());
     *file_name_length = static_cast<DWORD>(file->meta_data.name.wstring().size());
-    *creation_time = file->meta_data.creation_time;
-    *last_access_time = file->meta_data.last_access_time;
-    *last_write_time = file->meta_data.last_write_time;
+    *creation_time = ToFileTime(file->meta_data.creation_time);
+    *last_access_time = ToFileTime(file->meta_data.last_access_time);
+    *last_write_time = ToFileTime(file->meta_data.last_write_time);
     *end_of_file = file->meta_data.end_of_file;
     *allocation_size = file->meta_data.allocation_size;
     *file_attributes = file->meta_data.attributes;

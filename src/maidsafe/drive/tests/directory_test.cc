@@ -101,14 +101,12 @@ class DirectoryTest : public testing::Test {
   void GenerateDirectoryListingEntryForDirectory(std::shared_ptr<Directory> directory,
                                                  fs::path const& path) {
     auto file(File::Create(path.filename(), true));
+    file->meta_data.creation_time
+        = file->meta_data.last_access_time
+        = file->meta_data.last_write_time
+        = MaidSafeClock::now();
 #ifdef MAIDSAFE_WIN32
     file.meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
-    GetSystemTimeAsFileTime(&file->meta_data.creation_time);
-    GetSystemTimeAsFileTime(&file->meta_data.last_access_time);
-    GetSystemTimeAsFileTime(&file->meta_data.last_write_time);
-#else
-    time(&file->meta_data.attributes.st_atime);
-    time(&file->meta_data.attributes.st_mtime);
 #endif
     *file->meta_data.directory_id =
         Identity(crypto::Hash<crypto::SHA512>((*main_test_dir_ / path).string()));
@@ -426,50 +424,12 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
     }
     //     if ((*itr1).end_of_file != (*itr2).end_of_file)
     ASSERT_TRUE(GetSize((*itr1)->meta_data) == GetSize((*itr2)->meta_data));
+    ASSERT_TRUE((*itr1)->meta_data.creation_time == (*itr2)->meta_data.creation_time);
+    ASSERT_TRUE((*itr1)->meta_data.last_access_time == (*itr2)->meta_data.last_access_time);
+    ASSERT_TRUE((*itr1)->meta_data.last_write_time == (*itr2)->meta_data.last_write_time);
 #ifdef MAIDSAFE_WIN32
     ASSERT_TRUE((*itr1)->meta_data.allocation_size == (*itr2)->meta_data.allocation_size);
     ASSERT_TRUE((*itr1)->meta_data.attributes == (*itr2)->meta_data.attributes);
-    ASSERT_TRUE((*itr1)->meta_data.creation_time.dwHighDateTime ==
-                (*itr2)->meta_data.creation_time.dwHighDateTime);
-    if ((*itr1)->meta_data.creation_time.dwLowDateTime !=
-        (*itr2)->meta_data.creation_time.dwLowDateTime) {
-      uint32_t error = 0xA;
-      if ((*itr1)->meta_data.creation_time.dwLowDateTime >
-          (*itr2)->meta_data.creation_time.dwLowDateTime + error ||
-          (*itr1)->meta_data.creation_time.dwLowDateTime <
-          (*itr2)->meta_data.creation_time.dwLowDateTime - error)
-        GTEST_FAIL() << "Creation times low: " << (*itr1)->meta_data.creation_time.dwLowDateTime
-                     << " != " << (*itr2)->meta_data.creation_time.dwLowDateTime;
-    }
-    ASSERT_TRUE((*itr1)->meta_data.last_access_time.dwHighDateTime ==
-                (*itr2)->meta_data.last_access_time.dwHighDateTime);
-    if ((*itr1)->meta_data.last_access_time.dwLowDateTime !=
-        (*itr2)->meta_data.last_access_time.dwLowDateTime) {
-      uint32_t error = 0xA;
-      if ((*itr1)->meta_data.last_access_time.dwLowDateTime >
-          (*itr2)->meta_data.last_access_time.dwLowDateTime + error ||
-          (*itr1)->meta_data.last_access_time.dwLowDateTime <
-          (*itr2)->meta_data.last_access_time.dwLowDateTime - error)
-        GTEST_FAIL() << "Last access times low: "
-                     << (*itr1)->meta_data.last_access_time.dwLowDateTime << " != "
-                     << (*itr2)->meta_data.last_access_time.dwLowDateTime;
-    }
-    ASSERT_TRUE((*itr1)->meta_data.last_write_time.dwHighDateTime ==
-                (*itr2)->meta_data.last_write_time.dwHighDateTime);
-    if ((*itr1)->meta_data.last_write_time.dwLowDateTime !=
-        (*itr2)->meta_data.last_write_time.dwLowDateTime) {
-      uint32_t error = 0xA;
-      if ((*itr1)->meta_data.last_write_time.dwLowDateTime >
-          (*itr2)->meta_data.last_write_time.dwLowDateTime + error ||
-          (*itr1)->meta_data.last_write_time.dwLowDateTime <
-          (*itr2)->meta_data.last_write_time.dwLowDateTime - error)
-        GTEST_FAIL() << "Last write times low: "
-                     << (*itr1)->meta_data.last_write_time.dwLowDateTime
-                     << " != " << (*itr2)->meta_data.last_write_time.dwLowDateTime;
-    }
-#else
-    ASSERT_TRUE((*itr1)->meta_data.attributes.st_atime == (*itr2)->meta_data.attributes.st_atime);
-    ASSERT_TRUE((*itr1)->meta_data.attributes.st_mtime == (*itr2)->meta_data.attributes.st_mtime);
 #endif
   }
 }
@@ -498,15 +458,13 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
     bool is_dir((i % 2) == 0);
     std::string child_name("Child " + std::to_string(i));
     auto file(File::Create(child_name, is_dir));
+    file->meta_data.creation_time
+        = file->meta_data.last_access_time
+        = file->meta_data.last_write_time
+        = MaidSafeClock::now();
     if (is_dir) {
 #ifdef MAIDSAFE_WIN32
       file.meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
-      GetSystemTimeAsFileTime(&file->meta_data.creation_time);
-      GetSystemTimeAsFileTime(&file->meta_data.last_access_time);
-      GetSystemTimeAsFileTime(&file->meta_data.last_write_time);
-#else
-      time(&file->meta_data.attributes.st_atime);
-      time(&file->meta_data.attributes.st_mtime);
 #endif
     } else {
 #ifdef MAIDSAFE_WIN32
@@ -518,12 +476,7 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
       // so, to allow the test to pass: meta_data.allocation_size = RandomUint32();
       file->meta_data.allocation_size = file->meta_data.end_of_file;
       file->meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
-      GetSystemTimeAsFileTime(&file->meta_data.creation_time);
-      GetSystemTimeAsFileTime(&file->meta_data.last_access_time);
-      GetSystemTimeAsFileTime(&file->meta_data.last_write_time);
 #else
-      time(&file->meta_data.attributes.st_atime);
-      time(&file->meta_data.attributes.st_mtime);
       file->meta_data.attributes.st_size = RandomUint32();
 #endif
       file->meta_data.data_map->content = GetRandomString<encrypt::ByteVector>(10);
