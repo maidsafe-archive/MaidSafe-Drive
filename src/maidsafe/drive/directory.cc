@@ -47,7 +47,8 @@ void FlushEncryptor(FileContext* file_context,
   if (file_context->self_encryptor->original_data_map().chunks.empty()) {
     // If the original data map didn't contain any chunks, just store the new ones.
     for (const auto& chunk : file_context->self_encryptor->data_map().chunks) {
-      auto content(file_context->buffer->Get(chunk.hash));
+      auto content(file_context->buffer->Get(std::string(std::begin(chunk.hash),
+                                                         std::end(chunk.hash))));
       put_chunk_closure(ImmutableData(content));
     }
   } else {
@@ -59,9 +60,11 @@ void FlushEncryptor(FileContext* file_context,
                       [&chunk](const encrypt::ChunkDetails& original_chunk) {
                             return chunk.hash == original_chunk.hash;
                       })) {
-        chunks_to_be_incremented.emplace_back(Identity(chunk.hash));
+        chunks_to_be_incremented.emplace_back(
+                    Identity(std::string(std::begin(chunk.hash), std::end(chunk.hash))));
       } else {
-        auto content(file_context->buffer->Get(chunk.hash));
+        auto content(file_context->buffer->Get(std::string(std::begin(chunk.hash),
+                                                           std::end(chunk.hash))));
         put_chunk_closure(ImmutableData(content));
       }
     }
@@ -172,7 +175,8 @@ std::string Directory::Serialise() {
           child->flushed = false;
         } else {  // Child is a file which has not been opened
           for (const auto& chunk : child->meta_data.data_map->chunks)
-            chunks_to_be_incremented_.emplace_back(Identity(chunk.hash));
+            chunks_to_be_incremented_.emplace_back(
+                        Identity(std::string(std::begin(chunk.hash), std::end(chunk.hash))));
         }
       }
     }

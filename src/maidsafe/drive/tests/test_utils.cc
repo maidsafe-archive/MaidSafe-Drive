@@ -348,7 +348,7 @@ void GenerateDirectoryListingEntryForFile(std::shared_ptr<Directory> directory,
   time(&file_context.meta_data.attributes.st_mtime);
   file_context.meta_data.attributes.st_size = file_size;
 #endif
-  file_context.meta_data.data_map->content = RandomString(100);
+  file_context.meta_data.data_map->content = GetRandomString<encrypt::ByteVector>(100);
   EXPECT_NO_THROW(directory->AddChild(std::move(file_context)));
 }
 

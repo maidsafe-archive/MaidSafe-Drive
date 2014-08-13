@@ -526,7 +526,7 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
       time(&file_context.meta_data.attributes.st_mtime);
       file_context.meta_data.attributes.st_size = RandomUint32();
 #endif
-      file_context.meta_data.data_map->content = RandomString(10);
+      file_context.meta_data.data_map->content = GetRandomString<encrypt::ByteVector>(10);
     }
     // file_contexts_before.emplace_back(std::move(file_context));
     EXPECT_NO_THROW(directory->AddChild(std::move(file_context)));
