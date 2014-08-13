@@ -904,8 +904,10 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
       // changed |= detail::SetFiletime(file->meta_data.last_access_time, last_access_time);
       detail::SetFiletime(file->meta_data.last_access_time, last_access_time);
     changed |= detail::SetFiletime(file->meta_data.last_write_time, last_write_time);
-    if (changed)
+    if (changed) {
+      file->meta_data.last_status_time = detail::MaidSafeClock::now();
       file->ScheduleForStoring();
+    }
   }
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);

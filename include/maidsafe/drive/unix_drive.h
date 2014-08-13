@@ -389,7 +389,7 @@ int FuseDrive<Storage>::OpsChmod(const char* path, mode_t mode) {
   try {
     auto file(Global<Storage>::g_fuse_drive->GetMutableContext(path));
     file->meta_data.attributes.st_mode = mode;
-    time(&file->meta_data.attributes.st_ctime);
+    file->meta_data.last_status_time = detail::MaidSafeClock::now();
     file->ScheduleForStoring();
   }
   catch (const std::exception& e) {
@@ -415,7 +415,7 @@ int FuseDrive<Storage>::OpsChown(const char* path, uid_t uid, gid_t gid) {
       file->meta_data.attributes.st_uid = uid;
     if (change_gid)
       file->meta_data.attributes.st_gid = gid;
-    time(&file->meta_data.attributes.st_ctime);
+    file->meta_data.last_status_time = detail::MaidSafeClock::now();
     file->ScheduleForStoring();
   }
   catch (const std::exception& e) {
@@ -1095,6 +1095,7 @@ int FuseDrive<Storage>::CreateNew(const fs::path& full_path, mode_t mode, dev_t 
   auto file(detail::File::Create(full_path.filename(), is_directory));
 
   file->meta_data.creation_time
+      = file->meta_data.last_status_time
       = file->meta_data.last_write_time
       = file->meta_data.last_access_time
       = detail::MaidSafeClock::now();
@@ -1124,7 +1125,7 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
     *stbuf = file->meta_data.attributes;
     stbuf->st_atime = detail::MaidSafeClock::to_time_t(file->meta_data.last_access_time);
     stbuf->st_mtime = detail::MaidSafeClock::to_time_t(file->meta_data.last_write_time);
-    stbuf->st_ctime = detail::MaidSafeClock::to_time_t(file->meta_data.creation_time);
+    stbuf->st_ctime = detail::MaidSafeClock::to_time_t(file->meta_data.last_status_time);
     LOG(kVerbose) << " meta_data info  = ";
     LOG(kVerbose) << "     name =  " << file->meta_data.name.c_str();
     LOG(kVerbose) << "     st_dev = " << stbuf->st_dev;
@@ -1160,6 +1161,7 @@ int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
     file->self_encryptor->Truncate(size);
     file->meta_data.attributes.st_size = size;
     file->meta_data.creation_time
+        = file->meta_data.last_status_time
         = file->meta_data.last_write_time
         = file->meta_data.last_access_time
         = detail::MaidSafeClock::now();

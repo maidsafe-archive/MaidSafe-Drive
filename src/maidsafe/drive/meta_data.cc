@@ -71,8 +71,9 @@ MetaData::MetaData()
 MetaData::MetaData(const fs::path& name, bool is_directory)
     : name(name),
       creation_time(MaidSafeClock::now()),
-      last_access_time(creation_time),
+      last_status_time(creation_time),
       last_write_time(creation_time),
+      last_access_time(creation_time),
 #ifdef MAIDSAFE_WIN32
       end_of_file(0),
       allocation_size(0),
@@ -116,8 +117,9 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
   const protobuf::AttributesArchive& attributes_archive = protobuf_meta_data.attributes_archive();
 
   creation_time = TimePoint(MaidSafeClock::duration(attributes_archive.creation_time()));
-  last_access_time = TimePoint(MaidSafeClock::duration(attributes_archive.last_access_time()));
+  last_status_time = TimePoint(MaidSafeClock::duration(attributes_archive.last_status_time()));
   last_write_time = TimePoint(MaidSafeClock::duration(attributes_archive.last_write_time()));
+  last_access_time = TimePoint(MaidSafeClock::duration(attributes_archive.last_access_time()));
 
 #ifdef MAIDSAFE_WIN32
   if ((attributes_archive.st_mode() & kAttributesDir) == kAttributesDir) {
@@ -180,8 +182,9 @@ void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
   auto attributes_archive = protobuf_meta_data->mutable_attributes_archive();
 
   attributes_archive->set_creation_time(creation_time.time_since_epoch().count());
-  attributes_archive->set_last_access_time(last_access_time.time_since_epoch().count());
+  attributes_archive->set_last_status_time(last_status_time.time_since_epoch().count());
   attributes_archive->set_last_write_time(last_write_time.time_since_epoch().count());
+  attributes_archive->set_last_access_time(last_access_time.time_since_epoch().count());
 
 #ifdef MAIDSAFE_WIN32
   attributes_archive->set_st_size(end_of_file);
@@ -251,8 +254,9 @@ void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT {
   using std::swap;
   swap(lhs.name, rhs.name);
   swap(lhs.creation_time, rhs.creation_time);
-  swap(lhs.last_access_time, rhs.last_access_time);
+  swap(lhs.last_status_time, rhs.last_status_time);
   swap(lhs.last_write_time, rhs.last_write_time);
+  swap(lhs.last_access_time, rhs.last_access_time);
 #ifdef MAIDSAFE_WIN32
   swap(lhs.end_of_file, rhs.end_of_file);
   swap(lhs.allocation_size, rhs.allocation_size);

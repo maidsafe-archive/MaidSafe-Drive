@@ -85,9 +85,14 @@ struct MetaData {
   uint64_t GetAllocatedSize() const;
 
   boost::filesystem::path name;
+  // Time file was created
   TimePoint creation_time;
-  TimePoint last_access_time;
+  // Last time file attributes were modified
+  TimePoint last_status_time;
+  // Last time file content was modified
   TimePoint last_write_time;
+  // Last known time file was accessed
+  TimePoint last_access_time;
 
 #ifdef MAIDSAFE_WIN32
   uint64_t end_of_file;

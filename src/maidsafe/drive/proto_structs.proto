@@ -23,19 +23,20 @@ package maidsafe.drive.detail.protobuf;
 message AttributesArchive {
   required uint64 st_size = 1;
   required uint64 creation_time = 2;
-  required uint64 last_access_time = 3;
+  required uint64 last_status_time = 3;
   required uint64 last_write_time = 4;
-  required uint32 st_mode = 5;
-  optional uint64 win_attributes = 6;
-  optional bytes link_to = 7;
-  optional uint32 st_dev = 8;
-  optional uint32 st_ino = 9;
-  optional uint32 st_nlink = 10;
-  optional uint32 st_uid = 11;
-  optional uint32 st_gid = 12;
-  optional uint32 st_rdev = 13;
-  optional uint32 st_blksize = 14;
-  optional uint32 st_blocks = 15;
+  required uint64 last_access_time = 5;
+  required uint32 st_mode = 6;
+  optional uint64 win_attributes = 7;
+  optional bytes link_to = 8;
+  optional uint32 st_dev = 9;
+  optional uint32 st_ino = 10;
+  optional uint32 st_nlink = 11;
+  optional uint32 st_uid = 12;
+  optional uint32 st_gid = 13;
+  optional uint32 st_rdev = 14;
+  optional uint32 st_blksize = 15;
+  optional uint32 st_blocks = 16;
 }
 
 message MetaData {
