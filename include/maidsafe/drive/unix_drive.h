@@ -404,26 +404,9 @@ int FuseDrive<Storage>::OpsChmod(const char* path, mode_t mode) {
 //
 // Change the owner and group of a file.
 template <typename Storage>
-int FuseDrive<Storage>::OpsChown(const char* path, uid_t uid, gid_t gid) {
+int FuseDrive<Storage>::OpsChown(const char* path, uid_t, gid_t) {
   LOG(kInfo) << "OpsChown: " << path;
-  bool change_uid(uid != static_cast<uid_t>(-1));
-  bool change_gid(gid != static_cast<gid_t>(-1));
-  if (!change_uid && !change_gid)
-    return 0;
-  try {
-    auto file(Global<Storage>::g_fuse_drive->GetMutableContext(path));
-    if (change_uid)
-      file->meta_data.attributes.st_uid = uid;
-    if (change_gid)
-      file->meta_data.attributes.st_gid = gid;
-    file->meta_data.last_status_time = detail::MaidSafeClock::now();
-    file->ScheduleForStoring();
-  }
-  catch (const std::exception& e) {
-    LOG(kWarning) << "Failed to chown " << path << ": " << e.what();
-    return -ENOENT;
-  }
-  return 0;
+  return -EPERM;
 }
 
 // Quote from FUSE documentation:
@@ -1103,8 +1086,6 @@ int FuseDrive<Storage>::CreateNew(const fs::path& full_path, mode_t mode, dev_t 
   file->meta_data.attributes.st_mode = mode;
   file->meta_data.attributes.st_rdev = rdev;
   file->meta_data.attributes.st_nlink = (is_directory ? 2 : 1);
-  file->meta_data.attributes.st_uid = fuse_get_context()->uid;
-  file->meta_data.attributes.st_gid = fuse_get_context()->gid;
 
   try {
     Global<Storage>::g_fuse_drive->Create(full_path, file);
@@ -1128,6 +1109,8 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
     stbuf->st_atime = detail::MaidSafeClock::to_time_t(file->meta_data.last_access_time);
     stbuf->st_mtime = detail::MaidSafeClock::to_time_t(file->meta_data.last_write_time);
     stbuf->st_ctime = detail::MaidSafeClock::to_time_t(file->meta_data.last_status_time);
+    stbuf->st_uid = fuse_get_context()->uid;
+    stbuf->st_gid = fuse_get_context()->gid;
     LOG(kVerbose) << " meta_data info  = ";
     LOG(kVerbose) << "     name =  " << file->meta_data.name.c_str();
     LOG(kVerbose) << "     st_dev = " << stbuf->st_dev;

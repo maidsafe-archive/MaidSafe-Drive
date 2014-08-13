@@ -140,10 +140,6 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
     attributes.st_dev = attributes_archive.st_dev();
   if (attributes_archive.has_st_nlink())
     attributes.st_nlink = attributes_archive.st_nlink();
-  if (attributes_archive.has_st_uid())
-    attributes.st_uid = attributes_archive.st_uid();
-  if (attributes_archive.has_st_gid())
-    attributes.st_gid = attributes_archive.st_gid();
   if (attributes_archive.has_st_rdev())
     attributes.st_rdev = attributes_archive.st_rdev();
   if (attributes_archive.has_st_blksize())
@@ -202,8 +198,6 @@ void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
   attributes_archive->set_st_dev(attributes.st_dev);
   attributes_archive->set_st_mode(attributes.st_mode);
   attributes_archive->set_st_nlink(attributes.st_nlink);
-  attributes_archive->set_st_uid(attributes.st_uid);
-  attributes_archive->set_st_gid(attributes.st_gid);
   attributes_archive->set_st_rdev(attributes.st_rdev);
   attributes_archive->set_st_blksize(attributes.st_blksize);
   attributes_archive->set_st_blocks(attributes.st_blocks);
