@@ -30,7 +30,6 @@ message AttributesArchive {
   optional uint64 win_attributes = 7;
   optional bytes link_to = 8;
   optional uint32 st_dev = 9;
-  optional uint32 st_ino = 10;
   optional uint32 st_nlink = 11;
   optional uint32 st_uid = 12;
   optional uint32 st_gid = 13;
