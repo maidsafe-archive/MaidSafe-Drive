@@ -27,6 +27,7 @@
 #include <string>
 #include <thread>
 #include <utility>
+#include <functional>
 
 #include "boost/filesystem/path.hpp"
 #include "boost/thread/future.hpp"
@@ -1123,6 +1124,7 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
 
     auto file(Global<Storage>::g_fuse_drive->GetContext(path));
     *stbuf = file->meta_data.attributes;
+    stbuf->st_ino = std::hash<std::string>()(file->meta_data.name.native());
     stbuf->st_atime = detail::MaidSafeClock::to_time_t(file->meta_data.last_access_time);
     stbuf->st_mtime = detail::MaidSafeClock::to_time_t(file->meta_data.last_write_time);
     stbuf->st_ctime = detail::MaidSafeClock::to_time_t(file->meta_data.last_status_time);
