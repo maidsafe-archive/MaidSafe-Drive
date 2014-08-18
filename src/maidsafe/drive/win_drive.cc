@@ -84,11 +84,15 @@ void ErrorMessage(const std::string &method_name, ECBFSError error) {
 
 FILETIME ToFileTime(const MaidSafeClock::time_point& input) {
   // FILETIME epoch = 1601-01-01T00:00:00Z in 100 nanosecond ticks
-  // MaidSafe epoch = 2000-01-01T00:00:00Z in 1 millisecond ticks
+  // MaidSafe epoch = 1970-01-01T00:00:00Z in 1 nanosecond ticks
+  using namespace std::chrono;
   const ULONGLONG filetimeTicks = 100ULL;
-  const ULONGLONG millisecondTicks = 1000000ULL;
-  const ULONGLONG epochDifference = 12590294400ULL * (millisecondTicks / filetimeTicks);
-  ULONGLONG stamp = epochDifference + (input.time_since_epoch().count() / filetimeTicks);
+  const ULONGLONG chronoTicks = 1ULL;
+  // 369 years
+  const ULONGLONG epochDifference = 11644473600ULL * (chronoTicks / filetimeTicks);
+  ULONGLONG stamp
+      = epochDifference
+      + (duration_cast<nanoseconds>(input.time_since_epoch()).count() / filetimeTicks);
   FILETIME result;
   result.dwHighDateTime = stamp >> 32;
   result.dwLowDateTime = stamp & 0xFFFFFFFF;
@@ -97,12 +101,12 @@ FILETIME ToFileTime(const MaidSafeClock::time_point& input) {
 
 MaidSafeClock::time_point ToTimePoint(const FILETIME& input) {
   // See ToFileTime
-  const ULONGLONG nanosecondTicks = 100ULL;
-  const ULONGLONG millisecondTicks = 1000000ULL;
-  const ULONGLONG epochDifference = 12590294400ULL  * (millisecondTicks / nanosecondTicks);
+  using namespace std::chrono;
+  const ULONGLONG filetimeTicks = 100ULL;
+  const ULONGLONG epochDifference = 11644473600ULL * (chronoTicks / filetimeTicks);
   ULONGLONG filetime = ((ULONGLONG)(input.dwHighDateTime) << 32) + input.dwLowDateTime;
-  ULONGLONG stamp = (filetime - epochDifference) * nanosecondTicks;
-  return MaidSafeClock::time_point(std::chrono::nanoseconds(stamp));
+  ULONGLONG stamp = (filetime - epochDifference) * (filetimeTicks / chronoTicks);
+  return MaidSafeClock::time_point(nanoseconds(stamp));
 }
 
 }  // namespace detail

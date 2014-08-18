@@ -80,14 +80,8 @@ inline std::string GetFileType(mode_t mode) {
 }
 
 inline MaidSafeClock::time_point ToTimePoint(const struct timespec& ts) {
-  // timespec epoch = 1970-01-01T00:00:00Z
-  // MaidSafe epoch = 2001-01-01T00:00:00Z
-  const MaidSafeClock::duration maidSafeEpochInSeconds = std::chrono::hours(262968); // 30 years
-  return MaidSafeClock::time_point
-      (std::chrono::duration_cast<MaidSafeClock::duration>
-       (std::chrono::seconds(ts.tv_sec)
-        + std::chrono::nanoseconds(ts.tv_nsec)
-        - maidSafeEpochInSeconds));
+  using namespace std::chrono;
+  return MaidSafeClock::time_point(seconds(ts.tv_sec) + nanoseconds(ts.tv_nsec));
 }
 
 // template <typename Storage>
@@ -987,6 +981,7 @@ int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]
     file = Global<Storage>::g_fuse_drive->GetMutableContext(path);
     file->meta_data.last_access_time = detail::ToTimePoint(ts[0]);
     file->meta_data.last_write_time = detail::ToTimePoint(ts[1]);
+    file->meta_data.last_status_time = detail::MaidSafeClock::now();
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to change times for " << path << ": " << e.what();

@@ -46,8 +46,9 @@ namespace detail {
 namespace protobuf { class MetaData; }
 
 struct MaidSafeClock {
-  // Chrono clock that uses MaidSafe epoch: 2000-01-01T00:00:00Z in 1 millisecond ticks
-  typedef std::chrono::milliseconds duration;
+  // Chrono clock that uses UTC from epoch 1970-01-01T00:00:00Z with 1 nanosecond resolution.
+  // The resolution accuracy depends on the system clock.
+  typedef std::chrono::nanoseconds duration;
   typedef duration::rep rep;
   typedef duration::period period;
   typedef std::chrono::time_point<MaidSafeClock> time_point;
@@ -55,16 +56,14 @@ struct MaidSafeClock {
   static const bool is_steady = std::chrono::system_clock::is_steady;
 
   static time_point now() MAIDSAFE_NOEXCEPT {
-    // std::chrono::system_clock uses Unix epoch: 1970-01-01T00:00:00Z in 1 second ticks
-    std::chrono::system_clock::time_point current = std::chrono::system_clock::now();
-    const duration maidSafeEpochInSeconds = std::chrono::hours(262968); // 30 years
-    return time_point
-        (std::chrono::duration_cast<duration>
-         (current.time_since_epoch() - maidSafeEpochInSeconds));
+    using namespace std::chrono;
+    const system_clock::time_point current = system_clock::now();
+    return time_point(duration_cast<duration>(current.time_since_epoch()));
   }
 
   static std::time_t to_time_t(const time_point& t) {
-    return std::chrono::duration_cast<std::chrono::seconds>(t.time_since_epoch()).count();
+    using namespace std::chrono;
+    return duration_cast<seconds>(t.time_since_epoch()).count();
   }
 };
 
