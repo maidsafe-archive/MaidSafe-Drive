@@ -116,10 +116,11 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
 
   const protobuf::AttributesArchive& attributes_archive = protobuf_meta_data.attributes_archive();
 
-  creation_time = TimePoint(MaidSafeClock::duration(attributes_archive.creation_time()));
-  last_status_time = TimePoint(MaidSafeClock::duration(attributes_archive.last_status_time()));
-  last_write_time = TimePoint(MaidSafeClock::duration(attributes_archive.last_write_time()));
-  last_access_time = TimePoint(MaidSafeClock::duration(attributes_archive.last_access_time()));
+  using namespace std::chrono;
+  creation_time = MaidSafeClock::time_point(nanoseconds(attributes_archive.creation_time()));
+  last_status_time = MaidSafeClock::time_point(nanoseconds(attributes_archive.last_status_time()));
+  last_write_time = MaidSafeClock::time_point(nanoseconds(attributes_archive.last_write_time()));
+  last_access_time = MaidSafeClock::time_point(nanoseconds(attributes_archive.last_access_time()));
 
 #ifdef MAIDSAFE_WIN32
   if ((attributes_archive.st_mode() & kAttributesDir) == kAttributesDir) {

@@ -424,9 +424,9 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
     }
     //     if ((*itr1).end_of_file != (*itr2).end_of_file)
     ASSERT_TRUE(GetSize((*itr1)->meta_data) == GetSize((*itr2)->meta_data));
-    ASSERT_TRUE((*itr1)->meta_data.creation_time == (*itr2)->meta_data.creation_time);
-    ASSERT_TRUE((*itr1)->meta_data.last_access_time == (*itr2)->meta_data.last_access_time);
-    ASSERT_TRUE((*itr1)->meta_data.last_write_time == (*itr2)->meta_data.last_write_time);
+    ASSERT_EQ((*itr1)->meta_data.creation_time, (*itr2)->meta_data.creation_time);
+    ASSERT_EQ((*itr1)->meta_data.last_access_time, (*itr2)->meta_data.last_access_time);
+    ASSERT_EQ((*itr1)->meta_data.last_write_time, (*itr2)->meta_data.last_write_time);
 #ifdef MAIDSAFE_WIN32
     ASSERT_TRUE((*itr1)->meta_data.allocation_size == (*itr2)->meta_data.allocation_size);
     ASSERT_TRUE((*itr1)->meta_data.attributes == (*itr2)->meta_data.attributes);
