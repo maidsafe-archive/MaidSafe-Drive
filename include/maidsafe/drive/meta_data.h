@@ -28,11 +28,11 @@
 
 #include <cstdint>
 #include <memory>
-#include <chrono>
 
 #include "boost/filesystem/path.hpp"
 
 #include "maidsafe/common/config.h"
+#include "maidsafe/common/clock.h"
 #include "maidsafe/encrypt/data_map.h"
 
 #include "maidsafe/drive/config.h"
@@ -45,31 +45,9 @@ namespace detail {
 
 namespace protobuf { class MetaData; }
 
-struct MaidSafeClock {
-  // Chrono clock that uses UTC from epoch 1970-01-01T00:00:00Z with 1 nanosecond resolution.
-  // The resolution accuracy depends on the system clock.
-  typedef std::chrono::nanoseconds duration;
-  typedef duration::rep rep;
-  typedef duration::period period;
-  typedef std::chrono::time_point<MaidSafeClock> time_point;
-
-  static const bool is_steady = std::chrono::system_clock::is_steady;
-
-  static time_point now() MAIDSAFE_NOEXCEPT {
-    using namespace std::chrono;
-    const system_clock::time_point current = system_clock::now();
-    return time_point(duration_cast<duration>(current.time_since_epoch()));
-  }
-
-  static std::time_t to_time_t(const time_point& t) {
-    using namespace std::chrono;
-    return duration_cast<seconds>(t.time_since_epoch()).count();
-  }
-};
-
 // Represents directory and file information
 struct MetaData {
-  using TimePoint = MaidSafeClock::time_point;
+  using TimePoint = common::Clock::time_point;
 
   MetaData();
   MetaData(const boost::filesystem::path& name, bool is_directory);

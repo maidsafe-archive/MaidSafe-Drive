@@ -104,7 +104,7 @@ class DirectoryTest : public testing::Test {
     file->meta_data.creation_time
         = file->meta_data.last_access_time
         = file->meta_data.last_write_time
-        = MaidSafeClock::now();
+        = common::Clock::now();
 #ifdef MAIDSAFE_WIN32
     file.meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
 #endif
@@ -461,7 +461,7 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
     file->meta_data.creation_time
         = file->meta_data.last_access_time
         = file->meta_data.last_write_time
-        = MaidSafeClock::now();
+        = common::Clock::now();
     if (is_dir) {
 #ifdef MAIDSAFE_WIN32
       file.meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;

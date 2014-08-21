@@ -70,7 +70,7 @@ MetaData::MetaData()
 
 MetaData::MetaData(const fs::path& name, bool is_directory)
     : name(name),
-      creation_time(MaidSafeClock::now()),
+      creation_time(common::Clock::now()),
       last_status_time(creation_time),
       last_write_time(creation_time),
       last_access_time(creation_time),
@@ -117,10 +117,10 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
   const protobuf::AttributesArchive& attributes_archive = protobuf_meta_data.attributes_archive();
 
   using namespace std::chrono;
-  creation_time = MaidSafeClock::time_point(nanoseconds(attributes_archive.creation_time()));
-  last_status_time = MaidSafeClock::time_point(nanoseconds(attributes_archive.last_status_time()));
-  last_write_time = MaidSafeClock::time_point(nanoseconds(attributes_archive.last_write_time()));
-  last_access_time = MaidSafeClock::time_point(nanoseconds(attributes_archive.last_access_time()));
+  creation_time = common::Clock::time_point(nanoseconds(attributes_archive.creation_time()));
+  last_status_time = common::Clock::time_point(nanoseconds(attributes_archive.last_status_time()));
+  last_write_time = common::Clock::time_point(nanoseconds(attributes_archive.last_write_time()));
+  last_access_time = common::Clock::time_point(nanoseconds(attributes_archive.last_access_time()));
 
 #ifdef MAIDSAFE_WIN32
   if ((attributes_archive.st_mode() & kAttributesDir) == kAttributesDir) {

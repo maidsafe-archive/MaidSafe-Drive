@@ -77,13 +77,13 @@ bool LastAccessUpdateIsDisabled();
 // Returns true if 'attributes' was changed
 bool SetAttributes(DWORD& attributes, DWORD new_value);
 // Returns true if 'filetime' was changed
-bool SetFiletime(MaidSafeClock::time_point& filetime, PFILETIME new_value);
+bool SetFiletime(common::Clock::time_point& filetime, PFILETIME new_value);
 
 void ErrorMessage(const std::string& method_name, ECBFSError error);
 
 // ToFileTime is inherently lossy because FILETIME cannot represent nanosecond accuracy
-FILETIME ToFileTime(const MaidSafeClock::time_point&);
-MaidSafeClock::time_point ToTimePoint(const FILETIME&);
+FILETIME ToFileTime(const common::Clock::time_point&);
+common::Clock::time_point ToTimePoint(const FILETIME&);
 
 }  // namespace detail
 
@@ -905,7 +905,7 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
       detail::SetFiletime(file->meta_data.last_access_time, last_access_time);
     changed |= detail::SetFiletime(file->meta_data.last_write_time, last_write_time);
     if (changed) {
-      file->meta_data.last_status_time = detail::MaidSafeClock::now();
+      file->meta_data.last_status_time = detail::common::Clock::now();
       file->ScheduleForStoring();
     }
   }
