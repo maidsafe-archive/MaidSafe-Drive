@@ -90,9 +90,9 @@ class Path : public std::enable_shared_from_this<Path> {
   std::shared_ptr<Listener> GetListener() const;
 
  protected:
-  Path();
+  explicit Path(MetaData::FileType);
   Path(const Path&) = delete;
-  Path(std::shared_ptr<Directory> parent);
+  Path(std::shared_ptr<Directory> parent, MetaData::FileType);
 
  protected:
   std::weak_ptr<Listener> listener_;
