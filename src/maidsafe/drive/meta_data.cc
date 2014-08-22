@@ -156,10 +156,6 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
     attributes.st_nlink = attributes_archive.st_nlink();
   if (attributes_archive.has_st_rdev())
     attributes.st_rdev = attributes_archive.st_rdev();
-  if (attributes_archive.has_st_blksize())
-    attributes.st_blksize = attributes_archive.st_blksize();
-  if (attributes_archive.has_st_blocks())
-    attributes.st_blocks = attributes_archive.st_blocks();
 
   if ((attributes_archive.st_mode() & kAttributesDir) == kAttributesDir)
     size = 4096;
@@ -224,8 +220,6 @@ void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
   attributes_archive->set_st_mode(attributes.st_mode);
   attributes_archive->set_st_nlink(attributes.st_nlink);
   attributes_archive->set_st_rdev(attributes.st_rdev);
-  attributes_archive->set_st_blksize(attributes.st_blksize);
-  attributes_archive->set_st_blocks(attributes.st_blocks);
 
   uint32_t win_attributes(0x10);  // FILE_ATTRIBUTE_DIRECTORY
   if ((attributes.st_mode & S_IFREG) == S_IFREG)

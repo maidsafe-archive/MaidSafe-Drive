@@ -37,8 +37,6 @@ message AttributesArchive {
   optional uint32 st_dev = 10;
   optional uint32 st_nlink = 11;
   optional uint32 st_rdev = 14;
-  optional uint32 st_blksize = 15;
-  optional uint32 st_blocks = 16;
 }
 
 message MetaData {
