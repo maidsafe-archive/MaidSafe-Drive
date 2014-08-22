@@ -22,6 +22,8 @@
 
 #include "maidsafe/drive/directory.h"
 
+namespace fs = boost::filesystem;
+
 namespace maidsafe {
 
 namespace drive {
@@ -29,13 +31,13 @@ namespace drive {
 namespace detail {
 
 File::File()
-    : Path(),
+    : Path(fs::regular_file),
       buffer(),
       timer(),
       flushed(false) {}
 
 File::File(MetaData meta_data_in, std::shared_ptr<Directory> parent_in)
-    : Path(parent_in),
+    : Path(parent_in, meta_data_in.file_type),
       buffer(),
       timer(),
       flushed(false) {
@@ -43,11 +45,11 @@ File::File(MetaData meta_data_in, std::shared_ptr<Directory> parent_in)
 }
 
 File::File(const boost::filesystem::path& name, bool is_directory)
-    : Path(),
+    : Path(is_directory ? fs::directory_file : fs::regular_file),
       buffer(),
       timer(),
       flushed(false) {
-  meta_data = MetaData(name, is_directory);
+  meta_data = MetaData(name, is_directory ? fs::directory_file : fs::regular_file);
 }
 
 File::~File() {

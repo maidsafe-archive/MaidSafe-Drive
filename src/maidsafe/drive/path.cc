@@ -26,13 +26,16 @@ namespace drive {
 
 namespace detail {
 
-Path::Path()
-    : open_count(0)
+Path::Path(MetaData::FileType file_type)
+    : meta_data(file_type),
+      open_count(0)
 {
 }
 
-Path::Path(std::shared_ptr<Directory> parent)
+Path::Path(std::shared_ptr<Directory> parent,
+           MetaData::FileType file_type)
     : parent_(parent),
+      meta_data(file_type),
       open_count(0)
 {
 }

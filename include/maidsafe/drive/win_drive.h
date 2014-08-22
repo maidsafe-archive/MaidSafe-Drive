@@ -691,6 +691,9 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
   *allocation_size = file->meta_data.allocation_size;
   // *file_id = 0;
   *file_attributes = file->meta_data.attributes;
+  if (file->meta_data.file_type == boost::filesystem::directory_file) {
+    *file_attributes |= FILE_ATTRIBUTE_DIRECTORY;
+  }
   if (real_file_name) {
     wcscpy(real_file_name, file->meta_data.name.wstring().c_str());
     *real_file_name_length = static_cast<WORD>(file->meta_data.name.wstring().size());
@@ -896,6 +899,7 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
   LOG(kInfo) << "CbFsSetFileAttributes- " << relative_path << " 0x" << std::hex << file_attributes;
   try {
     auto file(cbfs_drive->GetMutableContext(relative_path));
+    // File type cannot be changed
     bool changed(detail::SetAttributes(file->meta_data.attributes, file_attributes));
     changed |= detail::SetFiletime(file->meta_data.creation_time, creation_time);
     if (!detail::LastAccessUpdateIsDisabled())

@@ -99,6 +99,22 @@ inline common::Clock::time_point ToTimePoint(const struct timespec& ts) {
 //   return true;
 // }
 
+inline mode_t ToFileType(MetaData::FileType file_type, mode_t mode) {
+  mode_t result = mode & ~S_IFMT; // Clear file type fields
+  switch (file_type) {
+    case fs::directory_file:
+      result |= S_IFDIR;
+      break;
+    case fs::regular_file:
+      result |= S_IFREG;
+      break;
+    default:
+      assert(false); // Not supported yet
+      break;
+    }
+  return result;
+}
+
 }  // namespace detail
 
 template <typename Storage>
@@ -1071,6 +1087,7 @@ int FuseDrive<Storage>::CreateNew(const fs::path& full_path, mode_t mode, dev_t 
     return -EINVAL;
   }
   bool is_directory(S_ISDIR(mode));
+  // FIXME: Use detail::Directory::Create to create directories
   auto file(detail::File::Create(full_path.filename(), is_directory));
 
   file->meta_data.creation_time
@@ -1101,6 +1118,7 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
     auto file(Global<Storage>::g_fuse_drive->GetContext(path));
     *stbuf = file->meta_data.attributes;
     stbuf->st_ino = std::hash<std::string>()(file->meta_data.name.native());
+    stbuf->st_mode = detail::ToFileType(file->meta_data.file_type, stbuf->st_mode);
     stbuf->st_atime = common::Clock::to_time_t(file->meta_data.last_access_time);
     stbuf->st_mtime = common::Clock::to_time_t(file->meta_data.last_write_time);
     stbuf->st_ctime = common::Clock::to_time_t(file->meta_data.last_status_time);

@@ -21,15 +21,20 @@ option optimize_for = LITE_RUNTIME;
 package maidsafe.drive.detail.protobuf;
 
 message AttributesArchive {
-  required uint64 st_size = 1;
-  required uint64 creation_time = 2;
-  required uint64 last_status_time = 3;
-  required uint64 last_write_time = 4;
-  required uint64 last_access_time = 5;
-  required uint32 st_mode = 6;
-  optional uint64 win_attributes = 7;
-  optional bytes link_to = 8;
-  optional uint32 st_dev = 9;
+  enum FileType {
+    DIRECTORY_TYPE = 0;
+    REGULAR_FILE_TYPE = 1;
+  }
+  required FileType file_type = 1;
+  required uint64 st_size = 2;
+  required uint64 creation_time = 3;
+  required uint64 last_status_time = 4;
+  required uint64 last_write_time = 5;
+  required uint64 last_access_time = 6;
+  required uint32 st_mode = 7;
+  optional uint64 win_attributes = 8;
+  optional bytes link_to = 9;
+  optional uint32 st_dev = 10;
   optional uint32 st_nlink = 11;
   optional uint32 st_rdev = 14;
   optional uint32 st_blksize = 15;

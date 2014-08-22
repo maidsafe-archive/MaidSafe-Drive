@@ -30,6 +30,7 @@
 #include <memory>
 
 #include "boost/filesystem/path.hpp"
+#include "boost/filesystem/operations.hpp"
 
 #include "maidsafe/common/config.h"
 #include "maidsafe/common/clock.h"
@@ -48,9 +49,10 @@ namespace protobuf { class MetaData; }
 // Represents directory and file information
 struct MetaData {
   using TimePoint = common::Clock::time_point;
+  using FileType = boost::filesystem::file_type;
 
-  MetaData();
-  MetaData(const boost::filesystem::path& name, bool is_directory);
+  explicit MetaData(FileType);
+  MetaData(const boost::filesystem::path& name, FileType);
   explicit MetaData(const protobuf::MetaData& protobuf_meta_data);
   MetaData(MetaData&& other);
   MetaData& operator=(MetaData other);
@@ -62,6 +64,7 @@ struct MetaData {
   uint64_t GetAllocatedSize() const;
 
   boost::filesystem::path name;
+  FileType file_type;
   // Time file was created
   TimePoint creation_time;
   // Last time file attributes were modified

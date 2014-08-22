@@ -48,8 +48,9 @@ const uint32_t kAttributesRegular = 0x8000;
 
 
 
-MetaData::MetaData()
+MetaData::MetaData(FileType file_type)
     : name(),
+      file_type(file_type),
 #ifdef MAIDSAFE_WIN32
       end_of_file(0),
       allocation_size(0),
@@ -68,8 +69,9 @@ MetaData::MetaData()
 }
 #endif
 
-MetaData::MetaData(const fs::path& name, bool is_directory)
+MetaData::MetaData(const fs::path& name, FileType file_type)
     : name(name),
+      file_type(file_type),
       creation_time(common::Clock::now()),
       last_status_time(creation_time),
       last_write_time(creation_time),
@@ -82,8 +84,12 @@ MetaData::MetaData(const fs::path& name, bool is_directory)
       attributes(),
       link_to(),
 #endif
-      data_map(is_directory ? nullptr : new encrypt::DataMap()),
-      directory_id(is_directory ? new DirectoryId(RandomString(64)) : nullptr) {
+      data_map((file_type == fs::directory_file)
+               ? nullptr
+               : new encrypt::DataMap()),
+      directory_id((file_type == fs::directory_file)
+                   ? new DirectoryId(RandomString(64))
+                   : nullptr) {
 #ifdef MAIDSAFE_WIN32
 #else
   attributes.st_gid = getgid();
@@ -91,7 +97,7 @@ MetaData::MetaData(const fs::path& name, bool is_directory)
   attributes.st_mode = 0644;
   attributes.st_nlink = 1;
 
-  if (is_directory) {
+  if (file_type == fs::directory_file) {
     attributes.st_mode = (0755 | S_IFDIR);
     attributes.st_size = 4096;  // #BEFORE_RELEASE detail::kDirectorySize;
   }
@@ -116,6 +122,14 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
 
   const protobuf::AttributesArchive& attributes_archive = protobuf_meta_data.attributes_archive();
 
+  switch (attributes_archive.file_type()) {
+    case protobuf::AttributesArchive::DIRECTORY_TYPE:
+      file_type = fs::directory_file;
+      break;
+    case protobuf::AttributesArchive::REGULAR_FILE_TYPE:
+      file_type = fs::regular_file;
+      break;
+  }
   using namespace std::chrono;
   creation_time = common::Clock::time_point(nanoseconds(attributes_archive.creation_time()));
   last_status_time = common::Clock::time_point(nanoseconds(attributes_archive.last_status_time()));
@@ -163,7 +177,7 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
 }
 
 MetaData::MetaData(MetaData&& other)
-    : MetaData() {
+    : MetaData(other.file_type) {
       swap(*this, other);
     }
 
@@ -176,6 +190,17 @@ void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
   protobuf_meta_data->set_name(name.string());
   auto attributes_archive = protobuf_meta_data->mutable_attributes_archive();
 
+  switch (file_type) {
+    case fs::directory_file:
+      attributes_archive->set_file_type(protobuf::AttributesArchive::DIRECTORY_TYPE);
+      break;
+    case fs::regular_file:
+      attributes_archive->set_file_type(protobuf::AttributesArchive::REGULAR_FILE_TYPE);
+      break;
+    default:
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+      break;
+  }
   attributes_archive->set_creation_time(creation_time.time_since_epoch().count());
   attributes_archive->set_last_status_time(last_status_time.time_since_epoch().count());
   attributes_archive->set_last_write_time(last_write_time.time_since_epoch().count());
