@@ -73,9 +73,9 @@ struct MetaData {
   TimePoint last_write_time;
   // Last known time file was accessed
   TimePoint last_access_time;
+  uint64_t size;
 
 #ifdef MAIDSAFE_WIN32
-  uint64_t end_of_file;
   uint64_t allocation_size;
   DWORD attributes;
 #else

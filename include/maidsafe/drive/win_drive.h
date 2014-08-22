@@ -683,11 +683,11 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
   *creation_time = ToFileTime(file->meta_data.creation_time);
   *last_access_time = ToFileTime(file->meta_data.last_access_time);
   *last_write_time = ToFileTime(file->meta_data.last_write_time);
-  // if (file->meta_data.end_of_file < file->meta_data.allocation_size)
-  //   file->meta_data.end_of_file = file->meta_data.allocation_size;
-  // else if (file->meta_data.allocation_size < file->meta_data.end_of_file)
-  //   file->meta_data.allocation_size = file->meta_data.end_of_file;
-  *end_of_file = file->meta_data.end_of_file;
+  // if (file->meta_data.size < file->meta_data.allocation_size)
+  //   file->meta_data.size = file->meta_data.allocation_size;
+  // else if (file->meta_data.allocation_size < file->meta_data.size)
+  //   file->meta_data.allocation_size = file->meta_data.size;
+  *end_of_file = file->meta_data.size;
   *allocation_size = file->meta_data.allocation_size;
   // *file_id = 0;
   *file_attributes = file->meta_data.attributes;
@@ -786,7 +786,7 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     *creation_time = ToFileTime(file->meta_data.creation_time);
     *last_access_time = ToFileTime(file->meta_data.last_access_time);
     *last_write_time = ToFileTime(file->meta_data.last_write_time);
-    *end_of_file = file->meta_data.end_of_file;
+    *end_of_file = file->meta_data.size;
     *allocation_size = file->meta_data.allocation_size;
     *file_attributes = file->meta_data.attributes;
   }
@@ -836,7 +836,7 @@ void CbfsDrive<Storage>::CbFsSetAllocationSize(CallbackFileSystem* sender, CbFsF
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
-  // if (file->meta_data.allocation_size == file->meta_data.end_of_file)
+  // if (file->meta_data.allocation_size == file->meta_data.size)
   //   return;
 
   // if (cbfs_drive->TruncateFile(file, allocation_size)) {
@@ -862,14 +862,14 @@ void CbfsDrive<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileIn
     auto file(cbfs_drive->GetMutableContext(relative_path));
     assert(file->self_encryptor);
     file->self_encryptor->Truncate(end_of_file);
-    file->meta_data.end_of_file = end_of_file;
+    file->meta_data.size = end_of_file;
     file->ScheduleForStoring();
   }
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
   // if (cbfs_drive->TruncateFile(file, end_of_file)) {
-  //   file->meta_data.end_of_file = end_of_file;
+  //   file->meta_data.size = end_of_file;
   //   if (!file->self_encryptor->Flush()) {
   //     LOG(kError) << "CbFsSetEndOfFile: " << relative_path << ", failed to flush";
   //   }
