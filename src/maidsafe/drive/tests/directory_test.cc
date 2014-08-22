@@ -51,14 +51,6 @@ namespace detail {
 
 namespace test {
 
-inline uint64_t GetSize(const MetaData& meta_data) {
-#ifdef MAIDSAFE_WIN32
-  return meta_data.end_of_file;
-#else
-  return meta_data.attributes.st_size;
-#endif
-}
-
 class DirectoryTestListener
   : public std::enable_shared_from_this<DirectoryTestListener>,
     public Path::Listener {
@@ -102,6 +94,7 @@ class DirectoryTest : public testing::Test {
                                                  fs::path const& path) {
     auto file(File::Create(path.filename(), true));
     file->meta_data.creation_time
+        = file->meta_data.last_status_time
         = file->meta_data.last_access_time
         = file->meta_data.last_write_time
         = common::Clock::now();
@@ -325,7 +318,7 @@ class DirectoryTest : public testing::Test {
           if (itr->path().filename().string() != listing) {
             EXPECT_NO_THROW(file = directory->GetChild(itr->path().filename()));
             EXPECT_TRUE(file->meta_data.name == itr->path().filename());
-            // EXPECT_TRUE(GetSize(file->meta_data) ==
+            // EXPECT_TRUE(file->meta_data.size ==
             // fs::file_size(itr->path()));
           }
         } else {
@@ -422,8 +415,7 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
       ASSERT_TRUE((*itr1)->meta_data.data_map->content == (*itr2)->meta_data.data_map->content)
           << "DataMap content mismatch.";
     }
-    //     if ((*itr1).end_of_file != (*itr2).end_of_file)
-    ASSERT_TRUE(GetSize((*itr1)->meta_data) == GetSize((*itr2)->meta_data));
+    ASSERT_EQ((*itr1)->meta_data.size, (*itr2)->meta_data.size);
     ASSERT_EQ((*itr1)->meta_data.creation_time, (*itr2)->meta_data.creation_time);
     ASSERT_EQ((*itr1)->meta_data.last_access_time, (*itr2)->meta_data.last_access_time);
     ASSERT_EQ((*itr1)->meta_data.last_write_time, (*itr2)->meta_data.last_write_time);
@@ -459,6 +451,7 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
     std::string child_name("Child " + std::to_string(i));
     auto file(File::Create(child_name, is_dir));
     file->meta_data.creation_time
+        = file->meta_data.last_status_time
         = file->meta_data.last_access_time
         = file->meta_data.last_write_time
         = common::Clock::now();
@@ -467,17 +460,15 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
       file.meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
 #endif
     } else {
+      file->meta_data.size = RandomUint32();
 #ifdef MAIDSAFE_WIN32
-      file->meta_data.end_of_file = RandomUint32();
-      // When archiving MetaData the following assumption is made: end_of_file == allocation_size.
+      // When archiving MetaData the following assumption is made: size == allocation_size.
       // This is reasonable since when file info is queried or on closing a file we set those values
-      // equal.  This stemmed from cbfs asserting when end_of_file.QuadPart was less than
+      // equal.  This stemmed from cbfs asserting when size.QuadPart was less than
       // allocation_size.QuadPart, although they were not always set in an order that avoided this,
       // so, to allow the test to pass: meta_data.allocation_size = RandomUint32();
-      file->meta_data.allocation_size = file->meta_data.end_of_file;
+      file->meta_data.allocation_size = file->meta_data.size;
       file->meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
-#else
-      file->meta_data.attributes.st_size = RandomUint32();
 #endif
       file->meta_data.data_map->content = GetRandomString<encrypt::ByteVector>(10);
     }
