@@ -50,6 +50,7 @@ extern const MaxVersions kMaxVersions;
 extern const std::chrono::steady_clock::duration kDirectoryInactivityDelay;
 // The delay between the last close on a file and the deletion of its buffer and encryptor.
 extern const std::chrono::steady_clock::duration kFileInactivityDelay;
+const int kFileBlockSize = 512;
 
 }  // namespace detail
 
