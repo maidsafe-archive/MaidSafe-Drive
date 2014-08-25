@@ -1099,7 +1099,6 @@ int FuseDrive<Storage>::CreateNew(const fs::path& full_path, mode_t mode, dev_t 
       = common::Clock::now();
   file->meta_data.attributes.st_mode = mode;
   file->meta_data.attributes.st_rdev = rdev;
-  file->meta_data.attributes.st_nlink = (is_directory ? 2 : 1);
 
   try {
     Global<Storage>::g_fuse_drive->Create(full_path, file);
@@ -1121,14 +1120,15 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
     *stbuf = file->meta_data.attributes;
     stbuf->st_ino = std::hash<std::string>()(file->meta_data.name.native());
     stbuf->st_mode = detail::ToFileType(file->meta_data.file_type, stbuf->st_mode);
+    stbuf->st_uid = fuse_get_context()->uid;
+    stbuf->st_gid = fuse_get_context()->gid;
+    stbuf->st_nlink = (file->meta_data.file_type == fs::directory_file) ? 2 : 1;
     stbuf->st_size = file->meta_data.size;
     stbuf->st_blksize = detail::kFileBlockSize;
     stbuf->st_blocks = stbuf->st_size / stbuf->st_blksize;
     stbuf->st_atime = common::Clock::to_time_t(file->meta_data.last_access_time);
     stbuf->st_mtime = common::Clock::to_time_t(file->meta_data.last_write_time);
     stbuf->st_ctime = common::Clock::to_time_t(file->meta_data.last_status_time);
-    stbuf->st_uid = fuse_get_context()->uid;
-    stbuf->st_gid = fuse_get_context()->gid;
     LOG(kVerbose) << " meta_data info  = ";
     LOG(kVerbose) << "     name =  " << file->meta_data.name.c_str();
     LOG(kVerbose) << "     st_dev = " << stbuf->st_dev;
