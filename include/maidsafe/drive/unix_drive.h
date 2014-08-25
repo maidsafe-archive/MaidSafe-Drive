@@ -926,8 +926,10 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsStatfs(const char* path, struct statvfs* stbuf) {
   LOG(kInfo) << "OpsStatfs: " << path;
 
-  stbuf->f_bsize = 4096;
-  stbuf->f_frsize = 4096;
+  // Although POSIX states that there is no correspondence between st_blksize and
+  // f_bsize, we set them the the same value for convenience.
+  stbuf->f_bsize = detail::kFileBlockSize;
+  stbuf->f_frsize = detail::kFileBlockSize;
   stbuf->f_blocks = (std::numeric_limits<int64_t>::max() - 10000) / stbuf->f_frsize;
   stbuf->f_bfree = (std::numeric_limits<int64_t>::max() - 10000) / stbuf->f_bsize;
   stbuf->f_bavail = stbuf->f_bfree;
@@ -1120,7 +1122,7 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
     stbuf->st_ino = std::hash<std::string>()(file->meta_data.name.native());
     stbuf->st_mode = detail::ToFileType(file->meta_data.file_type, stbuf->st_mode);
     stbuf->st_size = file->meta_data.size;
-    stbuf->st_blksize = 512; // Fake it
+    stbuf->st_blksize = detail::kFileBlockSize;
     stbuf->st_blocks = stbuf->st_size / stbuf->st_blksize;
     stbuf->st_atime = common::Clock::to_time_t(file->meta_data.last_access_time);
     stbuf->st_mtime = common::Clock::to_time_t(file->meta_data.last_write_time);

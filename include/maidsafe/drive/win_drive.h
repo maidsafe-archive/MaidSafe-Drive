@@ -373,7 +373,7 @@ void CbfsDrive<Storage>::InitialiseCbfs() {
     // Properties
     callback_filesystem_.SetCallAllOpenCloseCallbacks(false);
     callback_filesystem_.SetCaseSensitiveFileNames(true);
-    callback_filesystem_.SetClusterSize(32 * 512);  // must be a multiple of sector size
+    callback_filesystem_.SetClusterSize(32 * detail::kFileBlockSize);  // must be a multiple of sector size
     callback_filesystem_.SetFileCacheEnabled(true);
     callback_filesystem_.SetMaxFileNameLength(MAX_PATH);
     callback_filesystem_.SetMaxFilePathLength(32767);
@@ -382,7 +382,7 @@ void CbfsDrive<Storage>::InitialiseCbfs() {
     callback_filesystem_.SetNonexistentFilesCacheEnabled(true);
     callback_filesystem_.SetParalleledProcessingAllowed(true);
     callback_filesystem_.SetProcessRestrictionsEnabled(false);
-    callback_filesystem_.SetSectorSize(512);
+    callback_filesystem_.SetSectorSize(detail::kFileBlockSize);
     callback_filesystem_.SetSerializeCallbacks(true);
     callback_filesystem_.SetShortFileNameSupport(false);
 //    callback_filesystem_.SetStorageCharacteristics(
