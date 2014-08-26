@@ -79,7 +79,6 @@ struct MetaData {
   uint64_t allocation_size;
   DWORD attributes;
 #else
-  struct stat attributes;
   boost::filesystem::path link_to;
 #endif
   std::unique_ptr<encrypt::DataMap> data_map;

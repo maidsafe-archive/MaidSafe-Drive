@@ -127,6 +127,23 @@ inline bool IsSupported(mode_t mode) {
   return S_ISDIR(mode) || S_ISREG(mode);
 }
 
+inline struct stat ToStat(const MetaData& meta) {
+  struct stat result;
+  std::memset(&result, 0, sizeof(result));
+  result.st_ino = std::hash<std::string>()(meta.name.native());
+  result.st_mode = detail::ToFileMode(meta.file_type, result.st_mode);
+  result.st_uid = fuse_get_context()->uid;
+  result.st_gid = fuse_get_context()->gid;
+  result.st_nlink = (meta.file_type == fs::directory_file) ? 2 : 1;
+  result.st_size = meta.size;
+  result.st_blksize = detail::kFileBlockSize;
+  result.st_blocks = result.st_size / result.st_blksize;
+  result.st_atime = common::Clock::to_time_t(meta.last_access_time);
+  result.st_mtime = common::Clock::to_time_t(meta.last_write_time);
+  result.st_ctime = common::Clock::to_time_t(meta.last_status_time);
+  return result;
+}
+
 }  // namespace detail
 
 template <typename Storage>
@@ -409,17 +426,8 @@ int FuseDrive<Storage>::OpsAccess(const char* /*path*/, int /* mask */) {
 template <typename Storage>
 int FuseDrive<Storage>::OpsChmod(const char* path, mode_t mode) {
   LOG(kInfo) << "OpsChmod: " << path << ", to " << std::oct << mode;
-  try {
-    auto file(Global<Storage>::g_fuse_drive->GetMutableContext(path));
-    file->meta_data.attributes.st_mode = mode;
-    file->meta_data.last_status_time = common::Clock::now();
-    file->ScheduleForStoring();
-  }
-  catch (const std::exception& e) {
-    LOG(kWarning) << "Failed to chmod " << path << ": " << e.what();
-    return -ENOENT;
-  }
-  return 0;
+  // Permissions cannot be changed at the moment
+  return -EPERM;
 }
 
 // Quote from FUSE documentation:
@@ -802,7 +810,8 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
 
   auto file(directory->GetChildAndIncrementCounter());
   while (file) {
-    if (filler(buf, file->meta_data.name.c_str(), &file->meta_data.attributes, 0))
+    struct stat attributes = ToStat(file->meta_data);
+    if (filler(buf, file->meta_data.name.c_str(), &attributes, 0))
       break;
     file = directory->GetChildAndIncrementCounter();
   }
@@ -826,7 +835,8 @@ int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t size) {
   LOG(kInfo) << "OpsReadlink: " << path;
   try {
     auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
-    if (S_ISLNK(file_context->meta_data.attributes.st_mode)) {
+    const bool is_link = false; // S_ISLNK(file_context->meta_data.attributes.st_mode)
+    if (is_link) {
       std::string link_path(file_context->meta_data.link_to.string());
       size_t link_path_size(link_path.size());
       if (size != 0) {
@@ -1133,18 +1143,7 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
     using namespace std::chrono;
 
     auto file(Global<Storage>::g_fuse_drive->GetContext(path));
-    *stbuf = file->meta_data.attributes;
-    stbuf->st_ino = std::hash<std::string>()(file->meta_data.name.native());
-    stbuf->st_mode = detail::ToFileMode(file->meta_data.file_type, stbuf->st_mode);
-    stbuf->st_uid = fuse_get_context()->uid;
-    stbuf->st_gid = fuse_get_context()->gid;
-    stbuf->st_nlink = (file->meta_data.file_type == fs::directory_file) ? 2 : 1;
-    stbuf->st_size = file->meta_data.size;
-    stbuf->st_blksize = detail::kFileBlockSize;
-    stbuf->st_blocks = stbuf->st_size / stbuf->st_blksize;
-    stbuf->st_atime = common::Clock::to_time_t(file->meta_data.last_access_time);
-    stbuf->st_mtime = common::Clock::to_time_t(file->meta_data.last_write_time);
-    stbuf->st_ctime = common::Clock::to_time_t(file->meta_data.last_status_time);
+    *stbuf = ToStat(file->meta_data);
     LOG(kVerbose) << " meta_data info  = ";
     LOG(kVerbose) << "     name =  " << file->meta_data.name.c_str();
     LOG(kVerbose) << "     st_dev = " << stbuf->st_dev;
@@ -1178,7 +1177,7 @@ int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
     auto file(Global<Storage>::g_fuse_drive->GetMutableContext(path));
     assert(file->self_encryptor);
     file->self_encryptor->Truncate(size);
-    file->meta_data.attributes.st_size = size;
+    file->meta_data.size = size;
     file->meta_data.creation_time
         = file->meta_data.last_status_time
         = file->meta_data.last_write_time

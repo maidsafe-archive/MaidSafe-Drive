@@ -329,12 +329,7 @@ uint32_t Drive<Storage>::Write(const boost::filesystem::path& relative_path, con
   if (!file->self_encryptor->Write(data, size, offset))
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
   // TODO(Fraser#5#): 2013-12-02 - Update last write time?
-#ifndef MAIDSAFE_WIN32
-  int64_t max_size(
-      std::max(static_cast<off_t>(offset + size), file->meta_data.attributes.st_size));
-  file->meta_data.attributes.st_size = max_size;
-  file->meta_data.attributes.st_blocks = file->meta_data.attributes.st_size / 512;
-#endif
+  file->meta_data.size = std::max<std::int64_t>(offset + size, file->meta_data.size);
   file->ScheduleForStoring();
   return size;
 }
