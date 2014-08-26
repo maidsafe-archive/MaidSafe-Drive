@@ -58,14 +58,9 @@ MetaData::MetaData(FileType file_type)
       data_map(),
       directory_id() {}
 #else
-      attributes(),
       link_to(),
       data_map(),
       directory_id() {
-  attributes.st_gid = getgid();
-  attributes.st_uid = getuid();
-  attributes.st_mode = 0644;
-  attributes.st_nlink = 1;
 }
 #endif
 
@@ -81,7 +76,6 @@ MetaData::MetaData(const fs::path& name, FileType file_type)
       allocation_size(0),
       attributes(is_directory?FILE_ATTRIBUTE_DIRECTORY:0xFFFFFFFF),
 #else
-      attributes(),
       link_to(),
 #endif
       data_map((file_type == fs::directory_file)
@@ -92,13 +86,7 @@ MetaData::MetaData(const fs::path& name, FileType file_type)
                    : nullptr) {
 #ifdef MAIDSAFE_WIN32
 #else
-  attributes.st_gid = getgid();
-  attributes.st_uid = getuid();
-  attributes.st_mode = 0644;
-  attributes.st_nlink = 1;
-
   if (file_type == fs::directory_file) {
-    attributes.st_mode = (0755 | S_IFDIR);
     size = 4096;  // #BEFORE_RELEASE detail::kDirectorySize;
   }
 #endif
@@ -111,7 +99,6 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
       allocation_size(protobuf_meta_data.attributes_archive().st_size()),
       attributes(0xFFFFFFFF),
 #else
-      attributes(),
       link_to(),
 #endif
       data_map(),
@@ -148,17 +135,9 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
   if (attributes_archive.has_link_to())
     link_to = attributes_archive.link_to();
 
-  attributes.st_mode = attributes_archive.st_mode();
-
-  if (attributes_archive.has_st_dev())
-    attributes.st_dev = attributes_archive.st_dev();
-  if (attributes_archive.has_st_nlink())
-    attributes.st_nlink = attributes_archive.st_nlink();
-  if (attributes_archive.has_st_rdev())
-    attributes.st_rdev = attributes_archive.st_rdev();
-
-  if ((attributes_archive.st_mode() & kAttributesDir) == kAttributesDir)
+  if (file_type == fs::directory_file) {
     size = 4096;
+  }
 #endif
 
   if (protobuf_meta_data.has_serialised_data_map()) {
@@ -216,16 +195,9 @@ void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
 #else
   attributes_archive->set_link_to(link_to.string());
 
-  attributes_archive->set_st_dev(attributes.st_dev);
-  attributes_archive->set_st_mode(attributes.st_mode);
-  attributes_archive->set_st_nlink(attributes.st_nlink);
-  attributes_archive->set_st_rdev(attributes.st_rdev);
-
   uint32_t win_attributes(0x10);  // FILE_ATTRIBUTE_DIRECTORY
-  if ((attributes.st_mode & S_IFREG) == S_IFREG)
+  if (file_type == fs::regular_file)
     win_attributes = 0x80;  // FILE_ATTRIBUTE_NORMAL
-  if (((attributes.st_mode & S_IRUSR) == S_IRUSR) && (win_attributes == 0x80))
-    win_attributes = 0x20 | 0x1;  // FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_READONLY
   if (name.string()[0]  == '.')
     win_attributes |= 0x2;  // FILE_ATTRIBUTE_HIDDEN
   attributes_archive->set_win_attributes(win_attributes);
@@ -245,11 +217,7 @@ bool MetaData::operator<(const MetaData& other) const {
 }
 
 void MetaData::UpdateLastModifiedTime() {
-#ifdef MAIDSAFE_WIN32
-  GetSystemTimeAsFileTime(&last_write_time);
-#else
-  time(&attributes.st_mtime);
-#endif
+  last_write_time = common::Clock::now();
 }
 
 uint64_t MetaData::GetAllocatedSize() const {
@@ -272,7 +240,6 @@ void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT {
   swap(lhs.allocation_size, rhs.allocation_size);
   swap(lhs.attributes, rhs.attributes);
 #else
-  swap(lhs.attributes, rhs.attributes);
   swap(lhs.link_to, rhs.link_to);
 #endif
   swap(lhs.data_map, rhs.data_map);

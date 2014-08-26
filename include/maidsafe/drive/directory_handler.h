@@ -239,9 +239,10 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
   parent.second->meta_data.UpdateLastModifiedTime();
 
 #ifndef MAIDSAFE_WIN32
-  parent.second->meta_data.attributes.st_ctime = parent.second->meta_data.attributes.st_mtime;
+  parent.second->meta_data.creation_time = parent.second->meta_data.last_write_time;
   if (IsDirectory(file)) {
-    ++parent.second->meta_data.attributes.st_nlink;
+    // FIXME: Determine how to handle hard links
+    // ++parent.second->meta_data.attributes.st_nlink;
     parent.second->ScheduleForStoring();
   }
 #endif
@@ -347,10 +348,11 @@ void DirectoryHandler<Storage>::Delete(const boost::filesystem::path& relative_p
   parent.second->meta_data.UpdateLastModifiedTime();
 
 #ifndef MAIDSAFE_WIN32
-  parent.second->meta_data.attributes.st_ctime = parent.second->meta_data.attributes.st_mtime;
-  if (is_directory) {
-    --parent.second->meta_data.attributes.st_nlink;
-  }
+  parent.second->meta_data.creation_time = parent.second->meta_data.last_write_time;
+  // FIXME: Determine how to handle hard links
+  // if (is_directory) {
+  //   --parent.second->meta_data.attributes.st_nlink;
+  // }
 #endif
 }
 
