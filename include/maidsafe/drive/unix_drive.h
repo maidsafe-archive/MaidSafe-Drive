@@ -99,20 +99,32 @@ inline common::Clock::time_point ToTimePoint(const struct timespec& ts) {
 //   return true;
 // }
 
-inline mode_t ToFileType(MetaData::FileType file_type, mode_t mode) {
-  mode_t result = mode & ~S_IFMT; // Clear file type fields
+inline MetaData::FileType ToFileType(mode_t mode) {
+  if (S_ISDIR(mode)) {
+    return fs::directory_file;
+  } else if (S_ISREG(mode)) {
+    return fs::regular_file;
+  } else {
+    return fs::status_error;
+  }
+}
+
+inline mode_t ToFileMode(MetaData::FileType file_type, mode_t mode) {
+  auto permission = mode & ~S_IFMT; // Clear file type fields
   switch (file_type) {
     case fs::directory_file:
-      result |= S_IFDIR;
-      break;
+      return permission | S_IFDIR;
     case fs::regular_file:
-      result |= S_IFREG;
-      break;
+      return permission | S_IFREG;
     default:
       assert(false); // Not supported yet
-      break;
+      return mode;
     }
-  return result;
+}
+
+inline bool IsSupported(mode_t mode) {
+  // FIXME: Add S_ISLNK
+  return S_ISDIR(mode) || S_ISREG(mode);
 }
 
 }  // namespace detail
@@ -183,7 +195,7 @@ class FuseDrive : public Drive<Storage> {
 //                         int flags);
 #endif  // HAVE_SETXATTR
 
-  static int CreateNew(const fs::path& full_path, mode_t mode, dev_t rdev = 0);
+  static int CreateNew(const fs::path& full_path, mode_t mode);
   static int GetAttributes(const char* path, struct stat* stbuf);
   static int Truncate(const char* path, off_t size);
 
@@ -653,11 +665,13 @@ int FuseDrive<Storage>::OpsMkdir(const char* path, mode_t mode) {
 // This is called for creation of all non-directory, non-symlink  nodes. If the filesystem defines a
 // create() method, then for regular files that will be called instead.
 template <typename Storage>
-int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t rdev) {
+int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t) {
+  // Ignores the dev_t parameter because it is only used for character and block devices,
+  // which we do not support.
   LOG(kInfo) << "OpsMknod: " << path << " (" << detail::GetFileType(mode) << "), mode: " << std::oct
-             << mode << std::dec << ", rdev: " << rdev;
+             << mode;
   assert(!S_ISDIR(mode) && !detail::GetFileType(mode).empty());
-  return Global<Storage>::g_fuse_drive->CreateNew(path, mode, rdev);
+  return Global<Storage>::g_fuse_drive->CreateNew(path, mode);
 }
 
 // Quote from FUSE documentation:
@@ -1083,22 +1097,24 @@ int FuseDrive<Storage>::OpsSetxattr(const char* path, const char* name, const ch
 #endif  // HAVE_SETXATTR
 
 template <typename Storage>
-int FuseDrive<Storage>::CreateNew(const fs::path& full_path, mode_t mode, dev_t rdev) {
+int FuseDrive<Storage>::CreateNew(const fs::path& full_path, mode_t mode) {
   if (detail::ExcludedFilename(full_path.filename().stem().string())) {
     LOG(kError) << "Invalid name: " << full_path;
+    return -EINVAL;
+  }
+  if (!detail::IsSupported(mode)) {
     return -EINVAL;
   }
   bool is_directory(S_ISDIR(mode));
   // FIXME: Use detail::Directory::Create to create directories
   auto file(detail::File::Create(full_path.filename(), is_directory));
 
+  file->meta_data.file_type = detail::ToFileType(mode);
   file->meta_data.creation_time
       = file->meta_data.last_status_time
       = file->meta_data.last_write_time
       = file->meta_data.last_access_time
       = common::Clock::now();
-  file->meta_data.attributes.st_mode = mode;
-  file->meta_data.attributes.st_rdev = rdev;
 
   try {
     Global<Storage>::g_fuse_drive->Create(full_path, file);
@@ -1119,7 +1135,7 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
     auto file(Global<Storage>::g_fuse_drive->GetContext(path));
     *stbuf = file->meta_data.attributes;
     stbuf->st_ino = std::hash<std::string>()(file->meta_data.name.native());
-    stbuf->st_mode = detail::ToFileType(file->meta_data.file_type, stbuf->st_mode);
+    stbuf->st_mode = detail::ToFileMode(file->meta_data.file_type, stbuf->st_mode);
     stbuf->st_uid = fuse_get_context()->uid;
     stbuf->st_gid = fuse_get_context()->gid;
     stbuf->st_nlink = (file->meta_data.file_type == fs::directory_file) ? 2 : 1;
