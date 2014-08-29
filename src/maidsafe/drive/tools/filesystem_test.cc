@@ -542,10 +542,13 @@ int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
   return (test_count == 0) ? -1 : result;
 }
 
-TEST(FileSystemTest, BEH_DriveSize) {
+TEST(FileSystemTest, DISABLED_BEH_DriveSize) {
   // 1GB seems reasonable as a lower limit for all drive types (real/local/network).  It at least
   // provides a regression check for https://github.com/maidsafe/SureFile/issues/33
   auto space(boost::filesystem::space(g_root));
+  LOG(kVerbose) << g_root << " has " << space.available
+                << " available space , " << space.capacity
+                << " capacity and " << space.free << " free space";
   ASSERT_TRUE(space.available > 1073741824);
   ASSERT_TRUE(space.capacity > 1073741824);
   ASSERT_TRUE(space.free > 1073741824);
