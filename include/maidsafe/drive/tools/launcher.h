@@ -60,7 +60,8 @@ void NotifyMountedAndWaitForUnmountRequest(const std::string& mount_status_share
 
 void NotifyUnmounted(const std::string& mount_status_shared_object_name);
 
-enum class DriveType { kLocal, kLocalConsole, kNetwork, kNetworkConsole };
+enum class DriveType { kLocal, kLocalConsole, kNetwork, kNetworkConsole,
+                       kLast = kNetworkConsole };
 
 struct MountStatus {
   MountStatus() : mutex(), condition(), mounted(false), unmount(false) {}
