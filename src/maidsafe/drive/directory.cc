@@ -43,7 +43,6 @@ template <typename PutChunkClosure>
 void FlushEncryptor(FileContext* file_context,
                     PutChunkClosure put_chunk_closure,
                     std::vector<ImmutableData::Name>& chunks_to_be_incremented) {
-  file_context->self_encryptor->Close();
   if (file_context->self_encryptor->original_data_map().chunks.empty()) {
     // If the original data map didn't contain any chunks, just store the new ones.
     for (const auto& chunk : file_context->self_encryptor->data_map().chunks) {
@@ -70,6 +69,7 @@ void FlushEncryptor(FileContext* file_context,
     }
   }
   if (*file_context->open_count == 0) {
+    file_context->self_encryptor->Close();
     file_context->self_encryptor.reset();
     file_context->buffer.reset();
   }
