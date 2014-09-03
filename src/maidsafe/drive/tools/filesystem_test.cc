@@ -541,13 +541,14 @@ TEST(FileSystemTest, BEH_DriveSize) {
   // 1GB seems reasonable as a lower limit for all drive types (real/local/network).  It at least
   // provides a regression check for https://github.com/maidsafe/SureFile/issues/33
 
-  // skip the test when testing against real_disk (may have a small sized disk)
-  if (static_cast<int>(g_test_type) > static_cast<int>(drive::DriveType::kLast))
-    return;
+  // Skip the test when testing against real_disk (may have a small sized disk)
+  // BEFORE_RELEASE - Decide strategy for running other disk-based tests in this suite on a drive
+  //                  too small to be able to pass this test.
+  if (g_test_type != drive::DriveType::kLocal && g_test_type != drive::DriveType::kLocalConsole &&
+      g_test_type != drive::DriveType::kNetwork && g_test_type != drive::DriveType::kNetworkConsole)
+    return GTEST_SUCCEED();
+
   auto space(boost::filesystem::space(g_root));
-  LOG(kVerbose) << g_root << " has " << space.available
-                << " available space , " << space.capacity
-                << " capacity and " << space.free << " free space";
   ASSERT_TRUE(space.available > 1073741824);
   ASSERT_TRUE(space.capacity > 1073741824);
   ASSERT_TRUE(space.free > 1073741824);
