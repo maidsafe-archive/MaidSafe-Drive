@@ -1578,10 +1578,7 @@ TEST(FileSystemTest, FUNC_CrossPlatformFileCheck) {
     bool is_empty(fs::is_empty(cross_platform));
 
     utf8_file_name = utf8_file.filename().string();
-#ifdef MAIDSAFE_WIN32
-    // this requires the iconv module to be tested on linux/fuse
     ASSERT_NO_THROW(fs::copy_file(utf8_file, prefix_path / utf8_file_name));
-#endif
     ASSERT_TRUE(fs::exists(prefix_path / utf8_file_name));
 
     utf8_file = prefix_path / utf8_file_name;
