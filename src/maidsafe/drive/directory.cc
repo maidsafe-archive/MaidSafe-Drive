@@ -70,6 +70,7 @@ void FlushEncryptor(FileContext* file_context,
     }
   }
   if (*file_context->open_count == 0) {
+    file_context->self_encryptor->Close();
     file_context->self_encryptor.reset();
     file_context->buffer.reset();
   }

@@ -585,6 +585,7 @@ std::shared_ptr<Directory> DirectoryHandler<Storage>::ParseDirectory(
 
   if (!self_encryptor.Read(const_cast<char*>(serialised_listing.c_str()), data_map_size, 0))
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
+  self_encryptor.Close();
 
   std::shared_ptr<Directory>
       directory(Directory::Create(parent_id,

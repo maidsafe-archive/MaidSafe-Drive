@@ -1422,13 +1422,13 @@ TEST(FileSystemTest, BEH_Locale) {
   EXPECT_TRUE(it->path().filename() == ReadFile(file).string());
 }
 
-TEST(FileSystemTest, FUNC_CreateAndBuildMinimalCXXProject) {
+TEST(FileSystemTest, DISABLED_FUNC_CreateAndBuildMinimalCXXProject) {
   on_scope_exit cleanup(clean_root);
   ASSERT_NO_THROW(CreateAndBuildMinimalCppProject(g_root));
   ASSERT_NO_THROW(CreateAndBuildMinimalCppProject(g_temp));
 }
 
-TEST(FileSystemTest, BEH_Write256MbFileToTempAndCopyToDrive) {
+TEST(FileSystemTest, DISABLED_BEH_Write256MbFileToTempAndCopyToDrive) {
   on_scope_exit cleanup(clean_root);
 #ifdef MAIDSAFE_WIN32
   HANDLE handle(nullptr);
@@ -1497,7 +1497,7 @@ TEST(FileSystemTest, BEH_Write256MbFileToTempAndCopyToDrive) {
   // (TODO Team): Implementation required
 }
 
-TEST(FileSystemTest, BEH_WriteUtf8FileAndEdit) {
+TEST(FileSystemTest, DISABLED_BEH_WriteUtf8FileAndEdit) {
   on_scope_exit cleanup(clean_root);
   ASSERT_NO_THROW(WriteUtf8FileAndEdit(g_temp));
   ASSERT_NO_THROW(WriteUtf8FileAndEdit(g_root));
@@ -1521,7 +1521,7 @@ TEST(FileSystemTest, FUNC_Runfstest) {
 }
 #endif
 
-TEST(FileSystemTest, FUNC_RemountDrive) {
+TEST(FileSystemTest, DISABLED_FUNC_RemountDrive) {
   bool do_test(g_test_type == drive::DriveType::kLocal ||
                g_test_type == drive::DriveType::kLocalConsole ||
                g_test_type == drive::DriveType::kNetwork ||
@@ -1578,10 +1578,7 @@ TEST(FileSystemTest, FUNC_CrossPlatformFileCheck) {
     bool is_empty(fs::is_empty(cross_platform));
 
     utf8_file_name = utf8_file.filename().string();
-#ifdef MAIDSAFE_WIN32
-    // this requires the iconv module to be tested on linux/fuse
     ASSERT_NO_THROW(fs::copy_file(utf8_file, prefix_path / utf8_file_name));
-#endif
     ASSERT_TRUE(fs::exists(prefix_path / utf8_file_name));
 
     utf8_file = prefix_path / utf8_file_name;
