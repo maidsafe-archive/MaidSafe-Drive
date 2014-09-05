@@ -210,7 +210,7 @@ void Drive<Storage>::ScheduleDeletionOfEncryptor(detail::FileContext* file_conte
           file_context->Flush();
         } else {
           LOG(kWarning) << "About to delete encryptor and buffer for "
-                        << file_context->meta_data.name << " but open_count > 0";
+                        << name << " but open_count > 0";
         }
       } else {
 #ifndef NDEBUG
@@ -304,15 +304,14 @@ uint32_t Drive<Storage>::Read(const boost::filesystem::path& relative_path, char
   assert(file_context->self_encryptor);
   LOG(kInfo) << "For "  << relative_path << ", reading " << size << " of "
              << file_context->self_encryptor->size() << " bytes at offset " << offset;
-  if (!file_context->self_encryptor->Read(data, size, offset))
+  if (offset + size > file_context->self_encryptor->size())
+    size = offset > file_context->self_encryptor->size() ? 0 :
+           static_cast<uint32_t>(file_context->self_encryptor->size() - offset);
+
+  if ((size > 0) && (!file_context->self_encryptor->Read(data, size, offset)))
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
   // TODO(Fraser#5#): 2013-12-02 - Update last access time?
-  if (offset + size > file_context->self_encryptor->size()) {
-    return offset > file_context->self_encryptor->size() ? 0 :
-           static_cast<uint32_t>(file_context->self_encryptor->size() - offset);
-  } else {
-    return size;
-  }
+  return size;
 }
 
 template <typename Storage>
