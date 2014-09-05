@@ -308,14 +308,7 @@ void FuseDrive<Storage>::Mount() {
 
   fuse_ = fuse_new(fuse_channel_, &args, &maidsafe_ops_, sizeof(maidsafe_ops_), nullptr);
   fuse_opt_free_args(&args);
-  on_scope_exit cleanup_on_error([&]()->void {
-    if (fuse_) {
-      fuse_unmount(mountpoint, fuse_channel_);
-      fuse_destroy(fuse_);
-      free(mountpoint);
-    }
-    this->mount_promise_.set_value();
-  });
+  on_scope_exit cleanup_on_error([&]()->void { Unmount(); });
   if (!fuse_)
     BOOST_THROW_EXCEPTION(MakeError(DriveErrors::failed_to_mount));
 
@@ -341,9 +334,11 @@ template <typename Storage>
 void FuseDrive<Storage>::Unmount() {
   try {
     std::call_once(this->unmounted_once_flag_, [&] {
-      fuse_remove_signal_handlers(fuse_get_session(fuse_));
-      fuse_unmount(fuse_mountpoint_.c_str(), fuse_channel_);
-      fuse_destroy(fuse_);
+      if (fuse_) {
+        fuse_remove_signal_handlers(fuse_get_session(fuse_));
+        fuse_unmount(fuse_mountpoint_.c_str(), fuse_channel_);
+        fuse_destroy(fuse_);
+      }
     });
   }
   catch (const std::exception& e) {
