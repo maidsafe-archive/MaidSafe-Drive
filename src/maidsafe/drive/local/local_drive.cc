@@ -371,7 +371,7 @@ int main(int argc, char* argv[]) {
   }
   catch (const std::exception& e) {
     if (!maidsafe::drive::g_error_message.empty()) {
-      std::cout << maidsafe::drive::g_error_message;
+      std::cout << "local_drive.cc caught an error message " << maidsafe::drive::g_error_message;
       return maidsafe::drive::g_return_code;
     }
     LOG(kError) << "Exception: " << e.what();
