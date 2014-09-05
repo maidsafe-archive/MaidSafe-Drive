@@ -210,7 +210,7 @@ void Drive<Storage>::ScheduleDeletionOfEncryptor(detail::FileContext* file_conte
           file_context->Flush();
         } else {
           LOG(kWarning) << "About to delete encryptor and buffer for "
-                        << name << " but open_count > 0";
+                        << file_context->meta_data.name << " but open_count > 0";
         }
       } else {
 #ifndef NDEBUG
