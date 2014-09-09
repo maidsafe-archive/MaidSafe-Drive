@@ -71,7 +71,7 @@ class Drive {
   template <typename T = detail::Path>
   typename std::enable_if<std::is_base_of<detail::Path, T>::value, std::shared_ptr<T>>::type
   GetMutableContext(const boost::filesystem::path& relative_path);
-  void Create(const boost::filesystem::path& relative_path, std::shared_ptr<detail::File> file);
+  void Create(const boost::filesystem::path& relative_path, std::shared_ptr<detail::Path>);
   void Open(const boost::filesystem::path& relative_path);
   void Flush(const boost::filesystem::path& relative_path);
   void Release(const boost::filesystem::path& relative_path);
@@ -243,12 +243,14 @@ Drive<Storage>::GetMutableContext(const boost::filesystem::path& relative_path) 
 
 template <typename Storage>
 void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
-                            std::shared_ptr<detail::File> file) {
-  if (!file->meta_data.directory_id) {
+                            std::shared_ptr<detail::Path> path) {
+  if (path->meta_data.file_type == boost::filesystem::regular_file) {
+    auto file = std::dynamic_pointer_cast<detail::File>(path);
+    // FIXME: Move into File
     InitialiseEncryptor(relative_path, *file);
     file->open_count = 1;
   }
-  directory_handler_->Add(relative_path, file);
+  directory_handler_->Add(relative_path, path);
 }
 
 template <typename Storage>

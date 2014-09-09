@@ -81,7 +81,7 @@ class Path : public std::enable_shared_from_this<Path> {
   virtual bool Valid() const = 0;
   virtual std::string Serialise() = 0;
   virtual void Serialise(protobuf::Directory&,
-                         std::vector<ImmutableData::Name>,
+                         std::vector<ImmutableData::Name>&,
                          std::unique_lock<std::mutex>&) = 0;
   virtual void ScheduleForStoring() = 0;
 

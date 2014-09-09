@@ -71,9 +71,10 @@ std::string File::Serialise() {
 }
 
 void File::Serialise(protobuf::Directory& proto_directory,
-                     std::vector<ImmutableData::Name> chunks,
+                     std::vector<ImmutableData::Name>& chunks,
                      std::unique_lock<std::mutex>& lock) {
-  meta_data.ToProtobuf(proto_directory.add_children());
+  auto child = proto_directory.add_children();
+  Serialise(*child);
   if (self_encryptor) {  // File has been opened
     timer->cancel();
     FlushEncryptor([this, &lock](const ImmutableData& data) {
@@ -91,6 +92,28 @@ void File::Serialise(protobuf::Directory& proto_directory,
       for (const auto& chunk : meta_data.data_map->chunks)
         chunks.emplace_back(Identity(chunk.hash));
     }
+  }
+}
+
+void File::Serialise(protobuf::Path& proto_path) {
+  assert(proto_path.mutable_attributes() != nullptr);
+  meta_data.ToProtobuf(*(proto_path.mutable_attributes()));
+  proto_path.set_name(meta_data.name.string());
+  switch (meta_data.file_type) {
+    case fs::directory_file:
+      proto_path.set_directory_id(meta_data.directory_id->string());
+      break;
+    case fs::regular_file: {
+      std::string serialised_data_map;
+      encrypt::SerialiseDataMap(*meta_data.data_map, serialised_data_map);
+      proto_path.set_serialised_data_map(serialised_data_map);
+      break;
+    }
+    case fs::symlink_file:
+      assert(false); // Serialised by the Symlink class
+      break;
+    default:
+      break;
   }
 }
 

@@ -44,6 +44,7 @@
 
 #include "maidsafe/drive/drive.h"
 #include "maidsafe/drive/file.h"
+#include "maidsafe/drive/symlink.h"
 #include "maidsafe/drive/utils.h"
 
 namespace fs = boost::filesystem;
@@ -104,6 +105,8 @@ inline MetaData::FileType ToFileType(mode_t mode) {
     return fs::directory_file;
   } else if (S_ISREG(mode)) {
     return fs::regular_file;
+  } else if (S_ISLNK(mode)) {
+    return fs::symlink_file;
   } else {
     return fs::status_error;
   }
@@ -116,6 +119,8 @@ inline mode_t ToFileMode(MetaData::FileType file_type, mode_t mode) {
       return permission | S_IFDIR;
     case fs::regular_file:
       return permission | S_IFREG;
+    case fs::symlink_file:
+      return permission | S_IFLNK;
     default:
       assert(false); // Not supported yet
       return mode;
@@ -123,8 +128,7 @@ inline mode_t ToFileMode(MetaData::FileType file_type, mode_t mode) {
 }
 
 inline bool IsSupported(mode_t mode) {
-  // FIXME: Add S_ISLNK
-  return S_ISDIR(mode) || S_ISREG(mode);
+  return S_ISDIR(mode) || S_ISREG(mode) || S_ISLNK(mode);
 }
 
 inline struct stat ToStat(const MetaData& meta) {
@@ -212,7 +216,9 @@ class FuseDrive : public Drive<Storage> {
 //                         int flags);
 #endif  // HAVE_SETXATTR
 
-  static int CreateNew(const fs::path& full_path, mode_t mode);
+  static int CreateFile(const fs::path& target, mode_t);
+  static int CreateDirectory(const fs::path& target, mode_t);
+  static int CreateSymlink(const fs::path& target, const fs::path& source);
   static int GetAttributes(const char* path, struct stat* stbuf);
   static int Truncate(const char* path, off_t size);
 
@@ -447,11 +453,22 @@ int FuseDrive<Storage>::OpsChown(const char* path, uid_t, gid_t) {
 // If this method is not implemented or under Linux kernel versions earlier than 2.6.15, the mknod()
 // and open() methods will be called instead.
 template <typename Storage>
-int FuseDrive<Storage>::OpsCreate(const char* path, mode_t mode,
+int FuseDrive<Storage>::OpsCreate(const char* path,
+                                  mode_t mode,
                                   struct fuse_file_info* /*file_info*/) {
   LOG(kInfo) << "OpsCreate: " << path << " (" << detail::GetFileType(mode) << "), mode: "
              << std::oct << mode;
-  return Global<Storage>::g_fuse_drive->CreateNew(path, mode);
+  switch (detail::ToFileType(mode)) {
+    case fs::symlink_file:
+      // FIXME: Permissions (mode) are ignored
+      return Global<Storage>::g_fuse_drive->CreateSymlink(path, fs::path());
+    case fs::directory_file:
+      return Global<Storage>::g_fuse_drive->CreateDirectory(path, mode);
+    case fs::regular_file:
+      return Global<Storage>::g_fuse_drive->CreateFile(path, mode);
+    default:
+      return -EPERM;
+  }
 }
 
 // Quote from FUSE documentation:
@@ -660,10 +677,10 @@ int FuseDrive<Storage>::OpsLink(const char* to, const char* from) {
 // be false. To obtain the correct directory type bits use mode|S_IFDIR
 template <typename Storage>
 int FuseDrive<Storage>::OpsMkdir(const char* path, mode_t mode) {
-  mode |= S_IFDIR;
+  mode = (mode & ~S_IFMT) | S_IFDIR;
   LOG(kInfo) << "OpsMkdir: " << path << " (" << detail::GetFileType(mode) << "), mode: " << std::oct
              << mode;
-  return Global<Storage>::g_fuse_drive->CreateNew(path, mode);
+  return Global<Storage>::g_fuse_drive->CreateDirectory(path, mode);
 }
 
 // Quote from FUSE documentation:
@@ -678,8 +695,12 @@ int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t) {
   // which we do not support.
   LOG(kInfo) << "OpsMknod: " << path << " (" << detail::GetFileType(mode) << "), mode: " << std::oct
              << mode;
-  assert(!S_ISDIR(mode) && !detail::GetFileType(mode).empty());
-  return Global<Storage>::g_fuse_drive->CreateNew(path, mode);
+  switch (detail::ToFileType(mode)) {
+    case fs::regular_file:
+      return Global<Storage>::g_fuse_drive->CreateFile(path, mode);
+    default:
+      return -EPERM;
+  }
 }
 
 // Quote from FUSE documentation:
@@ -834,10 +855,9 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t size) {
   LOG(kInfo) << "OpsReadlink: " << path;
   try {
-    auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
-    const bool is_link = false; // S_ISLNK(file_context->meta_data.attributes.st_mode)
-    if (is_link) {
-      std::string link_path(file_context->meta_data.link_to.string());
+    auto symlink(Global<Storage>::g_fuse_drive->template GetContext<detail::Symlink>(path));
+    if (symlink) {
+      std::string link_path(symlink->Target().string());
       size_t link_path_size(link_path.size());
       if (size != 0) {
         if (link_path_size >= size) {
@@ -973,16 +993,11 @@ int FuseDrive<Storage>::OpsSymlink(const char* to, const char* from) {
   LOG(kInfo) << "OpsSymlink: " << from << " --> " << to;
 
   try {
-    fs::path path_to(to), path_from(from);
-    CreateNew(path_from, S_IFLNK);
-    auto file(Global<Storage>::g_fuse_drive->GetMutableContext(path_from));
-    file->meta_data.link_to = path_to;
+    return CreateSymlink(fs::path(from), fs::path(to));
   }
   catch (const std::exception&) {
     return -EIO;
   }
-
-  return 0;
 }
 
 // Quote from FUSE documentation:
@@ -1107,33 +1122,71 @@ int FuseDrive<Storage>::OpsSetxattr(const char* path, const char* name, const ch
 #endif  // HAVE_SETXATTR
 
 template <typename Storage>
-int FuseDrive<Storage>::CreateNew(const fs::path& full_path, mode_t mode) {
-  if (detail::ExcludedFilename(full_path.filename().stem().string())) {
-    LOG(kError) << "Invalid name: " << full_path;
+int FuseDrive<Storage>::CreateSymlink(const fs::path& target,
+                                      const fs::path& source) {
+  if (detail::ExcludedFilename(target.filename().stem().string())) {
+    LOG(kError) << "Invalid name: " << target;
     return -EINVAL;
   }
-  if (!detail::IsSupported(mode)) {
-    return -EINVAL;
-  }
-  bool is_directory(S_ISDIR(mode));
-  // FIXME: Use detail::Directory::Create to create directories
-  auto file(detail::File::Create(full_path.filename(), is_directory));
-
-  file->meta_data.file_type = detail::ToFileType(mode);
-  file->meta_data.creation_time
-      = file->meta_data.last_status_time
-      = file->meta_data.last_write_time
-      = file->meta_data.last_access_time
-      = common::Clock::now();
-
   try {
-    Global<Storage>::g_fuse_drive->Create(full_path, file);
-  }
-  catch (const std::exception& e) {
-    LOG(kError) << "CreateNew: " << full_path << ": " << e.what();
+    auto symlink = detail::Symlink::Create(target.filename(),
+                                           source.filename());
+    symlink->meta_data.creation_time
+        = symlink->meta_data.last_status_time
+        = symlink->meta_data.last_write_time
+        = symlink->meta_data.last_access_time
+        = common::Clock::now();
+    Global<Storage>::g_fuse_drive->Create(target, symlink);
+  } catch (const std::exception& e) {
+    LOG(kError) << "CreateSymlink: " << source << " -> " << target << ": " << e.what();
     return -EIO;
   }
+  return 0;
+}
 
+template <typename Storage>
+int FuseDrive<Storage>::CreateDirectory(const fs::path& target,
+                                        mode_t mode) {
+  if (detail::ToFileType(mode) != fs::directory_file) {
+    return -EINVAL;
+  }
+  try {
+    // FIXME: Replace with detail::Directory::Create
+    auto directory = detail::File::Create(target.filename(), true);
+    directory->meta_data.creation_time
+        = directory->meta_data.last_status_time
+        = directory->meta_data.last_write_time
+        = directory->meta_data.last_access_time
+        = common::Clock::now();
+    Global<Storage>::g_fuse_drive->Create(target, directory);
+  } catch (const std::exception& e) {
+    LOG(kError) << "CreateDirectory: " << target << ": " << e.what();
+    return -EIO;
+  }
+  return 0;
+}
+
+template <typename Storage>
+int FuseDrive<Storage>::CreateFile(const fs::path& target, mode_t mode) {
+  if (detail::ExcludedFilename(target.filename().stem().string())) {
+    LOG(kError) << "Invalid name: " << target;
+    return -EINVAL;
+  }
+  if (detail::ToFileType(mode) != fs::regular_file) {
+    return -EINVAL;
+  }
+  try {
+    auto file = detail::File::Create(target.filename(), false);
+    file->meta_data.creation_time
+        = file->meta_data.last_status_time
+        = file->meta_data.last_write_time
+        = file->meta_data.last_access_time
+        = common::Clock::now();
+    Global<Storage>::g_fuse_drive->Create(target, file);
+  } catch (const std::exception& e) {
+    LOG(kError) << "CreateFile: " << target << ": " << e.what();
+    return -EIO;
+  }
   return 0;
 }
 

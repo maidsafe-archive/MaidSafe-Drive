@@ -126,7 +126,7 @@ std::string Directory::Serialise() {
 }
 
 void Directory::Serialise(protobuf::Directory& proto_directory,
-                          std::vector<ImmutableData::Name> chunks,
+                          std::vector<ImmutableData::Name>& chunks,
                           std::unique_lock<std::mutex>& lock) {
     for (const auto& child : children_) {
       child->Serialise(proto_directory, chunks, lock);
