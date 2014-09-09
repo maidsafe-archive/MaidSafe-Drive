@@ -374,16 +374,13 @@ int main(int argc, char** argv) {
                                               maidsafe::test::g_temp, maidsafe::test::g_options,
                                               maidsafe::test::g_launcher,
                                               static_cast<int>(maidsafe::test::g_test_type)));
-    if (maidsafe::test::g_launcher) {
-      LOG(kVerbose) << "maidsafe::test::g_launcher->StopDriveProcess()";
-      maidsafe::Sleep(std::chrono::seconds(1));
+    if (maidsafe::test::g_launcher)
       maidsafe::test::g_launcher->StopDriveProcess();
-    }
     return tests_result;
   }
   catch (const std::exception& e) {
     if (!maidsafe::test::g_error_message.empty()) {
-      std::cout << "maidsafe::drive::g_error_message " << maidsafe::test::g_error_message;
+      std::cout << maidsafe::test::g_error_message;
       return maidsafe::test::g_return_code;
     }
     LOG(kError) << "Exception: " << e.what();
