@@ -144,7 +144,7 @@ class Directory : public Path {
 
   virtual bool Valid() const;
   virtual void Serialise(protobuf::Directory&,
-                         std::vector<ImmutableData::Name>,
+                         std::vector<ImmutableData::Name>&,
                          std::unique_lock<std::mutex>&);
 
   Children::iterator Find(const boost::filesystem::path& name);

@@ -58,7 +58,6 @@ MetaData::MetaData(FileType file_type)
       data_map(),
       directory_id() {}
 #else
-      link_to(),
       data_map(),
       directory_id() {
 }
@@ -75,8 +74,6 @@ MetaData::MetaData(const fs::path& name, FileType file_type)
 #ifdef MAIDSAFE_WIN32
       allocation_size(0),
       attributes(is_directory?FILE_ATTRIBUTE_DIRECTORY:0xFFFFFFFF),
-#else
-      link_to(),
 #endif
       data_map((file_type == fs::directory_file)
                ? nullptr
@@ -92,62 +89,67 @@ MetaData::MetaData(const fs::path& name, FileType file_type)
 #endif
 }
 
-MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
-    : name(protobuf_meta_data.name()),
-      size(protobuf_meta_data.attributes_archive().st_size()),
+MetaData::MetaData(const protobuf::Path& entry)
+    : name(entry.name()),
+      size(entry.attributes().st_size()),
 #ifdef MAIDSAFE_WIN32
-      allocation_size(protobuf_meta_data.attributes_archive().st_size()),
+      allocation_size(entry.attributes().st_size()),
       attributes(0xFFFFFFFF),
-#else
-      link_to(),
 #endif
       data_map(),
-      directory_id(protobuf_meta_data.has_directory_id() ?
-                   new DirectoryId(protobuf_meta_data.directory_id()) : nullptr) {
+      directory_id(nullptr) {
   if ((name == "\\") || (name == "/"))
     name = kRoot;
 
-  const protobuf::AttributesArchive& attributes_archive = protobuf_meta_data.attributes_archive();
+  const protobuf::Attributes& attributes = entry.attributes();
 
-  switch (attributes_archive.file_type()) {
-    case protobuf::AttributesArchive::DIRECTORY_TYPE:
+  switch (attributes.file_type()) {
+    case protobuf::Attributes::DIRECTORY_TYPE:
       file_type = fs::directory_file;
+      if (!entry.has_directory_id())
+        BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
+      if (entry.has_serialised_data_map())
+        BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
+      directory_id.reset(new DirectoryId(entry.directory_id()));
       break;
-    case protobuf::AttributesArchive::REGULAR_FILE_TYPE:
+
+    case protobuf::Attributes::REGULAR_FILE_TYPE:
       file_type = fs::regular_file;
+      if (entry.has_directory_id())
+        BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
+      if (!entry.has_serialised_data_map())
+        BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
+      data_map.reset(new encrypt::DataMap());
+      encrypt::ParseDataMap(entry.serialised_data_map(), *data_map);
+      break;
+
+    case protobuf::Attributes::SYMLINK_FILE_TYPE:
+      file_type = fs::symlink_file;
+      if (entry.has_directory_id())
+        BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
+      if (entry.has_serialised_data_map())
+        BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
       break;
   }
   using namespace std::chrono;
-  creation_time = common::Clock::time_point(nanoseconds(attributes_archive.creation_time()));
-  last_status_time = common::Clock::time_point(nanoseconds(attributes_archive.last_status_time()));
-  last_write_time = common::Clock::time_point(nanoseconds(attributes_archive.last_write_time()));
-  last_access_time = common::Clock::time_point(nanoseconds(attributes_archive.last_access_time()));
+  creation_time = common::Clock::time_point(nanoseconds(attributes.creation_time()));
+  last_status_time = common::Clock::time_point(nanoseconds(attributes.last_status_time()));
+  last_write_time = common::Clock::time_point(nanoseconds(attributes.last_write_time()));
+  last_access_time = common::Clock::time_point(nanoseconds(attributes.last_access_time()));
 
 #ifdef MAIDSAFE_WIN32
-  if ((attributes_archive.st_mode() & kAttributesDir) == kAttributesDir) {
+  if ((attributes.st_mode() & kAttributesDir) == kAttributesDir) {
     attributes |= FILE_ATTRIBUTE_DIRECTORY;
     size = 0;
   }
 
-  if (attributes_archive.has_win_attributes())
-    attributes = static_cast<DWORD>(attributes_archive.win_attributes());
+  if (attributes.has_win_attributes())
+    attributes = static_cast<DWORD>(attributes.win_attributes());
 #else
-  if (attributes_archive.has_link_to())
-    link_to = attributes_archive.link_to();
-
   if (file_type == fs::directory_file) {
     size = 4096;
   }
 #endif
-
-  if (protobuf_meta_data.has_serialised_data_map()) {
-    if (directory_id)
-      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
-    data_map.reset(new encrypt::DataMap());
-    encrypt::ParseDataMap(protobuf_meta_data.serialised_data_map(), *data_map);
-  } else if (!directory_id) {
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
-  }
 }
 
 MetaData::MetaData(MetaData&& other)
@@ -160,27 +162,27 @@ MetaData& MetaData::operator=(MetaData other) {
   return *this;
 }
 
-void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
-  protobuf_meta_data->set_name(name.string());
-  auto attributes_archive = protobuf_meta_data->mutable_attributes_archive();
-
+void MetaData::ToProtobuf(protobuf::Attributes& attributes) const {
   switch (file_type) {
     case fs::directory_file:
-      attributes_archive->set_file_type(protobuf::AttributesArchive::DIRECTORY_TYPE);
+      attributes.set_file_type(protobuf::Attributes::DIRECTORY_TYPE);
       break;
     case fs::regular_file:
-      attributes_archive->set_file_type(protobuf::AttributesArchive::REGULAR_FILE_TYPE);
+      attributes.set_file_type(protobuf::Attributes::REGULAR_FILE_TYPE);
+      break;
+    case fs::symlink_file:
+      attributes.set_file_type(protobuf::Attributes::SYMLINK_FILE_TYPE);
       break;
     default:
       BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
       break;
   }
-  attributes_archive->set_creation_time(creation_time.time_since_epoch().count());
-  attributes_archive->set_last_status_time(last_status_time.time_since_epoch().count());
-  attributes_archive->set_last_write_time(last_write_time.time_since_epoch().count());
-  attributes_archive->set_last_access_time(last_access_time.time_since_epoch().count());
+  attributes.set_creation_time(creation_time.time_since_epoch().count());
+  attributes.set_last_status_time(last_status_time.time_since_epoch().count());
+  attributes.set_last_write_time(last_write_time.time_since_epoch().count());
+  attributes.set_last_access_time(last_access_time.time_since_epoch().count());
 
-  attributes_archive->set_st_size(size);
+  attributes.set_st_size(size);
 
 #ifdef MAIDSAFE_WIN32
 
@@ -190,26 +192,16 @@ void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
     st_mode |= kAttributesDir;
   else
     st_mode |= kAttributesRegular;
-  attributes_archive->set_st_mode(st_mode);
-  attributes_archive->set_win_attributes(attributes);
+  attributes.set_st_mode(st_mode);
+  attributes.set_win_attributes(attributes);
 #else
-  attributes_archive->set_link_to(link_to.string());
-
   uint32_t win_attributes(0x10);  // FILE_ATTRIBUTE_DIRECTORY
   if (file_type == fs::regular_file)
     win_attributes = 0x80;  // FILE_ATTRIBUTE_NORMAL
   if (name.string()[0]  == '.')
     win_attributes |= 0x2;  // FILE_ATTRIBUTE_HIDDEN
-  attributes_archive->set_win_attributes(win_attributes);
+  attributes.set_win_attributes(win_attributes);
 #endif
-
-  if (directory_id) {
-    protobuf_meta_data->set_directory_id(directory_id->string());
-  } else {
-    std::string serialised_data_map;
-    encrypt::SerialiseDataMap(*data_map, serialised_data_map);
-    protobuf_meta_data->set_serialised_data_map(serialised_data_map);
-  }
 }
 
 bool MetaData::operator<(const MetaData& other) const {
@@ -239,8 +231,6 @@ void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT {
 #ifdef MAIDSAFE_WIN32
   swap(lhs.allocation_size, rhs.allocation_size);
   swap(lhs.attributes, rhs.attributes);
-#else
-  swap(lhs.link_to, rhs.link_to);
 #endif
   swap(lhs.data_map, rhs.data_map);
   swap(lhs.directory_id, rhs.directory_id);

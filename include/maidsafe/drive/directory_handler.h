@@ -68,7 +68,7 @@ class DirectoryHandler
   static std::shared_ptr<DirectoryHandler<Storage>> Create(Types&&... args);
   ~DirectoryHandler();
 
-  void Add(const boost::filesystem::path& relative_path, std::shared_ptr<File> file);
+  void Add(const boost::filesystem::path& relative_path, std::shared_ptr<Path> path);
   template <typename T = Path>
   typename std::enable_if<std::is_base_of<detail::Path, T>::value, std::shared_ptr<T>>::type
   Get(const boost::filesystem::path& relative_path);
@@ -220,15 +220,15 @@ void DirectoryHandler<Storage>::Initialise(std::shared_ptr<Storage>,
 
 template <typename Storage>
 void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path,
-                                    std::shared_ptr<File> file) {
+                                    std::shared_ptr<Path> path) {
   SCOPED_PROFILE
   auto parent(GetParent(relative_path));
   assert(parent.first && parent.second);
 
-  if (IsDirectory(file)) {
+  if (IsDirectory(path)) {
     std::shared_ptr<Directory>
         directory(Directory::Create(ParentId(parent.first->directory_id()),
-                                    *file->meta_data.directory_id,
+                                    *path->meta_data.directory_id,
                                     asio_service_,
                                     GetListener(),
                                     relative_path));
@@ -240,7 +240,7 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
 
 #ifndef MAIDSAFE_WIN32
   parent.second->meta_data.creation_time = parent.second->meta_data.last_write_time;
-  if (IsDirectory(file)) {
+  if (IsDirectory(path)) {
     // FIXME: Determine how to handle hard links
     // ++parent.second->meta_data.attributes.st_nlink;
     parent.second->ScheduleForStoring();
@@ -248,7 +248,7 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
 #endif
 
   // TODO(Fraser#5#): 2013-11-28 - Use on_scope_exit or similar to undo changes if AddChild throws.
-  parent.first->AddChild(file);
+  parent.first->AddChild(path);
 }
 
 template <typename Storage>

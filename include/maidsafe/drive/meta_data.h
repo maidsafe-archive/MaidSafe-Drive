@@ -44,7 +44,7 @@ namespace drive {
 
 namespace detail {
 
-namespace protobuf { class MetaData; }
+namespace protobuf { class Path; class Attributes; }
 
 // Represents directory and file information
 struct MetaData {
@@ -53,11 +53,11 @@ struct MetaData {
 
   explicit MetaData(FileType);
   MetaData(const boost::filesystem::path& name, FileType);
-  explicit MetaData(const protobuf::MetaData& protobuf_meta_data);
+  explicit MetaData(const protobuf::Path& protobuf_path);
   MetaData(MetaData&& other);
   MetaData& operator=(MetaData other);
 
-  void ToProtobuf(protobuf::MetaData* protobuf_meta_data) const;
+  void ToProtobuf(protobuf::Attributes& protobuf_attributes) const;
 
   bool operator<(const MetaData& other) const;
   void UpdateLastModifiedTime();
@@ -78,8 +78,6 @@ struct MetaData {
 #ifdef MAIDSAFE_WIN32
   uint64_t allocation_size;
   DWORD attributes;
-#else
-  boost::filesystem::path link_to;
 #endif
   std::unique_ptr<encrypt::DataMap> data_map;
   std::unique_ptr<DirectoryId> directory_id;

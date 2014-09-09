@@ -394,8 +394,7 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
   auto itr1(lhs.children_.begin()), itr2(rhs.children_.begin());
   for (; itr1 != lhs.children_.end(); ++itr1, ++itr2) {
     ASSERT_TRUE((*itr1)->meta_data.name == (*itr2)->meta_data.name);
-    EXPECT_FALSE((*itr1)->meta_data.data_map == nullptr &&
-                 (*itr2)->meta_data.directory_id == nullptr);
+    EXPECT_TRUE((*itr1)->meta_data.file_type == (*itr2)->meta_data.file_type);
     if ((*itr1)->meta_data.data_map) {
       ASSERT_TRUE(TotalSize(*(*itr1)->meta_data.data_map) ==
                   TotalSize(*(*itr2)->meta_data.data_map));
@@ -445,7 +444,6 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
   RequiredExists(*testpath / name);
   fs::path file(CreateTestFile(*testpath / name, file_size));
 
-  // std::vector<File> files_before;
   for (int i = 0; i != 10; ++i) {
     bool is_dir((i % 2) == 0);
     std::string child_name("Child " + std::to_string(i));
@@ -459,6 +457,7 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
 #ifdef MAIDSAFE_WIN32
       file.meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
 #endif
+      EXPECT_NO_THROW(directory->AddChild(file));
     } else {
       file->meta_data.size = RandomUint32();
 #ifdef MAIDSAFE_WIN32
@@ -471,9 +470,10 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
       file->meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
 #endif
       file->meta_data.data_map->content = RandomString(10);
+      EXPECT_NO_THROW(directory->AddChild(file));
+      auto symlink(Symlink::Create("Link " + child_name, child_name));
+      EXPECT_NO_THROW(directory->AddChild(symlink));
     }
-    // files_before.emplace_back(std::move(file));
-    EXPECT_NO_THROW(directory->AddChild(file));
   }
 
   directory->StoreImmediatelyIfPending();

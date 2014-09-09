@@ -55,7 +55,7 @@ class File : public Path {
   virtual bool Valid() const;
   virtual std::string Serialise();
   virtual void Serialise(protobuf::Directory&,
-                         std::vector<ImmutableData::Name>,
+                         std::vector<ImmutableData::Name>&,
                          std::unique_lock<std::mutex>&);
   virtual void ScheduleForStoring();
 
@@ -74,6 +74,8 @@ class File : public Path {
   File(const boost::filesystem::path& name, bool is_directory);
   File(File&&) = delete;
   File& operator=(File) = delete;
+
+  void Serialise(protobuf::Path&);
 
  private:
   bool flushed;
