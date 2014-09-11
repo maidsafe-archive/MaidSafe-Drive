@@ -37,6 +37,7 @@
 
 #include "maidsafe/common/error.h"
 #include "maidsafe/common/log.h"
+#include "maidsafe/common/on_scope_exit.h"
 #include "maidsafe/common/profiler.h"
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/types.h"
@@ -529,6 +530,10 @@ DirectoryHandler<Storage>::SerialiseDirectory(std::shared_ptr<Directory> directo
                                           std::bind(&DirectoryHandler<Storage>::GetChunkFromStore,
                                                     this->shared_from_this(),
                                                     std::placeholders::_1));
+
+    const on_scope_exit close_encryptor(
+	[&self_encryptor] { self_encryptor.Close(); });
+
     assert(serialised_directory.size() <= std::numeric_limits<uint32_t>::max());
     if (!self_encryptor.Write(serialised_directory.c_str(),
                               static_cast<uint32_t>(serialised_directory.size()), 0)) {
