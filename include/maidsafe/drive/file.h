@@ -88,7 +88,8 @@ void File::FlushEncryptor(PutChunkClosure put_chunk_closure,
   if (self_encryptor->original_data_map().chunks.empty()) {
     // If the original data map didn't contain any chunks, just store the new ones.
     for (const auto& chunk : self_encryptor->data_map().chunks) {
-      auto content(buffer->Get(chunk.hash));
+      auto content(buffer->Get(
+                       std::string(std::begin(chunk.hash), std::end(chunk.hash))));
       put_chunk_closure(ImmutableData(content));
     }
   } else {
@@ -100,9 +101,11 @@ void File::FlushEncryptor(PutChunkClosure put_chunk_closure,
                       [&chunk](const encrypt::ChunkDetails& original_chunk) {
                             return chunk.hash == original_chunk.hash;
                       })) {
-        chunks_to_be_incremented.emplace_back(Identity(chunk.hash));
+        chunks_to_be_incremented.emplace_back(
+            Identity(std::string(std::begin(chunk.hash), std::end(chunk.hash))));
       } else {
-        auto content(buffer->Get(chunk.hash));
+        auto content(buffer->Get(
+                         std::string(std::begin(chunk.hash), std::end(chunk.hash))));
         put_chunk_closure(ImmutableData(content));
       }
     }
