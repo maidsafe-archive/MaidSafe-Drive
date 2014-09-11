@@ -45,6 +45,7 @@
 #include "maidsafe/common/data_types/mutable_data.h"
 
 #include "maidsafe/encrypt/self_encryptor.h"
+#include "maidsafe/encrypt/data_map_encryptor.h"
 
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/directory.h"
@@ -535,7 +536,7 @@ DirectoryHandler<Storage>::SerialiseDirectory(std::shared_ptr<Directory> directo
     }
   }
   for (const auto& chunk : data_map.chunks) {
-    auto content(disk_buffer_.Get(chunk.hash));
+    auto content(disk_buffer_.Get(std::string(std::begin(chunk.hash), std::end(chunk.hash))));
     storage_->Put(ImmutableData(content));
   }
   auto encrypted_data_map_contents(encrypt::EncryptDataMap(directory->parent_id(),

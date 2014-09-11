@@ -90,7 +90,8 @@ void File::Serialise(protobuf::Directory& proto_directory,
       flushed = false;
     } else {  // File has not been opened
       for (const auto& chunk : meta_data.data_map->chunks)
-        chunks.emplace_back(Identity(chunk.hash));
+        chunks.emplace_back(
+	    Identity(std::string(std::begin(chunk.hash), std::end(chunk.hash))));
     }
   }
 }
