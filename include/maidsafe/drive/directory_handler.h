@@ -37,6 +37,7 @@
 
 #include "maidsafe/common/error.h"
 #include "maidsafe/common/log.h"
+#include "maidsafe/common/on_scope_exit.h"
 #include "maidsafe/common/profiler.h"
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/types.h"
@@ -45,6 +46,7 @@
 #include "maidsafe/common/data_types/mutable_data.h"
 
 #include "maidsafe/encrypt/self_encryptor.h"
+#include "maidsafe/encrypt/data_map_encryptor.h"
 
 #include "maidsafe/drive/config.h"
 #include "maidsafe/drive/directory.h"
@@ -528,6 +530,10 @@ DirectoryHandler<Storage>::SerialiseDirectory(std::shared_ptr<Directory> directo
                                           std::bind(&DirectoryHandler<Storage>::GetChunkFromStore,
                                                     this->shared_from_this(),
                                                     std::placeholders::_1));
+
+    const on_scope_exit close_encryptor(
+	[&self_encryptor] { self_encryptor.Close(); });
+
     assert(serialised_directory.size() <= std::numeric_limits<uint32_t>::max());
     if (!self_encryptor.Write(serialised_directory.c_str(),
                               static_cast<uint32_t>(serialised_directory.size()), 0)) {
@@ -535,7 +541,7 @@ DirectoryHandler<Storage>::SerialiseDirectory(std::shared_ptr<Directory> directo
     }
   }
   for (const auto& chunk : data_map.chunks) {
-    auto content(disk_buffer_.Get(chunk.hash));
+    auto content(disk_buffer_.Get(std::string(std::begin(chunk.hash), std::end(chunk.hash))));
     storage_->Put(ImmutableData(content));
   }
   auto encrypted_data_map_contents(encrypt::EncryptDataMap(directory->parent_id(),
