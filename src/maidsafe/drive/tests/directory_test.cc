@@ -469,7 +469,7 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
       file->meta_data.allocation_size = file->meta_data.size;
       file->meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
 #endif
-      file->meta_data.data_map->content = RandomString(10);
+      file->meta_data.data_map->content = GetRandomString<encrypt::ByteVector>(10);
       EXPECT_NO_THROW(directory->AddChild(file));
       auto symlink(Symlink::Create("Link " + child_name, child_name));
       EXPECT_NO_THROW(directory->AddChild(symlink));
