@@ -220,8 +220,7 @@ uint64_t MetaData::GetAllocatedSize() const {
 }
 
 MetaData::Permissions MetaData::GetPermissions(
-    MetaData::Permissions base_permissions) const
-{
+    MetaData::Permissions base_permissions) const {
   if (file_type != MetaData::FileType::directory_file)
   {
     return base_permissions;

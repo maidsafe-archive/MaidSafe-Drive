@@ -93,8 +93,7 @@ struct MetaData {
 void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT;
 
 inline bool HasPermission(const MetaData::Permissions permissions,
-                          const MetaData::Permissions expected_permission)
-{
+                          const MetaData::Permissions expected_permission) {
   return (permissions & expected_permission) == expected_permission;
 }
 

@@ -27,8 +27,7 @@ namespace
 
 bool VerifyPermissions(
     const std::set<MetaData::Permissions>& expected_permissions,
-    const MetaData::Permissions actual)
-{
+    const MetaData::Permissions actual) {
   const auto has_permission = [actual](const MetaData::Permissions permission) {
     return HasPermission(actual, permission);
   };
