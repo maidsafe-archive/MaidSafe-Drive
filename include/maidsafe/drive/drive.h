@@ -84,6 +84,8 @@ class Drive {
   uint32_t Write(const boost::filesystem::path& relative_path, const char* data, uint32_t size,
                  uint64_t offset);
 
+  detail::MetaData::Permissions get_base_file_permissions() const;
+
   std::shared_ptr<Storage> storage_;
   const boost::filesystem::path kMountDir_;
   const boost::filesystem::path kUserAppDir_;
@@ -102,6 +104,8 @@ class Drive {
   std::function<NonEmptyString(const std::string&)> get_chunk_from_store_;
   MemoryUsage default_max_buffer_memory_;
   DiskUsage default_max_buffer_disk_;
+
+  const detail::MetaData::Permissions base_file_permissions_;
 
  protected:
   AsioService asio_service_;
@@ -137,7 +141,11 @@ Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_u
       default_max_buffer_memory_(Concurrency() * 1024 * 1024),  // cores * default chunk size
       default_max_buffer_disk_(static_cast<uint64_t>(
           boost::filesystem::space(kUserAppDir_).available / 10)),
-      asio_service_(2) {
+      base_file_permissions_(
+          detail::MetaData::Permissions::owner_read |
+          detail::MetaData::Permissions::owner_write),
+      asio_service_(2),
+      directory_handler_(){
     directory_handler_ = detail::DirectoryHandler<Storage>::Create
         (storage, unique_user_id, root_parent_id,
          boost::filesystem::unique_path(*kBufferRoot_ / "%%%%%-%%%%%-%%%%%-%%%%%"),
@@ -335,6 +343,11 @@ uint32_t Drive<Storage>::Write(const boost::filesystem::path& relative_path, con
   file->meta_data.size = std::max<std::int64_t>(offset + size, file->meta_data.size);
   file->ScheduleForStoring();
   return size;
+}
+
+template <typename Storage>
+detail::MetaData::Permissions Drive<Storage>::get_base_file_permissions() const {
+  return base_file_permissions_;
 }
 
 }  // namespace drive
