@@ -5,6 +5,8 @@
 #include "maidsafe/common/test.h"
 #include "maidsafe/drive/meta_data.h"
 
+#include "test_utils.h"
+
 namespace maidsafe {
 namespace drive {
 namespace detail {
@@ -12,7 +14,7 @@ namespace test {
 
 namespace
 {
-  const auto possible_permissions =
+  const std::initializer_list<MetaData::Permissions> possible_permissions =
   {
       MetaData::Permissions::owner_read, MetaData::Permissions::owner_write,
       MetaData::Permissions::owner_exe,
@@ -21,37 +23,22 @@ namespace
       MetaData::Permissions::others_read, MetaData::Permissions::others_write,
       MetaData::Permissions::others_exe
   };
+}
 
-  bool VerifyPermissions(
-      const std::set<MetaData::Permissions>& expected_permissions,
-      const MetaData::Permissions actual)
-  {
-    std::vector<MetaData::Permissions> unexpected_permissions;
+bool VerifyPermissions(
+    const std::set<MetaData::Permissions>& expected_permissions,
+    const MetaData::Permissions actual)
+{
+  const auto has_permission = [actual](const MetaData::Permissions permission) {
+    return HasPermission(actual, permission);
+  };
+  const auto not_has_permission = [has_permission](const MetaData::Permissions permission) {
+    return !has_permission(permission);
+  };
 
-    for (const auto permission : possible_permissions) {
-      if (expected_permissions.find(permission) == expected_permissions.end()) {
-        unexpected_permissions.push_back(permission);
-      }
-    }
-
-    const auto has_permission = [actual](const MetaData::Permissions expected) {
-        return HasPermission(actual, expected); };
-    const auto not_has_permission = [has_permission](const MetaData::Permissions expected) {
-        return !has_permission(expected); };
-
-    const bool has_expected = std::find_if(
-        expected_permissions.begin(),
-        expected_permissions.end(),
-        not_has_permission) == expected_permissions.end();
-
-    const bool not_has_unexpected = std::find_if(
-        unexpected_permissions.begin(),
-        unexpected_permissions.end(),
-        has_permission) == unexpected_permissions.end();
-
-    return has_expected && not_has_unexpected;
-  }
-} // anonymous namespace
+  return VerifyDistinctSets(
+      expected_permissions, possible_permissions, has_permission, not_has_permission);
+}
 
 TEST(MetaDataTest, BEH_HasPermission) {
   EXPECT_TRUE(
