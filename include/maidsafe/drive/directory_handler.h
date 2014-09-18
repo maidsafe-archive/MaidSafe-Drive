@@ -53,6 +53,7 @@
 #include "maidsafe/drive/utils.h"
 #include "maidsafe/drive/file.h"
 
+
 namespace maidsafe {
 
 namespace drive {
@@ -530,10 +531,7 @@ DirectoryHandler<Storage>::SerialiseDirectory(std::shared_ptr<Directory> directo
                                           std::bind(&DirectoryHandler<Storage>::GetChunkFromStore,
                                                     this->shared_from_this(),
                                                     std::placeholders::_1));
-
-    const on_scope_exit close_encryptor(
-	[&self_encryptor] { self_encryptor.Close(); });
-
+    on_scope_exit close_encryptor([&self_encryptor]() { self_encryptor.Close(); });
     assert(serialised_directory.size() <= std::numeric_limits<uint32_t>::max());
     if (!self_encryptor.Write(serialised_directory.c_str(),
                               static_cast<uint32_t>(serialised_directory.size()), 0)) {
@@ -593,6 +591,7 @@ std::shared_ptr<Directory> DirectoryHandler<Storage>::ParseDirectory(
 
   if (!self_encryptor.Read(const_cast<char*>(serialised_listing.c_str()), data_map_size, 0))
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
+  self_encryptor.Close();
 
   std::shared_ptr<Directory>
       directory(Directory::Create(parent_id,

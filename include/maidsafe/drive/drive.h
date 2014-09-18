@@ -145,7 +145,7 @@ Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_u
           detail::MetaData::Permissions::owner_read |
           detail::MetaData::Permissions::owner_write),
       asio_service_(2),
-      directory_handler_(){
+      directory_handler_() {
     directory_handler_ = detail::DirectoryHandler<Storage>::Create
         (storage, unique_user_id, root_parent_id,
          boost::filesystem::unique_path(*kBufferRoot_ / "%%%%%-%%%%%-%%%%%-%%%%%"),
@@ -320,15 +320,15 @@ uint32_t Drive<Storage>::Read(const boost::filesystem::path& relative_path, char
   assert(file->self_encryptor);
   LOG(kInfo) << "For "  << relative_path << ", reading " << size << " of "
              << file->self_encryptor->size() << " bytes at offset " << offset;
-  if (!file->self_encryptor->Read(data, size, offset))
+
+  if (offset + size > file->self_encryptor->size()) {
+    size = offset > file->self_encryptor->size() ? 0 :
+           static_cast<uint32_t>(file->self_encryptor->size() - offset);
+  }
+  if ((size > 0) && (!file->self_encryptor->Read(data, size, offset)))
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
   // TODO(Fraser#5#): 2013-12-02 - Update last access time?
-  if (offset + size > file->self_encryptor->size()) {
-    return offset > file->self_encryptor->size() ? 0 :
-           static_cast<uint32_t>(file->self_encryptor->size() - offset);
-  } else {
-    return size;
-  }
+  return size;
 }
 
 template <typename Storage>

@@ -111,6 +111,7 @@ void File::FlushEncryptor(PutChunkClosure put_chunk_closure,
     }
   }
   if (open_count == 0) {
+    self_encryptor->Close();
     self_encryptor.reset();
     buffer.reset();
   }

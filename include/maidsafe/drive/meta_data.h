@@ -52,7 +52,6 @@ struct MetaData {
   using FileType = boost::filesystem::file_type;
   using Permissions = boost::filesystem::perms;
 
-
   explicit MetaData(FileType);
   MetaData(const boost::filesystem::path& name, FileType);
   explicit MetaData(const protobuf::Path& protobuf_path);
