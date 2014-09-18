@@ -37,7 +37,8 @@
 #include "maidsafe/common/data_types/structured_data_versions.h"
 
 #include "maidsafe/drive/config.h"
-#include "maidsafe/drive/file_context.h"
+#include "maidsafe/drive/path.h"
+#include "maidsafe/drive/file.h"
 
 namespace maidsafe {
 
@@ -54,53 +55,15 @@ void SortAndResetChildrenCounter(Directory& lhs);
 
 }  // namespace test
 
-template <typename Lock>
-class ScopedUnlocker {
+class Directory : public Path {
  public:
-  explicit ScopedUnlocker(Lock& lock) : lock(lock) {
-    lock.unlock();
-  }
-  ~ScopedUnlocker() {
-    lock.lock();
-  }
-  Lock &lock;
-};
-
-class Directory : public std::enable_shared_from_this<Directory> {
- public:
-  class Listener {
-  public:
-    virtual ~Listener() {}
-    virtual void DirectoryPut(std::shared_ptr<Directory>) = 0;
-    virtual void DirectoryPutChunk(const ImmutableData&) = 0;
-    virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&) = 0;
-
-  private:
-    friend class Directory;
-    template <typename Lock>
-    void Put(std::shared_ptr<Directory> directory, Lock& lock) {
-      ScopedUnlocker<Lock> unlocker(lock);
-      DirectoryPut(directory);
-    }
-    template <typename Lock>
-    void PutChunk(const ImmutableData& data, Lock& lock) {
-      ScopedUnlocker<Lock> unlocker(lock);
-      DirectoryPutChunk(data);
-    }
-    template <typename Lock>
-    void IncrementChunks(const std::vector<ImmutableData::Name>& names, Lock& lock) {
-      ScopedUnlocker<Lock> unlocker(lock);
-      DirectoryIncrementChunks(names);
-    }
-  };
-
   // This class must always be constructed using a Create() call to ensure that it will be
   // a shared_ptr. See the private constructors for the argument lists.
   template <typename... Types>
-  static std::shared_ptr<Directory> Create(Types&&... args) {
-    std::shared_ptr<Directory> self(new Directory{std::forward<Types>(args)...});
-    self->Initialise(std::forward<Types>(args)...);
-    return self;
+  static std::shared_ptr<Directory> Create(Types&&... args);
+
+  std::shared_ptr<Directory> shared_from_this() {
+    return std::static_pointer_cast<Directory>(Path::shared_from_this());
   }
 
   ~Directory();
@@ -108,10 +71,10 @@ class Directory : public std::enable_shared_from_this<Directory> {
   // This marks the start of an attempt to store the directory.  It serialises the appropriate
   // member data (critically parent_id_ must never be serialised), and sets 'store_state_' to
   // kOngoing.  It also calls 'FlushChild' on all children (see below).
-  std::string Serialise();
+  virtual std::string Serialise();
   // Stores all new chunks from 'child', increments all the other chunks, and resets child's
   // self_encryptor & buffer.
-  void FlushChildAndDeleteEncryptor(FileContext* child);
+  void FlushChildAndDeleteEncryptor(File* child);
 
   size_t VersionsCount() const;
   std::tuple<DirectoryId, StructuredDataVersions::VersionName>
@@ -122,11 +85,15 @@ class Directory : public std::enable_shared_from_this<Directory> {
       AddNewVersion(ImmutableData::Name version_id);
 
   bool HasChild(const boost::filesystem::path& name) const;
-  const FileContext* GetChild(const boost::filesystem::path& name) const;
-  FileContext* GetMutableChild(const boost::filesystem::path& name);
-  const FileContext* GetChildAndIncrementCounter();
-  void AddChild(FileContext&& child);
-  FileContext RemoveChild(const boost::filesystem::path& name);
+  template <typename T = Path>
+  typename std::enable_if<std::is_base_of<detail::Path, T>::value, const std::shared_ptr<const T>>::type
+      GetChild(const boost::filesystem::path& name) const;
+  template <typename T = Path>
+  typename std::enable_if<std::is_base_of<detail::Path, T>::value, std::shared_ptr<T>>::type
+      GetMutableChild(const boost::filesystem::path& name);
+  std::shared_ptr<const Path> GetChildAndIncrementCounter();
+  void AddChild(std::shared_ptr<Path> child);
+  std::shared_ptr<Path> RemoveChild(const boost::filesystem::path& name);
   void RenameChild(const boost::filesystem::path& old_name,
                    const boost::filesystem::path& new_name);
   void ResetChildrenCounter();
@@ -134,7 +101,7 @@ class Directory : public std::enable_shared_from_this<Directory> {
   ParentId parent_id() const;
   void SetNewParent(const ParentId parent_id, const boost::filesystem::path& path);
   DirectoryId directory_id() const;
-  void ScheduleForStoring();
+  virtual void ScheduleForStoring();
   void StoreImmediatelyIfPending();
   bool HasPending() const;
 
@@ -145,9 +112,9 @@ class Directory : public std::enable_shared_from_this<Directory> {
   mutable std::mutex mutex_;
 
  private:
-  Directory(const Directory& other) = delete;
+  Directory(const Directory&) = delete;
   Directory(Directory&& other) = delete;
-  Directory& operator=(Directory other) = delete;
+  Directory& operator=(Directory) = delete;
 
   Directory(ParentId parent_id,
             DirectoryId directory_id,
@@ -173,7 +140,12 @@ class Directory : public std::enable_shared_from_this<Directory> {
                   std::weak_ptr<Directory::Listener> listener,
                   const boost::filesystem::path& path);
 
-  typedef std::vector<std::unique_ptr<FileContext>> Children;
+  typedef std::vector<std::shared_ptr<Path>> Children;
+
+  virtual bool Valid() const;
+  virtual void Serialise(protobuf::Directory&,
+                         std::vector<ImmutableData::Name>&,
+                         std::unique_lock<std::mutex>&);
 
   Children::iterator Find(const boost::filesystem::path& name);
   Children::const_iterator Find(const boost::filesystem::path& name) const;
@@ -185,7 +157,6 @@ class Directory : public std::enable_shared_from_this<Directory> {
   DirectoryId directory_id_;
   boost::asio::steady_timer timer_;
   boost::filesystem::path path_;
-  std::weak_ptr<Directory::Listener> weakListener;
   std::vector<ImmutableData::Name> chunks_to_be_incremented_;
   std::deque<StructuredDataVersions::VersionName> versions_;
   MaxVersions max_versions_;
@@ -203,6 +174,52 @@ class Directory : public std::enable_shared_from_this<Directory> {
 };
 
 bool operator<(const Directory& lhs, const Directory& rhs);
+
+}  // namespace detail
+
+}  // namespace drive
+
+}  // namespace maidsafe
+
+
+#include <thread>
+#include "maidsafe/common/profiler.h"
+
+namespace maidsafe {
+
+namespace drive {
+
+namespace detail {
+
+template <typename... Types>
+std::shared_ptr<Directory> Directory::Create(Types&&... args) {
+  std::shared_ptr<Directory> self(new Directory{std::forward<Types>(args)...});
+  self->Initialise(std::forward<Types>(args)...);
+  return self;
+}
+
+template <typename T>
+typename std::enable_if<std::is_base_of<detail::Path, T>::value, const std::shared_ptr<const T>>::type
+Directory::GetChild(const boost::filesystem::path& name) const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto itr(Find(name));
+  if (itr == std::end(children_))
+    BOOST_THROW_EXCEPTION(MakeError(DriveErrors::no_such_file));
+  assert((*itr)->Valid());
+  return std::dynamic_pointer_cast<T>(*itr);
+}
+
+template <typename T>
+typename std::enable_if<std::is_base_of<detail::Path, T>::value, std::shared_ptr<T>>::type
+Directory::GetMutableChild(const boost::filesystem::path& name) {
+  SCOPED_PROFILE
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto itr(Find(name));
+  if (itr == std::end(children_))
+    BOOST_THROW_EXCEPTION(MakeError(DriveErrors::no_such_file));
+  assert((*itr)->Valid());
+  return std::dynamic_pointer_cast<T>(*itr);
+}
 
 }  // namespace detail
 

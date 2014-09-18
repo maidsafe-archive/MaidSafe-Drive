@@ -27,6 +27,7 @@
 #include <string>
 #include <thread>
 #include <utility>
+#include <functional>
 
 #include "boost/filesystem/path.hpp"
 #include "boost/thread/future.hpp"
@@ -42,7 +43,8 @@
 #include "maidsafe/common/on_scope_exit.h"
 
 #include "maidsafe/drive/drive.h"
-#include "maidsafe/drive/file_context.h"
+#include "maidsafe/drive/file.h"
+#include "maidsafe/drive/symlink.h"
 #include "maidsafe/drive/utils.h"
 
 namespace fs = boost::filesystem;
@@ -78,8 +80,13 @@ inline std::string GetFileType(mode_t mode) {
   return "";
 }
 
+inline common::Clock::time_point ToTimePoint(const struct timespec& ts) {
+  using namespace std::chrono;
+  return common::Clock::time_point(seconds(ts.tv_sec) + nanoseconds(ts.tv_nsec));
+}
+
 // template <typename Storage>
-// bool ForceFlush(RootHandler<Storage>& root_handler, FileContext<Storage>* file_context) {
+// bool ForceFlush(RootHandler<Storage>& root_handler, File<Storage>* file_context) {
 //   assert(file_context);
 //   file_context->self_encryptor->Flush();
 //
@@ -92,6 +99,54 @@ inline std::string GetFileType(mode_t mode) {
 //   }
 //   return true;
 // }
+
+inline MetaData::FileType ToFileType(mode_t mode) {
+  if (S_ISDIR(mode)) {
+    return fs::directory_file;
+  } else if (S_ISREG(mode)) {
+    return fs::regular_file;
+  } else if (S_ISLNK(mode)) {
+    return fs::symlink_file;
+  } else {
+    return fs::status_error;
+  }
+}
+
+inline mode_t ToFileMode(MetaData::FileType file_type, mode_t mode) {
+  auto permission = mode & ~S_IFMT; // Clear file type fields
+  switch (file_type) {
+    case fs::directory_file:
+      return permission | S_IFDIR;
+    case fs::regular_file:
+      return permission | S_IFREG;
+    case fs::symlink_file:
+      return permission | S_IFLNK;
+    default:
+      assert(false); // Not supported yet
+      return mode;
+    }
+}
+
+inline bool IsSupported(mode_t mode) {
+  return S_ISDIR(mode) || S_ISREG(mode) || S_ISLNK(mode);
+}
+
+inline struct stat ToStat(const MetaData& meta) {
+  struct stat result;
+  std::memset(&result, 0, sizeof(result));
+  result.st_ino = std::hash<std::string>()(meta.name.native());
+  result.st_mode = detail::ToFileMode(meta.file_type, result.st_mode);
+  result.st_uid = fuse_get_context()->uid;
+  result.st_gid = fuse_get_context()->gid;
+  result.st_nlink = (meta.file_type == fs::directory_file) ? 2 : 1;
+  result.st_size = meta.size;
+  result.st_blksize = detail::kFileBlockSize;
+  result.st_blocks = result.st_size / result.st_blksize;
+  result.st_atime = common::Clock::to_time_t(meta.last_access_time);
+  result.st_mtime = common::Clock::to_time_t(meta.last_write_time);
+  result.st_ctime = common::Clock::to_time_t(meta.last_status_time);
+  return result;
+}
 
 }  // namespace detail
 
@@ -161,7 +216,9 @@ class FuseDrive : public Drive<Storage> {
 //                         int flags);
 #endif  // HAVE_SETXATTR
 
-  static int CreateNew(const fs::path& full_path, mode_t mode, dev_t rdev = 0);
+  static int CreateFile(const fs::path& target, mode_t);
+  static int CreateDirectory(const fs::path& target, mode_t);
+  static int CreateSymlink(const fs::path& target, const fs::path& source);
   static int GetAttributes(const char* path, struct stat* stbuf);
   static int Truncate(const char* path, off_t size);
 
@@ -375,43 +432,17 @@ int FuseDrive<Storage>::OpsAccess(const char* /*path*/, int /* mask */) {
 template <typename Storage>
 int FuseDrive<Storage>::OpsChmod(const char* path, mode_t mode) {
   LOG(kInfo) << "OpsChmod: " << path << ", to " << std::oct << mode;
-  try {
-    auto file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path));
-    file_context->meta_data.attributes.st_mode = mode;
-    time(&file_context->meta_data.attributes.st_ctime);
-    file_context->ScheduleForStoring();
-  }
-  catch (const std::exception& e) {
-    LOG(kWarning) << "Failed to chmod " << path << ": " << e.what();
-    return -ENOENT;
-  }
-  return 0;
+  // Permissions cannot be changed at the moment
+  return -EPERM;
 }
 
 // Quote from FUSE documentation:
 //
 // Change the owner and group of a file.
 template <typename Storage>
-int FuseDrive<Storage>::OpsChown(const char* path, uid_t uid, gid_t gid) {
+int FuseDrive<Storage>::OpsChown(const char* path, uid_t, gid_t) {
   LOG(kInfo) << "OpsChown: " << path;
-  bool change_uid(uid != static_cast<uid_t>(-1));
-  bool change_gid(gid != static_cast<gid_t>(-1));
-  if (!change_uid && !change_gid)
-    return 0;
-  try {
-    auto file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path));
-    if (change_uid)
-      file_context->meta_data.attributes.st_uid = uid;
-    if (change_gid)
-      file_context->meta_data.attributes.st_gid = gid;
-    time(&file_context->meta_data.attributes.st_ctime);
-    file_context->ScheduleForStoring();
-  }
-  catch (const std::exception& e) {
-    LOG(kWarning) << "Failed to chown " << path << ": " << e.what();
-    return -ENOENT;
-  }
-  return 0;
+  return -EPERM;
 }
 
 // Quote from FUSE documentation:
@@ -422,11 +453,22 @@ int FuseDrive<Storage>::OpsChown(const char* path, uid_t uid, gid_t gid) {
 // If this method is not implemented or under Linux kernel versions earlier than 2.6.15, the mknod()
 // and open() methods will be called instead.
 template <typename Storage>
-int FuseDrive<Storage>::OpsCreate(const char* path, mode_t mode,
+int FuseDrive<Storage>::OpsCreate(const char* path,
+                                  mode_t mode,
                                   struct fuse_file_info* /*file_info*/) {
   LOG(kInfo) << "OpsCreate: " << path << " (" << detail::GetFileType(mode) << "), mode: "
              << std::oct << mode;
-  return Global<Storage>::g_fuse_drive->CreateNew(path, mode);
+  switch (detail::ToFileType(mode)) {
+    case fs::symlink_file:
+      // FIXME: Permissions (mode) are ignored
+      return Global<Storage>::g_fuse_drive->CreateSymlink(path, fs::path());
+    case fs::directory_file:
+      return Global<Storage>::g_fuse_drive->CreateDirectory(path, mode);
+    case fs::regular_file:
+      return Global<Storage>::g_fuse_drive->CreateFile(path, mode);
+    default:
+      return -EPERM;
+  }
 }
 
 // Quote from FUSE documentation:
@@ -499,7 +541,7 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsFsync(const char* path, int isdatasync,
                                  struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsFsync: " << path;
-  detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
+  detail::File<Storage>* file_context(detail::RecoverFile<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -529,7 +571,7 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsFsyncDir(const char* path, int isdatasync,
                                     struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsFsyncDir: " << path;
-  detail::FileContext<Storage>* file_context(detail::RecoverFileContext<Storage>(file_info));
+  detail::File<Storage>* file_context(detail::RecoverFile<Storage>(file_info));
   if (!file_context)
     return -EINVAL;
 
@@ -597,7 +639,7 @@ int FuseDrive<Storage>::OpsLink(const char* to, const char* from) {
   fs::path path_to(to), path_from(from);
 
   try {
-    auto file_context_to(Global<Storage>::g_fuse_drive->GetFileContext(path_to));
+    auto file_context_to(Global<Storage>::g_fuse_drive->GetFile(path_to));
     if (!S_ISDIR(file_context_to.meta_data.attributes.st_mode))
       ++file_context_to.meta_data.attributes.st_nlink;
     time(&file_context_to.meta_data.attributes.st_ctime);
@@ -635,10 +677,10 @@ int FuseDrive<Storage>::OpsLink(const char* to, const char* from) {
 // be false. To obtain the correct directory type bits use mode|S_IFDIR
 template <typename Storage>
 int FuseDrive<Storage>::OpsMkdir(const char* path, mode_t mode) {
-  mode |= S_IFDIR;
+  mode = (mode & ~S_IFMT) | S_IFDIR;
   LOG(kInfo) << "OpsMkdir: " << path << " (" << detail::GetFileType(mode) << "), mode: " << std::oct
              << mode;
-  return Global<Storage>::g_fuse_drive->CreateNew(path, mode);
+  return Global<Storage>::g_fuse_drive->CreateDirectory(path, mode);
 }
 
 // Quote from FUSE documentation:
@@ -648,11 +690,17 @@ int FuseDrive<Storage>::OpsMkdir(const char* path, mode_t mode) {
 // This is called for creation of all non-directory, non-symlink  nodes. If the filesystem defines a
 // create() method, then for regular files that will be called instead.
 template <typename Storage>
-int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t rdev) {
+int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t) {
+  // Ignores the dev_t parameter because it is only used for character and block devices,
+  // which we do not support.
   LOG(kInfo) << "OpsMknod: " << path << " (" << detail::GetFileType(mode) << "), mode: " << std::oct
-             << mode << std::dec << ", rdev: " << rdev;
-  assert(!S_ISDIR(mode) && !detail::GetFileType(mode).empty());
-  return Global<Storage>::g_fuse_drive->CreateNew(path, mode, rdev);
+             << mode;
+  switch (detail::ToFileType(mode)) {
+    case fs::regular_file:
+      return Global<Storage>::g_fuse_drive->CreateFile(path, mode);
+    default:
+      return -EPERM;
+  }
 }
 
 // Quote from FUSE documentation:
@@ -768,7 +816,8 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
   filler(buf, "..", nullptr, 0);
   std::shared_ptr<detail::Directory> directory;
   try {
-    directory = Global<Storage>::g_fuse_drive->directory_handler_->Get(path);
+    directory =
+        Global<Storage>::g_fuse_drive->directory_handler_->template Get<detail::Directory>(path);
   }
   catch (const std::exception& e) {
     LOG(kError) << "OpsReaddir: " << path << ", can't get directory: " << e.what();
@@ -780,11 +829,12 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
   if (offset == 0)
     directory->ResetChildrenCounter();
 
-  const detail::FileContext* file_context(directory->GetChildAndIncrementCounter());
-  while (file_context) {
-    if (filler(buf, file_context->meta_data.name.c_str(), &file_context->meta_data.attributes, 0))
+  auto file(directory->GetChildAndIncrementCounter());
+  while (file) {
+    struct stat attributes = ToStat(file->meta_data);
+    if (filler(buf, file->meta_data.name.c_str(), &attributes, 0))
       break;
-    file_context = directory->GetChildAndIncrementCounter();
+    file = directory->GetChildAndIncrementCounter();
   }
 
 //  if (file_context) {
@@ -805,9 +855,9 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t size) {
   LOG(kInfo) << "OpsReadlink: " << path;
   try {
-    auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
-    if (S_ISLNK(file_context->meta_data.attributes.st_mode)) {
-      std::string link_path(file_context->meta_data.link_to.string());
+    auto symlink(Global<Storage>::g_fuse_drive->template GetContext<detail::Symlink>(path));
+    if (symlink) {
+      std::string link_path(symlink->Target().string());
       size_t link_path_size(link_path.size());
       if (size != 0) {
         if (link_path_size >= size) {
@@ -920,8 +970,10 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsStatfs(const char* path, struct statvfs* stbuf) {
   LOG(kInfo) << "OpsStatfs: " << path;
 
-  stbuf->f_bsize = 4096;
-  stbuf->f_frsize = 4096;
+  // Although POSIX states that there is no correspondence between st_blksize and
+  // f_bsize, we set them the the same value for convenience.
+  stbuf->f_bsize = detail::kFileBlockSize;
+  stbuf->f_frsize = detail::kFileBlockSize;
   stbuf->f_blocks = (std::numeric_limits<int64_t>::max() - 10000) / stbuf->f_frsize;
   stbuf->f_bfree = (std::numeric_limits<int64_t>::max() - 10000) / stbuf->f_bsize;
   stbuf->f_bavail = stbuf->f_bfree;
@@ -941,16 +993,11 @@ int FuseDrive<Storage>::OpsSymlink(const char* to, const char* from) {
   LOG(kInfo) << "OpsSymlink: " << from << " --> " << to;
 
   try {
-    fs::path path_to(to), path_from(from);
-    CreateNew(path_from, S_IFLNK);
-    detail::FileContext* file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path_from));
-    file_context->meta_data.link_to = path_to;
+    return CreateSymlink(fs::path(from), fs::path(to));
   }
   catch (const std::exception&) {
     return -EIO;
   }
-
-  return 0;
 }
 
 // Quote from FUSE documentation:
@@ -986,40 +1033,19 @@ int FuseDrive<Storage>::OpsUnlink(const char* path) {
 template <typename Storage>
 int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]) {
   LOG(kInfo) << "OpsUtimens: " << path;
-  detail::FileContext* file_context(nullptr);
+  std::shared_ptr<detail::Path> file;
   try {
-    file_context = Global<Storage>::g_fuse_drive->GetMutableContext(path);
+    file = Global<Storage>::g_fuse_drive->GetMutableContext(path);
+    file->meta_data.last_access_time = detail::ToTimePoint(ts[0]);
+    file->meta_data.last_write_time = detail::ToTimePoint(ts[1]);
+    file->meta_data.last_status_time = common::Clock::now();
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to change times for " << path << ": " << e.what();
     return -ENOENT;
   }
 
-  timespec tspec;
-#ifdef MAIDSAFE_APPLE
-  struct timeval _tspec;
-  gettimeofday(&_tspec, NULL);
-  tspec.tv_sec = _tspec.tv_sec;
-  tspec.tv_nsec = _tspec.tv_usec * 1000;
-  timespec &st_ctim = file_context->meta_data.attributes.st_ctimespec;
-  timespec &st_atim = file_context->meta_data.attributes.st_atimespec;
-  timespec &st_mtim = file_context->meta_data.attributes.st_mtimespec;
-#else
-  clock_gettime(CLOCK_REALTIME, &tspec);
-  timespec &st_ctim = file_context->meta_data.attributes.st_ctim;
-  timespec &st_atim = file_context->meta_data.attributes.st_atim;
-  timespec &st_mtim = file_context->meta_data.attributes.st_mtim;
-  // Really ought to support st_birthtim where available
-#endif
-  st_ctim = tspec;
-  if (ts) {
-    st_atim = ts[0];
-    st_mtim = ts[1];
-  } else {
-    st_atim = tspec;
-    st_mtim = tspec;
-  }
-  file_context->ScheduleForStoring();
+  file->ScheduleForStoring();
   return 0;
 }
 
@@ -1096,54 +1122,96 @@ int FuseDrive<Storage>::OpsSetxattr(const char* path, const char* name, const ch
 #endif  // HAVE_SETXATTR
 
 template <typename Storage>
-int FuseDrive<Storage>::CreateNew(const fs::path& full_path, mode_t mode, dev_t rdev) {
-  if (detail::ExcludedFilename(full_path.filename().stem().string())) {
-    LOG(kError) << "Invalid name: " << full_path;
+int FuseDrive<Storage>::CreateSymlink(const fs::path& target,
+                                      const fs::path& source) {
+  if (detail::ExcludedFilename(target.filename().stem().string())) {
+    LOG(kError) << "Invalid name: " << target;
     return -EINVAL;
   }
-  bool is_directory(S_ISDIR(mode));
-  detail::FileContext file_context(full_path.filename(), is_directory);
-
-  time(&file_context.meta_data.attributes.st_atime);
-  file_context.meta_data.attributes.st_ctime = file_context.meta_data.attributes.st_mtime =
-      file_context.meta_data.attributes.st_atime;
-  file_context.meta_data.attributes.st_mode = mode;
-  file_context.meta_data.attributes.st_rdev = rdev;
-  file_context.meta_data.attributes.st_nlink = (is_directory ? 2 : 1);
-  file_context.meta_data.attributes.st_uid = fuse_get_context()->uid;
-  file_context.meta_data.attributes.st_gid = fuse_get_context()->gid;
-
   try {
-    Global<Storage>::g_fuse_drive->Create(full_path, std::move(file_context));
-  }
-  catch (const std::exception& e) {
-    LOG(kError) << "CreateNew: " << full_path << ": " << e.what();
+    auto symlink = detail::Symlink::Create(target.filename(),
+                                           source.filename());
+    symlink->meta_data.creation_time
+        = symlink->meta_data.last_status_time
+        = symlink->meta_data.last_write_time
+        = symlink->meta_data.last_access_time
+        = common::Clock::now();
+    Global<Storage>::g_fuse_drive->Create(target, symlink);
+  } catch (const std::exception& e) {
+    LOG(kError) << "CreateSymlink: " << source << " -> " << target << ": " << e.what();
     return -EIO;
   }
+  return 0;
+}
 
+template <typename Storage>
+int FuseDrive<Storage>::CreateDirectory(const fs::path& target,
+                                        mode_t mode) {
+  if (detail::ToFileType(mode) != fs::directory_file) {
+    return -EINVAL;
+  }
+  try {
+    // FIXME: Replace with detail::Directory::Create
+    auto directory = detail::File::Create(target.filename(), true);
+    directory->meta_data.creation_time
+        = directory->meta_data.last_status_time
+        = directory->meta_data.last_write_time
+        = directory->meta_data.last_access_time
+        = common::Clock::now();
+    Global<Storage>::g_fuse_drive->Create(target, directory);
+  } catch (const std::exception& e) {
+    LOG(kError) << "CreateDirectory: " << target << ": " << e.what();
+    return -EIO;
+  }
+  return 0;
+}
+
+template <typename Storage>
+int FuseDrive<Storage>::CreateFile(const fs::path& target, mode_t mode) {
+  if (detail::ExcludedFilename(target.filename().stem().string())) {
+    LOG(kError) << "Invalid name: " << target;
+    return -EINVAL;
+  }
+  if (detail::ToFileType(mode) != fs::regular_file) {
+    return -EINVAL;
+  }
+  try {
+    auto file = detail::File::Create(target.filename(), false);
+    file->meta_data.creation_time
+        = file->meta_data.last_status_time
+        = file->meta_data.last_write_time
+        = file->meta_data.last_access_time
+        = common::Clock::now();
+    Global<Storage>::g_fuse_drive->Create(target, file);
+  } catch (const std::exception& e) {
+    LOG(kError) << "CreateFile: " << target << ": " << e.what();
+    return -EIO;
+  }
   return 0;
 }
 
 template <typename Storage>
 int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
   try {
-    auto file_context(Global<Storage>::g_fuse_drive->GetContext(path));
-    *stbuf = file_context->meta_data.attributes;
+    using namespace std::chrono;
+
+    auto file(Global<Storage>::g_fuse_drive->GetContext(path));
+    *stbuf = ToStat(file->meta_data);
     LOG(kVerbose) << " meta_data info  = ";
-    LOG(kVerbose) << "     name =  " << file_context->meta_data.name.c_str();
-    LOG(kVerbose) << "     st_dev = " << file_context->meta_data.attributes.st_dev;
-    LOG(kVerbose) << "     st_ino = " << file_context->meta_data.attributes.st_ino;
-    LOG(kVerbose) << "     st_mode = " << file_context->meta_data.attributes.st_mode;
-    LOG(kVerbose) << "     st_nlink = " << file_context->meta_data.attributes.st_nlink;
-    LOG(kVerbose) << "     st_uid = " << file_context->meta_data.attributes.st_uid;
-    LOG(kVerbose) << "     st_gid = " << file_context->meta_data.attributes.st_gid;
-    LOG(kVerbose) << "     st_rdev = " << file_context->meta_data.attributes.st_rdev;
-    LOG(kVerbose) << "     st_size = " << file_context->meta_data.attributes.st_size;
-    LOG(kVerbose) << "     st_blksize = " << file_context->meta_data.attributes.st_blksize;
-    LOG(kVerbose) << "     st_blocks = " << file_context->meta_data.attributes.st_blocks;
-    LOG(kVerbose) << "     st_atim = " << file_context->meta_data.attributes.st_atime;
-    LOG(kVerbose) << "     st_mtim = " << file_context->meta_data.attributes.st_mtime;
-    LOG(kVerbose) << "     st_ctim = " << file_context->meta_data.attributes.st_ctime;
+    LOG(kVerbose) << "     name =  " << file->meta_data.name.c_str();
+    LOG(kVerbose) << "     st_dev = " << stbuf->st_dev;
+    LOG(kVerbose) << "     st_ino = " << stbuf->st_ino;
+    LOG(kVerbose) << "     st_mode = " << stbuf->st_mode;
+    LOG(kVerbose) << "     st_nlink = " << stbuf->st_nlink;
+    LOG(kVerbose) << "     st_uid = " << stbuf->st_uid;
+    LOG(kVerbose) << "     st_gid = " << stbuf->st_gid;
+    LOG(kVerbose) << "     st_rdev = " << stbuf->st_rdev;
+    LOG(kVerbose) << "     st_size = " << stbuf->st_size;
+    LOG(kVerbose) << "     st_blksize = " << stbuf->st_blksize;
+    LOG(kVerbose) << "     st_blocks = " << stbuf->st_blocks;
+    LOG(kVerbose) << "     st_atim = " << stbuf->st_atime;
+    LOG(kVerbose) << "     st_mtim = " << stbuf->st_mtime;
+    LOG(kVerbose) << "     st_ctim = " << stbuf->st_ctime;
   }
   catch (const std::exception& e) {
 //    if (full_path.filename().string().size() > 255) {
@@ -1159,14 +1227,16 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
 template <typename Storage>
 int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
   try {
-    auto file_context(Global<Storage>::g_fuse_drive->GetMutableContext(path));
-    assert(file_context->self_encryptor);
-    file_context->self_encryptor->Truncate(size);
-    file_context->meta_data.attributes.st_size = size;
-    time(&file_context->meta_data.attributes.st_mtime);
-    file_context->meta_data.attributes.st_ctime = file_context->meta_data.attributes.st_atime =
-        file_context->meta_data.attributes.st_mtime;
-    file_context->ScheduleForStoring();
+    auto file(Global<Storage>::g_fuse_drive->GetMutableContext(path));
+    assert(file->self_encryptor);
+    file->self_encryptor->Truncate(size);
+    file->meta_data.size = size;
+    file->meta_data.creation_time
+        = file->meta_data.last_status_time
+        = file->meta_data.last_write_time
+        = file->meta_data.last_access_time
+        = common::Clock::now();
+    file->ScheduleForStoring();
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to truncate " << path << ": " << e.what();

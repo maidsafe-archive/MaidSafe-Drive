@@ -335,21 +335,19 @@ uint64_t TotalSize(const encrypt::DataMap& data_map) {
 void GenerateDirectoryListingEntryForFile(std::shared_ptr<Directory> directory,
                                           const fs::path& path,
                                           const uintmax_t& file_size) {
-  FileContext file_context(path.filename(), false);
+  auto file(File::Create(path.filename(), false));
+  file->meta_data.creation_time
+      = file->meta_data.last_status_time
+      = file->meta_data.last_access_time
+      = file->meta_data.last_write_time
+      = common::Clock::now();
+  file->meta_data.size = file_size;
 #ifdef MAIDSAFE_WIN32
-  file_context.meta_data.end_of_file = file_size;
-  file_context.meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
-  GetSystemTimeAsFileTime(&file_context.meta_data.creation_time);
-  GetSystemTimeAsFileTime(&file_context.meta_data.last_access_time);
-  GetSystemTimeAsFileTime(&file_context.meta_data.last_write_time);
-  file_context.meta_data.allocation_size = RandomUint32();
-#else
-  time(&file_context.meta_data.attributes.st_atime);
-  time(&file_context.meta_data.attributes.st_mtime);
-  file_context.meta_data.attributes.st_size = file_size;
+  file->meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
+  file->meta_data.allocation_size = RandomUint32();
 #endif
-  file_context.meta_data.data_map->content = GetRandomString<encrypt::ByteVector>(100);
-  EXPECT_NO_THROW(directory->AddChild(std::move(file_context)));
+  file->meta_data.data_map->content = GetRandomString<encrypt::ByteVector>(100);
+  EXPECT_NO_THROW(directory->AddChild(std::move(file)));
 }
 
 void CheckedExists(const fs::path& path) { Exists(path, false, true); }

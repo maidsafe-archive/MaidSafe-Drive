@@ -1,4 +1,4 @@
-/*  Copyright 2011 MaidSafe.net limited
+/*  Copyright 2014 MaidSafe.net limited
 
     This MaidSafe Software is licensed to you under (1) the MaidSafe.net Commercial License,
     version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
@@ -16,46 +16,48 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
-#ifndef MAIDSAFE_DRIVE_CONFIG_H_
-#define MAIDSAFE_DRIVE_CONFIG_H_
+#include "maidsafe/drive/path.h"
 
-#include <cstdint>
-#include <chrono>
-
-#include "boost/filesystem/path.hpp"
-
-#include "maidsafe/common/types.h"
+#include "maidsafe/drive/directory.h"
 
 namespace maidsafe {
 
 namespace drive {
 
-typedef Identity DirectoryId;
-
 namespace detail {
 
-struct MaxVersionsTag;
-struct ParentIdTag;
+Path::Path(MetaData::FileType file_type)
+    : meta_data(file_type),
+      open_count(0)
+{
+}
 
-}  // namespace detail
+Path::Path(std::shared_ptr<Directory> parent,
+           MetaData::FileType file_type)
+    : parent_(parent),
+      meta_data(file_type),
+      open_count(0)
+{
+}
 
-typedef TaggedValue<uint32_t, detail::MaxVersionsTag> MaxVersions;
-typedef TaggedValue<Identity, detail::ParentIdTag> ParentId;
+std::shared_ptr<Directory> Path::Parent() const {
+  return parent_.lock();
+}
 
-namespace detail {
+void Path::SetParent(std::shared_ptr<Directory> parent) {
+  parent_ = parent;
+}
 
-extern const boost::filesystem::path kRoot;
-extern const MaxVersions kMaxVersions;
-// The delay between the last update to a directory and the creation of the corresponding version.
-extern const std::chrono::steady_clock::duration kDirectoryInactivityDelay;
-// The delay between the last close on a file and the deletion of its buffer and encryptor.
-extern const std::chrono::steady_clock::duration kFileInactivityDelay;
-const int kFileBlockSize = 512;
+std::shared_ptr<Path::Listener> Path::GetListener() const {
+  return listener_.lock();
+}
+
+bool operator<(const Path& lhs, const Path& rhs) {
+  return lhs.meta_data.name < rhs.meta_data.name;
+}
 
 }  // namespace detail
 
 }  // namespace drive
 
 }  // namespace maidsafe
-
-#endif  // MAIDSAFE_DRIVE_CONFIG_H_
