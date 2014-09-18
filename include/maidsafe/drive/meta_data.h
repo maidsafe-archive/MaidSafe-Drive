@@ -50,6 +50,7 @@ namespace protobuf { class Path; class Attributes; }
 struct MetaData {
   using TimePoint = common::Clock::time_point;
   using FileType = boost::filesystem::file_type;
+  using Permissions = boost::filesystem::perms;
 
   explicit MetaData(FileType);
   MetaData(const boost::filesystem::path& name, FileType);
@@ -62,6 +63,8 @@ struct MetaData {
   bool operator<(const MetaData& other) const;
   void UpdateLastModifiedTime();
   uint64_t GetAllocatedSize() const;
+
+  Permissions GetPermissions(Permissions base_permissions) const;
 
   boost::filesystem::path name;
   FileType file_type;
@@ -87,6 +90,11 @@ struct MetaData {
 };
 
 void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT;
+
+inline bool HasPermission(const MetaData::Permissions permissions,
+                          const MetaData::Permissions expected_permission) {
+  return (permissions & expected_permission) == expected_permission;
+}
 
 }  // namespace detail
 
