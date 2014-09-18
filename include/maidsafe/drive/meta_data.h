@@ -30,9 +30,10 @@
 #include <memory>
 
 #include "boost/filesystem/path.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
+#include "boost/filesystem/operations.hpp"
 
 #include "maidsafe/common/config.h"
+#include "maidsafe/common/clock.h"
 #include "maidsafe/encrypt/data_map.h"
 
 #include "maidsafe/drive/config.h"
@@ -43,35 +44,40 @@ namespace drive {
 
 namespace detail {
 
-namespace protobuf { class MetaData; }
+namespace protobuf { class Path; class Attributes; }
 
 // Represents directory and file information
 struct MetaData {
-  MetaData();
-  MetaData(const boost::filesystem::path& name, bool is_directory);
-  explicit MetaData(const protobuf::MetaData& protobuf_meta_data);
+  using TimePoint = common::Clock::time_point;
+  using FileType = boost::filesystem::file_type;
+
+  explicit MetaData(FileType);
+  MetaData(const boost::filesystem::path& name, FileType);
+  explicit MetaData(const protobuf::Path& protobuf_path);
   MetaData(MetaData&& other);
   MetaData& operator=(MetaData other);
 
-  void ToProtobuf(protobuf::MetaData* protobuf_meta_data) const;
+  void ToProtobuf(protobuf::Attributes& protobuf_attributes) const;
 
-  boost::posix_time::ptime creation_posix_time() const;
-  boost::posix_time::ptime last_write_posix_time() const;
   bool operator<(const MetaData& other) const;
   void UpdateLastModifiedTime();
   uint64_t GetAllocatedSize() const;
 
   boost::filesystem::path name;
+  FileType file_type;
+  // Time file was created
+  TimePoint creation_time;
+  // Last time file attributes were modified
+  TimePoint last_status_time;
+  // Last time file content was modified
+  TimePoint last_write_time;
+  // Last known time file was accessed
+  TimePoint last_access_time;
+  uint64_t size;
+
 #ifdef MAIDSAFE_WIN32
-  uint64_t end_of_file;
   uint64_t allocation_size;
   DWORD attributes;
-  FILETIME creation_time;
-  FILETIME last_access_time;
-  FILETIME last_write_time;
-#else
-  struct stat attributes;
-  boost::filesystem::path link_to;
 #endif
   std::unique_ptr<encrypt::DataMap> data_map;
   std::unique_ptr<DirectoryId> directory_id;
