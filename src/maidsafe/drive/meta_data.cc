@@ -35,17 +35,16 @@ namespace drive {
 
 namespace detail {
 
+namespace {
+
 const uint32_t kAttributesDir = 0x4000;
 
 #ifdef MAIDSAFE_WIN32
-namespace {
-
 const uint32_t kAttributesFormat = 0x0FFF;
 const uint32_t kAttributesRegular = 0x8000;
-
-}  // unnamed namespace
 #endif
 
+}  // unnamed namespace
 
 
 MetaData::MetaData(FileType file_type)
@@ -218,6 +217,31 @@ uint64_t MetaData::GetAllocatedSize() const {
 #else
   return size;
 #endif
+}
+
+MetaData::Permissions MetaData::GetPermissions(
+    MetaData::Permissions base_permissions) const {
+  if (file_type != MetaData::FileType::directory_file)
+  {
+    return base_permissions;
+  }
+
+  if (HasPermission(base_permissions, MetaData::Permissions::owner_read))
+  {
+    base_permissions |= MetaData::Permissions::owner_exe;
+  }
+
+  if (HasPermission(base_permissions, MetaData::Permissions::group_read))
+  {
+    base_permissions |= MetaData::Permissions::group_exe;
+  }
+
+  if (HasPermission(base_permissions, MetaData::Permissions::others_read))
+  {
+    base_permissions |= MetaData::Permissions::others_exe;
+  }
+
+  return base_permissions;
 }
 
 void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT {
