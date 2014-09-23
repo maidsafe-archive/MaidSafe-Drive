@@ -149,31 +149,6 @@ TEST(UnixDriveTest, BEH_IsSupported) {
   }
 }
 
-TEST(UnixDriveTest, BEH_ToStat) {
-  {
-    const detail::MetaData metadata(detail::MetaData::FileType::directory_file);
-    const mode_t mode = ToStat(
-        metadata,
-        (
-            detail::MetaData::Permissions::owner_read |
-            detail::MetaData::Permissions::group_read)).st_mode;
-
-    EXPECT_TRUE(VerifyPermissions({ S_IRUSR, S_IXUSR, S_IRGRP, S_IXGRP }, mode));
-    EXPECT_EQ(detail::MetaData::FileType::directory_file, detail::ToFileType(mode));
-  }
-  {
-    const detail::MetaData metadata(detail::MetaData::FileType::regular_file);
-    const mode_t mode = ToStat(
-        metadata,
-        (
-            detail::MetaData::Permissions::owner_read |
-            detail::MetaData::Permissions::group_read)).st_mode;
-
-    EXPECT_TRUE(VerifyPermissions({ S_IRUSR, S_IRGRP }, mode));
-    EXPECT_EQ(detail::MetaData::FileType::regular_file, detail::ToFileType(mode));
-  }
-}
-
 } // test
 } // drive
 } // maidsafe
