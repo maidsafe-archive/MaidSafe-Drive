@@ -42,14 +42,114 @@ bool VerifyPermissions(
 TEST(MetaDataTest, BEH_HasPermission) {
   EXPECT_TRUE(
       HasPermission(
-          MetaData::Permissions::owner_read,
-          MetaData::Permissions::owner_read));
+          MetaData::Permissions::owner_read, MetaData::Permissions::owner_read));
+  EXPECT_TRUE(
+      HasPermission(
+          MetaData::Permissions::owner_write, MetaData::Permissions::owner_write));
+  EXPECT_TRUE(
+      HasPermission(
+          MetaData::Permissions::owner_exe, MetaData::Permissions::owner_exe));
+  EXPECT_TRUE(
+      HasPermission(
+          MetaData::Permissions::group_read, MetaData::Permissions::group_read));
+  EXPECT_TRUE(
+      HasPermission(
+          MetaData::Permissions::group_write, MetaData::Permissions::group_write));
+  EXPECT_TRUE(
+      HasPermission(
+          MetaData::Permissions::group_exe, MetaData::Permissions::group_exe));
+  EXPECT_TRUE(
+      HasPermission(
+          MetaData::Permissions::others_read, MetaData::Permissions::others_read));
+  EXPECT_TRUE(
+      HasPermission(
+          MetaData::Permissions::others_write, MetaData::Permissions::others_write));
+  EXPECT_TRUE(
+      HasPermission(
+          MetaData::Permissions::others_exe, MetaData::Permissions::others_exe));
+  EXPECT_TRUE(
+      HasPermission(
+          MetaData::Permissions::set_uid_on_exe, MetaData::Permissions::set_uid_on_exe));
+  EXPECT_TRUE(
+      HasPermission(
+          MetaData::Permissions::set_gid_on_exe, MetaData::Permissions::set_gid_on_exe));
+  EXPECT_TRUE(
+      HasPermission(
+          MetaData::Permissions::sticky_bit, MetaData::Permissions::sticky_bit));
+
   EXPECT_TRUE(
       HasPermission(
           (
               MetaData::Permissions::owner_read |
               MetaData::Permissions::group_read),
           MetaData::Permissions::owner_read));
+  EXPECT_TRUE(
+      HasPermission(
+          (
+              MetaData::Permissions::owner_write |
+              MetaData::Permissions::group_read),
+          MetaData::Permissions::owner_write));
+  EXPECT_TRUE(
+      HasPermission(
+          (
+              MetaData::Permissions::owner_exe |
+              MetaData::Permissions::group_read),
+          MetaData::Permissions::owner_exe));
+  EXPECT_TRUE(
+      HasPermission(
+          (
+              MetaData::Permissions::group_read |
+              MetaData::Permissions::owner_read),
+          MetaData::Permissions::group_read));
+  EXPECT_TRUE(
+      HasPermission(
+          (
+              MetaData::Permissions::group_write |
+              MetaData::Permissions::owner_read),
+          MetaData::Permissions::group_write));
+  EXPECT_TRUE(
+      HasPermission(
+          (
+              MetaData::Permissions::group_exe |
+              MetaData::Permissions::owner_read),
+          MetaData::Permissions::group_exe));
+  EXPECT_TRUE(
+      HasPermission(
+          (
+              MetaData::Permissions::others_read |
+              MetaData::Permissions::set_gid_on_exe),
+          MetaData::Permissions::others_read));
+  EXPECT_TRUE(
+      HasPermission(
+          (
+              MetaData::Permissions::others_write |
+              MetaData::Permissions::set_gid_on_exe),
+          MetaData::Permissions::others_write));
+  EXPECT_TRUE(
+      HasPermission(
+          (
+              MetaData::Permissions::others_exe |
+              MetaData::Permissions::set_gid_on_exe),
+          MetaData::Permissions::others_exe));
+  EXPECT_TRUE(
+      HasPermission(
+          (
+              MetaData::Permissions::set_uid_on_exe |
+              MetaData::Permissions::others_read),
+          MetaData::Permissions::set_uid_on_exe));
+  EXPECT_TRUE(
+      HasPermission(
+          (
+              MetaData::Permissions::set_gid_on_exe |
+              MetaData::Permissions::others_read),
+          MetaData::Permissions::set_gid_on_exe));
+  EXPECT_TRUE(
+      HasPermission(
+          (
+              MetaData::Permissions::sticky_bit |
+              MetaData::Permissions::others_read),
+          MetaData::Permissions::sticky_bit));
+
   EXPECT_FALSE(
       HasPermission(
           (
@@ -70,148 +170,146 @@ TEST(MetaDataTest, BEH_HasPermission) {
           MetaData::Permissions::others_write));
 }
 
-TEST(MetaDataTest, BEH_GetPermissions) {
-  {
-    const MetaData not_directory(MetaData::FileType::regular_file);
+TEST(MetaDataTest, BEH_GetPermissionsNotDirectory) {
+  const MetaData not_directory(MetaData::FileType::regular_file);
 
-    EXPECT_TRUE(
-        VerifyPermissions(
-            { MetaData::Permissions::owner_read },
-            not_directory.GetPermissions(MetaData::Permissions::owner_read)));
-    EXPECT_TRUE(
-        VerifyPermissions(
-            { MetaData::Permissions::group_read },
-            not_directory.GetPermissions(MetaData::Permissions::group_read)));
-    EXPECT_TRUE(
-        VerifyPermissions(
-            { MetaData::Permissions::others_read },
-            not_directory.GetPermissions(MetaData::Permissions::others_read)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          { MetaData::Permissions::owner_read },
+          not_directory.GetPermissions(MetaData::Permissions::owner_read)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          { MetaData::Permissions::group_read },
+          not_directory.GetPermissions(MetaData::Permissions::group_read)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          { MetaData::Permissions::others_read },
+          not_directory.GetPermissions(MetaData::Permissions::others_read)));
 
-    EXPECT_TRUE(
-        VerifyPermissions(
-            { MetaData::Permissions::owner_read, MetaData::Permissions::owner_write },
-            not_directory.GetPermissions(
-                MetaData::Permissions::owner_read | MetaData::Permissions::owner_write)));
-    EXPECT_TRUE(
-        VerifyPermissions(
-            { MetaData::Permissions::group_read, MetaData::Permissions::group_write },
-            not_directory.GetPermissions(
-                MetaData::Permissions::group_read | MetaData::Permissions::group_write)));
-    EXPECT_TRUE(
-        VerifyPermissions(
-            { MetaData::Permissions::others_read, MetaData::Permissions::others_write },
-            not_directory.GetPermissions(
-                MetaData::Permissions::others_read | MetaData::Permissions::others_write)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          { MetaData::Permissions::owner_read, MetaData::Permissions::owner_write },
+          not_directory.GetPermissions(
+              MetaData::Permissions::owner_read | MetaData::Permissions::owner_write)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          { MetaData::Permissions::group_read, MetaData::Permissions::group_write },
+          not_directory.GetPermissions(
+              MetaData::Permissions::group_read | MetaData::Permissions::group_write)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          { MetaData::Permissions::others_read, MetaData::Permissions::others_write },
+          not_directory.GetPermissions(
+              MetaData::Permissions::others_read | MetaData::Permissions::others_write)));
 
-    EXPECT_TRUE(
-        VerifyPermissions(
-            { MetaData::Permissions::owner_read, MetaData::Permissions::group_read },
-            not_directory.GetPermissions(
-                MetaData::Permissions::owner_read | MetaData::Permissions::group_read)));
-    EXPECT_TRUE(
-        VerifyPermissions(
-            { MetaData::Permissions::owner_read, MetaData::Permissions::others_read },
-            not_directory.GetPermissions(
-                MetaData::Permissions::owner_read | MetaData::Permissions::others_read)));
-    EXPECT_TRUE(
-        VerifyPermissions(
-            { MetaData::Permissions::group_read, MetaData::Permissions::others_read },
-            not_directory.GetPermissions(
-                MetaData::Permissions::group_read | MetaData::Permissions::others_read)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          { MetaData::Permissions::owner_read, MetaData::Permissions::group_read },
+          not_directory.GetPermissions(
+              MetaData::Permissions::owner_read | MetaData::Permissions::group_read)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          { MetaData::Permissions::owner_read, MetaData::Permissions::others_read },
+          not_directory.GetPermissions(
+              MetaData::Permissions::owner_read | MetaData::Permissions::others_read)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          { MetaData::Permissions::group_read, MetaData::Permissions::others_read },
+          not_directory.GetPermissions(
+              MetaData::Permissions::group_read | MetaData::Permissions::others_read)));
 
-    EXPECT_TRUE(
-        VerifyPermissions(
-            {
-                MetaData::Permissions::owner_read, MetaData::Permissions::owner_write,
-                MetaData::Permissions::group_read, MetaData::Permissions::group_write,
-                MetaData::Permissions::others_read, MetaData::Permissions::others_write
-            },
-            not_directory.GetPermissions(
-                MetaData::Permissions::owner_read | MetaData::Permissions::owner_write |
-                MetaData::Permissions::group_read | MetaData::Permissions::group_write |
-                MetaData::Permissions::others_read | MetaData::Permissions::others_write)));
-  }
-  {
-    const MetaData directory(MetaData::FileType::directory_file);
+  EXPECT_TRUE(
+      VerifyPermissions(
+          {
+              MetaData::Permissions::owner_read, MetaData::Permissions::owner_write,
+              MetaData::Permissions::group_read, MetaData::Permissions::group_write,
+              MetaData::Permissions::others_read, MetaData::Permissions::others_write
+          },
+          not_directory.GetPermissions(
+              MetaData::Permissions::owner_read | MetaData::Permissions::owner_write |
+              MetaData::Permissions::group_read | MetaData::Permissions::group_write |
+              MetaData::Permissions::others_read | MetaData::Permissions::others_write)));
+}
+TEST(MetaDataTest, BEH_GetPermissionsDirectory) {
+  const MetaData directory(MetaData::FileType::directory_file);
 
-    EXPECT_TRUE(
-        VerifyPermissions(
-            { MetaData::Permissions::owner_read, MetaData::Permissions::owner_exe },
-            directory.GetPermissions(MetaData::Permissions::owner_read)));
-    EXPECT_TRUE(
-        VerifyPermissions(
-            { MetaData::Permissions::group_read, MetaData::Permissions::group_exe },
-            directory.GetPermissions(MetaData::Permissions::group_read)));
-    EXPECT_TRUE(
-        VerifyPermissions(
-            { MetaData::Permissions::others_read, MetaData::Permissions::others_exe },
-            directory.GetPermissions(MetaData::Permissions::others_read)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          { MetaData::Permissions::owner_read, MetaData::Permissions::owner_exe },
+          directory.GetPermissions(MetaData::Permissions::owner_read)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          { MetaData::Permissions::group_read, MetaData::Permissions::group_exe },
+          directory.GetPermissions(MetaData::Permissions::group_read)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          { MetaData::Permissions::others_read, MetaData::Permissions::others_exe },
+          directory.GetPermissions(MetaData::Permissions::others_read)));
 
-    EXPECT_TRUE(
-        VerifyPermissions(
-            {
-                MetaData::Permissions::owner_read, MetaData::Permissions::owner_write,
-                MetaData::Permissions::owner_exe
-            },
-            directory.GetPermissions(
-                MetaData::Permissions::owner_read | MetaData::Permissions::owner_write)));
-    EXPECT_TRUE(
-        VerifyPermissions(
-            {
-                MetaData::Permissions::group_read, MetaData::Permissions::group_write,
-                MetaData::Permissions::group_exe
-            },
-            directory.GetPermissions(
-                MetaData::Permissions::group_read | MetaData::Permissions::group_write)));
-    EXPECT_TRUE(
-        VerifyPermissions(
-            {
-                MetaData::Permissions::others_read, MetaData::Permissions::others_write,
-                MetaData::Permissions::others_exe
-            },
-            directory.GetPermissions(
-                MetaData::Permissions::others_read | MetaData::Permissions::others_write)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          {
+              MetaData::Permissions::owner_read, MetaData::Permissions::owner_write,
+              MetaData::Permissions::owner_exe
+          },
+          directory.GetPermissions(
+              MetaData::Permissions::owner_read | MetaData::Permissions::owner_write)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          {
+              MetaData::Permissions::group_read, MetaData::Permissions::group_write,
+              MetaData::Permissions::group_exe
+          },
+          directory.GetPermissions(
+              MetaData::Permissions::group_read | MetaData::Permissions::group_write)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          {
+              MetaData::Permissions::others_read, MetaData::Permissions::others_write,
+              MetaData::Permissions::others_exe
+          },
+          directory.GetPermissions(
+              MetaData::Permissions::others_read | MetaData::Permissions::others_write)));
 
-    EXPECT_TRUE(
-        VerifyPermissions(
-            {
-                MetaData::Permissions::owner_read, MetaData::Permissions::owner_exe,
-                MetaData::Permissions::group_read, MetaData::Permissions::group_exe
-            },
-            directory.GetPermissions(
-                MetaData::Permissions::owner_read | MetaData::Permissions::group_read)));
-    EXPECT_TRUE(
-        VerifyPermissions(
-            {
-                MetaData::Permissions::owner_read, MetaData::Permissions::owner_exe,
-                MetaData::Permissions::others_read, MetaData::Permissions::others_exe
-            },
-            directory.GetPermissions(
-                MetaData::Permissions::owner_read | MetaData::Permissions::others_read)));
-    EXPECT_TRUE(
-        VerifyPermissions(
-            {
-                MetaData::Permissions::group_read, MetaData::Permissions::group_exe,
-                MetaData::Permissions::others_read, MetaData::Permissions::others_exe
-            },
-            directory.GetPermissions(
-                MetaData::Permissions::group_read | MetaData::Permissions::others_read)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          {
+              MetaData::Permissions::owner_read, MetaData::Permissions::owner_exe,
+              MetaData::Permissions::group_read, MetaData::Permissions::group_exe
+          },
+          directory.GetPermissions(
+              MetaData::Permissions::owner_read | MetaData::Permissions::group_read)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          {
+              MetaData::Permissions::owner_read, MetaData::Permissions::owner_exe,
+              MetaData::Permissions::others_read, MetaData::Permissions::others_exe
+          },
+          directory.GetPermissions(
+              MetaData::Permissions::owner_read | MetaData::Permissions::others_read)));
+  EXPECT_TRUE(
+      VerifyPermissions(
+          {
+              MetaData::Permissions::group_read, MetaData::Permissions::group_exe,
+              MetaData::Permissions::others_read, MetaData::Permissions::others_exe
+          },
+          directory.GetPermissions(
+              MetaData::Permissions::group_read | MetaData::Permissions::others_read)));
 
-    EXPECT_TRUE(
-        VerifyPermissions(
-            {
-                MetaData::Permissions::owner_read, MetaData::Permissions::owner_write,
-                MetaData::Permissions::owner_exe,
-                MetaData::Permissions::group_read, MetaData::Permissions::group_write,
-                MetaData::Permissions::group_exe,
-                MetaData::Permissions::others_read, MetaData::Permissions::others_write,
-                MetaData::Permissions::others_exe
-            },
-            directory.GetPermissions(
-                MetaData::Permissions::owner_read | MetaData::Permissions::owner_write |
-                MetaData::Permissions::group_read | MetaData::Permissions::group_write |
-                MetaData::Permissions::others_read | MetaData::Permissions::others_write)));
-  }
+  EXPECT_TRUE(
+      VerifyPermissions(
+          {
+              MetaData::Permissions::owner_read, MetaData::Permissions::owner_write,
+              MetaData::Permissions::owner_exe,
+              MetaData::Permissions::group_read, MetaData::Permissions::group_write,
+              MetaData::Permissions::group_exe,
+              MetaData::Permissions::others_read, MetaData::Permissions::others_write,
+              MetaData::Permissions::others_exe
+          },
+          directory.GetPermissions(
+              MetaData::Permissions::owner_read | MetaData::Permissions::owner_write |
+              MetaData::Permissions::group_read | MetaData::Permissions::group_write |
+              MetaData::Permissions::others_read | MetaData::Permissions::others_write)));
 }
 
 } // test

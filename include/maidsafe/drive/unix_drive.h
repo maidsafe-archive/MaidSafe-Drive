@@ -40,6 +40,7 @@
 #include "fuse/fuse_lowlevel.h"
 #include "fuse/fuse_opt.h"
 
+#include "maidsafe/common/config.h"
 #include "maidsafe/common/on_scope_exit.h"
 
 #include "maidsafe/drive/drive.h"
@@ -130,7 +131,7 @@ inline bool IsSupported(const mode_t mode) {
   return S_ISDIR(mode) || S_ISREG(mode) || S_ISLNK(mode);
 }
 
-inline constexpr bool HaveEquivalentPermissions() {
+inline MAIDSAFE_CONSTEXPR bool HaveEquivalentPermissions() {
   return
       static_cast<mode_t>(MetaData::Permissions::owner_read) ==  S_IRUSR &&
       static_cast<mode_t>(MetaData::Permissions::owner_write) ==  S_IWUSR &&
@@ -146,7 +147,7 @@ inline constexpr bool HaveEquivalentPermissions() {
       static_cast<mode_t>(MetaData::Permissions::sticky_bit) ==  S_ISVTX;
 }
 
-inline constexpr mode_t ModePermissionMask()
+inline MAIDSAFE_CONSTEXPR mode_t ModePermissionMask()
 {
   return (S_IRWXU | S_IRWXG | S_IRWXO | S_ISVTX | S_ISGID | S_ISUID);
 }
