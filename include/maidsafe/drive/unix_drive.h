@@ -40,6 +40,7 @@
 #include "fuse/fuse_lowlevel.h"
 #include "fuse/fuse_opt.h"
 
+#include "maidsafe/common/config.h"
 #include "maidsafe/common/on_scope_exit.h"
 
 #include "maidsafe/drive/drive.h"
@@ -100,42 +101,82 @@ inline common::Clock::time_point ToTimePoint(const struct timespec& ts) {
 //   return true;
 // }
 
-inline MetaData::FileType ToFileType(mode_t mode) {
+inline MetaData::FileType ToFileType(const mode_t mode) {
   if (S_ISDIR(mode)) {
-    return fs::directory_file;
+    return MetaData::FileType::directory_file;
   } else if (S_ISREG(mode)) {
-    return fs::regular_file;
+    return MetaData::FileType::regular_file;
   } else if (S_ISLNK(mode)) {
-    return fs::symlink_file;
+    return MetaData::FileType::symlink_file;
   } else {
-    return fs::status_error;
+    return MetaData::FileType::status_error;
   }
 }
 
-inline mode_t ToFileMode(MetaData::FileType file_type, mode_t mode) {
-  auto permission = mode & ~S_IFMT; // Clear file type fields
+inline mode_t ToFileMode(const MetaData::FileType file_type) {
   switch (file_type) {
     case fs::directory_file:
-      return permission | S_IFDIR;
+      return S_IFDIR;
     case fs::regular_file:
-      return permission | S_IFREG;
+      return S_IFREG;
     case fs::symlink_file:
-      return permission | S_IFLNK;
+      return S_IFLNK;
     default:
       assert(false); // Not supported yet
-      return mode;
+      return 0;
     }
 }
 
-inline bool IsSupported(mode_t mode) {
+inline bool IsSupported(const mode_t mode) {
   return S_ISDIR(mode) || S_ISREG(mode) || S_ISLNK(mode);
 }
 
-inline struct stat ToStat(const MetaData& meta) {
+inline MAIDSAFE_CONSTEXPR bool HaveEquivalentPermissions() {
+  return
+      static_cast<mode_t>(MetaData::Permissions::owner_read) ==  S_IRUSR &&
+      static_cast<mode_t>(MetaData::Permissions::owner_write) ==  S_IWUSR &&
+      static_cast<mode_t>(MetaData::Permissions::owner_exe) ==  S_IXUSR &&
+      static_cast<mode_t>(MetaData::Permissions::group_read) ==  S_IRGRP &&
+      static_cast<mode_t>(MetaData::Permissions::group_write) ==  S_IWGRP &&
+      static_cast<mode_t>(MetaData::Permissions::group_exe) ==  S_IXGRP &&
+      static_cast<mode_t>(MetaData::Permissions::others_read) ==  S_IROTH &&
+      static_cast<mode_t>(MetaData::Permissions::others_write) ==  S_IWOTH &&
+      static_cast<mode_t>(MetaData::Permissions::others_exe) ==  S_IXOTH &&
+      static_cast<mode_t>(MetaData::Permissions::set_uid_on_exe) ==  S_ISUID &&
+      static_cast<mode_t>(MetaData::Permissions::set_gid_on_exe) ==  S_ISGID &&
+      static_cast<mode_t>(MetaData::Permissions::sticky_bit) ==  S_ISVTX;
+}
+
+inline MAIDSAFE_CONSTEXPR mode_t ModePermissionMask()
+{
+  return (S_IRWXU | S_IRWXG | S_IRWXO | S_ISVTX | S_ISGID | S_ISUID);
+}
+
+inline mode_t ToPermissionMode(const MetaData::Permissions permissions) {
+  static_assert(
+      HaveEquivalentPermissions(),
+      "MetaData::Permissions and local POSIX permissions differ");
+
+  return static_cast<mode_t>(permissions) & ModePermissionMask();
+}
+
+inline MetaData::Permissions ToPermissions(const mode_t mode) {
+  static_assert(
+      HaveEquivalentPermissions(),
+      "MetaData::Permissions and local POSIX permissions differ");
+
+  return static_cast<MetaData::Permissions>(mode & ModePermissionMask());
+}
+
+inline struct stat ToStat(const MetaData& meta,
+                          const MetaData::Permissions base_permissions) {
   struct stat result;
   std::memset(&result, 0, sizeof(result));
   result.st_ino = std::hash<std::string>()(meta.name.native());
-  result.st_mode = detail::ToFileMode(meta.file_type, result.st_mode);
+  result.st_mode =
+      detail::ToFileMode(meta.file_type) |
+      detail::ToPermissionMode(
+          meta.GetPermissions(base_permissions));
   result.st_uid = fuse_get_context()->uid;
   result.st_gid = fuse_get_context()->gid;
   result.st_nlink = (meta.file_type == fs::directory_file) ? 2 : 1;
@@ -831,7 +872,9 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
 
   auto file(directory->GetChildAndIncrementCounter());
   while (file) {
-    struct stat attributes = ToStat(file->meta_data);
+    struct stat attributes = ToStat(
+        file->meta_data,
+        Global<Storage>::g_fuse_drive->get_base_file_permissions());
     if (filler(buf, file->meta_data.name.c_str(), &attributes, 0))
       break;
     file = directory->GetChildAndIncrementCounter();
@@ -1196,7 +1239,9 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
     using namespace std::chrono;
 
     auto file(Global<Storage>::g_fuse_drive->GetContext(path));
-    *stbuf = ToStat(file->meta_data);
+    *stbuf = ToStat(
+        file->meta_data,
+        Global<Storage>::g_fuse_drive->get_base_file_permissions());
     LOG(kVerbose) << " meta_data info  = ";
     LOG(kVerbose) << "     name =  " << file->meta_data.name.c_str();
     LOG(kVerbose) << "     st_dev = " << stbuf->st_dev;
