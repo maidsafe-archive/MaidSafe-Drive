@@ -72,7 +72,7 @@ MetaData::MetaData(const fs::path& name, FileType file_type)
       size(0),
 #ifdef MAIDSAFE_WIN32
       allocation_size(0),
-      attributes(is_directory?FILE_ATTRIBUTE_DIRECTORY:0xFFFFFFFF),
+      attributes(file_type == FileType::directory_file ? FILE_ATTRIBUTE_DIRECTORY : 0xFFFFFFFF),
 #endif
       data_map((file_type == fs::directory_file)
                ? nullptr
@@ -137,13 +137,13 @@ MetaData::MetaData(const protobuf::Path& entry)
   last_access_time = common::Clock::time_point(nanoseconds(attributes.last_access_time()));
 
 #ifdef MAIDSAFE_WIN32
-  if ((attributes.st_mode() & kAttributesDir) == kAttributesDir) {
-    attributes |= FILE_ATTRIBUTE_DIRECTORY;
+  if (file_type == FileType::directory_file) {
+	  this->attributes |= FILE_ATTRIBUTE_DIRECTORY;
     size = 0;
   }
 
   if (attributes.has_win_attributes())
-    attributes = static_cast<DWORD>(attributes.win_attributes());
+	  this->attributes = static_cast<DWORD>(attributes.win_attributes());
 #else
   if (file_type == fs::directory_file) {
     size = 4096;
@@ -184,15 +184,7 @@ void MetaData::ToProtobuf(protobuf::Attributes& attributes) const {
   attributes.set_st_size(size);
 
 #ifdef MAIDSAFE_WIN32
-
-  uint32_t st_mode(0x01FF);
-  st_mode &= kAttributesFormat;
-  if ((attributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY)
-    st_mode |= kAttributesDir;
-  else
-    st_mode |= kAttributesRegular;
-  attributes.set_st_mode(st_mode);
-  attributes.set_win_attributes(attributes);
+  attributes.set_win_attributes(this->attributes);
 #else
   uint32_t win_attributes(0x10);  // FILE_ATTRIBUTE_DIRECTORY
   if (file_type == fs::regular_file)
