@@ -39,6 +39,7 @@
 #include "maidsafe/drive/meta_data.h"
 #include "maidsafe/drive/directory.h"
 #include "maidsafe/drive/utils.h"
+#include "maidsafe/drive/symlink.h"
 #include "maidsafe/drive/tests/test_utils.h"
 
 namespace fs = boost::filesystem;
@@ -98,9 +99,7 @@ class DirectoryTest : public testing::Test {
         = file->meta_data.last_access_time
         = file->meta_data.last_write_time
         = common::Clock::now();
-#ifdef MAIDSAFE_WIN32
-    file.meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
-#endif
+
     *file->meta_data.directory_id =
         Identity(crypto::Hash<crypto::SHA512>((*main_test_dir_ / path).string()));
     EXPECT_NO_THROW(directory->AddChild(file));
@@ -454,9 +453,6 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
         = file->meta_data.last_write_time
         = common::Clock::now();
     if (is_dir) {
-#ifdef MAIDSAFE_WIN32
-      file.meta_data.attributes = FILE_ATTRIBUTE_DIRECTORY;
-#endif
       EXPECT_NO_THROW(directory->AddChild(file));
     } else {
       file->meta_data.size = RandomUint32();

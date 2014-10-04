@@ -70,10 +70,12 @@ bool SetAttributes(DWORD& attributes, DWORD new_value) {
 }
 
 bool SetFiletime(common::Clock::time_point& filetime, PFILETIME new_value) {
-  if (new_value && filetime.dwLowDateTime != new_value->dwLowDateTime &&
-      filetime.dwHighDateTime != new_value->dwHighDateTime) {
-    filetime = ToTimePoint(*new_value);
-    return true;
+  if (new_value) {
+    const auto t = ToTimePoint(*new_value);
+    if (filetime != t) {
+        filetime = t;
+        return true;
+    }
   }
   return false;
 }
@@ -103,6 +105,7 @@ common::Clock::time_point ToTimePoint(const FILETIME& input) {
   // See ToFileTime
   using namespace std::chrono;
   const ULONGLONG filetimeTicks = 100ULL;
+  const ULONGLONG chronoTicks = 1ULL;
   const ULONGLONG epochDifference = 11644473600ULL * (chronoTicks / filetimeTicks);
   ULONGLONG filetime = ((ULONGLONG)(input.dwHighDateTime) << 32) + input.dwLowDateTime;
   ULONGLONG stamp = (filetime - epochDifference) * (filetimeTicks / chronoTicks);

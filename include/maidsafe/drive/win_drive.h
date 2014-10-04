@@ -680,9 +680,9 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
   }
 
   *file_exists = true;
-  *creation_time = ToFileTime(file->meta_data.creation_time);
-  *last_access_time = ToFileTime(file->meta_data.last_access_time);
-  *last_write_time = ToFileTime(file->meta_data.last_write_time);
+  *creation_time = detail::ToFileTime(file->meta_data.creation_time);
+  *last_access_time = detail::ToFileTime(file->meta_data.last_access_time);
+  *last_write_time = detail::ToFileTime(file->meta_data.last_write_time);
   // if (file->meta_data.size < file->meta_data.allocation_size)
   //   file->meta_data.size = file->meta_data.allocation_size;
   // else if (file->meta_data.allocation_size < file->meta_data.size)
@@ -745,12 +745,12 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     int64_t* end_of_file, int64_t* allocation_size, int64_t* /*file_id*/ OPTIONAL,
     PDWORD file_attributes) {
   SCOPED_PROFILE
-  auto cbfs_drive(detail::GetDrive<Storage>(sender));
-  auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, directory_info));
-  std::wstring mask_str(mask);
+  const auto cbfs_drive(detail::GetDrive<Storage>(sender));
+  const auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, directory_info));
+  const std::wstring mask_str(mask);
   LOG(kInfo) << "CbFsEnumerateDirectory - " << relative_path << " mask: "
              << WstringToString(mask_str) << " restart: " << std::boolalpha << (restart != 0);
-  bool exact_match(mask_str != L"*");
+  const bool exact_match(mask_str != L"*");
   *file_found = false;
 
   std::shared_ptr<detail::Directory> directory(nullptr);
@@ -764,7 +764,7 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
 
-  const detail::File* file(nullptr);
+  std::shared_ptr<const detail::Path> file(nullptr);
   if (exact_match) {
     while (!(*file_found)) {
       file = directory->GetChildAndIncrementCounter();
@@ -783,9 +783,9 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     // this is done.
     wcscpy(file_name, file->meta_data.name.wstring().c_str());
     *file_name_length = static_cast<DWORD>(file->meta_data.name.wstring().size());
-    *creation_time = ToFileTime(file->meta_data.creation_time);
-    *last_access_time = ToFileTime(file->meta_data.last_access_time);
-    *last_write_time = ToFileTime(file->meta_data.last_write_time);
+    *creation_time = detail::ToFileTime(file->meta_data.creation_time);
+    *last_access_time = detail::ToFileTime(file->meta_data.last_access_time);
+    *last_write_time = detail::ToFileTime(file->meta_data.last_write_time);
     *end_of_file = file->meta_data.size;
     *allocation_size = file->meta_data.allocation_size;
     *file_attributes = file->meta_data.attributes;
@@ -909,7 +909,7 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
       detail::SetFiletime(file->meta_data.last_access_time, last_access_time);
     changed |= detail::SetFiletime(file->meta_data.last_write_time, last_write_time);
     if (changed) {
-      file->meta_data.last_status_time = detail::common::Clock::now();
+      file->meta_data.last_status_time = common::Clock::now();
       file->ScheduleForStoring();
     }
   }
