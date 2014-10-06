@@ -35,185 +35,194 @@ namespace drive {
 
 namespace detail {
 
+#ifdef MAIDSAFE_WIN32
 namespace {
 
 const uint32_t kAttributesDir = 0x4000;
-
-#ifdef MAIDSAFE_WIN32
 const uint32_t kAttributesFormat = 0x0FFF;
 const uint32_t kAttributesRegular = 0x8000;
-#endif
 
 }  // unnamed namespace
-
+#endif
 
 MetaData::MetaData(FileType file_type)
-    : name(),
-      file_type(file_type),
-      size(0),
+    : data_map_(),
+      directory_id_(),
+      name_(),
+      file_type_(file_type),
+      creation_time_(common::Clock::now()),
+      last_status_time_(creation_time_),
+      last_write_time_(creation_time_),
+      last_access_time_(creation_time_),
+      size_(0),
+      allocation_size_(0)
 #ifdef MAIDSAFE_WIN32
-      allocation_size(0),
-      attributes(0xFFFFFFFF),
-      data_map(),
-      directory_id() {}
-#else
-      data_map(),
-      directory_id() {
-}
+      , attributes_(0xFFFFFFFF)
 #endif
+        {}
 
 MetaData::MetaData(const fs::path& name, FileType file_type)
-    : name(name),
-      file_type(file_type),
-      creation_time(common::Clock::now()),
-      last_status_time(creation_time),
-      last_write_time(creation_time),
-      last_access_time(creation_time),
-      size(0),
+    : data_map_((file_type == FileType::directory_file)
+                ? nullptr
+                : new encrypt::DataMap()),
+      directory_id_((file_type == FileType::directory_file)
+                    ? new DirectoryId(RandomString(64))
+                    : nullptr),
+      name_(name),
+      file_type_(file_type),
+      creation_time_(common::Clock::now()),
+      last_status_time_(creation_time_),
+      last_write_time_(creation_time_),
+      last_access_time_(creation_time_),
+      size_(0),
+      allocation_size_(0)
 #ifdef MAIDSAFE_WIN32
-      allocation_size(0),
-      attributes(file_type == FileType::directory_file ? FILE_ATTRIBUTE_DIRECTORY : 0xFFFFFFFF),
+      , attributes_(file_type == FileType::directory_file ? FILE_ATTRIBUTE_DIRECTORY : 0xFFFFFFFF)
 #endif
-      data_map((file_type == fs::directory_file)
-               ? nullptr
-               : new encrypt::DataMap()),
-      directory_id((file_type == fs::directory_file)
-                   ? new DirectoryId(RandomString(64))
-                   : nullptr) {
-#ifdef MAIDSAFE_WIN32
-#else
-  if (file_type == fs::directory_file) {
-    size = 4096;  // #BEFORE_RELEASE detail::kDirectorySize;
+        {
+#ifndef MAIDSAFE_WIN32
+  if (file_type == FileType::directory_file) {
+    size_ = 4096;  // #BEFORE_RELEASE detail::kDirectorySize;
   }
 #endif
 }
 
 MetaData::MetaData(const protobuf::Path& entry)
-    : name(entry.name()),
-      size(entry.attributes().st_size()),
+    : data_map_(),
+      directory_id_(nullptr),
+      name_(entry.name()),
+      file_type_(FileType::status_error),
+      creation_time_(),
+      last_status_time_(),
+      last_write_time_(),
+      last_access_time_(),
+      size_(entry.attributes().st_size()),
+      allocation_size_(entry.attributes().st_size())
 #ifdef MAIDSAFE_WIN32
-      allocation_size(entry.attributes().st_size()),
-      attributes(0xFFFFFFFF),
+      , attributes_(0xFFFFFFFF)
 #endif
-      data_map(),
-      directory_id(nullptr) {
-  if ((name == "\\") || (name == "/"))
-    name = kRoot;
+       {
+  if ((name_ == "\\") || (name_ == "/"))
+    name_ = kRoot;
 
   const protobuf::Attributes& attributes = entry.attributes();
 
   switch (attributes.file_type()) {
     case protobuf::Attributes::DIRECTORY_TYPE:
-      file_type = fs::directory_file;
+      file_type_ = FileType::directory_file;
       if (!entry.has_directory_id())
         BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
       if (entry.has_serialised_data_map())
         BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
-      directory_id.reset(new DirectoryId(entry.directory_id()));
+      directory_id_.reset(new DirectoryId(entry.directory_id()));
       break;
 
     case protobuf::Attributes::REGULAR_FILE_TYPE:
-      file_type = fs::regular_file;
+      file_type_ = FileType::regular_file;
       if (entry.has_directory_id())
         BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
       if (!entry.has_serialised_data_map())
         BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
-      data_map.reset(new encrypt::DataMap());
-      encrypt::ParseDataMap(entry.serialised_data_map(), *data_map);
+      data_map_.reset(new encrypt::DataMap());
+      encrypt::ParseDataMap(entry.serialised_data_map(), *data_map());
       break;
 
     case protobuf::Attributes::SYMLINK_FILE_TYPE:
-      file_type = fs::symlink_file;
+      file_type_ = FileType::symlink_file;
       if (entry.has_directory_id())
         BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
       if (entry.has_serialised_data_map())
         BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
       break;
   }
-  using namespace std::chrono;
-  creation_time = common::Clock::time_point(nanoseconds(attributes.creation_time()));
-  last_status_time = common::Clock::time_point(nanoseconds(attributes.last_status_time()));
-  last_write_time = common::Clock::time_point(nanoseconds(attributes.last_write_time()));
-  last_access_time = common::Clock::time_point(nanoseconds(attributes.last_access_time()));
+  {
+    using namespace std::chrono;
+    creation_time_ = TimePoint(nanoseconds(attributes.creation_time()));
+    last_status_time_ = TimePoint(nanoseconds(attributes.last_status_time()));
+    last_write_time_ = TimePoint(nanoseconds(attributes.last_write_time()));
+    last_access_time_ = TimePoint(nanoseconds(attributes.last_access_time()));
+  }
 
 #ifdef MAIDSAFE_WIN32
-  if (file_type == FileType::directory_file) {
-	  this->attributes |= FILE_ATTRIBUTE_DIRECTORY;
-    size = 0;
+  if (file_type() == FileType::directory_file) {
+	  attributes_ |= FILE_ATTRIBUTE_DIRECTORY;
+    size_ = 0;
   }
 
   if (attributes.has_win_attributes())
-	  this->attributes = static_cast<DWORD>(attributes.win_attributes());
+	  attributes_ = static_cast<DWORD>(attributes.win_attributes());
 #else
-  if (file_type == fs::directory_file) {
-    size = 4096;
+  if (file_type() == FileType::directory_file) {
+    size_ = 4096;
   }
 #endif
 }
 
 MetaData::MetaData(MetaData&& other)
-    : MetaData(other.file_type) {
-      swap(*this, other);
-    }
+    : data_map_(),
+      directory_id_(),
+      name_(),
+      file_type_(),
+      creation_time_(),
+      last_status_time_(),
+      last_write_time_(),
+      last_access_time_(),
+      size_(0),
+      allocation_size_(0)
+#ifdef MAIDSAFE_WIN32
+      , attributes_(0xFFFFFFFF)
+#endif 
+        {
+  swap(other);
+}
 
 MetaData& MetaData::operator=(MetaData other) {
-  swap(*this, other);
+  swap(other);
   return *this;
 }
 
-void MetaData::ToProtobuf(protobuf::Attributes& attributes) const {
-  switch (file_type) {
-    case fs::directory_file:
-      attributes.set_file_type(protobuf::Attributes::DIRECTORY_TYPE);
+void MetaData::ToProtobuf(protobuf::Attributes& proto_attributes) const {
+  switch (file_type()) {
+    case FileType::directory_file:
+      proto_attributes.set_file_type(protobuf::Attributes::DIRECTORY_TYPE);
       break;
-    case fs::regular_file:
-      attributes.set_file_type(protobuf::Attributes::REGULAR_FILE_TYPE);
+    case FileType::regular_file:
+      proto_attributes.set_file_type(protobuf::Attributes::REGULAR_FILE_TYPE);
       break;
-    case fs::symlink_file:
-      attributes.set_file_type(protobuf::Attributes::SYMLINK_FILE_TYPE);
+    case FileType::symlink_file:
+      proto_attributes.set_file_type(protobuf::Attributes::SYMLINK_FILE_TYPE);
       break;
     default:
       BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
       break;
   }
-  attributes.set_creation_time(creation_time.time_since_epoch().count());
-  attributes.set_last_status_time(last_status_time.time_since_epoch().count());
-  attributes.set_last_write_time(last_write_time.time_since_epoch().count());
-  attributes.set_last_access_time(last_access_time.time_since_epoch().count());
+  proto_attributes.set_creation_time(creation_time().time_since_epoch().count());
+  proto_attributes.set_last_status_time(last_status_time().time_since_epoch().count());
+  proto_attributes.set_last_write_time(last_write_time().time_since_epoch().count());
+  proto_attributes.set_last_access_time(last_access_time().time_since_epoch().count());
 
-  attributes.set_st_size(size);
+  proto_attributes.set_st_size(size());
 
 #ifdef MAIDSAFE_WIN32
-  attributes.set_win_attributes(this->attributes);
+  proto_attributes.set_win_attributes(attributes());
 #else
   uint32_t win_attributes(0x10);  // FILE_ATTRIBUTE_DIRECTORY
-  if (file_type == fs::regular_file)
+  if (file_type() == FileType::regular_file)
     win_attributes = 0x80;  // FILE_ATTRIBUTE_NORMAL
-  if (name.string()[0]  == '.')
+  if (name().string()[0]  == '.')
     win_attributes |= 0x2;  // FILE_ATTRIBUTE_HIDDEN
-  attributes.set_win_attributes(win_attributes);
+  proto_attributes.set_win_attributes(win_attributes);
 #endif
 }
 
 bool MetaData::operator<(const MetaData& other) const {
-  return boost::ilexicographical_compare(name.wstring(), other.name.wstring());
-}
-
-void MetaData::UpdateLastModifiedTime() {
-  last_write_time = common::Clock::now();
-}
-
-uint64_t MetaData::GetAllocatedSize() const {
-#ifdef MAIDSAFE_WIN32
-  return allocation_size;
-#else
-  return size;
-#endif
+  return boost::ilexicographical_compare(
+      name().wstring(), other.name().wstring());
 }
 
 MetaData::Permissions MetaData::GetPermissions(
     MetaData::Permissions base_permissions) const {
-  if (file_type != MetaData::FileType::directory_file)
+  if (file_type() != MetaData::FileType::directory_file)
   {
     return base_permissions;
   }
@@ -236,20 +245,51 @@ MetaData::Permissions MetaData::GetPermissions(
   return base_permissions;
 }
 
-void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT {
+void MetaData::UpdateLastStatusTime() {
+  last_status_time_ = common::Clock::now();
+  last_access_time_ = last_status_time();
+}
+
+void MetaData::UpdateLastModifiedTime() {
+  last_write_time_ = common::Clock::now();
+  last_access_time_ = last_write_time();
+}
+
+void MetaData::UpdateLastAccessTime() {
+  last_access_time_ = common::Clock::now();
+}
+
+void MetaData::UpdateSize(const std::uint64_t new_size) {
+  size_ = new_size;
+  allocation_size_ = size_;
+
+  last_write_time_ = common::Clock::now();
+  last_access_time_ = last_write_time();
+  last_status_time_ = last_write_time();
+}
+
+void MetaData::UpdateAllocationSize(const std::uint64_t new_size) {
+  allocation_size_ = new_size;
+  last_write_time_ = common::Clock::now();
+  last_access_time_ = last_write_time();
+  last_status_time_ = last_write_time();
+}
+
+void MetaData::swap(MetaData& rhs) MAIDSAFE_NOEXCEPT {
   using std::swap;
-  swap(lhs.name, rhs.name);
-  swap(lhs.creation_time, rhs.creation_time);
-  swap(lhs.last_status_time, rhs.last_status_time);
-  swap(lhs.last_write_time, rhs.last_write_time);
-  swap(lhs.last_access_time, rhs.last_access_time);
-  swap(lhs.size, rhs.size);
+  swap(data_map_, rhs.data_map_);
+  swap(directory_id_, rhs.directory_id_);
+  swap(name_, rhs.name_);
+  swap(file_type_, rhs.file_type_);
+  swap(creation_time_, rhs.creation_time_);
+  swap(last_status_time_, rhs.last_status_time_);
+  swap(last_write_time_, rhs.last_write_time_);
+  swap(last_access_time_, rhs.last_access_time_);
+  swap(size_, rhs.size_);
+  swap(allocation_size_, rhs.allocation_size_);
 #ifdef MAIDSAFE_WIN32
-  swap(lhs.allocation_size, rhs.allocation_size);
-  swap(lhs.attributes, rhs.attributes);
+  swap(attributes_, rhs.attributes_);
 #endif
-  swap(lhs.data_map, rhs.data_map);
-  swap(lhs.directory_id, rhs.directory_id);
 }
 
 }  // namespace detail

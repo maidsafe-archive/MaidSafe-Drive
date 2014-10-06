@@ -94,13 +94,11 @@ class DirectoryTest : public testing::Test {
   void GenerateDirectoryListingEntryForDirectory(std::shared_ptr<Directory> directory,
                                                  fs::path const& path) {
     auto file(File::Create(path.filename(), true));
-    file->meta_data.creation_time
-        = file->meta_data.last_status_time
-        = file->meta_data.last_access_time
-        = file->meta_data.last_write_time
-        = common::Clock::now();
 
-    *file->meta_data.directory_id =
+#ifdef MAIDSAFE_WIN32
+    file->meta_data.set_attributes(FILE_ATTRIBUTE_DIRECTORY);
+#endif
+    *file->meta_data.directory_id() =
         Identity(crypto::Hash<crypto::SHA512>((*main_test_dir_ / path).string()));
     EXPECT_NO_THROW(directory->AddChild(file));
   }
@@ -168,12 +166,12 @@ class DirectoryTest : public testing::Test {
           EXPECT_TRUE(
               RemoveDirectoryListingsEntries(itr->path(), relative_path / itr->path().filename()));
           EXPECT_NO_THROW(file = directory->GetMutableChild(itr->path().filename()));
-          EXPECT_NO_THROW(directory->RemoveChild(file->meta_data.name));
+          EXPECT_NO_THROW(directory->RemoveChild(file->meta_data.name()));
           // Remove the disk directory also
           CheckedRemove(itr->path());
         } else if (fs::is_regular_file(*itr)) {
           EXPECT_NO_THROW(file = directory->GetMutableChild(itr->path().filename()));
-          EXPECT_NO_THROW(directory->RemoveChild(file->meta_data.name));
+          EXPECT_NO_THROW(directory->RemoveChild(file->meta_data.name()));
           // Remove the disk file also
           CheckedRemove(itr->path());
         } else {
@@ -216,9 +214,9 @@ class DirectoryTest : public testing::Test {
           EXPECT_TRUE(RenameDirectoryEntries(itr->path(), new_path));
           EXPECT_NO_THROW(file = directory->GetMutableChild(itr->path().filename()));
           std::shared_ptr<Path> removed_context;
-          EXPECT_NO_THROW(removed_context = directory->RemoveChild(file->meta_data.name));
+          EXPECT_NO_THROW(removed_context = directory->RemoveChild(file->meta_data.name()));
           std::string new_name(RandomAlphaNumericString(5));
-          removed_context->meta_data.name = fs::path(new_name);
+          removed_context->meta_data.set_name(fs::path(new_name));
           EXPECT_NO_THROW(directory->AddChild(removed_context));
           // Rename corresponding directory
           CheckedRename(itr->path(), (itr->path().parent_path() / new_name));
@@ -226,9 +224,9 @@ class DirectoryTest : public testing::Test {
           if (itr->path().filename().string() != listing) {
             EXPECT_NO_THROW(file = directory->GetMutableChild(itr->path().filename()));
             std::shared_ptr<Path> removed_context;
-            EXPECT_NO_THROW(removed_context = directory->RemoveChild(file->meta_data.name));
+            EXPECT_NO_THROW(removed_context = directory->RemoveChild(file->meta_data.name()));
             std::string new_name(RandomAlphaNumericString(5) + ".txt");
-            removed_context->meta_data.name = fs::path(new_name);
+            removed_context->meta_data.set_name(fs::path(new_name));
             EXPECT_NO_THROW(directory->AddChild(removed_context));
             // Rename corresponding file
             CheckedRename(itr->path(), (itr->path().parent_path() / new_name));
@@ -312,11 +310,11 @@ class DirectoryTest : public testing::Test {
         if (fs::is_directory(*itr)) {
           EXPECT_TRUE(MatchEntries(itr->path(), relative_path / itr->path().filename()));
           EXPECT_NO_THROW(file = directory->GetChild(itr->path().filename()));
-          EXPECT_TRUE(file->meta_data.name == itr->path().filename());
+          EXPECT_TRUE(file->meta_data.name() == itr->path().filename());
         } else if (fs::is_regular_file(*itr)) {
           if (itr->path().filename().string() != listing) {
             EXPECT_NO_THROW(file = directory->GetChild(itr->path().filename()));
-            EXPECT_TRUE(file->meta_data.name == itr->path().filename());
+            EXPECT_TRUE(file->meta_data.name() == itr->path().filename());
             // EXPECT_TRUE(file->meta_data.size ==
             // fs::file_size(itr->path()));
           }
@@ -392,17 +390,17 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
   ASSERT_TRUE(lhs.children_.size() == rhs.children_.size());
   auto itr1(lhs.children_.begin()), itr2(rhs.children_.begin());
   for (; itr1 != lhs.children_.end(); ++itr1, ++itr2) {
-    ASSERT_TRUE((*itr1)->meta_data.name == (*itr2)->meta_data.name);
-    EXPECT_TRUE((*itr1)->meta_data.file_type == (*itr2)->meta_data.file_type);
-    if ((*itr1)->meta_data.data_map) {
-      ASSERT_TRUE(TotalSize(*(*itr1)->meta_data.data_map) ==
-                  TotalSize(*(*itr2)->meta_data.data_map));
-      ASSERT_TRUE((*itr1)->meta_data.data_map->chunks.size() ==
-                  (*itr2)->meta_data.data_map->chunks.size());
-      auto chunk_itr1((*itr1)->meta_data.data_map->chunks.begin());
-      auto chunk_itr2((*itr2)->meta_data.data_map->chunks.begin());
+    ASSERT_TRUE((*itr1)->meta_data.name() == (*itr2)->meta_data.name());
+    EXPECT_TRUE((*itr1)->meta_data.file_type() == (*itr2)->meta_data.file_type());
+    if ((*itr1)->meta_data.data_map()) {
+      ASSERT_TRUE(TotalSize(*(*itr1)->meta_data.data_map()) ==
+                  TotalSize(*(*itr2)->meta_data.data_map()));
+      ASSERT_TRUE((*itr1)->meta_data.data_map()->chunks.size() ==
+                  (*itr2)->meta_data.data_map()->chunks.size());
+      auto chunk_itr1((*itr1)->meta_data.data_map()->chunks.begin());
+      auto chunk_itr2((*itr2)->meta_data.data_map()->chunks.begin());
       size_t chunk_no(0);
-      for (; chunk_itr1 != (*itr1)->meta_data.data_map->chunks.end();
+      for (; chunk_itr1 != (*itr1)->meta_data.data_map()->chunks.end();
            ++chunk_itr1, ++chunk_itr2, ++chunk_no) {
         ASSERT_TRUE((*chunk_itr1).hash != (*chunk_itr2).hash) << "DataMap chunk " << chunk_no
                                                               << " hash mismatch.";
@@ -410,16 +408,16 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
             << "DataMap chunk " << chunk_no << " pre_hash mismatch.";
         ASSERT_TRUE((*chunk_itr1).size == (*chunk_itr2).size);
       }
-      ASSERT_TRUE((*itr1)->meta_data.data_map->content == (*itr2)->meta_data.data_map->content)
+      ASSERT_TRUE((*itr1)->meta_data.data_map()->content == (*itr2)->meta_data.data_map()->content)
           << "DataMap content mismatch.";
     }
-    ASSERT_EQ((*itr1)->meta_data.size, (*itr2)->meta_data.size);
-    ASSERT_EQ((*itr1)->meta_data.creation_time, (*itr2)->meta_data.creation_time);
-    ASSERT_EQ((*itr1)->meta_data.last_access_time, (*itr2)->meta_data.last_access_time);
-    ASSERT_EQ((*itr1)->meta_data.last_write_time, (*itr2)->meta_data.last_write_time);
+    ASSERT_EQ((*itr1)->meta_data.size(), (*itr2)->meta_data.size());
+    ASSERT_EQ((*itr1)->meta_data.creation_time(), (*itr2)->meta_data.creation_time());
+    ASSERT_EQ((*itr1)->meta_data.last_access_time(), (*itr2)->meta_data.last_access_time());
+    ASSERT_EQ((*itr1)->meta_data.last_write_time(), (*itr2)->meta_data.last_write_time());
 #ifdef MAIDSAFE_WIN32
-    ASSERT_TRUE((*itr1)->meta_data.allocation_size == (*itr2)->meta_data.allocation_size);
-    ASSERT_TRUE((*itr1)->meta_data.attributes == (*itr2)->meta_data.attributes);
+    ASSERT_TRUE((*itr1)->meta_data.allocation_size() == (*itr2)->meta_data.allocation_size());
+    ASSERT_TRUE((*itr1)->meta_data.attributes() == (*itr2)->meta_data.attributes());
 #endif
   }
 }
@@ -447,25 +445,20 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
     bool is_dir((i % 2) == 0);
     std::string child_name("Child " + std::to_string(i));
     auto file(File::Create(child_name, is_dir));
-    file->meta_data.creation_time
-        = file->meta_data.last_status_time
-        = file->meta_data.last_access_time
-        = file->meta_data.last_write_time
-        = common::Clock::now();
     if (is_dir) {
       EXPECT_NO_THROW(directory->AddChild(file));
     } else {
-      file->meta_data.size = RandomUint32();
+      file->meta_data.UpdateSize(RandomUint32());
 #ifdef MAIDSAFE_WIN32
       // When archiving MetaData the following assumption is made: size == allocation_size.
       // This is reasonable since when file info is queried or on closing a file we set those values
       // equal.  This stemmed from cbfs asserting when size.QuadPart was less than
       // allocation_size.QuadPart, although they were not always set in an order that avoided this,
       // so, to allow the test to pass: meta_data.allocation_size = RandomUint32();
-      file->meta_data.allocation_size = file->meta_data.size;
-      file->meta_data.attributes = FILE_ATTRIBUTE_NORMAL;
+      file->meta_data.UpdateAllocationSize(file->meta_data.size());
+      file->meta_data.set_attributes(FILE_ATTRIBUTE_NORMAL);
 #endif
-      file->meta_data.data_map->content = GetRandomString<encrypt::ByteVector>(10);
+      file->meta_data.data_map()->content = GetRandomString<encrypt::ByteVector>(10);
       EXPECT_NO_THROW(directory->AddChild(file));
       auto symlink(Symlink::Create("Link " + child_name, child_name));
       EXPECT_NO_THROW(directory->AddChild(symlink));
@@ -507,41 +500,41 @@ TEST_F(DirectoryTest, BEH_IteratorReset) {
   c = 'A';
   for (size_t i(0); i != kTestCount; ++i, ++c) {
     EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
-    EXPECT_TRUE(std::string(1, c) == file->meta_data.name);
-    EXPECT_TRUE(((i % 2) == 0) == (file->meta_data.directory_id != nullptr));
+    EXPECT_TRUE(std::string(1, c) == file->meta_data.name());
+    EXPECT_TRUE(((i % 2) == 0) == (file->meta_data.directory_id() != nullptr));
   }
 
   SortAndResetChildrenCounter(directory);
 
   EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("A" == file->meta_data.name);
+  EXPECT_TRUE("A" == file->meta_data.name());
   EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("B" == file->meta_data.name);
+  EXPECT_TRUE("B" == file->meta_data.name());
 
   // Add another element and check iterator is reset
   ++c;
   auto new_file(File::Create(std::string(1, c), false));
   EXPECT_NO_THROW(directory->AddChild(new_file));
   EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("A" == file->meta_data.name);
+  EXPECT_TRUE("A" == file->meta_data.name());
   EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("B" == file->meta_data.name);
+  EXPECT_TRUE("B" == file->meta_data.name());
 
   // Remove an element and check iterator is reset
   ASSERT_TRUE(directory->HasChild("C"));
   EXPECT_NO_THROW(directory->RemoveChild("C"));
   EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("A" == file->meta_data.name);
+  EXPECT_TRUE("A" == file->meta_data.name());
   EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("B" == file->meta_data.name);
+  EXPECT_TRUE("B" == file->meta_data.name());
 
   // Try to remove a non-existent element and check iterator is not reset
   ASSERT_FALSE(directory->HasChild("C"));
   EXPECT_THROW(directory->RemoveChild("C"), std::exception);
   EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("D" == file->meta_data.name);
+  EXPECT_TRUE("D" == file->meta_data.name());
   EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
-  EXPECT_TRUE("E" == file->meta_data.name);
+  EXPECT_TRUE("E" == file->meta_data.name());
 
   // Check operator<
   // DirectoryListing directory_listing1(Identity(crypto::Hash<crypto::SHA512>(std::string("A")))),

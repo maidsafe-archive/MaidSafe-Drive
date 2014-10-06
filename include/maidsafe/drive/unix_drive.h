@@ -172,20 +172,20 @@ inline struct stat ToStat(const MetaData& meta,
                           const MetaData::Permissions base_permissions) {
   struct stat result;
   std::memset(&result, 0, sizeof(result));
-  result.st_ino = std::hash<std::string>()(meta.name.native());
+  result.st_ino = std::hash<std::string>()(meta.name().native());
   result.st_mode =
-      detail::ToFileMode(meta.file_type) |
+      detail::ToFileMode(meta.file_type()) |
       detail::ToPermissionMode(
           meta.GetPermissions(base_permissions));
   result.st_uid = fuse_get_context()->uid;
   result.st_gid = fuse_get_context()->gid;
-  result.st_nlink = (meta.file_type == fs::directory_file) ? 2 : 1;
-  result.st_size = meta.size;
+  result.st_nlink = (meta.file_type() == MetaData::FileType::directory_file) ? 2 : 1;
+  result.st_size = meta.size();
   result.st_blksize = detail::kFileBlockSize;
   result.st_blocks = result.st_size / result.st_blksize;
-  result.st_atime = common::Clock::to_time_t(meta.last_access_time);
-  result.st_mtime = common::Clock::to_time_t(meta.last_write_time);
-  result.st_ctime = common::Clock::to_time_t(meta.last_status_time);
+  result.st_atime = common::Clock::to_time_t(meta.last_access_time());
+  result.st_mtime = common::Clock::to_time_t(meta.last_write_time());
+  result.st_ctime = common::Clock::to_time_t(meta.last_status_time());
   return result;
 }
 
@@ -875,7 +875,7 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
     struct stat attributes = ToStat(
         file->meta_data,
         Global<Storage>::g_fuse_drive->get_base_file_permissions());
-    if (filler(buf, file->meta_data.name.c_str(), &attributes, 0))
+    if (filler(buf, file->meta_data.name().c_str(), &attributes, 0))
       break;
     file = directory->GetChildAndIncrementCounter();
   }
@@ -1079,9 +1079,10 @@ int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]
   std::shared_ptr<detail::Path> file;
   try {
     file = Global<Storage>::g_fuse_drive->GetMutableContext(path);
-    file->meta_data.last_access_time = detail::ToTimePoint(ts[0]);
-    file->meta_data.last_write_time = detail::ToTimePoint(ts[1]);
-    file->meta_data.last_status_time = common::Clock::now();
+
+    file->meta_data.set_last_access_time(detail::ToTimePoint(ts[0]));
+    file->meta_data.set_last_write_time(detail::ToTimePoint(ts[1]));
+    file->meta_data.set_status_time(common::Clock::now());
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to change times for " << path << ": " << e.what();
@@ -1174,11 +1175,6 @@ int FuseDrive<Storage>::CreateSymlink(const fs::path& target,
   try {
     auto symlink = detail::Symlink::Create(target.filename(),
                                            source.filename());
-    symlink->meta_data.creation_time
-        = symlink->meta_data.last_status_time
-        = symlink->meta_data.last_write_time
-        = symlink->meta_data.last_access_time
-        = common::Clock::now();
     Global<Storage>::g_fuse_drive->Create(target, symlink);
   } catch (const std::exception& e) {
     LOG(kError) << "CreateSymlink: " << source << " -> " << target << ": " << e.what();
@@ -1190,17 +1186,12 @@ int FuseDrive<Storage>::CreateSymlink(const fs::path& target,
 template <typename Storage>
 int FuseDrive<Storage>::CreateDirectory(const fs::path& target,
                                         mode_t mode) {
-  if (detail::ToFileType(mode) != fs::directory_file) {
+  if (detail::ToFileType(mode) != detail::MetaData::FileType::directory_file) {
     return -EINVAL;
   }
   try {
     // FIXME: Replace with detail::Directory::Create
     auto directory = detail::File::Create(target.filename(), true);
-    directory->meta_data.creation_time
-        = directory->meta_data.last_status_time
-        = directory->meta_data.last_write_time
-        = directory->meta_data.last_access_time
-        = common::Clock::now();
     Global<Storage>::g_fuse_drive->Create(target, directory);
   } catch (const std::exception& e) {
     LOG(kError) << "CreateDirectory: " << target << ": " << e.what();
@@ -1220,11 +1211,6 @@ int FuseDrive<Storage>::CreateFile(const fs::path& target, mode_t mode) {
   }
   try {
     auto file = detail::File::Create(target.filename(), false);
-    file->meta_data.creation_time
-        = file->meta_data.last_status_time
-        = file->meta_data.last_write_time
-        = file->meta_data.last_access_time
-        = common::Clock::now();
     Global<Storage>::g_fuse_drive->Create(target, file);
   } catch (const std::exception& e) {
     LOG(kError) << "CreateFile: " << target << ": " << e.what();
@@ -1243,7 +1229,7 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
         file->meta_data,
         Global<Storage>::g_fuse_drive->get_base_file_permissions());
     LOG(kVerbose) << " meta_data info  = ";
-    LOG(kVerbose) << "     name =  " << file->meta_data.name.c_str();
+    LOG(kVerbose) << "     name =  " << file->meta_data.name().c_str();
     LOG(kVerbose) << "     st_dev = " << stbuf->st_dev;
     LOG(kVerbose) << "     st_ino = " << stbuf->st_ino;
     LOG(kVerbose) << "     st_mode = " << stbuf->st_mode;
@@ -1275,12 +1261,7 @@ int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
     auto file(Global<Storage>::g_fuse_drive->GetMutableContext(path));
     assert(file->self_encryptor);
     file->self_encryptor->Truncate(size);
-    file->meta_data.size = size;
-    file->meta_data.creation_time
-        = file->meta_data.last_status_time
-        = file->meta_data.last_write_time
-        = file->meta_data.last_access_time
-        = common::Clock::now();
+    file->meta_data.UpdateSize(size);
     file->ScheduleForStoring();
   }
   catch (const std::exception& e) {

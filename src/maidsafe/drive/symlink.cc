@@ -40,7 +40,7 @@ Symlink::Symlink(const fs::path& target,
     : Path(fs::symlink_file),
       target(target),
       source(source) {
-  meta_data.name = target;
+  meta_data.set_name(target);
 }
 
 bool Symlink::Valid() const {
@@ -61,7 +61,7 @@ void Symlink::Serialise(protobuf::Directory& proto_directory,
 void Symlink::Serialise(protobuf::Path& proto_path) {
   assert(proto_path.mutable_attributes() != nullptr);
   meta_data.ToProtobuf(*(proto_path.mutable_attributes()));
-  proto_path.set_name(meta_data.name.string());
+  proto_path.set_name(meta_data.name().string());
   proto_path.set_link_to(source.string());
 }
 
