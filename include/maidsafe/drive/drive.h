@@ -198,7 +198,7 @@ void Drive<Storage>::InitialiseEncryptor(const boost::filesystem::path& relative
   auto disk_buffer_path(boost::filesystem::unique_path(*kBufferRoot_ / "%%%%%-%%%%%-%%%%%-%%%%%"));
   file.buffer.reset(new detail::File::Buffer(default_max_buffer_memory_,
       default_max_buffer_disk_, buffer_pop_functor, disk_buffer_path, true));
-  file.self_encryptor.reset(new encrypt::SelfEncryptor(*file.meta_data.data_map,
+  file.self_encryptor.reset(new encrypt::SelfEncryptor(*file.meta_data.data_map(),
       *file.buffer, get_chunk_from_store_));
 }
 
@@ -210,7 +210,7 @@ void Drive<Storage>::ScheduleDeletionOfEncryptor(std::shared_ptr<detail::File> f
     LOG(kInfo) << "Successfully cancelled " << cancelled_count << " encryptor deletion.";
     assert(cancelled_count == 1);
   }
-  auto name(file->meta_data.name);
+  const auto& name(file->meta_data.name());
 #endif
   static_cast<void>(cancelled_count);
   file->timer->async_wait([=](const boost::system::error_code& ec) {
@@ -222,7 +222,7 @@ void Drive<Storage>::ScheduleDeletionOfEncryptor(std::shared_ptr<detail::File> f
           file->Flush();
         } else {
           LOG(kWarning) << "About to delete encryptor and buffer for "
-                        << file->meta_data.name << " but open_count > 0";
+                        << file->meta_data.name() << " but open_count > 0";
         }
       } else {
 #ifndef NDEBUG
@@ -252,7 +252,7 @@ Drive<Storage>::GetMutableContext(const boost::filesystem::path& relative_path) 
 template <typename Storage>
 void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
                             std::shared_ptr<detail::Path> path) {
-  if (path->meta_data.file_type == boost::filesystem::regular_file) {
+  if (path->meta_data.file_type() == detail::MetaData::FileType::regular_file) {
     auto file = std::dynamic_pointer_cast<detail::File>(path);
     // FIXME: Move into File
     InitialiseEncryptor(relative_path, *file);
@@ -265,7 +265,7 @@ template <typename Storage>
 void Drive<Storage>::Open(const boost::filesystem::path& relative_path) {
   auto parent(directory_handler_->template Get<detail::Directory>(relative_path.parent_path()));
   auto file(parent->template GetMutableChild<detail::File>(relative_path.filename()));
-  if (!file->meta_data.directory_id) {
+  if (!file->meta_data.directory_id()) {
     LOG(kInfo) << "Opening " << relative_path << " open count: " << file->open_count + 1;
     if (++file->open_count == 1) {
       std::lock_guard<std::mutex> lock(parent->mutex_);
@@ -287,7 +287,7 @@ template <typename Storage>
 void Drive<Storage>::Release(const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
   auto file(GetMutableContext<detail::File>(relative_path));
-  if (!file->meta_data.directory_id) {
+  if (!file->meta_data.directory_id()) {
     LOG(kInfo) << "Releasing " << relative_path << " open count: " << file->open_count - 1;
     --file->open_count;
     if (file->open_count == 0)
@@ -339,8 +339,9 @@ uint32_t Drive<Storage>::Write(const boost::filesystem::path& relative_path, con
   LOG(kInfo) << "For "  << relative_path << ", writing " << size << " bytes at offset " << offset;
   if (!file->self_encryptor->Write(data, size, offset))
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
-  // TODO(Fraser#5#): 2013-12-02 - Update last write time?
-  file->meta_data.size = std::max<std::int64_t>(offset + size, file->meta_data.size);
+
+  file->meta_data.UpdateSize(
+      std::max<std::int64_t>(offset + size, file->meta_data.size()));
   file->ScheduleForStoring();
   return size;
 }

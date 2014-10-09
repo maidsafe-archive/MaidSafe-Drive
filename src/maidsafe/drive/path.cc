@@ -53,7 +53,7 @@ std::shared_ptr<Path::Listener> Path::GetListener() const {
 }
 
 bool operator<(const Path& lhs, const Path& rhs) {
-  return lhs.meta_data.name < rhs.meta_data.name;
+  return lhs.meta_data.name() < rhs.meta_data.name();
 }
 
 }  // namespace detail

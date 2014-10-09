@@ -45,51 +45,105 @@ namespace drive {
 namespace detail {
 
 namespace protobuf { class Path; class Attributes; }
+namespace test { class DirectoryTest; }
 
 // Represents directory and file information
-struct MetaData {
+class MetaData {
+ public:
+
   using TimePoint = common::Clock::time_point;
   using FileType = boost::filesystem::file_type;
   using Permissions = boost::filesystem::perms;
 
-  explicit MetaData(FileType);
+  // TODO Drop this extra constructor - required by path currently
+  explicit MetaData(FileType file_type);
   MetaData(const boost::filesystem::path& name, FileType);
   explicit MetaData(const protobuf::Path& protobuf_path);
   MetaData(MetaData&& other);
+
   MetaData& operator=(MetaData other);
 
   void ToProtobuf(protobuf::Attributes& protobuf_attributes) const;
 
   bool operator<(const MetaData& other) const;
-  void UpdateLastModifiedTime();
-  uint64_t GetAllocatedSize() const;
 
   Permissions GetPermissions(Permissions base_permissions) const;
 
-  boost::filesystem::path name;
-  FileType file_type;
-  // Time file was created
-  TimePoint creation_time;
-  // Last time file attributes were modified
-  TimePoint last_status_time;
-  // Last time file content was modified
-  TimePoint last_write_time;
-  // Last known time file was accessed
-  TimePoint last_access_time;
-  uint64_t size;
+  const encrypt::DataMap* data_map() const { return data_map_.get(); }
+  encrypt::DataMap* data_map() { return data_map_.get(); }
+  const DirectoryId* directory_id() const { return directory_id_.get(); }
+  const boost::filesystem::path& name() const { return name_; }
+
+  FileType file_type() const { return file_type_; }
+  TimePoint creation_time() const { return creation_time_; }
+  TimePoint last_status_time() const { return last_status_time_; }
+  TimePoint last_write_time() const { return last_write_time_; }
+  TimePoint last_access_time() const { return last_access_time_; }
+  std::uint64_t size() const { return size_; }
+  std::uint64_t allocation_size() const { return allocation_size_; }
 
 #ifdef MAIDSAFE_WIN32
-  uint64_t allocation_size;
-  DWORD attributes;
-#endif
-  std::unique_ptr<encrypt::DataMap> data_map;
-  std::unique_ptr<DirectoryId> directory_id;
+  DWORD attributes() const { return attributes_; }
+  void set_attributes(const DWORD new_attributes) { attributes_ = new_attributes; }
+#endif // MAIDSAFE_WIN32
+
+  void set_name(const boost::filesystem::path& new_name) { name_ = new_name; }
+
+  // Methods that automatically grab current time are preferred
+  void set_creation_time(const TimePoint new_time) { creation_time_ = new_time; }
+  void set_status_time(const TimePoint new_time) { last_status_time_ = new_time; }
+  void set_last_access_time(const TimePoint new_time) { last_access_time_ = new_time; }
+  void set_last_write_time(const TimePoint new_time) { last_write_time_ = new_time; }
+
+  // Updates the last attributes modification time and access time
+  void UpdateLastStatusTime();
+
+  // Updates the last file modification time, access time, and status time
+  void UpdateLastModifiedTime();
+
+  // Updates the last access time
+  void UpdateLastAccessTime();
+
+  /* Updates the size of the file, status time, write time, and access time.
+     Allocation size is modified to match the size. */
+  void UpdateSize(const std::uint64_t new_size);
+
+  // Updates the allocated size of the file, status time, write time, and access time
+  void UpdateAllocationSize(const std::uint64_t new_size);
+
+  void swap(MetaData& rhs) MAIDSAFE_NOEXCEPT;
 
  private:
-  MetaData(const MetaData& other) = delete;
+
+  friend class test::DirectoryTest;
+
+  std::unique_ptr<encrypt::DataMap> data_map_;
+  std::unique_ptr<DirectoryId> directory_id_;
+  boost::filesystem::path name_;
+
+  FileType file_type_;
+  // Time file was created
+  TimePoint creation_time_;
+  // Last time file attributes were modified
+  TimePoint last_status_time_;
+  // Last time file content was modified
+  TimePoint last_write_time_;
+  // Last known time file was accessed
+  TimePoint last_access_time_;
+  std::uint64_t size_;
+  std::uint64_t allocation_size_;
+
+#ifdef MAIDSAFE_WIN32
+  DWORD attributes_;
+#endif
+
+ private:
+  MetaData(const MetaData&) = delete;
 };
 
-void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT;
+inline void swap(MetaData& lhs, MetaData& rhs) MAIDSAFE_NOEXCEPT {
+  lhs.swap(rhs);
+}
 
 inline bool HasPermission(const MetaData::Permissions permissions,
                           const MetaData::Permissions expected_permission) {

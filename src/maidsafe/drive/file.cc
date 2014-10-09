@@ -37,7 +37,7 @@ File::File()
       flushed(false) {}
 
 File::File(MetaData meta_data_in, std::shared_ptr<Directory> parent_in)
-    : Path(parent_in, meta_data_in.file_type),
+    : Path(parent_in, meta_data_in.file_type()),
       buffer(),
       timer(),
       flushed(false) {
@@ -45,11 +45,14 @@ File::File(MetaData meta_data_in, std::shared_ptr<Directory> parent_in)
 }
 
 File::File(const boost::filesystem::path& name, bool is_directory)
-    : Path(is_directory ? fs::directory_file : fs::regular_file),
+    : Path(is_directory ?
+           MetaData::FileType::directory_file : MetaData::FileType::regular_file),
       buffer(),
       timer(),
       flushed(false) {
-  meta_data = MetaData(name, is_directory ? fs::directory_file : fs::regular_file);
+  meta_data = MetaData(
+      name,
+      is_directory ? MetaData::FileType::directory_file : MetaData::FileType::regular_file);
 }
 
 File::~File() {
@@ -63,7 +66,7 @@ bool File::Valid() const {
   // The open_count must be >=0.  If > 0 and the context doesn't represent a directory, the buffer
   // and encryptor should be non-null.
   return ((open_count == 0) ||
-          ((open_count > 0) && (meta_data.directory_id || (buffer && self_encryptor && timer))));
+          ((open_count > 0) && (meta_data.directory_id() || (buffer && self_encryptor && timer))));
 }
 
 std::string File::Serialise() {
@@ -85,13 +88,13 @@ void File::Serialise(protobuf::Directory& proto_directory,
       },
       chunks);
     flushed = false;
-  } else if (meta_data.data_map) {
+  } else if (meta_data.data_map()) {
     if (flushed) {  // File has already been flushed
       flushed = false;
     } else {  // File has not been opened
-      for (const auto& chunk : meta_data.data_map->chunks)
+      for (const auto& chunk : meta_data.data_map()->chunks)
         chunks.emplace_back(
-	    Identity(std::string(std::begin(chunk.hash), std::end(chunk.hash))));
+            Identity(std::string(std::begin(chunk.hash), std::end(chunk.hash))));
     }
   }
 }
@@ -99,14 +102,14 @@ void File::Serialise(protobuf::Directory& proto_directory,
 void File::Serialise(protobuf::Path& proto_path) {
   assert(proto_path.mutable_attributes() != nullptr);
   meta_data.ToProtobuf(*(proto_path.mutable_attributes()));
-  proto_path.set_name(meta_data.name.string());
-  switch (meta_data.file_type) {
+  proto_path.set_name(meta_data.name().string());
+  switch (meta_data.file_type()) {
     case fs::directory_file:
-      proto_path.set_directory_id(meta_data.directory_id->string());
+      proto_path.set_directory_id(meta_data.directory_id()->string());
       break;
     case fs::regular_file: {
       std::string serialised_data_map;
-      encrypt::SerialiseDataMap(*meta_data.data_map, serialised_data_map);
+      encrypt::SerialiseDataMap(*meta_data.data_map(), serialised_data_map);
       proto_path.set_serialised_data_map(serialised_data_map);
       break;
     }

@@ -200,13 +200,13 @@ std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersi
 Directory::Children::iterator Directory::Find(const fs::path& name) {
   return std::find_if(std::begin(children_), std::end(children_),
                       [&name](const Children::value_type& file) {
-                           return file->meta_data.name == name; });
+                          return file->meta_data.name() == name; });
 }
 
 Directory::Children::const_iterator Directory::Find(const fs::path& name) const {
   return std::find_if(std::begin(children_), std::end(children_),
                       [&name](const Children::value_type& file) {
-                           return file->meta_data.name == name; });
+                          return file->meta_data.name() == name; });
 }
 
 void Directory::SortAndResetChildrenCounter() {
@@ -289,7 +289,7 @@ bool Directory::HasChild(const fs::path& name) const {
   std::lock_guard<std::mutex> lock(mutex_);
   return std::any_of(std::begin(children_), std::end(children_),
                      [&name](const Children::value_type& file) {
-                       return file->meta_data.name == name; });
+                         return file->meta_data.name() == name; });
 }
 
 std::shared_ptr<const Path> Directory::GetChildAndIncrementCounter() {
@@ -304,7 +304,7 @@ std::shared_ptr<const Path> Directory::GetChildAndIncrementCounter() {
 
 void Directory::AddChild(std::shared_ptr<Path> child) {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto itr(Find(child->meta_data.name));
+  auto itr(Find(child->meta_data.name()));
   if (itr != std::end(children_))
     BOOST_THROW_EXCEPTION(MakeError(DriveErrors::file_exists));
   child->SetParent(shared_from_this());
@@ -331,7 +331,7 @@ void Directory::RenameChild(const fs::path& old_name, const fs::path& new_name) 
   auto itr(Find(old_name));
   if (itr == std::end(children_))
     BOOST_THROW_EXCEPTION(MakeError(DriveErrors::no_such_file));
-  (*itr)->meta_data.name = new_name;
+  (*itr)->meta_data.set_name(new_name);
   SortAndResetChildrenCounter();
   DoScheduleForStoring();
 }

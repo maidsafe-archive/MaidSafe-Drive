@@ -209,7 +209,7 @@ void DirectoryHandler<Storage>::Initialise(std::shared_ptr<Storage>,
                                       ""));
     std::shared_ptr<Directory>
         root(Directory::Create(ParentId(root_parent_id_),
-                               *root_file->meta_data.directory_id,
+                               *root_file->meta_data.directory_id(),
                                asio_service_,
                                GetListener(),
                                kRoot));
@@ -231,7 +231,7 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
   if (IsDirectory(path)) {
     std::shared_ptr<Directory>
         directory(Directory::Create(ParentId(parent.first->directory_id()),
-                                    *path->meta_data.directory_id,
+                                    *path->meta_data.directory_id(),
                                     asio_service_,
                                     GetListener(),
                                     relative_path));
@@ -239,16 +239,14 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
     cache_[relative_path] = directory;
   }
 
+  /* File information is split amongst two objects. parent.first is the
+     Directory object that stores the children information. parent.second is the
+     File object being stored in the grandparent directory that stores the
+     metadata (timestamps, etc.). So second.ScheduleForStoring() and
+     first.AddChild() must both be invoked for both the metadata and children to
+     be updated in the parent directory. */
   parent.second->meta_data.UpdateLastModifiedTime();
-
-#ifndef MAIDSAFE_WIN32
-  parent.second->meta_data.creation_time = parent.second->meta_data.last_write_time;
-  if (IsDirectory(path)) {
-    // FIXME: Determine how to handle hard links
-    // ++parent.second->meta_data.attributes.st_nlink;
-    parent.second->ScheduleForStoring();
-  }
-#endif
+  parent.second->ScheduleForStoring();
 
   // TODO(Fraser#5#): 2013-11-28 - Use on_scope_exit or similar to undo changes if AddChild throws.
   parent.first->AddChild(path);
@@ -291,10 +289,10 @@ DirectoryHandler<Storage>::Get(const boost::filesystem::path& relative_path) {
       antecedent = (antecedent / *path_itr).make_preferred();
     }
 
-    if (!file->meta_data.directory_id)
+    if (!file->meta_data.directory_id())
       BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
     auto directory(GetFromStorage(antecedent, ParentId(parent->directory_id()),
-                                  *file->meta_data.directory_id));
+                                  *file->meta_data.directory_id()));
     {
       std::lock_guard<std::mutex> lock(cache_mutex_);
       parent = directory;
@@ -319,7 +317,7 @@ void DirectoryHandler<Storage>::FlushAll() {
     while (child) {
       if (child->self_encryptor && !child->self_encryptor->Flush()) {
         error = true;
-        LOG(kError) << "Failed to flush " << (dir.first / child->meta_data.name);
+        LOG(kError) << "Failed to flush " << (dir.first / child->meta_data.name());
       }
       child = current->GetChildAndIncrementCounter();
     }
@@ -349,14 +347,6 @@ void DirectoryHandler<Storage>::Delete(const boost::filesystem::path& relative_p
 
   parent.first->RemoveChild(relative_path.filename());
   parent.second->meta_data.UpdateLastModifiedTime();
-
-#ifndef MAIDSAFE_WIN32
-  parent.second->meta_data.creation_time = parent.second->meta_data.last_write_time;
-  // FIXME: Determine how to handle hard links
-  // if (is_directory) {
-  //   --parent.second->meta_data.attributes.st_nlink;
-  // }
-#endif
 }
 
 template <typename Storage>
@@ -394,7 +384,7 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
 
 template <typename Storage>
 bool DirectoryHandler<Storage>::IsDirectory(std::shared_ptr<const Path> path) const {
-  return static_cast<bool>(path->meta_data.directory_id);
+  return path->meta_data.file_type() == detail::MetaData::FileType::directory_file;
 }
 
 template <typename Storage>
@@ -402,7 +392,7 @@ std::pair<std::shared_ptr<Directory>, std::shared_ptr<Path>>
 DirectoryHandler<Storage>::GetParent(const boost::filesystem::path& relative_path) {
   auto grandparent(Get<Directory>(relative_path.parent_path().parent_path()));
   auto parent_context(grandparent->GetMutableChild(relative_path.parent_path().filename()));
-  if (!(parent_context->meta_data.directory_id))
+  if (!(parent_context->meta_data.directory_id()))
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
   return std::make_pair(Get<Directory>(relative_path.parent_path()), parent_context);
 }
@@ -469,13 +459,11 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
     directory->ScheduleForStoring();
   }
 
-  file->meta_data.name = new_relative_path.filename();
+  file->meta_data.set_name(new_relative_path.filename());
   file->SetParent(new_parent);
   new_parent->AddChild(file);
 
-  old_parent.second->meta_data.last_write_time =
-    old_parent.second->meta_data.last_access_time =
-    common::Clock::now();
+  old_parent.second->meta_data.UpdateLastModifiedTime();
 }
 
 template <typename Storage>

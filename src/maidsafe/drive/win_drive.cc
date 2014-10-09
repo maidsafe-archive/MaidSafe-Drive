@@ -61,23 +61,15 @@ bool LastAccessUpdateIsDisabled() {
   return kIsDisabled;
 }
 
-bool SetAttributes(DWORD& attributes, DWORD new_value) {
-  if (new_value != 0 && attributes != new_value) {
-    attributes = new_value;
-    return true;
-  }
-  return false;
-}
-
-bool SetFiletime(common::Clock::time_point& filetime, PFILETIME new_value) {
+boost::optional<common::Clock::time_point> GetNewFiletime(
+    const common::Clock::time_point filetime, const PFILETIME new_value) {
   if (new_value) {
-    const auto t = ToTimePoint(*new_value);
+    const common::Clock::time_point t = ToTimePoint(*new_value);
     if (filetime != t) {
-        filetime = t;
-        return true;
+      return t;
     }
   }
-  return false;
+  return boost::none;
 }
 
 void ErrorMessage(const std::string &method_name, ECBFSError error) {

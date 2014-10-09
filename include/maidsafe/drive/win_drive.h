@@ -74,10 +74,9 @@ boost::filesystem::path GetRelativePath(CbfsDrive<Storage>* cbfs_drive, CbFsFile
 // updating LastAccessTime, otherwise updates can be ignored.
 bool LastAccessUpdateIsDisabled();
 
-// Returns true if 'attributes' was changed
-bool SetAttributes(DWORD& attributes, DWORD new_value);
-// Returns true if 'filetime' was changed
-bool SetFiletime(common::Clock::time_point& filetime, PFILETIME new_value);
+// Returns new timestamp if changed, empty optional if not
+boost::optional<common::Clock::time_point> GetNewFiletime(
+    const common::Clock::time_point filetime, const PFILETIME new_value);
 
 void ErrorMessage(const std::string& method_name, ECBFSError error);
 
@@ -542,7 +541,7 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
   bool is_directory((file_attributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY);
   try {
     auto file(detail::File::Create(relative_path.filename(), is_directory));
-    file->meta_data.attributes = file_attributes;
+    file->meta_data.set_attributes(file_attributes);
     detail::GetDrive<Storage>(sender)->Create(relative_path, file);
   }
   catch (const drive_error& error) {
@@ -680,23 +679,23 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
   }
 
   *file_exists = true;
-  *creation_time = detail::ToFileTime(file->meta_data.creation_time);
-  *last_access_time = detail::ToFileTime(file->meta_data.last_access_time);
-  *last_write_time = detail::ToFileTime(file->meta_data.last_write_time);
+  *creation_time = detail::ToFileTime(file->meta_data.creation_time());
+  *last_access_time = detail::ToFileTime(file->meta_data.last_access_time());
+  *last_write_time = detail::ToFileTime(file->meta_data.last_write_time());
   // if (file->meta_data.size < file->meta_data.allocation_size)
   //   file->meta_data.size = file->meta_data.allocation_size;
   // else if (file->meta_data.allocation_size < file->meta_data.size)
   //   file->meta_data.allocation_size = file->meta_data.size;
-  *end_of_file = file->meta_data.size;
-  *allocation_size = file->meta_data.allocation_size;
+  *end_of_file = file->meta_data.size();
+  *allocation_size = file->meta_data.allocation_size();
   // *file_id = 0;
-  *file_attributes = file->meta_data.attributes;
-  if (file->meta_data.file_type == boost::filesystem::directory_file) {
+  *file_attributes = file->meta_data.attributes();
+  if (file->meta_data.file_type() == boost::filesystem::directory_file) {
     *file_attributes |= FILE_ATTRIBUTE_DIRECTORY;
   }
   if (real_file_name) {
-    wcscpy(real_file_name, file->meta_data.name.wstring().c_str());
-    *real_file_name_length = static_cast<WORD>(file->meta_data.name.wstring().size());
+    wcscpy(real_file_name, file->meta_data.name().wstring().c_str());
+    *real_file_name_length = static_cast<WORD>(file->meta_data.name().wstring().size());
   }
 }
 
@@ -770,7 +769,7 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
       file = directory->GetChildAndIncrementCounter();
       if (!file)
         break;
-      *file_found = detail::MatchesMask(mask_str, file->meta_data.name);
+      *file_found = detail::MatchesMask(mask_str, file->meta_data.name());
     }
   } else {
     file = directory->GetChildAndIncrementCounter();
@@ -781,14 +780,14 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     // Need to use wcscpy rather than the secure wcsncpy_s as file_name has a size of 0 in some
     // cases.  CBFS docs specify that callers must assign MAX_PATH chars to file_name, so we assume
     // this is done.
-    wcscpy(file_name, file->meta_data.name.wstring().c_str());
-    *file_name_length = static_cast<DWORD>(file->meta_data.name.wstring().size());
-    *creation_time = detail::ToFileTime(file->meta_data.creation_time);
-    *last_access_time = detail::ToFileTime(file->meta_data.last_access_time);
-    *last_write_time = detail::ToFileTime(file->meta_data.last_write_time);
-    *end_of_file = file->meta_data.size;
-    *allocation_size = file->meta_data.allocation_size;
-    *file_attributes = file->meta_data.attributes;
+    wcscpy(file_name, file->meta_data.name().wstring().c_str());
+    *file_name_length = static_cast<DWORD>(file->meta_data.name().wstring().size());
+    *creation_time = detail::ToFileTime(file->meta_data.creation_time());
+    *last_access_time = detail::ToFileTime(file->meta_data.last_access_time());
+    *last_write_time = detail::ToFileTime(file->meta_data.last_write_time());
+    *end_of_file = file->meta_data.size();
+    *allocation_size = file->meta_data.allocation_size();
+    *file_attributes = file->meta_data.attributes();
   }
 }
 
@@ -830,22 +829,12 @@ void CbfsDrive<Storage>::CbFsSetAllocationSize(CallbackFileSystem* sender, CbFsF
              << " bytes.";
   try {
     auto file(cbfs_drive->GetMutableContext(relative_path));
-    file->meta_data.allocation_size = allocation_size;
+    file->meta_data.UpdateAllocationSize(allocation_size);
     file->ScheduleForStoring();
   }
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
-  // if (file->meta_data.allocation_size == file->meta_data.size)
-  //   return;
-
-  // if (cbfs_drive->TruncateFile(file, allocation_size)) {
-  //   file->meta_data.allocation_size = allocation_size;
-  //   if (!file->self_encryptor->Flush()) {
-  //     LOG(kError) << "CbFsSetAllocationSize: " << relative_path << ", failed to flush";
-  //   }
-  // }
-  // file->content_changed = true;
 }
 
 // Quote from CBFS documentation:
@@ -862,26 +851,12 @@ void CbfsDrive<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileIn
     auto file(cbfs_drive->GetMutableContext(relative_path));
     assert(file->self_encryptor);
     file->self_encryptor->Truncate(end_of_file);
-    file->meta_data.size = end_of_file;
+    file->meta_data.UpdateSize(end_of_file);
     file->ScheduleForStoring();
   }
   catch (const std::exception&) {
     throw ECBFSError(ERROR_FILE_NOT_FOUND);
   }
-  // if (cbfs_drive->TruncateFile(file, end_of_file)) {
-  //   file->meta_data.size = end_of_file;
-  //   if (!file->self_encryptor->Flush()) {
-  //     LOG(kError) << "CbFsSetEndOfFile: " << relative_path << ", failed to flush";
-  //   }
-  // } else {
-  //   LOG(kError) << "Truncate failed for " << file->meta_data.name;
-  // }
-
-  // if (file->meta_data.allocation_size == static_cast<uint64_t>(end_of_file))
-  //   return;
-
-  // file->meta_data.allocation_size = end_of_file;
-  // file->content_changed = true;
 }
 
 // Quote from CBFS documentation:
@@ -894,27 +869,62 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
     PFILETIME creation_time, PFILETIME last_access_time, PFILETIME last_write_time,
     DWORD file_attributes) {
   SCOPED_PROFILE
-  auto cbfs_drive(detail::GetDrive<Storage>(sender));
-  auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
+
+  CbfsDrive<Storage>* const cbfs_drive(detail::GetDrive<Storage>(sender));
+  assert(cbfs_drive != nullptr);
+
+  const auto relative_path(
+      detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsSetFileAttributes- " << relative_path << " 0x" << std::hex << file_attributes;
+
   try {
-    auto file(cbfs_drive->GetMutableContext(relative_path));
+
     // File type cannot be changed
-    bool changed(detail::SetAttributes(file->meta_data.attributes, file_attributes));
-    changed |= detail::SetFiletime(file->meta_data.creation_time, creation_time);
-    if (!detail::LastAccessUpdateIsDisabled())
+    bool changed = false;
+    const auto path(cbfs_drive->GetMutableContext(relative_path));
+    assert(path != nullptr);
+    
+    if (file_attributes && path->meta_data.attributes() != file_attributes) {
+      changed = true;
+      path->meta_data.set_attributes(file_attributes);
+    }
+
+    {
+      const boost::optional<common::Clock::time_point> new_creation_time =
+          detail::GetNewFiletime(path->meta_data.creation_time(), creation_time);
+      const boost::optional<common::Clock::time_point> new_last_write_time =
+          detail::GetNewFiletime(path->meta_data.last_write_time(), last_write_time);
+
+      if (new_creation_time) {
+        changed = true;
+        path->meta_data.set_creation_time(*new_creation_time);
+      }
+      if (new_last_write_time) {
+        changed = true;
+        path->meta_data.set_last_write_time(*new_last_write_time);
+      }
+    }
+
+    if (!detail::LastAccessUpdateIsDisabled()) {
       // TODO(Fraser#5#): 2013-12-05 - Decide whether to treat this as worthy of marking the
       //                  metadata as changed (hence causing a new directory version to be stored).
-      // changed |= detail::SetFiletime(file->meta_data.last_access_time, last_access_time);
-      detail::SetFiletime(file->meta_data.last_access_time, last_access_time);
-    changed |= detail::SetFiletime(file->meta_data.last_write_time, last_write_time);
+      const boost::optional<common::Clock::time_point> new_last_access_time =
+          detail::GetNewFiletime(path->meta_data.last_access_time(), last_access_time);
+      if (new_last_access_time) {
+        path->meta_data.set_last_access_time(*new_last_access_time);
+      }
+    }
+
     if (changed) {
-      file->meta_data.last_status_time = common::Clock::now();
-      file->ScheduleForStoring();
+      path->set_status_time(common::Clock::now());
+      path->ScheduleForStoring();
     }
   }
-  catch (const std::exception&) {
-    throw ECBFSError(ERROR_FILE_NOT_FOUND);
+  catch (const maidsafe::drive_error& e) {
+    if (e.code() == maidsafe::DriveErrors::no_such_file) {
+      throw ECBFSError(ERROR_FILE_NOT_FOUND);
+    }
+    throw;
   }
 }
 
