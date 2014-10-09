@@ -39,71 +39,72 @@ bool VerifyPermissions(
       expected_permissions, possible_permissions, has_permission, not_has_permission);
 }
 
-TEST(MetaDataTest, BEH_ConstructedState) {
-  {
-    const MetaData metadata(MetaData::FileType::directory_file);
+TEST(MetaDataTest, BEH_DirectoryConstructedState) {
+  const MetaData metadata(MetaData::FileType::directory_file);
 
-    EXPECT_TRUE(metadata.data_map() == NULL);
-    EXPECT_TRUE(metadata.directory_id() == NULL);
-    EXPECT_EQ(boost::filesystem::path(""), metadata.name());
+  EXPECT_TRUE(metadata.data_map() == nullptr);
+  EXPECT_TRUE(metadata.directory_id() == nullptr);
+  EXPECT_EQ(boost::filesystem::path(""), metadata.name());
 
-    EXPECT_EQ(MetaData::FileType::directory_file, metadata.file_type());
-    EXPECT_NE(MetaData::TimePoint(std::chrono::seconds(0)), metadata.creation_time());
-    EXPECT_EQ(metadata.creation_time(), metadata.last_status_time());
-    EXPECT_EQ(metadata.creation_time(), metadata.last_write_time());
-    EXPECT_EQ(metadata.creation_time(), metadata.last_access_time());
-    EXPECT_EQ(0, metadata.size());
+  EXPECT_EQ(MetaData::FileType::directory_file, metadata.file_type());
+  EXPECT_NE(MetaData::TimePoint(std::chrono::seconds(0)), metadata.creation_time());
+  EXPECT_EQ(metadata.creation_time(), metadata.last_status_time());
+  EXPECT_EQ(metadata.creation_time(), metadata.last_write_time());
+  EXPECT_EQ(metadata.creation_time(), metadata.last_access_time());
+  EXPECT_EQ(0, metadata.size());
     EXPECT_EQ(0, metadata.allocation_size());
-  }
-  {
-    const MetaData metadata(MetaData::FileType::regular_file);
+}
 
-    EXPECT_TRUE(metadata.data_map() == NULL);
-    EXPECT_TRUE(metadata.directory_id() == NULL);
-    EXPECT_EQ(boost::filesystem::path(""), metadata.name());
+TEST(MetaDataTest, BEH_FileConstructedState) {
+  const MetaData metadata(MetaData::FileType::regular_file);
 
-    EXPECT_EQ(MetaData::FileType::regular_file, metadata.file_type());
-    EXPECT_NE(MetaData::TimePoint(std::chrono::seconds(0)), metadata.creation_time());
-    EXPECT_EQ(metadata.creation_time(), metadata.last_status_time());
-    EXPECT_EQ(metadata.creation_time(), metadata.last_write_time());
-    EXPECT_EQ(metadata.creation_time(), metadata.last_access_time());
-    EXPECT_EQ(0, metadata.size());
-    EXPECT_EQ(0, metadata.allocation_size());
-  }
-  {
-    const MetaData metadata("/stuff", MetaData::FileType::directory_file);
+  EXPECT_TRUE(metadata.data_map() == nullptr);
+  EXPECT_TRUE(metadata.directory_id() == nullptr);
+  EXPECT_EQ(boost::filesystem::path(""), metadata.name());
 
-    EXPECT_TRUE(metadata.data_map() == NULL);
-    EXPECT_TRUE(metadata.directory_id() != NULL);
-    EXPECT_EQ(boost::filesystem::path("/stuff"), metadata.name());
+  EXPECT_EQ(MetaData::FileType::regular_file, metadata.file_type());
+  EXPECT_NE(MetaData::TimePoint(std::chrono::seconds(0)), metadata.creation_time());
+  EXPECT_EQ(metadata.creation_time(), metadata.last_status_time());
+  EXPECT_EQ(metadata.creation_time(), metadata.last_write_time());
+  EXPECT_EQ(metadata.creation_time(), metadata.last_access_time());
+  EXPECT_EQ(0, metadata.size());
+  EXPECT_EQ(0, metadata.allocation_size());
+}
 
-    EXPECT_EQ(MetaData::FileType::directory_file, metadata.file_type());
-    EXPECT_NE(MetaData::TimePoint(std::chrono::seconds(0)), metadata.creation_time());
-    EXPECT_EQ(metadata.creation_time(), metadata.last_status_time());
-    EXPECT_EQ(metadata.creation_time(), metadata.last_write_time());
-    EXPECT_EQ(metadata.creation_time(), metadata.last_access_time());
+TEST(MetaDataTest, BEH_DirectoryAndPathConstructedState) {
+  const MetaData metadata("/stuff", MetaData::FileType::directory_file);
+
+  EXPECT_TRUE(metadata.data_map() == nullptr);
+  EXPECT_TRUE(metadata.directory_id() != nullptr);
+  EXPECT_EQ(boost::filesystem::path("/stuff"), metadata.name());
+
+  EXPECT_EQ(MetaData::FileType::directory_file, metadata.file_type());
+  EXPECT_NE(MetaData::TimePoint(std::chrono::seconds(0)), metadata.creation_time());
+  EXPECT_EQ(metadata.creation_time(), metadata.last_status_time());
+  EXPECT_EQ(metadata.creation_time(), metadata.last_write_time());
+  EXPECT_EQ(metadata.creation_time(), metadata.last_access_time());
 #ifdef MAIDSAFE_WIN32
-    EXPECT_EQ(0, metadata.size());
+  EXPECT_EQ(0, metadata.size());
 #else
-    EXPECT_EQ(4096, metadata.size());
+  EXPECT_EQ(4096, metadata.size());
 #endif
-    EXPECT_EQ(0, metadata.allocation_size());
-  }
-  {
-    const MetaData metadata("/stuff", MetaData::FileType::regular_file);
+  EXPECT_EQ(0, metadata.allocation_size());
+}
 
-    EXPECT_TRUE(metadata.data_map() != NULL);
-    EXPECT_TRUE(metadata.directory_id() == NULL);
-    EXPECT_EQ(boost::filesystem::path("/stuff"), metadata.name());
+TEST(MetaDataTest, BEH_FileAndPathConstructedState) {
+  const MetaData metadata("/stuff", MetaData::FileType::regular_file);
 
-    EXPECT_EQ(MetaData::FileType::regular_file, metadata.file_type());
-    EXPECT_NE(MetaData::TimePoint(std::chrono::seconds(0)), metadata.creation_time());
-    EXPECT_EQ(metadata.creation_time(), metadata.last_status_time());
-    EXPECT_EQ(metadata.creation_time(), metadata.last_write_time());
-    EXPECT_EQ(metadata.creation_time(), metadata.last_access_time());
-    EXPECT_EQ(0, metadata.size());
-    EXPECT_EQ(0, metadata.allocation_size());
-  }
+  EXPECT_TRUE(metadata.data_map() != nullptr);
+  EXPECT_TRUE(metadata.directory_id() == nullptr);
+  EXPECT_EQ(boost::filesystem::path("/stuff"), metadata.name());
+
+  EXPECT_EQ(MetaData::FileType::regular_file, metadata.file_type());
+  EXPECT_NE(MetaData::TimePoint(std::chrono::seconds(0)), metadata.creation_time());
+  EXPECT_EQ(metadata.creation_time(), metadata.last_status_time());
+  EXPECT_EQ(metadata.creation_time(), metadata.last_write_time());
+  EXPECT_EQ(metadata.creation_time(), metadata.last_access_time());
+  EXPECT_EQ(0, metadata.size());
+  EXPECT_EQ(0, metadata.allocation_size());
 }
 
 TEST(MetaDataTest, BEH_SetLastAccessTime) {
@@ -132,7 +133,7 @@ TEST(MetaDataTest, BEH_SetLastWriteTime) {
 
 TEST(MetaDataTest, BEH_SetCreationTime) {
   MetaData metadata("/", MetaData::FileType::regular_file);
-  
+
   EXPECT_NE(MetaData::TimePoint(std::chrono::seconds(-1)), metadata.creation_time());
   metadata.set_creation_time(MetaData::TimePoint(std::chrono::seconds(-1)));
   EXPECT_EQ(MetaData::TimePoint(std::chrono::seconds(-1)), metadata.creation_time());
@@ -164,7 +165,7 @@ TEST(MetaDataTest, BEH_UpdateLastModifiedTime) {
   metadata.UpdateLastModifiedTime();
 
   EXPECT_LE(metadata.creation_time(), metadata.last_write_time());
-  EXPECT_EQ(metadata.creation_time(), metadata.last_status_time());
+  EXPECT_EQ(metadata.last_write_time(), metadata.last_status_time());
   EXPECT_EQ(metadata.last_write_time(), metadata.last_access_time());
 }
 

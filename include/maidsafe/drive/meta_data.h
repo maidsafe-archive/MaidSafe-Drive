@@ -45,6 +45,7 @@ namespace drive {
 namespace detail {
 
 namespace protobuf { class Path; class Attributes; }
+namespace test { class DirectoryTest; }
 
 // Represents directory and file information
 class MetaData {
@@ -71,7 +72,6 @@ class MetaData {
   const encrypt::DataMap* data_map() const { return data_map_.get(); }
   encrypt::DataMap* data_map() { return data_map_.get(); }
   const DirectoryId* directory_id() const { return directory_id_.get(); }
-  DirectoryId* directory_id() { return directory_id_.get(); }
   const boost::filesystem::path& name() const { return name_; }
 
   FileType file_type() const { return file_type_; }
@@ -98,14 +98,14 @@ class MetaData {
   // Updates the last attributes modification time and access time
   void UpdateLastStatusTime();
 
-  // Updates the last file modification time and access time
+  // Updates the last file modification time, access time, and status time
   void UpdateLastModifiedTime();
 
   // Updates the last access time
   void UpdateLastAccessTime();
 
   /* Updates the size of the file, status time, write time, and access time.
-     Allocation size is modified to match thet size. */
+     Allocation size is modified to match the size. */
   void UpdateSize(const std::uint64_t new_size);
 
   // Updates the allocated size of the file, status time, write time, and access time
@@ -114,6 +114,8 @@ class MetaData {
   void swap(MetaData& rhs) MAIDSAFE_NOEXCEPT;
 
  private:
+
+  friend class test::DirectoryTest;
 
   std::unique_ptr<encrypt::DataMap> data_map_;
   std::unique_ptr<DirectoryId> directory_id_;

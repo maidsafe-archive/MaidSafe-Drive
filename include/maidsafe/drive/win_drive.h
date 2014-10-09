@@ -873,7 +873,7 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
   CbfsDrive<Storage>* const cbfs_drive(detail::GetDrive<Storage>(sender));
   assert(cbfs_drive != nullptr);
 
-  const boost::filesystem::path relative_path(
+  const auto relative_path(
       detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsSetFileAttributes- " << relative_path << " 0x" << std::hex << file_attributes;
 
@@ -881,7 +881,7 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
 
     // File type cannot be changed
     bool changed = false;
-    const std::shared_ptr<detail::Path> path(cbfs_drive->GetMutableContext(relative_path));
+    const auto path(cbfs_drive->GetMutableContext(relative_path));
     assert(path != nullptr);
     
     if (file_attributes && path->meta_data.attributes() != file_attributes) {

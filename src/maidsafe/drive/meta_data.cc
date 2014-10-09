@@ -253,6 +253,7 @@ void MetaData::UpdateLastStatusTime() {
 void MetaData::UpdateLastModifiedTime() {
   last_write_time_ = common::Clock::now();
   last_access_time_ = last_write_time();
+  last_status_time_ = last_write_time();
 }
 
 void MetaData::UpdateLastAccessTime() {

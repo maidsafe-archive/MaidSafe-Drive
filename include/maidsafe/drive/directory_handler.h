@@ -239,7 +239,14 @@ void DirectoryHandler<Storage>::Add(const boost::filesystem::path& relative_path
     cache_[relative_path] = directory;
   }
 
+  /* File information is split amongst two objects. parent.first is the
+     Directory object that stores the children information. parent.second is the
+     File object being stored in the grandparent directory that stores the
+     metadata (timestamps, etc.). So second.ScheduleForStoring() and
+     first.AddChild() must both be invoked for both the metadata and children to
+     be updated in the parent directory. */
   parent.second->meta_data.UpdateLastModifiedTime();
+  parent.second->ScheduleForStoring();
 
   // TODO(Fraser#5#): 2013-11-28 - Use on_scope_exit or similar to undo changes if AddChild throws.
   parent.first->AddChild(path);

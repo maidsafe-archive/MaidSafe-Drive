@@ -98,7 +98,7 @@ class DirectoryTest : public testing::Test {
 #ifdef MAIDSAFE_WIN32
     file->meta_data.set_attributes(FILE_ATTRIBUTE_DIRECTORY);
 #endif
-    *file->meta_data.directory_id() =
+    *(file->meta_data.directory_id_) =
         Identity(crypto::Hash<crypto::SHA512>((*main_test_dir_ / path).string()));
     EXPECT_NO_THROW(directory->AddChild(file));
   }
