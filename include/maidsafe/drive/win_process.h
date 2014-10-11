@@ -1,0 +1,70 @@
+/*  Copyright 2011 MaidSafe.net limited
+
+This MaidSafe Software is licensed to you under (1) the MaidSafe.net Commercial License,
+version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
+licence you accepted on initial access to the Software (the "Licences").
+
+By contributing code to the MaidSafe Software, or to this project generally, you agree to be
+bound by the terms of the MaidSafe Contributor Agreement, version 1.0, found in the root
+directory of this project at LICENSE, COPYING and CONTRIBUTOR respectively and also
+available at: http://www.maidsafe.net/licenses
+
+Unless required by applicable law or agreed to in writing, the MaidSafe Software distributed
+under the GPL Licence is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
+OF ANY KIND, either express or implied.
+
+See the Licences for the specific language governing permissions and limitations relating to
+use of the MaidSafe Software.                                                                 */
+
+#ifndef MAIDSAFE_DRIVE_WIN_PROCESS_H_
+#define MAIDSAFE_DRIVE_WIN_PROCESS_H_
+
+#include <Windows.h>
+
+#include <cstddef>
+#include <memory>
+
+#include "maidsafe/drive/win_handle.h"
+
+namespace maidsafe {
+namespace drive {
+namespace detail {
+
+// Retrieves and stores information about a process
+class WinProcess {
+ public:
+
+  // Retrieve information about the current process
+  WinProcess();
+
+  // Return SID of process owner or NULL if it could not be retrieved
+  const PSID GetOwnerSid() const {
+    if (sid_memory_) {
+      return reinterpret_cast<const PTOKEN_OWNER>(sid_memory_.get())->Owner;
+    }
+    return nullptr;
+  }
+
+  // Return access token for the process
+  const HANDLE GetAccessToken() const {
+    return process_handle_.get();
+  }
+
+ private:
+
+  WinProcess(const WinProcess&) = delete;
+  WinProcess(WinProcess&&) = delete;
+  WinProcess& operator=(const WinProcess&) = delete;
+  WinProcess& operator=(WinProcess&&) = delete;
+
+ private:
+  WinHandle process_handle_;
+  std::unique_ptr<char[]> sid_memory_;
+};
+
+} //drive
+} // detail
+} // maidsafe
+
+
+#endif // MAIDSAFE_DRIVE_WIN_PROCESS_H_

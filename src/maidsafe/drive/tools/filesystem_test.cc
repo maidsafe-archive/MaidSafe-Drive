@@ -568,7 +568,7 @@ TEST(FileSystemTest, BEH_AppendToFile) {
   on_scope_exit cleanup(clean_root);
   auto filepath(CreateFile(g_root, 0).first);
   int test_runs = 1000;
-  WriteFile(filepath, "a");
+  ASSERT_TRUE(WriteFile(filepath, "a"));
   NonEmptyString content, updated_content;
   for (int i = 0; i < test_runs; ++i) {
     ASSERT_NO_THROW(content = ReadFile(filepath));
@@ -1064,7 +1064,7 @@ TEST(FileSystemTest, BEH_CheckFailures) {
 }
 
 TEST(FileSystemTest, BEH_ReadOnlyAttribute) {
-  on_scope_exit cleanup(clean_root);
+  const on_scope_exit cleanup(clean_root);
 #ifdef MAIDSAFE_WIN32
   HANDLE handle(nullptr);
   fs::path path(g_root / RandomAlphaNumericString(8));
@@ -1076,13 +1076,13 @@ TEST(FileSystemTest, BEH_ReadOnlyAttribute) {
 
   // create a file
   EXPECT_NO_THROW(
-      handle = dtc::CreateFileCommand(path, GENERIC_ALL, 0, CREATE_NEW, FILE_ATTRIBUTE_ARCHIVE));
+      handle = dtc::CreateFileCommand(path, (GENERIC_WRITE | GENERIC_READ), 0, CREATE_NEW, FILE_ATTRIBUTE_ARCHIVE));
   ASSERT_NE(nullptr, handle);
   EXPECT_NO_THROW(success = dtc::WriteFileCommand(handle, path, buffer, &position, nullptr));
   EXPECT_TRUE((size = dtc::GetFileSizeCommand(handle, nullptr)) == buffer_size);
   EXPECT_NO_THROW(success = dtc::CloseHandleCommand(handle));
   // check we can open and write to the file
-  EXPECT_NO_THROW(handle = dtc::CreateFileCommand(path, GENERIC_ALL, 0, OPEN_EXISTING, attributes));
+  EXPECT_NO_THROW(handle = dtc::CreateFileCommand(path, (GENERIC_WRITE | GENERIC_READ), 0, OPEN_EXISTING, attributes));
   ASSERT_NE(nullptr, handle);
   buffer = RandomString(buffer_size);
   success = 0;
@@ -1103,7 +1103,7 @@ TEST(FileSystemTest, BEH_ReadOnlyAttribute) {
   EXPECT_TRUE((attributes & FILE_ATTRIBUTE_ARCHIVE) == FILE_ATTRIBUTE_ARCHIVE);
   EXPECT_TRUE((attributes & FILE_ATTRIBUTE_READONLY) == FILE_ATTRIBUTE_READONLY);
   // check we can open for reading but can't write to the file
-  EXPECT_THROW(handle = dtc::CreateFileCommand(path, GENERIC_ALL, 0, OPEN_EXISTING, attributes),
+  EXPECT_THROW(handle = dtc::CreateFileCommand(path, (GENERIC_WRITE | GENERIC_READ), 0, OPEN_EXISTING, attributes),
                std::exception);
   EXPECT_NO_THROW(handle =
                       dtc::CreateFileCommand(path, GENERIC_READ, 0, OPEN_EXISTING, attributes));
