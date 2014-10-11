@@ -251,21 +251,19 @@ bool HaveAccessInternal(
     const detail::MetaData::FileType path_type,
     const detail::MetaData::Permissions path_permissions) {
 
+  MAIDSAFE_CONSTEXPR_OR_CONST SECURITY_INFORMATION request_information =
+      (OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION);
+
   const DWORD desired_length =
       GetFileSecurityInternal(
-          owner,
-          path_type,
-          path_permissions,
-          (OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION),
-          NULL,
-          0);
+          owner, path_type, path_permissions, request_information, NULL, 0);
 
   const std::unique_ptr<char[]> security(
       maidsafe::make_unique<char[]>(desired_length));
 
   const DWORD actual_length =
       GetFileSecurityInternal(
-          owner, path_type, path_permissions, DACL_SECURITY_INFORMATION, security.get(), desired_length);
+          owner, path_type, path_permissions, request_information, security.get(), desired_length);
 
   assert(actual_length >= desired_length);
   assert(IsValidSecurityDescriptor(security.get()) != 0);
