@@ -46,8 +46,8 @@ class WinProcess {
   }
 
   // Return access token for the process
-  const HANDLE GetAccessToken() const {
-    return process_handle_.get();
+  const WinHandle& GetAccessToken() const {
+    return process_handle_;
   }
 
  private:

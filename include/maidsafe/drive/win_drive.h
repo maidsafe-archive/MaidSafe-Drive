@@ -63,11 +63,6 @@ CbfsDrive<Storage>* GetDrive(CallbackFileSystem* sender) {
   return static_cast<CbfsDrive<Storage>*>(sender->GetTag());
 }
 
-inline bool RequestedSecurityInfo(
-    const SECURITY_INFORMATION flags, const SECURITY_INFORMATION expected) {
-  return (flags & expected) == expected;
-}
-
 template <typename Storage>
 boost::filesystem::path GetRelativePath(CbfsDrive<Storage>* cbfs_drive, CbFsFileInfo* file_info) {
   assert(file_info);
@@ -106,9 +101,8 @@ DWORD GetFileSecurityInternal(
     const detail::WinProcess& owner,
     const detail::MetaData::FileType path_type,
     const detail::MetaData::Permissions path_permissions,
-    SECURITY_INFORMATION requested_information,
     PSECURITY_DESCRIPTOR out_descriptor,
-    DWORD out_descriptor_length);
+    const DWORD out_descriptor_length);
 
 }  // namespace detail
 
@@ -142,7 +136,8 @@ class CbfsDrive : public Drive<Storage> {
   void InitialiseCbfs();
 
   // Return true if path has desired permissions. Throw common_error if
-  // windows system call fails.
+  // windows system call fails. Only invoke from certain callbacks - see
+  // CBFS documentation for info about GetOriginatorToken().
   bool HaveAccess(const detail::Path& metadata, const DWORD permissions);
 
   static void CbFsMount(CallbackFileSystem* sender);
@@ -1187,7 +1182,7 @@ void CbfsDrive<Storage>::CbFsReadFile(CallbackFileSystem* sender, CbFsFileInfo* 
     *bytes_read = static_cast<DWORD>(cbfs_drive->Read(relative_path, static_cast<char*>(buffer),
                                                       bytes_to_read, position));
   }
-  catch (const drive_error& e) {
+  catch (const maidsafe_error& e) {
     LOG(kWarning) << "Failed to read " << relative_path << ": " << e.what();
     if (e.code() == make_error_code(DriveErrors::no_such_file)) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -1272,7 +1267,7 @@ void CbfsDrive<Storage>::CbFsGetFileSecurity(
     CallbackFileSystem* sender,
     CbFsFileInfo* file_info,
     CbFsHandleInfo*,
-    SECURITY_INFORMATION requested_information,
+    SECURITY_INFORMATION /*requested_information*/,
     PSECURITY_DESCRIPTOR security_descriptor,
     DWORD length,
     PDWORD length_needed) {
@@ -1291,12 +1286,14 @@ void CbfsDrive<Storage>::CbFsGetFileSecurity(
     const auto path(cbfs_drive->template GetContext<detail::Path>(relative_path));
     assert(path.get() != nullptr);
 
+    /* The requested_information parameter is ignored because if a DACL is
+    not provided, the access defaults to grant. Therefore, to prevent issues,
+    the DACL is always provided (and thus no needed for the parameter). */
     *length_needed =
         detail::GetFileSecurityInternal(
             cbfs_drive->process_owner_,
             path->meta_data.file_type(),
             path->meta_data.GetPermissions(cbfs_drive->get_base_file_permissions()),
-            requested_information,
             security_descriptor,
             length);
 

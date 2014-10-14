@@ -22,7 +22,7 @@ use of the MaidSafe Software.                                                   
 
 #include "maidsafe/common/make_unique.h"
 
-
+#include <iostream>
 namespace maidsafe {
 namespace drive {
 namespace detail {
@@ -32,7 +32,8 @@ WinProcess::WinProcess()
     sid_memory_() {
   {
     HANDLE temp_handle{};
-    const bool fail = (OpenProcessToken(GetCurrentProcess(), TOKEN_READ, &temp_handle) == 0);
+    const bool fail =
+        (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_DUPLICATE, &temp_handle) == 0);
     process_handle_.reset(temp_handle);
 
     if (fail) {
@@ -50,7 +51,7 @@ WinProcess::WinProcess()
   sid_memory_ = maidsafe::make_unique<char[]>(user_token_size);
   if (!GetTokenInformation(
         process_handle_.get(),
-        TokenUser,
+        TokenOwner,
         sid_memory_.get(),
         user_token_size,
         &user_token_size)) {

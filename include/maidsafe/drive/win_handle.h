@@ -28,7 +28,7 @@ namespace detail {
 
 struct CloseHandleLambda {
   void operator()(HANDLE handle) {
-    if (handle) {
+    if (handle != nullptr && handle != INVALID_HANDLE_VALUE) {
       ::CloseHandle(handle);
     }
   }

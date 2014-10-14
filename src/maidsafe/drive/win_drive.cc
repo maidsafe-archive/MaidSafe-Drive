@@ -172,7 +172,7 @@ DWORD ConvertToRelative(
             NULL,
             is_directory,
             SEF_DACL_AUTO_INHERIT,
-            object_creator.GetAccessToken(),
+            object_creator.GetAccessToken().get(),
             &mapping) == 0);
     private_descriptor.reset(temp_private_descriptor);
 
@@ -251,19 +251,16 @@ bool HaveAccessInternal(
     const detail::MetaData::FileType path_type,
     const detail::MetaData::Permissions path_permissions) {
 
-  MAIDSAFE_CONSTEXPR_OR_CONST SECURITY_INFORMATION request_information =
-      (OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION);
-
   const DWORD desired_length =
       GetFileSecurityInternal(
-          owner, path_type, path_permissions, request_information, NULL, 0);
+          owner, path_type, path_permissions, NULL, 0);
 
   const std::unique_ptr<char[]> security(
       maidsafe::make_unique<char[]>(desired_length));
 
   const DWORD actual_length =
       GetFileSecurityInternal(
-          owner, path_type, path_permissions, request_information, security.get(), desired_length);
+          owner, path_type, path_permissions, security.get(), desired_length);
 
   assert(actual_length >= desired_length);
   assert(IsValidSecurityDescriptor(security.get()) != 0);
@@ -272,7 +269,7 @@ bool HaveAccessInternal(
   {
     HANDLE temp_impersonation_token{};
     const bool fail =
-        (DuplicateToken(originator.get(), SecurityImpersonation, &temp_impersonation_token) == 0);
+        (DuplicateToken(originator.get(), SecurityIdentification, &temp_impersonation_token) == 0);
     impersonation_token.reset(temp_impersonation_token);
 
     if (fail) {
@@ -309,9 +306,8 @@ DWORD GetFileSecurityInternal(
     const detail::WinProcess& owner,
     const detail::MetaData::FileType path_type,
     const detail::MetaData::Permissions path_permissions,
-    SECURITY_INFORMATION requested_information,
     PSECURITY_DESCRIPTOR out_descriptor,
-    DWORD out_descriptor_length) {
+    const DWORD out_descriptor_length) {
 
   const std::unique_ptr<SECURITY_DESCRIPTOR> temp_descriptor(
       maidsafe::make_unique<SECURITY_DESCRIPTOR>());
@@ -320,32 +316,28 @@ DWORD GetFileSecurityInternal(
     ThrowWinFunctionError("InitializeSecurityDescriptor");
   }
 
-  if (RequestedSecurityInfo(requested_information, OWNER_SECURITY_INFORMATION)) {
-    if (!owner.GetOwnerSid() ||
-        !SetSecurityDescriptorOwner(temp_descriptor.get(), owner.GetOwnerSid(), false)) {
+  if (!owner.GetOwnerSid() ||
+      !SetSecurityDescriptorOwner(temp_descriptor.get(), owner.GetOwnerSid(), false)) {
 
-      // If a owner could not be determined/set, designate no owner
-      if (!SetSecurityDescriptorOwner(temp_descriptor.get(), NULL, false)) {
-        ThrowWinFunctionError("SetSecurityDescriptorOwner");
-      }
+    // If a owner could not be determined/set, designate no owner
+    if (!SetSecurityDescriptorOwner(temp_descriptor.get(), NULL, false)) {
+      ThrowWinFunctionError("SetSecurityDescriptorOwner");
     }
   }
 
-  if (RequestedSecurityInfo(requested_information, GROUP_SECURITY_INFORMATION)) {
-    if (!SetSecurityDescriptorGroup(temp_descriptor.get(), NULL, false)) {
-      ThrowWinFunctionError("SetSecurityDescriptorGroup");
-    }
+  if (!SetSecurityDescriptorGroup(temp_descriptor.get(), NULL, false)) {
+    ThrowWinFunctionError("SetSecurityDescriptorGroup");
   }
 
   // DACL is the list of ACEs that indicate access permissions
   // SACL is the list of ACEs that indicate logging permissions for the DACL
   WinAcl dacl{};
 
-  MAIDSAFE_CONSTEXPR_OR_CONST std::size_t aces_count = 3;
-  std::array<std::unique_ptr<SID>, aces_count> sids{};
-  std::array<EXPLICIT_ACCESS, aces_count> aces{};
+  MAIDSAFE_CONSTEXPR_OR_CONST std::size_t aces_size = 3;
+  std::array<std::unique_ptr<SID>, aces_size> sids{};
+  std::array<EXPLICIT_ACCESS, aces_size> aces{};
 
-  if (RequestedSecurityInfo(requested_information, DACL_SECURITY_INFORMATION)) {
+  {
     using Permissions = detail::MetaData::Permissions;
     MAIDSAFE_CONSTEXPR_OR_CONST auto ownership_mappings =
     {
@@ -361,7 +353,7 @@ DWORD GetFileSecurityInternal(
     };
 
     // TODO upgrade to static_assert with newer Visual Studios
-    assert(aces_count == ownership_mappings.size());
+    assert(aces_size == ownership_mappings.size());
     assert(ownership_mappings.size() == aces.size());
     assert(ownership_mappings.size() == sids.size());
 
@@ -374,21 +366,22 @@ DWORD GetFileSecurityInternal(
       ++index;
     }
 
-    {
-      PACL newDacl{};
-      const bool acl_success =
-          (SetEntriesInAcl(static_cast<ULONG>(aces.size()), aces.data(), NULL, &newDacl) == ERROR_SUCCESS);
-      dacl.reset(newDacl);
+    PACL newDacl{};
+    const bool acl_success =
+        (SetEntriesInAcl(static_cast<ULONG>(aces.size()), aces.data(), NULL, &newDacl) == ERROR_SUCCESS);
+    dacl.reset(newDacl);
 
-      if (!acl_success) {
-        ThrowWinFunctionError("SetEntriesInAcl");
-      }
+    if (!acl_success) {
+      ThrowWinFunctionError("SetEntriesInAcl");
     }
+  }
 
-    assert(IsValidAcl(dacl.get()) != 0);
-    if (!SetSecurityDescriptorDacl(temp_descriptor.get(), true, dacl.get(), false)) {
-      ThrowWinFunctionError("SetSecurityDescriptorDacl");
-    }
+  // always set the dacl, even if not explicitly requested. don't want
+  // to accidentally provide access (this will default deny)
+  assert(dacl.get() != nullptr);
+  assert(IsValidAcl(dacl.get()) != 0);
+  if (!SetSecurityDescriptorDacl(temp_descriptor.get(), true, dacl.get(), false)) {
+    ThrowWinFunctionError("SetSecurityDescriptorDacl");
   }
 
   return ConvertToRelative(

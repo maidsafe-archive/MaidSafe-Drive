@@ -24,6 +24,7 @@
 #include <string>
 
 #include "boost/filesystem/path.hpp"
+#include "maidsafe/drive/win_handle.h"
 
 
 namespace maidsafe {
@@ -32,21 +33,20 @@ namespace tools {
 namespace commands {
 
 BOOL CreateDirectoryCommand(const boost::filesystem::path& path);
-HANDLE CreateFileCommand(const boost::filesystem::path& path, DWORD desired_access,
-                         DWORD share_mode, DWORD creation_disposition,
-                         DWORD flags_and_attributes);
+detail::WinHandle CreateFileCommand(const boost::filesystem::path& path, DWORD desired_access,
+                                    DWORD share_mode, DWORD creation_disposition,
+                                    DWORD flags_and_attributes);
 DWORD GetFileAttributesCommand(const boost::filesystem::path& path);
 BOOL SetFileAttributesCommand(const boost::filesystem::path& path, DWORD attributes);
-BOOL WriteFileCommand(HANDLE handle, const boost::filesystem::path& path,
+BOOL WriteFileCommand(const detail::WinHandle& handle, const boost::filesystem::path& path,
                       const std::string& buffer, LPDWORD bytes_written, LPOVERLAPPED overlapped);
-BOOL ReadFileCommand(HANDLE handle, const boost::filesystem::path& path,
+BOOL ReadFileCommand(const detail::WinHandle& handle, const boost::filesystem::path& path,
                      const std::string& buffer, LPDWORD bytes_read, LPOVERLAPPED overlapped);
 BOOL DeleteFileCommand(const boost::filesystem::path& path);
 BOOL RemoveDirectoryCommand(const boost::filesystem::path& path);
-BOOL CloseHandleCommand(HANDLE handle);
-DWORD GetFileSizeCommand(HANDLE handle, LPDWORD file_size_high);
-BOOL SetFilePointerCommand(HANDLE handle, const LARGE_INTEGER& distance_from_start);
-BOOL SetEndOfFileCommand(HANDLE handle);
+DWORD GetFileSizeCommand(const detail::WinHandle& handle, LPDWORD file_size_high);
+BOOL SetFilePointerCommand(const detail::WinHandle& handle, const LARGE_INTEGER& distance_from_start);
+BOOL SetEndOfFileCommand(const detail::WinHandle& handle);
 std::vector<WIN32_FIND_DATA> EnumerateDirectoryCommand(const boost::filesystem::path& path);
 
 }  // namespace commands
