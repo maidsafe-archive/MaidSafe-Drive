@@ -44,7 +44,7 @@ MAIDSAFE_CONSTEXPR_OR_CONST GENERIC_MAPPING default_access_mappings = {
 
 const auto WinLocalFreeLambda = [](void* memory) {
   if (memory) {
-    LocalFree(memory);
+    ::LocalFree(memory);
   }
 };
 using WinAcl = std::unique_ptr<ACL, decltype(WinLocalFreeLambda)>;

@@ -26,7 +26,7 @@ namespace maidsafe {
 namespace drive {
 namespace detail {
 
-struct CloseHandleLambda {
+struct CloseHandleFunctor {
   void operator()(HANDLE handle) {
     if (handle != nullptr && handle != INVALID_HANDLE_VALUE) {
       ::CloseHandle(handle);
@@ -34,7 +34,7 @@ struct CloseHandleLambda {
   }
 };
 
-using WinHandle = std::unique_ptr<void, CloseHandleLambda>;
+using WinHandle = std::unique_ptr<void, CloseHandleFunctor>;
 
 } // detail
 } // drive

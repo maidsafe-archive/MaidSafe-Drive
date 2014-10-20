@@ -15,7 +15,7 @@ OF ANY KIND, either express or implied.
 
 See the Licences for the specific language governing permissions and limitations relating to
 use of the MaidSafe Software.                                                                 */
-#ifdef WIN32 // non-Windows test
+#ifdef WIN32 // Windows test
 
 #include <aclapi.h>
 #include <accctrl.h>
