@@ -558,7 +558,7 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsFlush(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsFlush: " << path << ", flags: " << file_info->flags;
   try {
-    Global<Storage>::g_fuse_drive->Flush(path);
+    Global<Storage>::g_fuse_drive->GetMutableContext(path)->ScheduleForStoring();
   }
   catch (const drive_error& error) {
     LOG(kError) << "OpsFlush: " << fs::path(path) << ": " << error.what();

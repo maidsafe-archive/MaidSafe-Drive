@@ -73,7 +73,6 @@ class Drive {
   GetMutableContext(const boost::filesystem::path& relative_path);
   void Create(const boost::filesystem::path& relative_path, std::shared_ptr<detail::Path>);
   void Open(const boost::filesystem::path& relative_path);
-  void Flush(const boost::filesystem::path& relative_path);
   void Release(const boost::filesystem::path& relative_path);
   void ReleaseDir(const boost::filesystem::path& relative_path);
   void Delete(const boost::filesystem::path& relative_path);
@@ -271,15 +270,6 @@ void Drive<Storage>::Open(const boost::filesystem::path& relative_path) {
       std::lock_guard<std::mutex> lock(parent->mutex_);
       InitialiseEncryptor(relative_path, *file);
     }
-  }
-}
-
-template <typename Storage>
-void Drive<Storage>::Flush(const boost::filesystem::path& relative_path) {
-  auto file(GetMutableContext(relative_path));
-  if (file->self_encryptor && !file->self_encryptor->Flush()) {
-    LOG(kError) << "Failed to flush " << relative_path;
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
   }
 }
 
