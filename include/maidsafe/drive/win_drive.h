@@ -577,6 +577,8 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
                                         CbFsFileInfo* /*file_info*/,
                                         CbFsHandleInfo* /*handle_info*/) {
   SCOPED_PROFILE
+  assert(sender != nullptr);
+  assert(file_name != nullptr);
   if (sender == nullptr || file_name == nullptr) {
     throw ECBFSError(ERROR_INVALID_PARAMETER);
   }
@@ -654,6 +656,8 @@ void CbfsDrive<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_n
                                       CbFsFileInfo* /*file_info*/,
                                       CbFsHandleInfo* /*handle_info*/) {
   SCOPED_PROFILE
+  assert(sender != nullptr);
+  assert(file_name != nullptr);
   if (sender == nullptr || file_name == nullptr) {
     throw ECBFSError(ERROR_INVALID_PARAMETER);
   }
@@ -700,6 +704,8 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsCloseFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                        CbFsHandleInfo* /*handle_info*/) {
   SCOPED_PROFILE
+  assert(sender != nullptr);
+  assert(file_info != nullptr);
   if (sender == nullptr || file_info == nullptr) {
     throw ECBFSError(ERROR_INVALID_PARAMETER);
   }
@@ -750,6 +756,9 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
     LPWSTR /*short_file_name*/ OPTIONAL, PWORD /*short_file_name_length*/ OPTIONAL,
     LPWSTR real_file_name OPTIONAL, LPWORD real_file_name_length OPTIONAL) {
   SCOPED_PROFILE
+  assert(sender != nullptr);
+  assert(file_name != nullptr);
+  assert(file_exists != nullptr);
   if (sender == nullptr || file_name == nullptr || file_exists == nullptr ||
       creation_time == nullptr || last_access_time == nullptr || last_write_time == nullptr ||
       end_of_file == nullptr || allocation_size == nullptr || file_attributes == nullptr) {
@@ -849,6 +858,8 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     int64_t* end_of_file, int64_t* allocation_size, int64_t* /*file_id*/ OPTIONAL,
     PDWORD file_attributes) {
   SCOPED_PROFILE
+  assert(sender != nullptr);
+  assert(directory_info != nullptr);
   if (sender == nullptr || directory_info == nullptr || mask == nullptr || file_found == nullptr ||
       file_name == nullptr || file_name_length == nullptr || creation_time == nullptr ||
       last_access_time == nullptr || last_write_time == nullptr || end_of_file == nullptr ||
@@ -922,6 +933,8 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsCloseDirectoryEnumeration(
     CallbackFileSystem* sender, CbFsFileInfo* directory_info,
     CbFsDirectoryEnumerationInfo* /*directory_enumeration_info*/) {
+  assert(sender != nullptr);
+  assert(directory_info != nullptr);
   if (sender == nullptr || directory_info == nullptr) {
     throw ECBFSError(ERROR_INVALID_PARAMETER);
   }
@@ -953,6 +966,8 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsSetAllocationSize(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                                int64_t allocation_size) {
   SCOPED_PROFILE
+  assert(sender != nullptr);
+  assert(file_info != nullptr);
   if (sender == nullptr || file_info == nullptr) {
     throw ECBFSError(ERROR_INVALID_PARAMETER);
   }
@@ -985,6 +1000,8 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                           int64_t end_of_file) {
   SCOPED_PROFILE
+  assert(sender != nullptr);
+  assert(file_info != nullptr);
   if (sender == nullptr || file_info == nullptr) {
     throw ECBFSError(ERROR_INVALID_PARAMETER);
   }
@@ -1019,7 +1036,9 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
     PFILETIME creation_time, PFILETIME last_access_time, PFILETIME last_write_time,
     DWORD file_attributes) {
   SCOPED_PROFILE
-  if (sender == nullptr) {
+  assert(sender != nullptr);
+  assert(file_info != nullptr);
+  if (sender == nullptr || file_info == nullptr) {
     throw ECBFSError(ERROR_INVALID_PARAMETER);
   }
 
@@ -1107,6 +1126,8 @@ void CbfsDrive<Storage>::CbFsCanFileBeDeleted(CallbackFileSystem* /*sender*/,
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsDeleteFile(CallbackFileSystem* sender, CbFsFileInfo* file_info) {
   SCOPED_PROFILE
+  assert(sender != nullptr);
+  assert(file_info != nullptr);
   if (sender == nullptr || file_info == nullptr) {
     throw ECBFSError(ERROR_INVALID_PARAMETER);
   }
@@ -1135,6 +1156,9 @@ template <typename Storage>
 void CbfsDrive<Storage>::CbFsRenameOrMoveFile(CallbackFileSystem* sender, CbFsFileInfo* file_info,
                                               LPCTSTR new_file_name) {
   SCOPED_PROFILE
+  assert(sender != nullptr);
+  assert(file_info != nullptr);
+  assert(new_file_name != nullptr);
   if (sender == nullptr || file_info == nullptr || new_file_name == nullptr) {
     throw ECBFSError(ERROR_INVALID_PARAMETER);
   }
@@ -1170,6 +1194,10 @@ void CbfsDrive<Storage>::CbFsReadFile(CallbackFileSystem* sender, CbFsFileInfo* 
                                       int64_t position, PVOID buffer, DWORD bytes_to_read,
                                       PDWORD bytes_read) {
   SCOPED_PROFILE
+  assert(sender != nullptr);
+  assert(file_info != nullptr);
+  assert(buffer != nullptr);
+  assert(bytes_read != nullptr);
   if (sender == nullptr || file_info == nullptr || buffer == nullptr || bytes_read == nullptr) {
     throw ECBFSError(ERROR_INVALID_PARAMETER);
   }
@@ -1203,6 +1231,10 @@ void CbfsDrive<Storage>::CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo*
                                        int64_t position, PVOID buffer, DWORD bytes_to_write,
                                        PDWORD bytes_written) {
   SCOPED_PROFILE
+  assert(sender != nullptr);
+  assert(file_info != nullptr);
+  assert(buffer != nullptr);
+  assert(bytes_written != nullptr);
   if (sender == nullptr || file_info == nullptr ||
       buffer == nullptr || bytes_written == nullptr) {
     throw ECBFSError(ERROR_INVALID_PARAMETER);
@@ -1237,6 +1269,9 @@ void CbfsDrive<Storage>::CbFsIsDirectoryEmpty(
     CbFsFileInfo* /*directory_info*/, LPCWSTR file_name,
     LPBOOL is_empty) {
   SCOPED_PROFILE
+  assert(sender != nullptr);
+  assert(file_name != nullptr);
+  assert(is_empty != nullptr);
   if (sender == nullptr || file_name == nullptr || is_empty == nullptr) {
     throw ECBFSError(ERROR_INVALID_PARAMETER);
   }
@@ -1271,7 +1306,9 @@ void CbfsDrive<Storage>::CbFsGetFileSecurity(
     PSECURITY_DESCRIPTOR security_descriptor,
     DWORD length,
     PDWORD length_needed) {
-
+  assert(sender != nullptr);
+  assert(file_info != nullptr);
+  assert(length_needed != nullptr);
   if (sender == nullptr || file_info == nullptr || length_needed == nullptr) {
     throw ECBFSError(ERROR_INVALID_PARAMETER);
   }
@@ -1319,6 +1356,7 @@ void CbfsDrive<Storage>::CbFsGetFileSecurity(
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo* file_info) {
   SCOPED_PROFILE
+  assert(sender != nullptr);
   if (sender == nullptr) {
     throw ECBFSError(ERROR_INVALID_PARAMETER);
   }
