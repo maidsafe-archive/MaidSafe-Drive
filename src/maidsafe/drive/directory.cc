@@ -160,7 +160,6 @@ void Directory::FlushChildAndDeleteEncryptor(File* child) {
   }
 }
 
-
 size_t Directory::VersionsCount() const {
   return versions_.size();
 }

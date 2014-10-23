@@ -311,18 +311,9 @@ void DirectoryHandler<Storage>::FlushAll() {
   bool error(false);
   std::lock_guard<std::mutex> lock(cache_mutex_);
   for (auto& dir : cache_) {
-    auto current = std::static_pointer_cast<Directory>(dir.second);
-    current->ResetChildrenCounter();
-    auto child(current->GetChildAndIncrementCounter());
-    while (child) {
-      if (child->self_encryptor && !child->self_encryptor->Flush()) {
-        error = true;
-        LOG(kError) << "Failed to flush " << (dir.first / child->meta_data.name());
-      }
-      child = current->GetChildAndIncrementCounter();
-    }
-    current->ResetChildrenCounter();
-    current->StoreImmediatelyIfPending();
+    // ScheduleForStoring automatically serialises/flushes all children when
+    // callback is invoked.
+    dir.second->ScheduleForStoring();
   }
   if (error)
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));

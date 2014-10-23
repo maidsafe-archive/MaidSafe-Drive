@@ -76,8 +76,6 @@ class File : public Path {
 
   void Serialise(protobuf::Path&);
 
-
-
  private:
   bool flushed;
 };

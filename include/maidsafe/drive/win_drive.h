@@ -916,7 +916,7 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
     }
 
     if (changed) {
-      path->set_status_time(common::Clock::now());
+      path->meta_data.set_status_time(common::Clock::now());
       path->ScheduleForStoring();
     }
   }
@@ -1080,7 +1080,7 @@ void CbfsDrive<Storage>::CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo*
   auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsFlushFile - " << relative_path;
   try {
-    cbfs_drive->Flush(relative_path);
+    cbfs_drive->GetMutableContext(relative_path)->ScheduleForStoring();
   }
   catch (const drive_error& error) {
     LOG(kError) << "CbFsFlushFile: " << relative_path << ": " << error.what();
