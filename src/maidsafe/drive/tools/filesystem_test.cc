@@ -1080,8 +1080,8 @@ TEST(FileSystemTest, BEH_ReadOnlyAttribute) {
     EXPECT_NO_THROW(
         handle = dtc::CreateFileCommand(path, (GENERIC_WRITE | GENERIC_READ), 0, CREATE_NEW, FILE_ATTRIBUTE_ARCHIVE));
     ASSERT_NE(nullptr, handle);
-    EXPECT_NO_THROW(success = dtc::WriteFileCommand(handle, path, buffer, &position, nullptr));
-    EXPECT_TRUE((size = dtc::GetFileSizeCommand(handle, nullptr)) == buffer_size);
+    EXPECT_NO_THROW(success = dtc::WriteFileCommand(handle.get(), path, buffer, &position, nullptr));
+    EXPECT_TRUE((size = dtc::GetFileSizeCommand(handle.get(), nullptr)) == buffer_size);
   }
   // check we can open and write to the file
   {
@@ -1094,9 +1094,9 @@ TEST(FileSystemTest, BEH_ReadOnlyAttribute) {
     FillMemory(&overlapped, sizeof(overlapped), 0);
     overlapped.Offset = position & 0xFFFFFFFF;
     overlapped.OffsetHigh = 0;
-    EXPECT_NO_THROW(success = dtc::WriteFileCommand(handle, path, buffer, &position, &overlapped));
+    EXPECT_NO_THROW(success = dtc::WriteFileCommand(handle.get(), path, buffer, &position, &overlapped));
     size = 0;
-    EXPECT_TRUE((size = dtc::GetFileSizeCommand(handle, nullptr)) == buffer_size + 1);
+    EXPECT_TRUE((size = dtc::GetFileSizeCommand(handle.get(), nullptr)) == buffer_size + 1);
   }
   // add read-only to the attributes
   EXPECT_NO_THROW(attributes = dtc::GetFileAttributesCommand(path));
@@ -1120,10 +1120,10 @@ TEST(FileSystemTest, BEH_ReadOnlyAttribute) {
     FillMemory(&overlapped, sizeof(overlapped), 0);
     overlapped.Offset = position & 0xFFFFFFFF;
     overlapped.OffsetHigh = 0;
-    EXPECT_THROW(success = dtc::WriteFileCommand(handle, path, buffer, &position, &overlapped),
+    EXPECT_THROW(success = dtc::WriteFileCommand(handle.get(), path, buffer, &position, &overlapped),
                  std::exception);
     size = 0;
-    EXPECT_TRUE((size = dtc::GetFileSizeCommand(handle, nullptr)) == buffer_size + 1);
+    EXPECT_TRUE((size = dtc::GetFileSizeCommand(handle.get(), nullptr)) == buffer_size + 1);
   }
   // remove the read-only attribute so the file can be deleted
   EXPECT_NO_THROW(success = dtc::SetFileAttributesCommand(path, FILE_ATTRIBUTE_ARCHIVE));
@@ -1228,7 +1228,7 @@ TEST(FileSystemTest, BEH_DeleteOnClose) {
     std::string buffer(RandomString(buffer_size));
     DWORD position(0);
     BOOL success(0);
-    EXPECT_NO_THROW(success = dtc::WriteFileCommand(handle, path, buffer, &position, nullptr));
+    EXPECT_NO_THROW(success = dtc::WriteFileCommand(handle.get(), path, buffer, &position, nullptr));
     EXPECT_TRUE(fs::exists(path));
   }
   EXPECT_FALSE(fs::exists(path));
@@ -1282,7 +1282,7 @@ TEST(FileSystemTest, BEH_HiddenAttribute) {
     EXPECT_NO_THROW(
         handle = dtc::CreateFileCommand(file, GENERIC_ALL, 0, CREATE_NEW, FILE_ATTRIBUTE_HIDDEN));
     ASSERT_NE(nullptr, handle);
-    EXPECT_NO_THROW(success = dtc::WriteFileCommand(handle, file, buffer, &position, nullptr));
+    EXPECT_NO_THROW(success = dtc::WriteFileCommand(handle.get(), file, buffer, &position, nullptr));
     EXPECT_NO_THROW(attributes = dtc::GetFileAttributesCommand(file));
     EXPECT_TRUE((attributes & FILE_ATTRIBUTE_HIDDEN) == FILE_ATTRIBUTE_HIDDEN);
   }
@@ -1343,7 +1343,7 @@ TEST(FileSystemTest, BEH_CheckAttributesForConcurrentOpenInstances) {
         dtc::CreateFileCommand(path, (GENERIC_READ | GENERIC_WRITE), 0, CREATE_NEW, attributes));
     ASSERT_NE(nullptr, first_handle);
     // write data using first instance
-    EXPECT_NO_THROW(success = dtc::WriteFileCommand(first_handle, path, buffer, &count, nullptr));
+    EXPECT_NO_THROW(success = dtc::WriteFileCommand(first_handle.get(), path, buffer, &count, nullptr));
     // verify opening a second instance throws
     EXPECT_THROW(second_handle =
         dtc::CreateFileCommand(path, (GENERIC_READ | GENERIC_WRITE), 0, OPEN_EXISTING, attributes),
@@ -1368,12 +1368,12 @@ TEST(FileSystemTest, BEH_CheckAttributesForConcurrentOpenInstances) {
   position = 1;
   FillMemory(&overlapped, sizeof(overlapped), 0);
   overlapped.Offset = position & 0xFFFFFFFF;
-  EXPECT_NO_THROW(success = dtc::WriteFileCommand(first_handle, path, buffer, &count, &overlapped));
+  EXPECT_NO_THROW(success = dtc::WriteFileCommand(first_handle.get(), path, buffer, &count, &overlapped));
   // check the file size with the second instance
-  EXPECT_TRUE((size = dtc::GetFileSizeCommand(second_handle, nullptr)) == buffer_size + 1);
+  EXPECT_TRUE((size = dtc::GetFileSizeCommand(second_handle.get(), nullptr)) == buffer_size + 1);
   // check content with the second instance
   EXPECT_NO_THROW(success =
-                      dtc::ReadFileCommand(second_handle, path, recovered, &count, &overlapped));
+                      dtc::ReadFileCommand(second_handle.get(), path, recovered, &count, &overlapped));
   EXPECT_TRUE(recovered.compare(buffer) == 0);
   EXPECT_TRUE(count == buffer_size);
   // write to file using second instance
@@ -1383,12 +1383,12 @@ TEST(FileSystemTest, BEH_CheckAttributesForConcurrentOpenInstances) {
   FillMemory(&overlapped, sizeof(overlapped), 0);
   overlapped.Offset = position & 0xFFFFFFFF;
   EXPECT_NO_THROW(success =
-                      dtc::WriteFileCommand(second_handle, path, buffer, &count, &overlapped));
+                      dtc::WriteFileCommand(second_handle.get(), path, buffer, &count, &overlapped));
   // check the file size with the first instance
-  EXPECT_TRUE((size = dtc::GetFileSizeCommand(first_handle, nullptr)) == buffer_size + 2);
+  EXPECT_TRUE((size = dtc::GetFileSizeCommand(first_handle.get(), nullptr)) == buffer_size + 2);
   // check content with the first instance
   EXPECT_NO_THROW(success =
-                      dtc::ReadFileCommand(first_handle, path, recovered, &count, &overlapped));
+                      dtc::ReadFileCommand(first_handle.get(), path, recovered, &count, &overlapped));
   EXPECT_TRUE(recovered.compare(buffer) == 0);
   EXPECT_TRUE(count == buffer_size);
 #else
@@ -1493,12 +1493,12 @@ TEST(FileSystemTest, DISABLED_BEH_Write256MbFileToTempAndCopyToDrive) {
       overlapped.Offset = position & 0xFFFFFFFF;
       overlapped.OffsetHigh = 0;
       EXPECT_NO_THROW(success =
-          dtc::WriteFileCommand(handle, temp_file, original, &count, &overlapped));
+          dtc::WriteFileCommand(handle.get(), temp_file, original, &count, &overlapped));
       ASSERT_NE(0, success);
       ASSERT_TRUE(count == size);
     }
 
-    EXPECT_TRUE((file_size = dtc::GetFileSizeCommand(handle, nullptr)) == (1 << 28));
+    EXPECT_TRUE((file_size = dtc::GetFileSizeCommand(handle.get(), nullptr)) == (1 << 28));
   }
 
   ASSERT_NO_THROW(fs::copy_file(temp_file, root_file));
@@ -1518,12 +1518,12 @@ TEST(FileSystemTest, DISABLED_BEH_Write256MbFileToTempAndCopyToDrive) {
     overlapped.Offset = position & 0xFFFFFFFF;
     overlapped.OffsetHigh = 0;
     ASSERT_NO_THROW(
-        success = dtc::ReadFileCommand(temp_handle, temp_file, original, &count, &overlapped));
+        success = dtc::ReadFileCommand(temp_handle.get(), temp_file, original, &count, &overlapped));
     ASSERT_NE(0, success);
     ASSERT_TRUE(count == size);
     success = 0, count = 0;
     ASSERT_NO_THROW(
-        success = dtc::ReadFileCommand(root_handle, root_file, recovered, &count, &overlapped));
+        success = dtc::ReadFileCommand(root_handle.get(), root_file, recovered, &count, &overlapped));
     ASSERT_NE(0, success);
     ASSERT_TRUE(count == size);
     ASSERT_TRUE(original == recovered);

@@ -66,9 +66,9 @@ BOOL SetFileAttributesCommand(const boost::filesystem::path& path, DWORD attribu
   return result;
 }
 
-BOOL WriteFileCommand(const detail::WinHandle& handle, const boost::filesystem::path& path,
+BOOL WriteFileCommand(HANDLE handle, const boost::filesystem::path& path,
                       const std::string& buffer, LPDWORD bytes_written, LPOVERLAPPED overlapped) {
-  BOOL result(::WriteFile(handle.get(), buffer.c_str(), static_cast<DWORD>(buffer.size()), bytes_written,
+  BOOL result(::WriteFile(handle, buffer.c_str(), static_cast<DWORD>(buffer.size()), bytes_written,
                           overlapped));
   if (!result) {
     LOG(kError) << "Failed to write to " << path.string();
@@ -77,9 +77,9 @@ BOOL WriteFileCommand(const detail::WinHandle& handle, const boost::filesystem::
   return result;
 }
 
-BOOL ReadFileCommand(const detail::WinHandle& handle, const boost::filesystem::path& path, const std::string& buffer,
+BOOL ReadFileCommand(HANDLE handle, const boost::filesystem::path& path, const std::string& buffer,
                      LPDWORD bytes_read, LPOVERLAPPED overlapped) {
-  BOOL result(::ReadFile(handle.get(), const_cast<char*>(buffer.c_str()),
+  BOOL result(::ReadFile(handle, const_cast<char*>(buffer.c_str()),
                          static_cast<DWORD>(buffer.size()), bytes_read, overlapped));
   if (!result) {
     LOG(kError) << "Failed to read from " << path.string();
@@ -106,12 +106,12 @@ BOOL RemoveDirectoryCommand(const boost::filesystem::path& path) {
   return result;
 }
 
-DWORD GetFileSizeCommand(const detail::WinHandle& handle, LPDWORD file_size_high) {
-  return GetFileSize(handle.get(), file_size_high);
+DWORD GetFileSizeCommand(HANDLE handle, LPDWORD file_size_high) {
+  return GetFileSize(handle, file_size_high);
 }
 
-BOOL SetFilePointerCommand(const detail::WinHandle& handle, const LARGE_INTEGER& distance_from_start) {
-  BOOL result(SetFilePointerEx(handle.get(), distance_from_start, nullptr, FILE_BEGIN));
+BOOL SetFilePointerCommand(HANDLE handle, const LARGE_INTEGER& distance_from_start) {
+  BOOL result(SetFilePointerEx(handle, distance_from_start, nullptr, FILE_BEGIN));
   if (!result) {
     LOG(kError) << "Failed to set file pointer";
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
