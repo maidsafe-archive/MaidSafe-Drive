@@ -35,12 +35,13 @@ BOOL CreateDirectoryCommand(const boost::filesystem::path& path) {
   return result;
 }
 
-HANDLE CreateFileCommand(const boost::filesystem::path& path, DWORD desired_access,
-                         DWORD share_mode, DWORD creation_disposition,
-                         DWORD flags_and_attributes) {
-  HANDLE handle(CreateFile(path.wstring().c_str(), desired_access, share_mode, NULL,
-                           creation_disposition, flags_and_attributes, NULL));
-  if (handle == INVALID_HANDLE_VALUE) {
+detail::WinHandle CreateFileCommand(const boost::filesystem::path& path, DWORD desired_access,
+                                    DWORD share_mode, DWORD creation_disposition,
+                                    DWORD flags_and_attributes) {
+  detail::WinHandle handle(
+      CreateFile(path.wstring().c_str(), desired_access, share_mode, NULL,
+                 creation_disposition, flags_and_attributes, NULL));
+  if (handle.get() == INVALID_HANDLE_VALUE) {
     LOG(kError) << "Failed to create file " << path.string();
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
   }
@@ -105,15 +106,6 @@ BOOL RemoveDirectoryCommand(const boost::filesystem::path& path) {
   return result;
 }
 
-BOOL CloseHandleCommand(HANDLE handle) {
-  BOOL result(CloseHandle(handle));
-  if (!result) {
-    LOG(kError) << "Failed to close handle";
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
-  }
-  return result;
-}
-
 DWORD GetFileSizeCommand(HANDLE handle, LPDWORD file_size_high) {
   return GetFileSize(handle, file_size_high);
 }
@@ -127,8 +119,8 @@ BOOL SetFilePointerCommand(HANDLE handle, const LARGE_INTEGER& distance_from_sta
   return result;
 }
 
-BOOL SetEndOfFileCommand(HANDLE handle) {
-  BOOL result(SetEndOfFile(handle));
+BOOL SetEndOfFileCommand(const detail::WinHandle& handle) {
+  BOOL result(SetEndOfFile(handle.get()));
   if (!result) {
     LOG(kError) << "Failed to set end of file";
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));

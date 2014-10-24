@@ -66,7 +66,9 @@ set(LocalDriveMain ${DriveSourcesDir}/local/local_drive.cc)
 set(NetworkDriveMain ${DriveSourcesDir}/network/network_drive.cc)
 set(WinServiceMain ${DriveSourcesDir}/win_service/win_service_main.cc)
 set(UnixFiles ${DriveApiDir}/unix_drive.h ${DriveSourcesDir}/unix_drive.cc)
-set(WinFiles ${DriveApiDir}/win_drive.h ${DriveSourcesDir}/win_drive.cc)
+set(WinFiles ${DriveApiDir}/win_drive.h ${DriveSourcesDir}/win_drive.cc
+             ${DriveApiDir}/win_handle.h
+             ${DriveApiDir}/win_process.h ${DriveSourcesDir}/win_process.cc)
 set(UnixFileCommands ${DriveSourcesDir}/tools/commands/unix_file_commands.h
                      ${DriveSourcesDir}/tools/commands/unix_file_commands.cc)
 set(WindowsFileCommands ${DriveSourcesDir}/tools/commands/windows_file_commands.h
