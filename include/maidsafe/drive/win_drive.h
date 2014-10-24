@@ -1381,7 +1381,7 @@ void CbfsDrive<Storage>::CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo*
   const auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsFlushFile - " << relative_path;
   try {
-    cbfs_drive->Flush(relative_path);
+    cbfs_drive->GetMutableContext(relative_path)->ScheduleForStoring();
   }
   catch (const maidsafe_error& error) {
     LOG(kWarning) << "CbFsFlushFile " << relative_path << ": " << error.what();

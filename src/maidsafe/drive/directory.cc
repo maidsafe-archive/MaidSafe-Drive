@@ -37,6 +37,18 @@ namespace drive {
 
 namespace detail {
 
+namespace {
+void IncrementChunks(
+    std::shared_ptr<Path::Listener> listener,
+    std::vector<ImmutableData::Name>& chunks,
+    std::unique_lock<std::mutex>& lock) {
+  if (listener) {
+      listener->IncrementChunks(chunks, lock);
+  }
+  chunks.clear();
+}
+}
+
 Directory::Directory(ParentId parent_id,
                      DirectoryId directory_id,
                      boost::asio::io_service& io_service,
@@ -131,12 +143,8 @@ void Directory::Serialise(protobuf::Directory& proto_directory,
     for (const auto& child : children_) {
       child->Serialise(proto_directory, chunks, lock);
     }
-    std::shared_ptr<Path::Listener> listener = GetListener();
-    if (listener) {
-      listener->IncrementChunks(chunks, lock);
-    }
-    chunks.clear();
 
+    IncrementChunks(GetListener(), chunks, lock);
     store_state_ = StoreState::kOngoing;
 }
 
@@ -146,14 +154,10 @@ bool Directory::Valid() const {
 
 void Directory::FlushChildAndDeleteEncryptor(File* child) {
   std::unique_lock<std::mutex> lock(mutex_);
-  if (child->self_encryptor)  // Child could already have been flushed via 'Directory::Serialise'
-    child->FlushEncryptor([this, &lock](const ImmutableData& data) {
-        std::shared_ptr<Path::Listener> listener = GetListener();
-        if (listener) {
-          listener->PutChunk(data, lock);
-        }
-      },
-      chunks_to_be_incremented_);
+  if (child->self_encryptor)  { // Child could already have been flushed via 'Directory::Serialise'
+    child->FlushEncryptor(lock, chunks_to_be_incremented_);
+    IncrementChunks(GetListener(), chunks_to_be_incremented_, lock);
+  }
 }
 
 size_t Directory::VersionsCount() const {

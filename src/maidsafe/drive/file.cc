@@ -56,10 +56,14 @@ File::File(const boost::filesystem::path& name, bool is_directory)
 }
 
 File::~File() {
-  if (timer) {
-    timer->cancel();
-    Flush();
-  }
+  /* There is no use in flushing the file in the destructor currently. The
+     directory needs to know the latest data map for serialising the directory.
+     The latest data map is contained within this file object. Therefore, if
+     there are new chunks that are flushed here, they will not be referenced by
+     the data map in the directory, and will go missing. Since a directory has
+     a shared_ptr to a file object, it should handle the last
+     flushing/serialisation before destructing the files. */
+  assert(self_encryptor == nullptr);
 }
 
 bool File::Valid() const {
@@ -80,13 +84,7 @@ void File::Serialise(protobuf::Directory& proto_directory,
   Serialise(*child);
   if (self_encryptor) {  // File has been opened
     timer->cancel();
-    FlushEncryptor([this, &lock](const ImmutableData& data) {
-        std::shared_ptr<Directory::Listener> listener = listener_.lock();
-        if (listener) {
-          listener->PutChunk(data, lock);
-        }
-      },
-      chunks);
+    FlushEncryptor(lock, chunks);
     flushed = false;
   } else if (meta_data.data_map()) {
     if (flushed) {  // File has already been flushed
@@ -124,7 +122,7 @@ void File::Serialise(protobuf::Path& proto_path) {
 void File::Flush() {
   std::shared_ptr<Directory> parent = Parent();
   if (parent) {
-      parent->FlushChildAndDeleteEncryptor(this);
+    parent->FlushChildAndDeleteEncryptor(this);
   }
 }
 
@@ -133,6 +131,49 @@ void File::ScheduleForStoring() {
   if (parent) {
       parent->ScheduleForStoring();
   }
+}
+
+void File::FlushEncryptor(std::unique_lock<std::mutex>& lock,
+                          std::vector<ImmutableData::Name>& chunks_to_be_incremented) {
+
+  const std::shared_ptr<Directory::Listener> listener = GetListener();
+  self_encryptor->Flush();
+
+  if (self_encryptor->original_data_map().chunks.empty()) {
+    // If the original data map didn't contain any chunks, just store the new ones.
+    for (const auto& chunk : self_encryptor->data_map().chunks) {
+      auto content(buffer->Get(
+                       std::string(std::begin(chunk.hash), std::end(chunk.hash))));
+      if (listener) {
+	listener->PutChunk(ImmutableData(content), lock);
+      }
+    }
+  } else {
+    // Check each new chunk against the original data map's chunks.  Store the new ones and
+    // increment the reference count on the existing chunks.
+    for (const auto& chunk : self_encryptor->data_map().chunks) {
+      if (std::any_of(std::begin(self_encryptor->original_data_map().chunks),
+                      std::end(self_encryptor->original_data_map().chunks),
+                      [&chunk](const encrypt::ChunkDetails& original_chunk) {
+                            return chunk.hash == original_chunk.hash;
+                      })) {
+        chunks_to_be_incremented.emplace_back(
+            Identity(std::string(std::begin(chunk.hash), std::end(chunk.hash))));
+      } else {
+        auto content(buffer->Get(
+                         std::string(std::begin(chunk.hash), std::end(chunk.hash))));
+	if (listener) {
+	  listener->PutChunk(ImmutableData(content), lock);
+	}
+      }
+    }
+  }
+  if (open_count == 0) {
+    self_encryptor->Close();
+    self_encryptor.reset();
+    buffer.reset();
+  }
+  flushed = true;
 }
 
 }  // namespace detail
