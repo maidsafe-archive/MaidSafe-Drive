@@ -595,8 +595,7 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
     // Check for write access to directory
     //
     {
-      const auto parent_directory(
-          cbfs_drive->template GetContext<detail::Path>(relative_path.parent_path()));
+      const auto parent_directory(cbfs_drive->GetContext(relative_path.parent_path()));
       assert(parent_directory != nullptr);
 
       if (!cbfs_drive->HaveAccess(*parent_directory, FILE_GENERIC_WRITE)) {
@@ -608,10 +607,11 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
     // The desired_access field is currently ignored, and we enforce our own.
     // This could be confusing - but denying the file creation seems odd since
     // the user does have write permissions on the directory.
-    const auto file(detail::File::Create(relative_path.filename(), is_directory));
+    const auto file(
+        detail::File::Create(
+            cbfs_drive->asio_service_.service(), relative_path.filename(), is_directory));
     assert(file.get() != nullptr);
     file->meta_data.set_attributes(file_attributes);
-
     cbfs_drive->Create(relative_path, file);
   }
   catch (const maidsafe_error& error) {
@@ -669,20 +669,17 @@ void CbfsDrive<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_n
   assert(cbfs_drive != nullptr);
 
   try {
-    // This is a little inefficient (the file is looked up twice), but I think its better to
-    // do the security check _before_ potentially creating the utility for decrypting the
-    // file contents. The open function should likely be moved to File anyway.
-    {
-      const auto check_path(cbfs_drive->template GetContext<detail::Path>(relative_path));
-      assert(check_path.get() != nullptr);
-
-      if (!cbfs_drive->HaveAccess(*check_path, desired_access)) {
-        LOG(kWarning) << "CbfsOpenFile: " << relative_path <<
-                         ": Access denied (Requested access " << desired_access << ")";
-        throw ECBFSError(ERROR_ACCESS_DENIED);
-      }
+    const auto open_file(cbfs_drive->template GetMutableContext<detail::File>(relative_path));
+    if (open_file == nullptr) {
+      throw ECBFSError(ERROR_INVALID_HANDLE);
     }
-    cbfs_drive->Open(relative_path);
+
+    if (!cbfs_drive->HaveAccess(*open_file, desired_access)) {
+      LOG(kWarning) << "CbfsOpenFile: " << relative_path <<
+                        ": Access denied (Requested access " << desired_access << ")";
+      throw ECBFSError(ERROR_ACCESS_DENIED);
+    }
+    cbfs_drive->Open(*open_file);
   }
   catch (const maidsafe_error& error) {
     LOG(kWarning) << "CbFsOpenFile: " << relative_path << ": " << error.what();
@@ -717,7 +714,11 @@ void CbfsDrive<Storage>::CbFsCloseFile(CallbackFileSystem* sender, CbFsFileInfo*
   LOG(kInfo) << "CbFsCloseFile - " << relative_path;
 
   try {
-    cbfs_drive->Release(relative_path);
+    const auto close_file = cbfs_drive->template GetMutableContext<detail::File>(relative_path);
+    if (close_file == nullptr) {
+      throw ECBFSError(ERROR_INVALID_HANDLE);
+    }
+    close_file->Close();
   }
   catch (const maidsafe_error& error) {
     LOG(kWarning) << "CbFsCloseFile: " << relative_path << ": " << error.what();
@@ -770,14 +771,13 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
 
   const boost::filesystem::path relative_path(file_name);
   LOG(kInfo) << "CbFsGetFileInfo - " << relative_path;
-  std::shared_ptr<const detail::File> file;
+  std::shared_ptr<const detail::Path> file;
 
   try {
     CbfsDrive<Storage>* const cbfs_drive(detail::GetDrive<Storage>(sender));
     assert(cbfs_drive != nullptr);
 
-    file = cbfs_drive->template GetContext<detail::File>(relative_path);
-    assert(file.get() != nullptr);
+    file = cbfs_drive->GetContext(relative_path);
 
     if (!cbfs_drive->HaveAccess(*file, GENERIC_READ)) {
       LOG(kWarning) << "CbFsGetfileInfo " << relative_path << ": Access denied";
@@ -1011,11 +1011,11 @@ void CbfsDrive<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileIn
   const auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   LOG(kInfo) << "CbFsSetEndOfFile - " << relative_path << " to " << end_of_file << " bytes.";
   try {
-    const auto file(cbfs_drive->GetMutableContext(relative_path));
-    assert(file->self_encryptor);
-    file->self_encryptor->Truncate(end_of_file);
-    file->meta_data.UpdateSize(end_of_file);
-    file->ScheduleForStoring();
+    const auto file(cbfs_drive->GetMutableContext<detail::File>(relative_path));
+    if (file == nullptr) {
+      throw ECBFSError(ERROR_INVALID_HANDLE);
+    }
+    file->Truncate(end_of_file);
   }
   catch (const maidsafe_error& e) {
     LOG(kWarning) << "CbFsSetEndOfFile " << relative_path << ": " << e.what();
@@ -1207,8 +1207,12 @@ void CbfsDrive<Storage>::CbFsReadFile(CallbackFileSystem* sender, CbFsFileInfo* 
   assert(cbfs_drive != nullptr);
   const auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
   try {
-    *bytes_read = static_cast<DWORD>(cbfs_drive->Read(relative_path, static_cast<char*>(buffer),
-                                                      bytes_to_read, position));
+    const auto read_file = cbfs_drive->template GetMutableContext<detail::File>(relative_path);
+    if (read_file == nullptr) {
+      throw ECBFSError(ERROR_INVALID_HANDLE);
+    }
+    *bytes_read = static_cast<DWORD>(
+        read_file->Read(static_cast<char*>(buffer), bytes_to_read, position));
   }
   catch (const maidsafe_error& e) {
     LOG(kWarning) << "Failed to read " << relative_path << ": " << e.what();
@@ -1247,8 +1251,12 @@ void CbfsDrive<Storage>::CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo*
   LOG(kInfo) << "CbFsWriteFile- " << relative_path << " writing " << bytes_to_write
              << " bytes at position " << position;
   try {
-    *bytes_written = static_cast<DWORD>(cbfs_drive->Write(relative_path, static_cast<char*>(buffer),
-                                                          bytes_to_write, position));
+    const auto write_file = cbfs_drive->template GetMutableContext<detail::File>(relative_path);
+    if (write_file == nullptr) {
+      throw ECBFSError(ERROR_INVALID_HANDLE);
+    }
+    *bytes_written = static_cast<DWORD>(
+        write_file->Write(static_cast<char*>(buffer), bytes_to_write, position));
   }
   catch (const maidsafe_error& e) {
     LOG(kWarning) << "Failed to write " << relative_path << ": " << e.what();
@@ -1320,7 +1328,7 @@ void CbfsDrive<Storage>::CbFsGetFileSecurity(
   const auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, file_info));
 
   try {
-    const auto path(cbfs_drive->template GetContext<detail::Path>(relative_path));
+    const auto path(cbfs_drive->GetContext(relative_path));
     assert(path.get() != nullptr);
 
     /* The requested_information parameter is ignored because if a DACL is

@@ -100,7 +100,7 @@ TEST_F(DirectoryHandlerTest, BEH_AddDirectory) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string directory_name("Directory");
-  auto file(File::Create(directory_name, true));
+  auto file(File::Create(asio_service_.service(), directory_name, true));
   std::shared_ptr<const Path> recovered_file;
   std::shared_ptr<Directory> directory;
   DirectoryId dir(*file->meta_data.directory_id());
@@ -118,7 +118,7 @@ TEST_F(DirectoryHandlerTest, BEH_AddSameDirectory) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string directory_name("Directory");
-  auto file(File::Create(directory_name, true));
+  auto file(File::Create(asio_service_.service(), directory_name, true));
   DirectoryId dir(*file->meta_data.directory_id());
   std::shared_ptr<const Path> recovered_file;
   std::shared_ptr<Directory> directory;
@@ -130,7 +130,7 @@ TEST_F(DirectoryHandlerTest, BEH_AddSameDirectory) {
   EXPECT_NO_THROW(recovered_file = directory->GetChild(directory_name));
   EXPECT_TRUE(meta_data_name == recovered_file->meta_data.name());
 
-  EXPECT_THROW(listing_handler_->Add(kRoot / directory_name, File::Create(directory_name, true)),
+  EXPECT_THROW(listing_handler_->Add(kRoot / directory_name, File::Create(asio_service_.service(), directory_name, true)),
                std::exception);
   EXPECT_NO_THROW(recovered_file = directory->GetChild(directory_name));
   EXPECT_TRUE(meta_data_name == recovered_file->meta_data.name());
@@ -142,7 +142,7 @@ TEST_F(DirectoryHandlerTest, BEH_AddFile) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string file_name("File");
-  auto file(File::Create(file_name, false));
+  auto file(File::Create(asio_service_.service(), file_name, false));
   std::shared_ptr<const Path> recovered_file;
   std::shared_ptr<Directory> directory;
 
@@ -160,7 +160,7 @@ TEST_F(DirectoryHandlerTest, BEH_AddSameFile) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string file_name("File");
-  auto file(File::Create(file_name, false));
+  auto file(File::Create(asio_service_.service(), file_name, false));
   std::shared_ptr<const Path> recovered_file;
   std::shared_ptr<Directory> directory;
 
@@ -182,7 +182,7 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteDirectory) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string directory_name("Directory");
-  auto file(File::Create(directory_name, true));
+  auto file(File::Create(asio_service_.service(), directory_name, true));
   std::shared_ptr<const Path> recovered_file;
   std::shared_ptr<Directory> directory;
   DirectoryId dir(*file->meta_data.directory_id());
@@ -206,7 +206,7 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteSameDirectory) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string directory_name("Directory");
-  auto file(File::Create(directory_name, true));
+  auto file(File::Create(asio_service_.service(), directory_name, true));
   std::shared_ptr<const Path> recovered_file;
   std::shared_ptr<Directory> directory;
   DirectoryId dir(*file->meta_data.directory_id());
@@ -231,7 +231,7 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteFile) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string file_name("File");
-  auto file(File::Create(file_name, false));
+  auto file(File::Create(asio_service_.service(), file_name, false));
   std::shared_ptr<const Path> recovered_file;
   std::shared_ptr<Directory> directory;
 
@@ -252,7 +252,7 @@ TEST_F(DirectoryHandlerTest, BEH_DeleteSameFile) {
       boost::filesystem::unique_path(GetUserAppDir() / "Buffers" / "%%%%%-%%%%%-%%%%%-%%%%%"), true,
       asio_service_.service());
   std::string file_name("File");
-  auto file(File::Create(file_name, false));
+  auto file(File::Create(asio_service_.service(), file_name, false));
   std::shared_ptr<const Path> recovered_file;
   std::shared_ptr<Directory> directory;
 
@@ -276,9 +276,9 @@ TEST_F(DirectoryHandlerTest, BEH_RenameAndMoveDirectory) {
       asio_service_.service());
   std::string first_directory_name("Directory1"), second_directory_name("Directory2"),
       old_directory_name("OldName"), new_directory_name("NewName");
-  auto first_file(File::Create(first_directory_name, true));
-  auto second_file(File::Create(second_directory_name, true));
-  auto file(File::Create(old_directory_name, true));
+  auto first_file(File::Create(asio_service_.service(), first_directory_name, true));
+  auto second_file(File::Create(asio_service_.service(), second_directory_name, true));
+  auto file(File::Create(asio_service_.service(), old_directory_name, true));
   std::shared_ptr<const Path> recovered_file;
   std::shared_ptr<Directory> old_parent_directory, new_parent_directory, directory;
 
@@ -388,9 +388,9 @@ TEST_F(DirectoryHandlerTest, BEH_RenameAndMoveFile) {
       asio_service_.service());
   std::string first_directory_name("Directory1"), second_directory_name("Directory2"),
       old_file_name("OldName"), new_file_name("NewName");
-  auto first_file(File::Create(first_directory_name, true));
-  auto second_file(File::Create(second_directory_name, true));
-  auto file(File::Create(old_file_name, false));
+  auto first_file(File::Create(asio_service_.service(), first_directory_name, true));
+  auto second_file(File::Create(asio_service_.service(), second_directory_name, true));
+  auto file(File::Create(asio_service_.service(), old_file_name, false));
   std::shared_ptr<const Path> recovered_file;
   std::shared_ptr<Directory> old_parent_directory, new_parent_directory;
   EXPECT_NO_THROW(

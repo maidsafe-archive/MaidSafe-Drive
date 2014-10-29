@@ -71,17 +71,13 @@ class Drive {
   template <typename T = detail::Path>
   typename std::enable_if<std::is_base_of<detail::Path, T>::value, std::shared_ptr<T>>::type
   GetMutableContext(const boost::filesystem::path& relative_path);
-  void Create(const boost::filesystem::path& relative_path, std::shared_ptr<detail::Path>);
-  void Open(const boost::filesystem::path& relative_path);
-  void Release(const boost::filesystem::path& relative_path);
+  void Create(const boost::filesystem::path& relative_path,
+              std::shared_ptr<detail::Path> path);
+  void Open(detail::File& file);
   void ReleaseDir(const boost::filesystem::path& relative_path);
   void Delete(const boost::filesystem::path& relative_path);
   void Rename(const boost::filesystem::path& old_relative_path,
               const boost::filesystem::path& new_relative_path);
-  uint32_t Read(const boost::filesystem::path& relative_path, char* data, uint32_t size,
-                uint64_t offset);
-  uint32_t Write(const boost::filesystem::path& relative_path, const char* data, uint32_t size,
-                 uint64_t offset);
 
   detail::MetaData::Permissions get_base_file_permissions() const;
 
@@ -96,9 +92,6 @@ class Drive {
 
  private:
   typedef detail::File::Buffer Buffer;
-  void InitialiseEncryptor(const boost::filesystem::path& relative_path,
-                           detail::File& file);
-  void ScheduleDeletionOfEncryptor(std::shared_ptr<detail::File> file);
 
   std::function<NonEmptyString(const std::string&)> get_chunk_from_store_;
   MemoryUsage default_max_buffer_memory_;
@@ -145,11 +138,11 @@ Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_u
           detail::MetaData::Permissions::owner_write),
       asio_service_(2),
       directory_handler_() {
-    directory_handler_ = detail::DirectoryHandler<Storage>::Create
-        (storage, unique_user_id, root_parent_id,
-         boost::filesystem::unique_path(*kBufferRoot_ / "%%%%%-%%%%%-%%%%%-%%%%%"),
-         create, asio_service_.service());
-    get_chunk_from_store_ = [this](const std::string& name)->NonEmptyString {
+  directory_handler_ = detail::DirectoryHandler<Storage>::Create(
+      storage, unique_user_id, root_parent_id,
+      boost::filesystem::unique_path(*kBufferRoot_ / "%%%%%-%%%%%-%%%%%-%%%%%"),
+      create, asio_service_.service());
+  get_chunk_from_store_ = [this](const std::string& name) {
     try {
       auto chunk(storage_->Get(ImmutableData::Name(Identity(name))).get());
       return chunk.data();
@@ -177,66 +170,12 @@ boost::future<void> Drive<Storage>::GetMountFuture() {
 }
 
 template <typename Storage>
-void Drive<Storage>::InitialiseEncryptor(const boost::filesystem::path& relative_path,
-                                         detail::File& file) {
-  assert(file.open_count == 0 || file.open_count == 1);
-  if (!file.timer) {
-    file.timer.reset(new boost::asio::steady_timer(asio_service_.service()));
-  } else if (file.timer->cancel() > 0) {
-    // Encryptor and buffer were about to to be deleted
-    assert(file.buffer && file.self_encryptor);
-    return;
-  } else if (file.buffer || file.self_encryptor) {
-    assert(file.buffer && file.self_encryptor);
-    return;
-  }
-  auto buffer_pop_functor([this, relative_path](const std::string& name,
-                                                const NonEmptyString& content) {
-    directory_handler_->HandleDataPoppedFromBuffer(relative_path, name, content);
-  });
-  auto disk_buffer_path(boost::filesystem::unique_path(*kBufferRoot_ / "%%%%%-%%%%%-%%%%%-%%%%%"));
-  file.buffer.reset(new detail::File::Buffer(default_max_buffer_memory_,
-      default_max_buffer_disk_, buffer_pop_functor, disk_buffer_path, true));
-  file.self_encryptor.reset(new encrypt::SelfEncryptor(*file.meta_data.data_map(),
-      *file.buffer, get_chunk_from_store_));
-}
-
-template <typename Storage>
-void Drive<Storage>::ScheduleDeletionOfEncryptor(std::shared_ptr<detail::File> file) {
-  auto cancelled_count(file->timer->expires_from_now(detail::kFileInactivityDelay));
-#ifndef NDEBUG
-  if (cancelled_count > 0) {
-    LOG(kInfo) << "Successfully cancelled " << cancelled_count << " encryptor deletion.";
-    assert(cancelled_count == 1);
-  }
-  const auto& name(file->meta_data.name());
-#endif
-  static_cast<void>(cancelled_count);
-  file->timer->async_wait([=](const boost::system::error_code& ec) {
-      if (ec != boost::asio::error::operation_aborted) {
-        if (file->open_count == 0) {
-#ifndef NDEBUG
-          LOG(kInfo) << "Deleting encryptor and buffer for " << name;
-#endif
-          file->Flush();
-        } else {
-          LOG(kWarning) << "About to delete encryptor and buffer for "
-                        << file->meta_data.name() << " but open_count > 0";
-        }
-      } else {
-#ifndef NDEBUG
-        LOG(kSuccess) << "Timer was cancelled - not deleting encryptor and buffer for " << name;
-#endif
-      }
-  });
-}
-
-template <typename Storage>
 template <typename T>
 typename std::enable_if<std::is_base_of<detail::Path, T>::value, const std::shared_ptr<const T>>::type
 Drive<Storage>::GetContext(const boost::filesystem::path& relative_path) const {
-  auto parent(directory_handler_->template Get<detail::Directory>(relative_path.parent_path()));
-  return std::dynamic_pointer_cast<const T>(parent->GetChild(relative_path.filename()));
+  const auto parent(directory_handler_->template Get<detail::Directory>(relative_path.parent_path()));
+  assert(parent != nullptr);
+  return parent->template GetChild<T>(relative_path.filename());
 }
 
 template <typename Storage>
@@ -244,8 +183,9 @@ template <typename T>
 typename std::enable_if<std::is_base_of<detail::Path, T>::value, std::shared_ptr<T>>::type
 Drive<Storage>::GetMutableContext(const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
-  auto parent(directory_handler_->template Get<detail::Directory>(relative_path.parent_path()));
-  return std::dynamic_pointer_cast<T>(parent->GetMutableChild(relative_path.filename()));
+  const auto parent(directory_handler_->template Get<detail::Directory>(relative_path.parent_path()));
+  assert(parent != nullptr);
+  return parent->template GetMutableChild<T>(relative_path.filename());
 }
 
 template <typename Storage>
@@ -253,36 +193,17 @@ void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
                             std::shared_ptr<detail::Path> path) {
   if (path->meta_data.file_type() == detail::MetaData::FileType::regular_file) {
     auto file = std::dynamic_pointer_cast<detail::File>(path);
-    // FIXME: Move into File
-    InitialiseEncryptor(relative_path, *file);
-    file->open_count = 1;
+    assert(file != nullptr);
+    Open(*file);
   }
   directory_handler_->Add(relative_path, path);
 }
 
 template <typename Storage>
-void Drive<Storage>::Open(const boost::filesystem::path& relative_path) {
-  auto parent(directory_handler_->template Get<detail::Directory>(relative_path.parent_path()));
-  auto file(parent->template GetMutableChild<detail::File>(relative_path.filename()));
-  if (!file->meta_data.directory_id()) {
-    LOG(kInfo) << "Opening " << relative_path << " open count: " << file->open_count + 1;
-    if (++file->open_count == 1) {
-      std::lock_guard<std::mutex> lock(parent->mutex_);
-      InitialiseEncryptor(relative_path, *file);
-    }
-  }
-}
-
-template <typename Storage>
-void Drive<Storage>::Release(const boost::filesystem::path& relative_path) {
-  SCOPED_PROFILE
-  auto file(GetMutableContext<detail::File>(relative_path));
-  if (!file->meta_data.directory_id()) {
-    LOG(kInfo) << "Releasing " << relative_path << " open count: " << file->open_count - 1;
-    --file->open_count;
-    if (file->open_count == 0)
-      ScheduleDeletionOfEncryptor(file);
-  }
+void Drive<Storage>::Open(detail::File& file) {
+  assert(kBufferRoot_ != nullptr);
+  file.Open(
+      get_chunk_from_store_, default_max_buffer_memory_, default_max_buffer_disk_, *kBufferRoot_);
 }
 
 template <typename Storage>
@@ -301,39 +222,6 @@ template <typename Storage>
 void Drive<Storage>::Rename(const boost::filesystem::path& old_relative_path,
                             const boost::filesystem::path& new_relative_path) {
   directory_handler_->Rename(old_relative_path, new_relative_path);
-}
-
-template <typename Storage>
-uint32_t Drive<Storage>::Read(const boost::filesystem::path& relative_path, char* data,
-                              uint32_t size, uint64_t offset) {
-  auto file(GetContext(relative_path));
-  assert(file->self_encryptor);
-  LOG(kInfo) << "For "  << relative_path << ", reading " << size << " of "
-             << file->self_encryptor->size() << " bytes at offset " << offset;
-
-  if (offset + size > file->self_encryptor->size()) {
-    size = offset > file->self_encryptor->size() ? 0 :
-           static_cast<uint32_t>(file->self_encryptor->size() - offset);
-  }
-  if ((size > 0) && (!file->self_encryptor->Read(data, size, offset)))
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
-  // TODO(Fraser#5#): 2013-12-02 - Update last access time?
-  return size;
-}
-
-template <typename Storage>
-uint32_t Drive<Storage>::Write(const boost::filesystem::path& relative_path, const char* data,
-                               uint32_t size, uint64_t offset) {
-  auto file(GetMutableContext<detail::File>(relative_path));
-  assert(file->self_encryptor);
-  LOG(kInfo) << "For "  << relative_path << ", writing " << size << " bytes at offset " << offset;
-  if (!file->self_encryptor->Write(data, size, offset))
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
-
-  file->meta_data.UpdateSize(
-      std::max<std::int64_t>(offset + size, file->meta_data.size()));
-  file->ScheduleForStoring();
-  return size;
 }
 
 template <typename Storage>

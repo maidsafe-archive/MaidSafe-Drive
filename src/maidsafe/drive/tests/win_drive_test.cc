@@ -479,4 +479,4 @@ TEST(WinDriveTests, BEH_ReadWriteExePermissionsDirectory) {
 } // drive
 } // maidsafe
 
-#endif WIN32
+#endif //WIN32

@@ -770,22 +770,25 @@ int FuseDrive<Storage>::OpsOpen(const char* path, struct fuse_file_info* file_in
 
   assert(!(file_info->flags & O_DIRECTORY));
   try {
-    Global<Storage>::g_fuse_drive->Open(path);
+    auto file = Global<Storage>::g_fuse_drive->template GetMutableContext<detail::File>(path);
+    if (file != nullptr) {
+      Global<Storage>::g_fuse_drive->Open(*file);
+
+      // Safe to allow the kernel to cache the file assuming it doesn't change "spontaneously".  For us,
+      // that presumably can happen on files which are part of a share, or if a user has >1 client
+      // instance, each with this file open.  To handle this, we need to either avoid allowing the
+      // kernel caching (set 'file_info->keep_cache' to 0), or preferrably use the low-level FUSE
+      // interface and if a file changes in the background, call fuse_lowlevel_notify_inval_inode().
+      // See http://fuse.996288.n3.nabble.com/fuse-file-info-keep-cache-usage-guidelines-td5130.html
+      file_info->keep_cache = 1;
+      return 0;
+    }
   }
   catch (const std::exception& e) {
     LOG(kError) << "OpsOpen: " << fs::path(path) << ": " << e.what();
-    return -ENOENT;
   }
 
-  // Safe to allow the kernel to cache the file assuming it doesn't change "spontaneously".  For us,
-  // that presumably can happen on files which are part of a share, or if a user has >1 client
-  // instance, each with this file open.  To handle this, we need to either avoid allowing the
-  // kernel caching (set 'file_info->keep_cache' to 0), or preferrably use the low-level FUSE
-  // interface and if a file changes in the background, call fuse_lowlevel_notify_inval_inode().
-  // See http://fuse.996288.n3.nabble.com/fuse-file-info-keep-cache-usage-guidelines-td5130.html
-  file_info->keep_cache = 1;
-
-  return 0;
+  return -ENOENT;
 }
 
 // Quote from FUSE documentation:
@@ -802,13 +805,6 @@ int FuseDrive<Storage>::OpsOpendir(const char* path, struct fuse_file_info* file
   if (file_info->flags & O_NOFOLLOW) {
     LOG(kError) << "OpsOpendir: " << path << " is a symlink.";
     return -ELOOP;
-  }
-  try {
-    Global<Storage>::g_fuse_drive->Open(path);
-  }
-  catch (const std::exception& e) {
-    LOG(kError) << "OpsOpen: " << fs::path(path) << ": " << e.what();
-    return -ENOENT;
   }
   return 0;
 }
@@ -827,12 +823,21 @@ int FuseDrive<Storage>::OpsRead(const char* path, char* buf, size_t size, off_t 
   LOG(kInfo) << "OpsRead: " << path << ", flags: 0x" << std::hex << file_info->flags << std::dec
              << " Size : " << size << " Offset : " << offset;
   try {
-    return static_cast<int>(Global<Storage>::g_fuse_drive->Read(path, buf, size, offset));
+    const auto file = Global<Storage>::g_fuse_drive->template GetMutableContext<detail::File>(path);
+    if (file != nullptr) {
+      static_assert(
+          unsigned(std::numeric_limits<int>::max()) <= std::numeric_limits<std::size_t>::max(),
+          "expected size_t::max to be greater than int max");
+      const std::size_t read_size =
+          std::min(std::size_t(std::numeric_limits<int>::max()), size);
+      return int(file->Read(buf, read_size, offset));
+    }
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to read " << path << ": " << e.what();
-    return -EINVAL;
   }
+
+  return -EPERM;
 }
 
 // Quote from FUSE documentation:
@@ -899,7 +904,7 @@ int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t size) {
   LOG(kInfo) << "OpsReadlink: " << path;
   try {
     auto symlink(Global<Storage>::g_fuse_drive->template GetContext<detail::Symlink>(path));
-    if (symlink) {
+    if (symlink != nullptr) {
       std::string link_path(symlink->Target().string());
       size_t link_path_size(link_path.size());
       if (size != 0) {
@@ -937,13 +942,17 @@ template <typename Storage>
 int FuseDrive<Storage>::OpsRelease(const char* path, struct fuse_file_info* file_info) {
   LOG(kInfo) << "OpsRelease: " << path << ", flags: " << file_info->flags;
   try {
-    Global<Storage>::g_fuse_drive->Release(path);
+    const auto file = Global<Storage>::g_fuse_drive->template GetMutableContext<detail::File>(path);
+    if (file != nullptr) {
+      file->Close();
+      return 0;
+    }
   }
   catch (const std::exception& e) {
     LOG(kError) << "OpsRelease: " << path << ": " << e.what();
     return -EBADF;
   }
-  return 0;
+  return -EPERM;
 }
 
 // Quote from FUSE documentation:
@@ -1105,13 +1114,25 @@ int FuseDrive<Storage>::OpsWrite(const char* path, const char* buf, size_t size,
   LOG(kInfo) << "OpsWrite: " << path << ", flags: 0x" << std::hex << file_info->flags << std::dec
              << " Size : " << size << " Offset : " << offset;
 
+  if (offset < 0) {
+    return -EINVAL;
+  }
+
   try {
-    return static_cast<int>(Global<Storage>::g_fuse_drive->Write(path, buf, size, offset));
+    const auto file = Global<Storage>::g_fuse_drive->template GetMutableContext<detail::File>(path);
+    if (file != nullptr) {
+      static_assert(
+          unsigned(std::numeric_limits<int>::max()) <= std::numeric_limits<std::size_t>::max(),
+          "expected size_t::max to be greater than int max");
+      const unsigned write_length =
+          std::min(std::size_t(std::numeric_limits<int>::max()), size);
+      return int(file->Write(buf, write_length, offset));
+    }
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to write " << path << ": " << e.what();
-    return -EINVAL;
   }
+  return -EINVAL;
 }
 
 #ifdef HAVE_SETXATTR
@@ -1191,8 +1212,10 @@ int FuseDrive<Storage>::CreateDirectory(const fs::path& target,
   }
   try {
     // FIXME: Replace with detail::Directory::Create
-    auto directory = detail::File::Create(target.filename(), true);
-    Global<Storage>::g_fuse_drive->Create(target, directory);
+    auto fuse = Global<Storage>::g_fuse_drive;
+    auto directory = detail::File::Create(
+        fuse->asio_service_.service(), target.filename(), true);
+    fuse->Create(target, directory);
   } catch (const std::exception& e) {
     LOG(kError) << "CreateDirectory: " << target << ": " << e.what();
     return -EIO;
@@ -1210,8 +1233,10 @@ int FuseDrive<Storage>::CreateFile(const fs::path& target, mode_t mode) {
     return -EINVAL;
   }
   try {
-    auto file = detail::File::Create(target.filename(), false);
-    Global<Storage>::g_fuse_drive->Create(target, file);
+    auto fuse = Global<Storage>::g_fuse_drive;
+    const auto file = detail::File::Create(
+        fuse->asio_service_.service(), target.filename(), false);
+    fuse->Create(target, file);
   } catch (const std::exception& e) {
     LOG(kError) << "CreateFile: " << target << ": " << e.what();
     return -EIO;
@@ -1224,7 +1249,7 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
   try {
     using namespace std::chrono;
 
-    auto file(Global<Storage>::g_fuse_drive->GetContext(path));
+    const auto file(Global<Storage>::g_fuse_drive->GetContext(path));
     *stbuf = ToStat(
         file->meta_data,
         Global<Storage>::g_fuse_drive->get_base_file_permissions());
@@ -1258,17 +1283,21 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
 template <typename Storage>
 int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
   try {
-    auto file(Global<Storage>::g_fuse_drive->GetMutableContext(path));
-    assert(file->self_encryptor);
-    file->self_encryptor->Truncate(size);
-    file->meta_data.UpdateSize(size);
-    file->ScheduleForStoring();
+
+    if (size < 0) {
+      return -EINVAL;
+    }
+
+    const auto file(Global<Storage>::g_fuse_drive->template GetMutableContext<detail::File>(path));
+    if (file != nullptr) {
+      file->Truncate(size);
+      return 0;
+    }
   }
   catch (const std::exception& e) {
     LOG(kWarning) << "Failed to truncate " << path << ": " << e.what();
-    return -ENOENT;
   }
-  return 0;
+  return -ENOENT;
 }
 
 }  // namespace drive

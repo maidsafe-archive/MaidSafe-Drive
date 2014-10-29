@@ -25,6 +25,7 @@
 #include "boost/asio/steady_timer.hpp"
 #include "boost/filesystem/path.hpp"
 
+#include "maidsafe/common/asio_service.h"
 #include "maidsafe/common/config.h"
 #include "maidsafe/common/data_buffer.h"
 
@@ -52,32 +53,71 @@ class File : public Path {
 
   ~File();
 
-  virtual bool Valid() const;
+  //
+  // All public methods are thread-safe.
+  //
+
   virtual std::string Serialise();
   virtual void Serialise(protobuf::Directory&,
-                         std::vector<ImmutableData::Name>&,
-                         std::unique_lock<std::mutex>&);
+                         std::vector<ImmutableData::Name>&);
   virtual void ScheduleForStoring();
 
-  void Flush();
-  void FlushEncryptor(
-    std::unique_lock<std::mutex>& lock,
-    std::vector<ImmutableData::Name>& chunks_to_be_incremented);
-
-  std::unique_ptr<Buffer> buffer;
-  std::unique_ptr<boost::asio::steady_timer> timer;
+  void Open(
+      const std::function<NonEmptyString(const std::string&)>& get_chunk_from_store,
+      const MemoryUsage max_memory_usage,
+      const DiskUsage max_disk_usage,
+      const boost::filesystem::path& disk_buffer_location);
+  std::uint32_t Read(char* data, std::uint32_t length, std::uint64_t offset);
+  std::uint32_t Write(const char* data, std::uint32_t length, std::uint64_t offset);
+  void Truncate(std::uint64_t offset);
+  void Close();
 
  private:
-  File();
-  File(MetaData meta_data_in, std::shared_ptr<Directory> parent_in);
-  File(const boost::filesystem::path& name, bool is_directory);
+  File(
+      boost::asio::io_service& asio_service,
+      MetaData meta_data_in,
+      std::shared_ptr<Directory> parent_in);
+  File(
+      boost::asio::io_service& asio_service,
+      const boost::filesystem::path& name,
+      bool is_directory);
   File(File&&) = delete;
   File& operator=(File) = delete;
+
+  //
+  // Private methods require caller to hold data_mutex_
+  //
+
+  bool IsOpen() const;
+  // Throw exception if file is not open
+  void VerifyOpen() const;
+
+  void FlushEncryptor(
+      std::vector<ImmutableData::Name>& chunks_to_be_incremented);
 
   void Serialise(protobuf::Path&);
 
  private:
-  bool flushed;
+
+  struct Data {
+    Data(
+        const boost::filesystem::path& name,
+        const MemoryUsage max_memory_usage,
+        const DiskUsage max_disk_usage,
+        const boost::filesystem::path& disk_buffer_location,
+        encrypt::DataMap& data_map,
+        const std::function<NonEmptyString(const std::string&)>& get_chunk_from_store);
+
+    Buffer buffer_;
+    encrypt::SelfEncryptor self_encryptor_;
+    unsigned open_count_;
+  };
+
+  std::unique_ptr<Data> file_data_;
+  boost::asio::steady_timer close_timer_;
+  std::mutex data_mutex_;
+  // True if close completed since last serialisation
+  bool skip_chunk_incrementing_;
 };
 
 }  // namespace detail
