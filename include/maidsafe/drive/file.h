@@ -88,9 +88,9 @@ class File : public Path {
   // Private methods require caller to hold data_mutex_
   //
 
-  bool IsOpen() const;
+  bool HasBuffer() const;
   // Throw exception if file is not open
-  void VerifyOpen() const;
+  void VerifyHasBuffer() const;
 
   void FlushEncryptor(
       std::vector<ImmutableData::Name>& chunks_to_be_incremented);
@@ -107,6 +107,8 @@ class File : public Path {
         const boost::filesystem::path& disk_buffer_location,
         encrypt::DataMap& data_map,
         const std::function<NonEmptyString(const std::string&)>& get_chunk_from_store);
+
+    bool IsOpen() const { return open_count_ > 0; }
 
     Buffer buffer_;
     encrypt::SelfEncryptor self_encryptor_;

@@ -70,8 +70,8 @@ File::~File() {
      created, closed, and deleted before cleanup timers execute. */
   try {
     close_timer_.cancel();
-    if (IsOpen()) {
-      assert(file_data_->open_count_ == 0);
+    if (HasBuffer()) {
+      assert(!file_data_->IsOpen());
       file_data_->self_encryptor_.Close();
       file_data_.reset();
     }
@@ -88,7 +88,7 @@ void File::Serialise(protobuf::Directory& proto_directory,
                      std::vector<ImmutableData::Name>& chunks) {
   const std::lock_guard<std::mutex> lock(data_mutex_);
 
-  if (IsOpen()) {
+  if (HasBuffer()) {
     FlushEncryptor(chunks);
   }
   else if (meta_data.data_map()) { // still have directories being created as file objects
@@ -138,7 +138,7 @@ void File::Open(
 
   if (meta_data.file_type() == MetaData::FileType::regular_file) {
     assert(meta_data.data_map() != nullptr);
-    if (!IsOpen()) {
+    if (!HasBuffer()) {
       file_data_ = maidsafe::make_unique<Data>(
         meta_data.name(),
         max_memory_usage,
@@ -150,15 +150,16 @@ void File::Open(
 
     LOG(kInfo) << "Opened " << meta_data.name() << " with open count " << file_data_->open_count_;
 
-    assert(IsOpen());
+    assert(HasBuffer());
     close_timer_.cancel();
     ++(file_data_->open_count_);
+    assert(file_data_->IsOpen());
   }
 }
 
 std::uint32_t File::Read(char* data, std::uint32_t length, std::uint64_t offset) {
   const std::lock_guard<std::mutex> lock(data_mutex_);
-  VerifyOpen();
+  VerifyHasBuffer();
 
   LOG(kInfo) << "For "  << meta_data.name() << ", reading " << length << " of "
              << file_data_->self_encryptor_.size() << " bytes at offset " << offset;
@@ -167,9 +168,8 @@ std::uint32_t File::Read(char* data, std::uint32_t length, std::uint64_t offset)
     return 0;
   }
 
-  if (length > file_data_->self_encryptor_.size() - offset) {
-    length = std::uint32_t(file_data_->self_encryptor_.size() - offset);
-  }
+  length = std::uint32_t(
+      std::min<std::uint64_t>(length, file_data_->self_encryptor_.size() - offset));
 
   if (length > 0 && !file_data_->self_encryptor_.Read(data, length, offset)) {
     BOOST_THROW_EXCEPTION(MakeError(EncryptErrors::failed_to_read));
@@ -182,7 +182,7 @@ std::uint32_t File::Read(char* data, std::uint32_t length, std::uint64_t offset)
 std::uint32_t File::Write(const char* data, std::uint32_t length, std::uint64_t offset) {
   {
     const std::lock_guard<std::mutex> lock(data_mutex_);
-    VerifyOpen();
+    VerifyHasBuffer();
 
     LOG(kInfo) << "For " << meta_data.name() << ", writing " << length << " bytes at offset " << offset;
 
@@ -199,7 +199,7 @@ std::uint32_t File::Write(const char* data, std::uint32_t length, std::uint64_t 
 void File::Truncate(std::uint64_t offset) {
   {
     const std::lock_guard<std::mutex> lock(data_mutex_);
-    VerifyOpen();
+    VerifyHasBuffer();
 
     LOG(kInfo) << "Truncating file " << meta_data.name() << " from " << meta_data.size() << " to " << offset;
     if (!file_data_->self_encryptor_.Truncate(offset)) {
@@ -214,39 +214,42 @@ void File::Truncate(std::uint64_t offset) {
 void File::Close() {
   const std::lock_guard<std::mutex> lock(data_mutex_);
   if (meta_data.file_type() == MetaData::FileType::regular_file) {
-    VerifyOpen();
+    VerifyHasBuffer();
 
     LOG(kInfo) << "Closing " << meta_data.name() << " with open count " << file_data_->open_count_;
 
-    assert(file_data_->open_count_ > 0);
-    if (file_data_->open_count_) {
+    assert(file_data_->IsOpen());
+    if (file_data_->IsOpen()) {
       --(file_data_->open_count_);
     }
 
-    if (file_data_->open_count_ == 0) {
+    if (!file_data_->IsOpen()) {
       LOG(kInfo) << "Setting close timer for " << meta_data.name();
-
       close_timer_.expires_from_now(detail::kFileInactivityDelay);
-      close_timer_.async_wait(
-          [this](const boost::system::error_code& error) {
-            if (error != boost::asio::error::operation_aborted) {
-            std::vector<ImmutableData::Name> chunks_to_be_incremented;
-            {
-              const std::lock_guard<std::mutex> lock(this->data_mutex_);
-              if (this->IsOpen() && this->file_data_->open_count_ == 0) {
-                this->FlushEncryptor(chunks_to_be_incremented);
-                LOG(kInfo) << "Deleting encryptor and buffer for " << this->meta_data.name();
-              }
-            }
 
-            if (!chunks_to_be_incremented.empty()) {
-              const std::shared_ptr<Path::Listener> listener(GetListener());
-              if (listener) {
-                listener->IncrementChunks(chunks_to_be_incremented);
+      const std::weak_ptr<File> this_weak(
+          std::static_pointer_cast<File>(shared_from_this()));
+      close_timer_.async_wait(
+          [this_weak](const boost::system::error_code& error) {
+            const std::shared_ptr<File> this_shared(this_weak.lock());
+            if (this_shared != nullptr && error != boost::asio::error::operation_aborted) {
+              std::vector<ImmutableData::Name> chunks_to_be_incremented;
+              {
+                const std::lock_guard<std::mutex> lock(this_shared->data_mutex_);
+                if (this_shared->HasBuffer() && !this_shared->file_data_->IsOpen()) {
+                  this_shared->FlushEncryptor(chunks_to_be_incremented);
+                  LOG(kInfo) << "Deleting encryptor and buffer for " << this_shared->meta_data.name();
+                }
+              }
+
+              if (!chunks_to_be_incremented.empty()) {
+                const std::shared_ptr<Path::Listener> listener(this_shared->GetListener());
+                if (listener) {
+                  listener->IncrementChunks(chunks_to_be_incremented);
+                }
               }
             }
-          }
-        });
+          });
     }
   }
 }
@@ -258,19 +261,19 @@ void File::ScheduleForStoring() {
   }
 }
 
-bool File::IsOpen() const {
+bool File::HasBuffer() const {
   return file_data_ != nullptr;
 }
 
-void File::VerifyOpen() const {
-  assert(IsOpen());
-  if (!IsOpen()) {
+void File::VerifyHasBuffer() const {
+  assert(HasBuffer());
+  if (!HasBuffer()) {
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::null_pointer));
   }
 }
 
 void File::FlushEncryptor(std::vector<ImmutableData::Name>& chunks_to_be_incremented) {
-  assert(IsOpen());
+  assert(HasBuffer());
 
   const std::shared_ptr<Directory::Listener> listener = GetListener();
   file_data_->self_encryptor_.Flush();
@@ -306,7 +309,7 @@ void File::FlushEncryptor(std::vector<ImmutableData::Name>& chunks_to_be_increme
     }
   }
 
-  if (file_data_->open_count_ == 0) {
+  if (!file_data_->IsOpen()) {
     file_data_->self_encryptor_.Close();
     file_data_.reset();
   }
