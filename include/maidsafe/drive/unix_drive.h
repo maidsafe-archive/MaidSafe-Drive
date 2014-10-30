@@ -806,7 +806,19 @@ int FuseDrive<Storage>::OpsOpendir(const char* path, struct fuse_file_info* file
     LOG(kError) << "OpsOpendir: " << path << " is a symlink.";
     return -ELOOP;
   }
-  return 0;
+
+  try {
+    const auto context = Global<Storage>::g_fuse_drive->GetContext(path);
+    assert(context != nullptr);
+    if (context->meta_data.file_type() == detail::MetaData::FileType::directory_file) {
+      return 0;
+    }
+  }
+  catch (const std::exception& e) {
+    LOG(kError) << "OpsOpendir" << fs::path(path) << ": " << e.what();
+  }
+
+  return -ENOENT;
 }
 
 // Quote from FUSE documentation:
@@ -829,7 +841,7 @@ int FuseDrive<Storage>::OpsRead(const char* path, char* buf, size_t size, off_t 
           unsigned(std::numeric_limits<int>::max()) <= std::numeric_limits<std::size_t>::max(),
           "expected size_t::max to be greater than int max");
       const std::size_t read_size =
-          std::min(std::size_t(std::numeric_limits<int>::max()), size);
+          std::min<std::size_t>(std::numeric_limits<int>::max(), size);
       return int(file->Read(buf, read_size, offset));
     }
   }
@@ -1125,7 +1137,7 @@ int FuseDrive<Storage>::OpsWrite(const char* path, const char* buf, size_t size,
           unsigned(std::numeric_limits<int>::max()) <= std::numeric_limits<std::size_t>::max(),
           "expected size_t::max to be greater than int max");
       const unsigned write_length =
-          std::min(std::size_t(std::numeric_limits<int>::max()), size);
+          std::min<std::size_t>(std::numeric_limits<int>::max(), size);
       return int(file->Write(buf, write_length, offset));
     }
   }
