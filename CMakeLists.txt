@@ -275,7 +275,7 @@ if(MaidsafeTesting)
   set(Timeout 180)
   ms_update_test_timeout(Timeout)
   set_tests_properties("\"Real Disk Filesystem Test\"" "\"Local Drive Filesystem Test\"" "\"Network Drive Filesystem Test\"" PROPERTIES
-                       TIMEOUT ${Timeout} LABELS "Drive;Filesystem")
+                       TIMEOUT ${Timeout} LABELS "Drive;Filesystem;${TASK_LABEL}")
 
   if(WEEKLY)
     add_test(NAME "\"Real Disk Weekly Test\""
@@ -288,7 +288,7 @@ if(MaidsafeTesting)
     set(Timeout 10800)
     ms_update_test_timeout(Timeout)
     set_tests_properties("\"Real Disk Weekly Test\"" "\"Local Drive Weekly Test\"" "\"Network Drive Weekly Test\"" PROPERTIES
-                         TIMEOUT ${Timeout} LABELS "Drive;Filesystem;Weekly")
+                         TIMEOUT ${Timeout} LABELS "Drive;Filesystem;Weekly;${TASK_LABEL}")
   endif()
 
   ms_test_summary_output()
