@@ -3,6 +3,7 @@
 #include <stdexcept>
 
 #include "maidsafe/common/asio_service.h"
+#include "maidsafe/common/config.h"
 #include "maidsafe/common/on_scope_exit.h"
 #include "maidsafe/common/test.h"
 #include "maidsafe/drive/file.h"
@@ -11,30 +12,53 @@ namespace maidsafe {
 namespace drive {
 namespace detail {
 namespace test {
+
+const std::uint32_t kTestMemoryUsageMax = kMaxChunkSize;
+const std::uint32_t kTestDiskUsageMax = kTestMemoryUsageMax;
+
 namespace {
   class FileTests : public ::testing::Test {
    protected:
     FileTests()
       : ::testing::Test(),
-        asio_service_(1) {
+        asio_service_(),
+        test_path_() {
+    }
+
+    void WaitForHandlers(const std::size_t number_handlers) {
+      std::size_t completed = 0;
+      unsigned iterations = 0;
+      do {
+        ASSERT_GE(3, iterations);
+        ++iterations;
+
+        std::this_thread::sleep_for(detail::kFileInactivityDelay);
+        asio_service_.reset();
+        completed += asio_service_.poll();
+      }
+      while (completed < number_handlers);
+
+      EXPECT_EQ(number_handlers, completed);
     }
 
     std::shared_ptr<File> CreateTestFile() {
-      return File::Create(asio_service_.service(), "foo", false);
+      return File::Create(asio_service_, "foo", false);
     }
 
-    static void OpenTestFile(File& test_file) {
-      const auto test_path = ::maidsafe::test::CreateTestPath("MaidSafe_Test_Drive");
-      if (test_path == nullptr || test_path->string() == "") {
-        throw std::runtime_error("Unable to create test path");
+    void OpenTestFile(File& test_file) {
+      if (test_path_ == nullptr) {
+        test_path_ = ::maidsafe::test::CreateTestPath("MaidSafe_Test_Drive");
+        if (test_path_ == nullptr || test_path_->string() == "") {
+          throw std::runtime_error("Unable to create test path");
+        }
       }
 
       test_file.Open(
           // callback used for retrieving from long-term storage (not needed in this test currently)
           [](const std::string&) { return NonEmptyString("bar"); },
-          MemoryUsage(1000),
-          DiskUsage(1000),
-          *test_path);
+          MemoryUsage(kTestMemoryUsageMax),
+          DiskUsage(kTestDiskUsageMax),
+          *test_path_);
     }
 
     static std::uint32_t WriteTestFile(
@@ -66,7 +90,8 @@ namespace {
     }
 
    private:
-    AsioService asio_service_;
+    boost::asio::io_service asio_service_;
+    ::maidsafe::test::TestPath test_path_;
   };
 } // anonymous
 
@@ -269,6 +294,44 @@ TEST_F(FileTests, BEH_TruncateDecrease) {
   EXPECT_EQ(new_file_size, test_file->meta_data.size());
   EXPECT_EQ(new_file_size, test_file->meta_data.allocation_size());
   EXPECT_EQ(MetaData::FileType::regular_file, test_file->meta_data.file_type());
+}
+
+TEST_F(FileTests, BEH_CloseTimer) {
+  const std::shared_ptr<File> test_file = CreateTestFile();
+  EXPECT_EQ(0u, test_file->meta_data.size());
+  EXPECT_EQ(0u, test_file->meta_data.allocation_size());
+
+  const std::size_t file_size = 500;
+  {
+    const on_scope_exit close_file([test_file] { test_file->Close(); });
+    OpenTestFile(*test_file);
+    test_file->Truncate(file_size);
+    EXPECT_EQ(file_size, test_file->meta_data.size());
+    EXPECT_EQ(file_size, test_file->meta_data.allocation_size());
+  }
+
+  WaitForHandlers(1);
+  EXPECT_EQ(file_size, test_file->meta_data.size());
+  EXPECT_EQ(file_size, test_file->meta_data.allocation_size());
+}
+
+TEST_F(FileTests, BEH_ExceedMaxDiskUsage) {
+  const std::shared_ptr<File> test_file = CreateTestFile();
+  EXPECT_EQ(0u, test_file->meta_data.size());
+  EXPECT_EQ(0u, test_file->meta_data.allocation_size());
+
+  const std::string random_data(
+      RandomString((kTestMemoryUsageMax + kTestDiskUsageMax) * 2));
+  {
+    const on_scope_exit close_file([test_file] { test_file->Close(); });
+    OpenTestFile(*test_file);
+    WriteTestFile(*test_file, random_data, 0);
+    EXPECT_EQ(random_data.size(), test_file->meta_data.size());
+    EXPECT_EQ(random_data.size(), test_file->meta_data.allocation_size());
+  }
+
+  // This should throw an exception once the chunks are properly being stored
+  WaitForHandlers(1);
 }
 
 } // test
