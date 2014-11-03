@@ -332,10 +332,11 @@ uint64_t TotalSize(const encrypt::DataMap& data_map) {
   return size;
 }
 
-void GenerateDirectoryListingEntryForFile(std::shared_ptr<Directory> directory,
+void GenerateDirectoryListingEntryForFile(boost::asio::io_service& io_service,
+                                          std::shared_ptr<Directory> directory,
                                           const fs::path& path,
                                           const uintmax_t& file_size) {
-  auto file(File::Create(path.filename(), false));
+  auto file(File::Create(io_service, path.filename(), false));
   file->meta_data.UpdateSize(file_size);
 #ifdef MAIDSAFE_WIN32
   file->meta_data.set_attributes(FILE_ATTRIBUTE_NORMAL);

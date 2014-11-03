@@ -190,7 +190,7 @@ void DirectoryHandler<Storage>::Initialise(std::shared_ptr<Storage>,
                                            const Identity&,
                                            const boost::filesystem::path&,
                                            bool create,
-                                           boost::asio::io_service&) {
+                                           boost::asio::io_service& asio_service) {
   if (!create) {
     try {
       cache_[""] = GetFromStorage("", ParentId(unique_user_id_), root_parent_id_);
@@ -200,7 +200,7 @@ void DirectoryHandler<Storage>::Initialise(std::shared_ptr<Storage>,
   }
   if (create) {
     // TODO(Fraser#5#): 2013-12-05 - Fill 'root_file' attributes appropriately.
-    auto root_file(File::Create(kRoot, true));
+    auto root_file(File::Create(asio_service, kRoot, true));
     std::shared_ptr<Directory>
         root_parent(Directory::Create(ParentId(unique_user_id_),
                                       root_parent_id_,
@@ -354,8 +354,8 @@ void DirectoryHandler<Storage>::Rename(const boost::filesystem::path& old_relati
   else
     RenameDifferentParent(old_relative_path, new_relative_path, new_parent);
 
-  if (IsDirectory(File::Create(old_relative_path, true))) {
-    std::lock_guard<std::mutex> lock(cache_mutex_);
+  {
+    const std::lock_guard<std::mutex> lock(cache_mutex_);
     // Fix old entry (if it's still there) and any children entries in the cache (effectively
     // renaming the key part of each such entry).
     auto old_path_size(old_relative_path.string().size());
@@ -573,24 +573,6 @@ void DirectoryHandler<Storage>::DeleteOldestVersion(Path* /*path*/) {
 
 template <typename Storage>
 void DirectoryHandler<Storage>::DeleteAllVersions(Path* /*path*/) {
-}
-
-template <typename Storage>
-void DirectoryHandler<Storage>::HandleDataPoppedFromBuffer(
-    const boost::filesystem::path& relative_path, const std::string& name,
-    const NonEmptyString& content) const {
-  // NOTE, This will be executed on a different thread to the one writing to the encryptor which has
-  // triggered this call.  We therefore can't safely access any non-threadsafe class members here.
-  LOG(kWarning) << "Chunk " << HexSubstr(name) << " has been popped from the buffer for "
-                << relative_path;
-  // TODO(Fraser#5#): 2013-11-27 - Handle mutex-protecting the file_contexts, so we can log that
-  // we're storing this chunk to the network.  If it's only a temporary chunk (i.e. it's not still
-  // listed in the datamap when we get the next flush/close call), we should delete it from the
-  // network again.
-  ImmutableData data(content);
-  assert(data.name()->string() == name);
-//  storage_->Put(data);
-  BOOST_THROW_EXCEPTION(MakeError(CommonErrors::file_too_large));
 }
 
 template <typename Storage>

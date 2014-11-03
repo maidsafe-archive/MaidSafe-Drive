@@ -38,11 +38,9 @@ class Symlink : public Path {
     return self;
   }
 
-  virtual bool Valid() const;
   virtual std::string Serialise();
   virtual void Serialise(protobuf::Directory&,
-                         std::vector<ImmutableData::Name>&,
-                         std::unique_lock<std::mutex>&);
+                         std::vector<ImmutableData::Name>&);
   virtual void ScheduleForStoring();
 
   boost::filesystem::path Target() const;

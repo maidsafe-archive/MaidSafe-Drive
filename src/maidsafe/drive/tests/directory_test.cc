@@ -93,7 +93,7 @@ class DirectoryTest : public testing::Test {
 
   void GenerateDirectoryListingEntryForDirectory(std::shared_ptr<Directory> directory,
                                                  fs::path const& path) {
-    auto file(File::Create(path.filename(), true));
+    auto file(File::Create(asio_service_.service(), path.filename(), true));
 
 #ifdef MAIDSAFE_WIN32
     file->meta_data.set_attributes(FILE_ATTRIBUTE_DIRECTORY);
@@ -121,7 +121,8 @@ class DirectoryTest : public testing::Test {
           EXPECT_TRUE(
               GenerateDirectoryListings(itr->path(), relative_path / itr->path().filename()));
         } else if (fs::is_regular_file(*itr)) {
-          GenerateDirectoryListingEntryForFile(directory, itr->path().filename(),
+          GenerateDirectoryListingEntryForFile(asio_service_.service(),
+                                               directory, itr->path().filename(),
                                                fs::file_size(itr->path()));
         } else {
           if (fs::exists(*itr))
@@ -444,7 +445,7 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
   for (int i = 0; i != 10; ++i) {
     bool is_dir((i % 2) == 0);
     std::string child_name("Child " + std::to_string(i));
-    auto file(File::Create(child_name, is_dir));
+    auto file(File::Create(asio_service_.service(), child_name, is_dir));
     if (is_dir) {
       EXPECT_NO_THROW(directory->AddChild(file));
     } else {
@@ -490,7 +491,7 @@ TEST_F(DirectoryTest, BEH_IteratorReset) {
   EXPECT_TRUE(4U < kTestCount);
   char c('A');
   for (size_t i(0); i != kTestCount; ++i, ++c) {
-    auto file(File::Create(std::string(1, c), ((i % 2) == 0)));
+    auto file(File::Create(asio_service_.service(), std::string(1, c), ((i % 2) == 0)));
     EXPECT_NO_THROW(directory->AddChild(std::move(file)));
   }
   EXPECT_FALSE(directory->empty());
@@ -513,7 +514,7 @@ TEST_F(DirectoryTest, BEH_IteratorReset) {
 
   // Add another element and check iterator is reset
   ++c;
-  auto new_file(File::Create(std::string(1, c), false));
+  auto new_file(File::Create(asio_service_.service(), std::string(1, c), false));
   EXPECT_NO_THROW(directory->AddChild(new_file));
   EXPECT_NO_THROW(file = directory->GetChildAndIncrementCounter());
   EXPECT_TRUE("A" == file->meta_data.name());

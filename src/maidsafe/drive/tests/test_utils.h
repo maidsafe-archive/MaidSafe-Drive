@@ -74,7 +74,8 @@ bool SameFileContents(fs::path const& path1, fs::path const& path2);
 
 uint64_t TotalSize(const encrypt::DataMap& data_map);
 
-void GenerateDirectoryListingEntryForFile(std::shared_ptr<Directory> directory,
+void GenerateDirectoryListingEntryForFile(boost::asio::io_service& io_service,
+                                          std::shared_ptr<Directory> directory,
                                           const fs::path& path,
                                           const uintmax_t& file_size);
 

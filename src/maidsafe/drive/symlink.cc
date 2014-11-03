@@ -43,17 +43,12 @@ Symlink::Symlink(const fs::path& target,
   meta_data.set_name(target);
 }
 
-bool Symlink::Valid() const {
-  return true;
-}
-
 std::string Symlink::Serialise() {
   return std::string();
 }
 
 void Symlink::Serialise(protobuf::Directory& proto_directory,
-                        std::vector<ImmutableData::Name>&,
-                        std::unique_lock<std::mutex>&) {
+                        std::vector<ImmutableData::Name>&) {
   auto child = proto_directory.add_children();
   Serialise(*child);
 }

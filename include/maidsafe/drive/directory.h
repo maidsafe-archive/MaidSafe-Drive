@@ -108,9 +108,6 @@ class Directory : public Path {
   friend void test::DirectoriesMatch(const Directory&, const Directory&);
   friend void test::SortAndResetChildrenCounter(Directory& lhs);
 
-  // TODO(Fraser#5#): 2014-01-30 - BEFORE_RELEASE - Make mutex_ private.
-  mutable std::mutex mutex_;
-
  private:
   Directory(const Directory&) = delete;
   Directory(Directory&& other) = delete;
@@ -128,24 +125,22 @@ class Directory : public Path {
             std::weak_ptr<Directory::Listener> listener,
             const boost::filesystem::path& path);
 
-  void Initialise(ParentId parent_id,
-                  DirectoryId directory_id,
-                  boost::asio::io_service& io_service,
-                  std::weak_ptr<Directory::Listener> listener,
-                  const boost::filesystem::path& path);  // NOLINT
-  void Initialise(ParentId parent_id,
+  void Initialise(const ParentId&,
+                  const DirectoryId&,
+                  boost::asio::io_service&,
+                  std::weak_ptr<Directory::Listener>,
+                  const boost::filesystem::path&);  // NOLINT
+  void Initialise(const ParentId&,
                   const std::string& serialised_directory,
-                  const std::vector<StructuredDataVersions::VersionName>& versions,
+                  const std::vector<StructuredDataVersions::VersionName>&,
                   boost::asio::io_service& io_service,
-                  std::weak_ptr<Directory::Listener> listener,
-                  const boost::filesystem::path& path);
+                  std::weak_ptr<Directory::Listener>,
+                  const boost::filesystem::path&);
 
   typedef std::vector<std::shared_ptr<Path>> Children;
 
-  virtual bool Valid() const;
   virtual void Serialise(protobuf::Directory&,
-                         std::vector<ImmutableData::Name>&,
-                         std::unique_lock<std::mutex>&);
+                         std::vector<ImmutableData::Name>&);
 
   Children::iterator Find(const boost::filesystem::path& name);
   Children::const_iterator Find(const boost::filesystem::path& name) const;
@@ -157,7 +152,6 @@ class Directory : public Path {
   DirectoryId directory_id_;
   boost::asio::steady_timer timer_;
   boost::filesystem::path path_;
-  std::vector<ImmutableData::Name> chunks_to_be_incremented_;
   std::deque<StructuredDataVersions::VersionName> versions_;
   MaxVersions max_versions_;
   Children children_;
@@ -171,6 +165,8 @@ class Directory : public Path {
   };
   std::unique_ptr<NewParent> newParent_;  // Use std::unique_ptr<> to fake an optional<>
   int pending_count_;
+
+  mutable std::mutex mutex_;
 };
 
 bool operator<(const Directory& lhs, const Directory& rhs);
@@ -205,7 +201,6 @@ Directory::GetChild(const boost::filesystem::path& name) const {
   auto itr(Find(name));
   if (itr == std::end(children_))
     BOOST_THROW_EXCEPTION(MakeError(DriveErrors::no_such_file));
-  assert((*itr)->Valid());
   return std::dynamic_pointer_cast<T>(*itr);
 }
 
@@ -217,7 +212,6 @@ Directory::GetMutableChild(const boost::filesystem::path& name) {
   auto itr(Find(name));
   if (itr == std::end(children_))
     BOOST_THROW_EXCEPTION(MakeError(DriveErrors::no_such_file));
-  assert((*itr)->Valid());
   return std::dynamic_pointer_cast<T>(*itr);
 }
 
