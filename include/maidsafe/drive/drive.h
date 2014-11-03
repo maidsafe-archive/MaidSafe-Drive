@@ -81,7 +81,6 @@ class Drive {
 
   detail::MetaData::Permissions get_base_file_permissions() const;
 
-  std::shared_ptr<Storage> storage_;
   const boost::filesystem::path kMountDir_;
   const boost::filesystem::path kUserAppDir_;
   const std::unique_ptr<const boost::filesystem::path,
@@ -101,7 +100,6 @@ class Drive {
 
  protected:
   AsioService asio_service_;
-  // Needs to be destructed first so that 'get_chunk_from_store_' and 'storage_' outlive it.
   std::shared_ptr<detail::DirectoryHandler<Storage>> directory_handler_;
 };
 
@@ -111,8 +109,7 @@ Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_u
                       const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
                       const boost::filesystem::path& user_app_dir,
                       const std::string& mount_status_shared_object_name, bool create)
-    : storage_(storage),
-      kMountDir_(mount_dir),
+    : kMountDir_(mount_dir),
       kUserAppDir_(user_app_dir),
       kBufferRoot_(new boost::filesystem::path(user_app_dir / "Buffers"),
                    [](const boost::filesystem::path* const delete_path) {
@@ -138,13 +135,15 @@ Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_u
           detail::MetaData::Permissions::owner_write),
       asio_service_(2),
       directory_handler_() {
+
+  assert(storage != nullptr);
   directory_handler_ = detail::DirectoryHandler<Storage>::Create(
       storage, unique_user_id, root_parent_id,
       boost::filesystem::unique_path(*kBufferRoot_ / "%%%%%-%%%%%-%%%%%-%%%%%"),
       create, asio_service_.service());
-  get_chunk_from_store_ = [this](const std::string& name) {
+  get_chunk_from_store_ = [storage](const std::string& name) {
     try {
-      auto chunk(storage_->Get(ImmutableData::Name(Identity(name))).get());
+      auto chunk(storage->Get(ImmutableData::Name(Identity(name))).get());
       return chunk.data();
     }
     catch (const std::exception& e) {
