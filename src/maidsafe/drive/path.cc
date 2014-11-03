@@ -46,10 +46,6 @@ void Path::SetParent(std::shared_ptr<Directory> parent) {
   parent_ = parent;
 }
 
-std::shared_ptr<Path::Listener> Path::GetListener() const {
-  return listener_.lock();
-}
-
 bool operator<(const Path& lhs, const Path& rhs) {
   return lhs.meta_data.name() < rhs.meta_data.name();
 }

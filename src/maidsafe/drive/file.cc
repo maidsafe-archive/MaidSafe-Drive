@@ -32,6 +32,15 @@ namespace drive {
 
 namespace detail {
 
+namespace {
+std::shared_ptr<Directory::Listener> GetDirectoryListener(const std::shared_ptr<Directory>& directory) {
+  if (directory != nullptr) {
+    return directory->GetListener();
+  }
+  return nullptr;
+}
+}
+
 File::File(
     boost::asio::io_service& asio_service,
     MetaData meta_data_in,
@@ -243,7 +252,7 @@ void File::Close() {
               }
 
               if (!chunks_to_be_incremented.empty()) {
-                const std::shared_ptr<Path::Listener> listener(this_shared->GetListener());
+                const std::shared_ptr<Directory::Listener> listener(GetDirectoryListener(this_shared->Parent()));
                 if (listener) {
                   listener->IncrementChunks(chunks_to_be_incremented);
                 }
@@ -275,7 +284,7 @@ void File::VerifyHasBuffer() const {
 void File::FlushEncryptor(std::vector<ImmutableData::Name>& chunks_to_be_incremented) {
   assert(HasBuffer());
 
-  const std::shared_ptr<Directory::Listener> listener = GetListener();
+  const std::shared_ptr<Directory::Listener> listener = GetDirectoryListener(Parent());
   file_data_->self_encryptor_.Flush();
 
   if (file_data_->self_encryptor_.original_data_map().chunks.empty()) {

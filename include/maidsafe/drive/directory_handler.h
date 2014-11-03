@@ -65,7 +65,7 @@ namespace test { class DirectoryHandlerTest; }
 template <typename Storage>
 class DirectoryHandler
     : public std::enable_shared_from_this<DirectoryHandler<Storage>>,
-      public Path::Listener {
+      public Directory::Listener {
  public:
   template <typename... Types>
   static std::shared_ptr<DirectoryHandler<Storage>> Create(Types&&... args);
@@ -125,12 +125,12 @@ class DirectoryHandler
   NonEmptyString GetChunkFromStore(const std::string& name) const;
 
 
-  std::shared_ptr<Path::Listener> GetListener();
+  std::shared_ptr<Directory::Listener> GetListener();
 
   // Path::Listener
-  virtual void PathPut(std::shared_ptr<Path>);
-  virtual void PathPutChunk(const ImmutableData&);
-  virtual void PathIncrementChunks(const std::vector<ImmutableData::Name>&);
+  virtual void DirectoryPut(std::shared_ptr<Directory>);
+  virtual void DirectoryPutChunk(const ImmutableData&);
+  virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&);
 
   std::shared_ptr<Storage> storage_;
   Identity unique_user_id_, root_parent_id_;
@@ -180,8 +180,8 @@ DirectoryHandler<Storage>::~DirectoryHandler() {
 }
 
 template <typename Storage>
-std::shared_ptr<Path::Listener> DirectoryHandler<Storage>::GetListener() {
-    return std::static_pointer_cast<Path::Listener>(this->shared_from_this());
+std::shared_ptr<Directory::Listener> DirectoryHandler<Storage>::GetListener() {
+    return this->shared_from_this();
 }
 
 template <typename Storage>
@@ -588,17 +588,17 @@ NonEmptyString DirectoryHandler<Storage>::GetChunkFromStore(const std::string& n
 }
 
 template <typename Storage>
-void DirectoryHandler<Storage>::PathPut(std::shared_ptr<Path> path) {
+void DirectoryHandler<Storage>::DirectoryPut(std::shared_ptr<Directory> path) {
   Put(path);
 }
 
 template <typename Storage>
-void DirectoryHandler<Storage>::PathPutChunk(const ImmutableData& chunk) {
+void DirectoryHandler<Storage>::DirectoryPutChunk(const ImmutableData& chunk) {
   storage_->Put(chunk);
 }
 
 template <typename Storage>
-void DirectoryHandler<Storage>::PathIncrementChunks(
+void DirectoryHandler<Storage>::DirectoryIncrementChunks(
   const std::vector<ImmutableData::Name>& names) {
   storage_->IncrementReferenceCount(names);
 }

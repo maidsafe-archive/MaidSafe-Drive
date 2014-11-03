@@ -57,6 +57,29 @@ void SortAndResetChildrenCounter(Directory& lhs);
 
 class Directory : public Path {
  public:
+  class Listener {
+  private:
+    virtual void DirectoryPut(std::shared_ptr<Directory>) = 0;
+    virtual void DirectoryPutChunk(const ImmutableData&) = 0;
+    virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&) = 0;
+
+  public:
+
+    virtual ~Listener() {}
+
+    void Put(std::shared_ptr<Directory> directory) {
+      DirectoryPut(directory);
+    }
+
+    void PutChunk(const ImmutableData& data) {
+      DirectoryPutChunk(data);
+    }
+
+    void IncrementChunks(const std::vector<ImmutableData::Name>& names) {
+      DirectoryIncrementChunks(names);
+    }
+  };
+
   // This class must always be constructed using a Create() call to ensure that it will be
   // a shared_ptr. See the private constructors for the argument lists.
   template <typename... Types>
@@ -84,6 +107,7 @@ class Directory : public Path {
   std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
       AddNewVersion(ImmutableData::Name version_id);
 
+  std::shared_ptr<Listener> GetListener() const;
   bool HasChild(const boost::filesystem::path& name) const;
   template <typename T = Path>
   typename std::enable_if<std::is_base_of<detail::Path, T>::value, const std::shared_ptr<const T>>::type
@@ -163,6 +187,7 @@ class Directory : public Path {
     ParentId parent_id_;
     boost::filesystem::path path_;
   };
+  const std::weak_ptr<Listener> listener_;
   std::unique_ptr<NewParent> newParent_;  // Use std::unique_ptr<> to fake an optional<>
   int pending_count_;
 

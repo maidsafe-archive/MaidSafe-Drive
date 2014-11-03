@@ -52,9 +52,10 @@ Directory::Directory(ParentId parent_id,
     children_(),
     children_count_position_(0),
     store_state_(StoreState::kComplete),
+    listener_(listener),
+    newParent_(),
     pending_count_(0),
     mutex_() {
-  listener_ = listener;
 }
 
 Directory::Directory(ParentId parent_id,
@@ -72,9 +73,10 @@ Directory::Directory(ParentId parent_id,
     children_(),
     children_count_position_(0),
     store_state_(StoreState::kComplete),
+    listener_(listener),
+    newParent_(),
     pending_count_(0),
     mutex_() {
-  listener_ = listener;
 }
 
 Directory::~Directory() {
@@ -139,7 +141,7 @@ void Directory::Serialise(protobuf::Directory& proto_directory,
     }
   }
 
-  const std::shared_ptr<Path::Listener> listener(GetListener());
+  const std::shared_ptr<Listener> listener(GetListener());
   if (listener) {
     listener->IncrementChunks(chunks);
   }
@@ -251,7 +253,7 @@ void Directory::DoScheduleForStoring(bool use_delay) {
 
 void Directory::ProcessTimer(const boost::system::error_code& ec) {
 
-  std::shared_ptr<Path::Listener> listener;
+  std::shared_ptr<Listener> listener;
   {
     const std::unique_lock<std::mutex> lock(mutex_);
     switch (ec.value()) {
@@ -283,6 +285,10 @@ void Directory::ProcessTimer(const boost::system::error_code& ec) {
     }
     --pending_count_;
   }
+}
+
+std::shared_ptr<Directory::Listener> Directory::GetListener() const {
+  return listener_.lock();
 }
 
 bool Directory::HasChild(const fs::path& name) const {

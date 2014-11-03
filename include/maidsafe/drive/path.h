@@ -39,28 +39,6 @@ class Directory;
 
 class Path : public std::enable_shared_from_this<Path> {
  public:
-  class Listener {
-  private:
-    virtual void PathPut(std::shared_ptr<Path>) = 0;
-    virtual void PathPutChunk(const ImmutableData&) = 0;
-    virtual void PathIncrementChunks(const std::vector<ImmutableData::Name>&) = 0;
-
-  public:
-
-    virtual ~Listener() {}
-
-    void Put(std::shared_ptr<Path> path) {
-      PathPut(path);
-    }
-
-    void PutChunk(const ImmutableData& data) {
-      PathPutChunk(data);
-    }
-
-    void IncrementChunks(const std::vector<ImmutableData::Name>& names) {
-      PathIncrementChunks(names);
-    }
-  };
 
   ~Path() {}
 
@@ -71,15 +49,11 @@ class Path : public std::enable_shared_from_this<Path> {
 
   std::shared_ptr<Directory> Parent() const;
   void SetParent(std::shared_ptr<Directory>);
-  std::shared_ptr<Listener> GetListener() const;
 
  protected:
   explicit Path(MetaData::FileType);
   Path(const Path&) = delete;
   Path(std::shared_ptr<Directory> parent, MetaData::FileType);
-
- protected:
-  std::weak_ptr<Listener> listener_;
 
  private:
   std::weak_ptr<Directory> parent_;
