@@ -54,18 +54,18 @@ namespace test {
 
 class DirectoryTestListener
   : public std::enable_shared_from_this<DirectoryTestListener>,
-    public Path::Listener {
+    public Directory::Listener {
  public:
   // Directory::Listener
-  virtual void PathPut(std::shared_ptr<Path> path) {
+  virtual void DirectoryPut(std::shared_ptr<Directory> path) {
     LOG(kInfo) << "Putting directory.";
     ImmutableData contents(NonEmptyString(path->Serialise()));
     std::static_pointer_cast<Directory>(path)->AddNewVersion(contents.name());
   }
-  virtual void PathPutChunk(const ImmutableData&) {
+  virtual void DirectoryPutChunk(const ImmutableData&) {
     LOG(kInfo) << "Putting chunk.";
   }
-  virtual void PathIncrementChunks(const std::vector<ImmutableData::Name>&) {
+  virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&) {
     LOG(kInfo) << "Incrementing chunks.";
   }
 };
