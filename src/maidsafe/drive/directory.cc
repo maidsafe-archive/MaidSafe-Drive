@@ -80,8 +80,11 @@ Directory::Directory(ParentId parent_id,
 }
 
 Directory::~Directory() {
-  std::unique_lock<std::mutex> lock(mutex_);
-  DoScheduleForStoring(false);
+  try {
+    StoreImmediatelyIfPending();
+  }
+  catch (...) {
+  }
 }
 
 void Directory::Initialise(const ParentId&,
@@ -210,45 +213,22 @@ void Directory::SortAndResetChildrenCounter() {
   children_count_position_ = 0;
 }
 
-void Directory::DoScheduleForStoring(bool use_delay) {
-  if (use_delay) {
-    auto cancelled_count(timer_.expires_from_now(kDirectoryInactivityDelay));
+void Directory::DoScheduleForStoring() {
+  auto cancelled_count(timer_.expires_from_now(kDirectoryInactivityDelay));
 #ifndef NDEBUG
-    if (cancelled_count > 0 && store_state_ != StoreState::kComplete) {
-      LOG(kInfo) << "Successfully cancelled " << cancelled_count << " store functor.";
-      assert(cancelled_count == 1);
-    } else if (store_state_ != StoreState::kComplete) {
-      LOG(kWarning) << "Failed to cancel store functor.";
-    }
-#endif
-    static_cast<void>(cancelled_count);
-    timer_.async_wait(std::bind(&Directory::ProcessTimer,
-                                shared_from_this(),
-                                std::placeholders::_1));
-    ++pending_count_;
-    store_state_ = StoreState::kPending;
-  } else if (store_state_ == StoreState::kPending) {
-    // If 'use_delay' is false, the implication is that we should only store if there's already
-    // a pending store waiting - i.e. we're just bringing forward the deadline of any outstanding
-    // store.
-    auto cancelled_count(timer_.cancel());
-    if (cancelled_count > 0) {
-      LOG(kInfo) << "Successfully brought forward schedule for " << cancelled_count
-                 << " store functor.";
-      assert(cancelled_count == 1);
-      timer_.get_io_service().post(std::bind(&Directory::ProcessTimer,
-                                             shared_from_this(),
-                                             boost::system::error_code()));
-      ++pending_count_;
-    } else {
-      LOG(kWarning) << "Failed to cancel store functor.";
-    }
-    store_state_ = StoreState::kPending;
-#ifndef NDEBUG
-  } else {
-    LOG(kInfo) << "No store functor pending.";
-#endif
+  if (cancelled_count > 0 && store_state_ != StoreState::kComplete) {
+    LOG(kInfo) << "Successfully cancelled " << cancelled_count << " store functor.";
+    assert(cancelled_count == 1);
+  } else if (store_state_ != StoreState::kComplete) {
+    LOG(kWarning) << "Failed to cancel store functor.";
   }
+#endif
+  static_cast<void>(cancelled_count);
+  timer_.async_wait(std::bind(&Directory::ProcessTimer,
+                              shared_from_this(),
+                              std::placeholders::_1));
+  ++pending_count_;
+  store_state_ = StoreState::kPending;
 }
 
 void Directory::ProcessTimer(const boost::system::error_code& ec) {
@@ -374,8 +354,30 @@ void Directory::ScheduleForStoring() {
 }
 
 void Directory::StoreImmediatelyIfPending() {
-  const std::lock_guard<std::mutex> lock(mutex_);
-  DoScheduleForStoring(false);
+  /* The implication is that we should only store if there's already a pending
+     store waiting - i.e. we're just bringing forward the deadline of any
+     outstanding store. */
+  {
+    const std::lock_guard<std::mutex> lock(mutex_);
+
+    if (store_state_ != StoreState::kPending) {
+      LOG(kInfo) << "No store functor pending.";
+      return;
+    }
+
+    const auto cancelled_count(timer_.cancel());
+    if (cancelled_count <= 0) {
+      LOG(kWarning) << "Failed to cancel store functor.";
+      return;
+    }
+
+    LOG(kInfo) << "Successfully brought forward schedule for " << cancelled_count
+               << " store functor.";
+    assert(cancelled_count == 1);
+    ++pending_count_;
+  }
+
+  ProcessTimer(boost::system::error_code());
 }
 
 bool Directory::HasPending() const {

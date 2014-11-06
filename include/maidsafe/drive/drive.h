@@ -100,7 +100,7 @@ class Drive {
 
  protected:
   AsioService asio_service_;
-  std::shared_ptr<detail::DirectoryHandler<Storage>> directory_handler_;
+  const std::shared_ptr<detail::DirectoryHandler<Storage>> directory_handler_;
 };
 
 // ==================== Implementation =============================================================
@@ -134,13 +134,12 @@ Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_u
           detail::MetaData::Permissions::owner_read |
           detail::MetaData::Permissions::owner_write),
       asio_service_(2),
-      directory_handler_() {
-
+      directory_handler_(
+          detail::DirectoryHandler<Storage>::Create(
+              storage, unique_user_id, root_parent_id,
+              boost::filesystem::unique_path(*kBufferRoot_ / "%%%%%-%%%%%-%%%%%-%%%%%"),
+              create, asio_service_.service())) {
   assert(storage != nullptr);
-  directory_handler_ = detail::DirectoryHandler<Storage>::Create(
-      storage, unique_user_id, root_parent_id,
-      boost::filesystem::unique_path(*kBufferRoot_ / "%%%%%-%%%%%-%%%%%-%%%%%"),
-      create, asio_service_.service());
   get_chunk_from_store_ = [storage](const std::string& name) {
     try {
       auto chunk(storage->Get(ImmutableData::Name(Identity(name))).get());
@@ -155,7 +154,13 @@ Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_u
 
 template <typename Storage>
 Drive<Storage>::~Drive() {
-  asio_service_.Stop();
+  try {
+    asio_service_.Stop();
+    assert(directory_handler_ != nullptr);
+    directory_handler_->StoreAll();
+  }
+  catch (...) {
+  }
 }
 
 template <typename Storage>

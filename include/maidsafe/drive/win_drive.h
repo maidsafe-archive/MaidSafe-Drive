@@ -314,6 +314,8 @@ void CbfsDrive<Storage>::Unmount() {
         unmounted_.set_value();
         if (!kMountStatusSharedObjectName_.empty())
           NotifyUnmounted(kMountStatusSharedObjectName_);
+
+        this->directory_handler_->StoreAll();
     });
   }
   catch (const ECBFSError& error) {

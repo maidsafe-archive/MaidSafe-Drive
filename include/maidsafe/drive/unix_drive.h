@@ -436,6 +436,7 @@ void FuseDrive<Storage>::Unmount() {
         fuse_remove_signal_handlers(fuse_get_session(fuse_));
         fuse_unmount(fuse_mountpoint_.c_str(), fuse_channel_);
         fuse_destroy(fuse_);
+        this->directory_handler_->StoreAll();
       }
     });
   }

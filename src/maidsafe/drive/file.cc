@@ -98,7 +98,17 @@ void File::Serialise(protobuf::Directory& proto_directory,
   const std::lock_guard<std::mutex> lock(data_mutex_);
 
   if (HasBuffer()) {
-    FlushEncryptor(chunks);
+    assert(meta_data.data_map() != nullptr);
+
+    auto original_parameters = std::move(file_data_->original_parameters_);
+    const unsigned current_open_count = file_data_->open_count_;
+    CloseEncryptor(chunks);
+
+    // If the above throws, leave the current object. SelfEncryptor will only
+    // throw if someone tries to write (reads and closes are NOP).
+    file_data_ = maidsafe::make_unique<Data>(
+        std::move(original_parameters), meta_data.name(), *(meta_data.data_map()));
+    file_data_->open_count_ = current_open_count;
   }
   else if (meta_data.data_map()) { // still have directories being created as file objects
     if (!skip_chunk_incrementing_) {
@@ -149,12 +159,13 @@ void File::Open(
     assert(meta_data.data_map() != nullptr);
     if (!HasBuffer()) {
       file_data_ = maidsafe::make_unique<Data>(
-        meta_data.name(),
-        max_memory_usage,
-        max_disk_usage,
-        disk_buffer_location,
-        *meta_data.data_map(),
-        get_chunk_from_store);
+          Data::OriginalParameters(
+              max_memory_usage,
+              max_disk_usage,
+              disk_buffer_location,
+              get_chunk_from_store),
+          meta_data.name(),
+          *meta_data.data_map());
     }
 
     LOG(kInfo) << "Opened " << meta_data.name() << " with open count " << file_data_->open_count_;
@@ -246,7 +257,8 @@ void File::Close() {
               {
                 const std::lock_guard<std::mutex> lock(this_shared->data_mutex_);
                 if (this_shared->HasBuffer() && !this_shared->file_data_->IsOpen()) {
-                  this_shared->FlushEncryptor(chunks_to_be_incremented);
+                  const on_scope_exit destroy_buffer([this_shared] { this_shared->file_data_.reset(); });
+                  this_shared->CloseEncryptor(chunks_to_be_incremented);
                   LOG(kInfo) << "Deleting encryptor and buffer for " << this_shared->meta_data.name();
                 }
               }
@@ -281,11 +293,11 @@ void File::VerifyHasBuffer() const {
   }
 }
 
-void File::FlushEncryptor(std::vector<ImmutableData::Name>& chunks_to_be_incremented) {
+void File::CloseEncryptor(std::vector<ImmutableData::Name>& chunks_to_be_incremented) {
   assert(HasBuffer());
 
   const std::shared_ptr<Directory::Listener> listener = GetDirectoryListener(Parent());
-  file_data_->self_encryptor_.Flush();
+  file_data_->self_encryptor_.Close();
 
   if (file_data_->self_encryptor_.original_data_map().chunks.empty()) {
     // If the original data map didn't contain any chunks, just store the new ones.
@@ -318,30 +330,43 @@ void File::FlushEncryptor(std::vector<ImmutableData::Name>& chunks_to_be_increme
     }
   }
 
-  if (!file_data_->IsOpen()) {
-    file_data_->self_encryptor_.Close();
-    file_data_.reset();
-  }
   skip_chunk_incrementing_ = true;
 }
 
 File::Data::Data(
+    OriginalParameters original_parameters,
     const boost::filesystem::path& name,
-    const MemoryUsage max_memory_usage,
-    const DiskUsage max_disk_usage,
-    const boost::filesystem::path& disk_buffer_location,
-    encrypt::DataMap& data_map,
-    const std::function<NonEmptyString(const std::string&)>& get_chunk_from_store)
-  : buffer_(
-      max_memory_usage,
-      max_disk_usage,
+    encrypt::DataMap& data_map)
+  : original_parameters_(std::move(original_parameters)),
+    buffer_(
+      original_parameters_.max_memory_usage_,
+      original_parameters_.max_disk_usage_,
       [name](const std::string&, const NonEmptyString&) {
         LOG(kWarning) << name << "is too large for storage";
         BOOST_THROW_EXCEPTION(MakeError(CommonErrors::file_too_large));
       },
-      boost::filesystem::unique_path(disk_buffer_location / "%%%%%-%%%%%-%%%%%-%%%%%")),
-    self_encryptor_(data_map, buffer_, get_chunk_from_store),
+      original_parameters_.disk_buffer_location_),
+    self_encryptor_(data_map, buffer_, original_parameters_.get_chunk_from_store_),
     open_count_(0) {
+}
+
+File::Data::OriginalParameters::OriginalParameters(
+    const MemoryUsage max_memory_usage,
+    const DiskUsage max_disk_usage,
+    const boost::filesystem::path& disk_buffer_location,
+    std::function<NonEmptyString(const std::string&)> get_chunk_from_store)
+  : disk_buffer_location_(boost::filesystem::unique_path(disk_buffer_location / "%%%%%-%%%%%-%%%%%-%%%%%")),
+    get_chunk_from_store_(std::move(get_chunk_from_store)),
+    max_memory_usage_(max_memory_usage),
+    max_disk_usage_(max_disk_usage) {
+}
+
+File::Data::OriginalParameters::OriginalParameters(OriginalParameters&& rhs)
+  : disk_buffer_location_(),
+    get_chunk_from_store_(std::move(rhs.get_chunk_from_store_)),
+    max_memory_usage_(std::move(rhs.max_memory_usage_)),
+    max_disk_usage_(std::move(rhs.max_disk_usage_)) {
+  disk_buffer_location_.swap(rhs.disk_buffer_location_);
 }
 
 
