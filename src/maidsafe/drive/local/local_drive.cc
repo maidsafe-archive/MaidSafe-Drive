@@ -284,7 +284,11 @@ int MountAndWaitForIpcNotification(const Options& options) {
   // Start a thread to poll the parent process' continued existence *before* calling drive.Mount().
   std::thread poll_parent([&] { MonitorParentProcess(options); });
 
-  drive.Mount();
+  try {
+    drive.Mount();
+  } catch (const std::exception& e) {
+    LOG(kError) << "using VFS caught an exception " << boost::diagnostic_information(e);
+  }
   // Drive should already be unmounted by this point, but we need to make 'g_local_drive' null to
   // allow 'poll_parent' to join.
   Unmount();
