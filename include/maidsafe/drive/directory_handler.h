@@ -75,7 +75,13 @@ class DirectoryHandler
   template <typename T = Path>
   typename std::enable_if<std::is_base_of<detail::Path, T>::value, std::shared_ptr<T>>::type
   Get(const boost::filesystem::path& relative_path);
+
+  // Sends a store request to all directories (store happens on ASIO thread)
   void FlushAll();
+
+  // Immediate stores directories (blocks and store happens on this thread)
+  void StoreAll();
+
   void Delete(const boost::filesystem::path& relative_path);
   void Rename(const boost::filesystem::path& old_relative_path,
               const boost::filesystem::path& new_relative_path);
@@ -121,7 +127,6 @@ class DirectoryHandler
       const ParentId& parent_id, const DirectoryId& directory_id,
       std::vector<StructuredDataVersions::VersionName> versions);
   void DeleteOldestVersion(Path* path);
-  void DeleteAllVersions(Path* path);
   NonEmptyString GetChunkFromStore(const std::string& name) const;
 
 
@@ -137,7 +142,7 @@ class DirectoryHandler
   mutable detail::File::Buffer disk_buffer_;
   mutable std::mutex cache_mutex_;
   boost::asio::io_service& asio_service_;
-  std::map<boost::filesystem::path, std::shared_ptr<Path>> cache_;
+  std::map<boost::filesystem::path, std::shared_ptr<Directory>> cache_;
 };
 
 // ==================== Implementation details ====================================================
@@ -176,7 +181,11 @@ DirectoryHandler<Storage>::DirectoryHandler(std::shared_ptr<Storage> storage,
 
 template <typename Storage>
 DirectoryHandler<Storage>::~DirectoryHandler() {
-  FlushAll();
+  try {
+    StoreAll();
+  }
+  catch (...) {
+  }
 }
 
 template <typename Storage>
@@ -308,15 +317,21 @@ DirectoryHandler<Storage>::Get(const boost::filesystem::path& relative_path) {
 template <typename Storage>
 void DirectoryHandler<Storage>::FlushAll() {
   SCOPED_PROFILE
-  bool error(false);
-  std::lock_guard<std::mutex> lock(cache_mutex_);
+  const std::lock_guard<std::mutex> lock(cache_mutex_);
   for (auto& dir : cache_) {
     // ScheduleForStoring automatically serialises/flushes all children when
     // callback is invoked.
     dir.second->ScheduleForStoring();
   }
-  if (error)
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unknown));
+}
+
+template <typename Storage>
+void DirectoryHandler<Storage>::StoreAll() {
+  SCOPED_PROFILE
+  const std::lock_guard<std::mutex> lock(cache_mutex_);
+  for (auto& dir : cache_) {
+    dir.second->StoreImmediatelyIfPending();
+  }
 }
 
 template <typename Storage>
@@ -329,7 +344,6 @@ void DirectoryHandler<Storage>::Delete(const boost::filesystem::path& relative_p
   bool is_directory(IsDirectory(file));
   if (is_directory) {
     auto directory(Get(relative_path));
-    DeleteAllVersions(directory.get());
     {  // NOLINT
       std::lock_guard<std::mutex> lock(cache_mutex_);
       cache_.erase(relative_path);
@@ -404,7 +418,6 @@ void DirectoryHandler<Storage>::PrepareNewPath(const boost::filesystem::path& ne
       auto existing_directory(Get<Directory>(new_relative_path));
       if (existing_directory->empty()) {
         new_parent->RemoveChild(new_relative_path.filename());
-        DeleteAllVersions(existing_directory.get());
         std::lock_guard<std::mutex> lock(cache_mutex_);
         cache_.erase(new_relative_path);
       } else {
@@ -432,20 +445,19 @@ void DirectoryHandler<Storage>::RenameDifferentParent(
 
   if (IsDirectory(file)) {
     auto directory(Get<Directory>(old_relative_path));
-    DeleteAllVersions(directory.get());
     {
       std::lock_guard<std::mutex> lock(cache_mutex_);
       auto itr(cache_.find(old_relative_path));
       assert(itr != std::end(cache_));
-      std::shared_ptr<Directory> temp = std::static_pointer_cast<Directory>(itr->second);
+      std::shared_ptr<Directory> temp = itr->second;
       temp->SetNewParent(ParentId(new_parent->directory_id()), new_relative_path);
       while (directory->HasPending()) {
-          std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
       }
       cache_.erase(itr);
       auto insertion_result(cache_.emplace(new_relative_path, temp));
       assert(insertion_result.second);
-      directory = std::static_pointer_cast<Directory>(insertion_result.first->second);
+      directory = insertion_result.first->second;
     }
     directory->ScheduleForStoring();
   }
@@ -569,10 +581,6 @@ void DirectoryHandler<Storage>::DeleteOldestVersion(Path* /*path*/) {
   //   iterate all children, deleting all chunks from all data_maps
   //   delete all chunks from dir data_map
   // }
-}
-
-template <typename Storage>
-void DirectoryHandler<Storage>::DeleteAllVersions(Path* /*path*/) {
 }
 
 template <typename Storage>

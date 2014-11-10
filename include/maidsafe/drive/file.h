@@ -92,7 +92,7 @@ class File : public Path {
   // Throw exception if file is not open
   void VerifyHasBuffer() const;
 
-  void FlushEncryptor(
+  void CloseEncryptor(
       std::vector<ImmutableData::Name>& chunks_to_be_incremented);
 
   void Serialise(protobuf::Path&);
@@ -100,16 +100,35 @@ class File : public Path {
  private:
 
   struct Data {
+
+    // Stores some of the original constructor values that are encapsulated in
+    // other objects. Needed to "flush" self encryptor (only close is given).
+    struct OriginalParameters {
+      OriginalParameters(
+          const MemoryUsage max_memory_usage,
+          const DiskUsage max_disk_usage,
+          const boost::filesystem::path& disk_buffer_location,
+          std::function<NonEmptyString(const std::string&)> get_chunk_from_store);
+
+      OriginalParameters(OriginalParameters&& rhs); // alow move construction
+      OriginalParameters(const OriginalParameters&) = delete;
+      OriginalParameters& operator==(const OriginalParameters&) = delete;
+      OriginalParameters& operator==(OriginalParameters&&) = delete;
+
+      boost::filesystem::path disk_buffer_location_;
+      std::function<NonEmptyString(const std::string&)> get_chunk_from_store_;
+      MemoryUsage max_memory_usage_;
+      DiskUsage max_disk_usage_;
+    };
+
     Data(
+        OriginalParameters original_parameters,
         const boost::filesystem::path& name,
-        const MemoryUsage max_memory_usage,
-        const DiskUsage max_disk_usage,
-        const boost::filesystem::path& disk_buffer_location,
-        encrypt::DataMap& data_map,
-        const std::function<NonEmptyString(const std::string&)>& get_chunk_from_store);
+        encrypt::DataMap& data_map);
 
     bool IsOpen() const { return open_count_ > 0; }
 
+    OriginalParameters original_parameters_;
     Buffer buffer_;
     encrypt::SelfEncryptor self_encryptor_;
     unsigned open_count_;

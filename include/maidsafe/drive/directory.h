@@ -169,7 +169,7 @@ class Directory : public Path {
   Children::iterator Find(const boost::filesystem::path& name);
   Children::const_iterator Find(const boost::filesystem::path& name) const;
   void SortAndResetChildrenCounter();
-  void DoScheduleForStoring(bool use_delay = true);
+  void DoScheduleForStoring();
   void ProcessTimer(const boost::system::error_code&);
 
   ParentId parent_id_;

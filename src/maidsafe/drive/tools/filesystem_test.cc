@@ -50,10 +50,11 @@ extern "C" char** environ;
 
 #include "maidsafe/common/application_support_directories.h"
 #include "maidsafe/common/log.h"
-#include "maidsafe/common/test.h"
 #include "maidsafe/common/on_scope_exit.h"
-#include "maidsafe/common/utils.h"
+#include "maidsafe/common/make_unique.h"
 #include "maidsafe/common/process.h"
+#include "maidsafe/common/utils.h"
+#include "maidsafe/common/test.h"
 #ifdef MAIDSAFE_WIN32
 #include "maidsafe/drive/tools/commands/windows_file_commands.h"
 #else
@@ -1718,39 +1719,73 @@ TEST(FileSystemTest, FUNC_CrossPlatformFileCheck) {
       ASSERT_TRUE(fs::exists(file));
     } else {
       ASSERT_TRUE(fs::exists(file));
-#ifdef MAIDSAFE_WIN32
-      //  inconv required for conversion of types
-      std::locale::global(boost::locale::generator().generate(""));
-      std::wifstream original_file, recovered_file;
-
-      original_file.imbue(std::locale());
-      recovered_file.imbue(std::locale());
+      std::ifstream original_file, recovered_file;
 
       original_file.open(utf8_file.string(), std::ios_base::binary | std::ios_base::in);
       ASSERT_TRUE(original_file.good());
       recovered_file.open(file.string(), std::ios_base::binary | std::ios_base::in);
       ASSERT_TRUE(original_file.good());
 
-      std::wstring original_string(256, 0), recovered_string(256, 0);
+      std::string original_string(256, 0), recovered_string(256, 0);
       int line_count = 0;
       while (!original_file.eof() && !recovered_file.eof()) {
-        original_file.getline(const_cast<wchar_t*>(original_string.c_str()), 256);
-        recovered_file.getline(const_cast<wchar_t*>(recovered_string.c_str()), 256);
+        original_file.getline(&(original_string[0]), 256);
+        recovered_file.getline(&(recovered_string[0]), 256);
         ASSERT_TRUE(original_string == recovered_string);
         ++line_count;
       }
       ASSERT_TRUE((original_file.eof() && recovered_file.eof()));
-#endif
     }
-
-    // allow time for the version to store!
-    Sleep(std::chrono::seconds(3));
 
 #ifndef MAIDSAFE_WIN32
     launcher.reset();
     ASSERT_TRUE(fs::remove(root));
     ASSERT_TRUE(!fs::exists(root));
 #endif
+  }
+}
+
+TEST(FileSystemTest, FUNC_FlushToStorage) {
+  // Involves mounting a drive of type g_test_type so don't attempt it if we're doing a disk test
+  if (g_test_type == drive::DriveType::kLocal || g_test_type == drive::DriveType::kLocalConsole ||
+      g_test_type == drive::DriveType::kNetwork ||
+      g_test_type == drive::DriveType::kNetworkConsole) {
+
+    const auto scratch_area = ::maidsafe::test::CreateTestPath("MaidSafe_Test_Drive");
+    ASSERT_NE(nullptr, scratch_area);
+
+    const fs::path drive_path = *scratch_area / "drive";
+    const fs::path chunk_storage = *scratch_area / "chunks";
+    fs::create_directories(drive_path);
+    fs::create_directories(chunk_storage);
+
+    drive::Options options;
+#ifdef MAIDSAFE_WIN32
+    options.mount_path = drive::GetNextAvailableDrivePath();
+#else
+    options.mount_path = drive_path;
+#endif
+    options.storage_path = chunk_storage;
+    options.drive_name = RandomAlphaNumericString(10);
+    options.unique_id = Identity(RandomAlphaNumericString(64));
+    options.root_parent_id = Identity(RandomAlphaNumericString(64));
+    options.create_store = true;
+    options.drive_type = g_test_type;
+
+    // Store a Random 2MB file.
+    const std::string file_contents(RandomString(2*1024*1024));
+    const fs::path test_file(drive_path / "test_file");
+    {
+      const std::unique_ptr<drive::Launcher> launcher(
+          maidsafe::make_unique<drive::Launcher>(options));
+      EXPECT_TRUE(WriteFile(test_file, file_contents));
+    }
+    options.create_store = false;
+    {
+      const std::unique_ptr<drive::Launcher> launcher(
+          maidsafe::make_unique<drive::Launcher>(options));
+      EXPECT_EQ(file_contents, ReadFile(test_file).string());
+    }
   }
 }
 
