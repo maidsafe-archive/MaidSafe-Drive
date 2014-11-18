@@ -1409,70 +1409,51 @@ TEST(FileSystemTest, DISABLED_FUNC_CreateAndBuildMinimalCXXProject) {
   ASSERT_NO_THROW(CreateAndBuildMinimalCppProject(g_temp));
 }
 
-TEST(FileSystemTest, DISABLED_BEH_Write256MbFileToTempAndCopyToDrive) {
-  on_scope_exit cleanup(clean_root);
-#ifdef MAIDSAFE_WIN32
-  
-  std::string filename(RandomAlphaNumericString(8));
-  fs::path temp_file(g_temp / filename), root_file(g_root / filename);
-  const size_t size(1 << 16);
-  std::string original(size, 0), recovered(size, 0);
-  DWORD position(0), file_size(0), count(0), attributes(FILE_ATTRIBUTE_ARCHIVE);
-  BOOL success(0);
-  OVERLAPPED overlapped;
+TEST(FileSystemTest, BEH_Write256MbFileToTempAndCopyToDrive) {
+  const on_scope_exit cleanup(clean_root);
+
+  const std::string filename(RandomAlphaNumericString(8));
+  const fs::path temp_file(g_temp / filename);
+  const fs::path root_file(g_root / filename);
+  const size_t read_size(1 << 20); // 1MB
 
   {
-    drive::detail::WinHandle handle(nullptr);
-    EXPECT_NO_THROW(handle =
-        dtc::CreateFileCommand(temp_file, GENERIC_ALL, 0, CREATE_NEW, attributes));
-    ASSERT_NE(nullptr, handle);
+    std::ofstream out_file(temp_file.string().c_str(), std::ofstream::binary);
+    ASSERT_TRUE(out_file.good());
 
-    for (uint32_t i = 0; i != (1 << 12); ++i) {
-      original = RandomString(size);
-      success = 0, count = 0, position = i * size;
-      FillMemory(&overlapped, sizeof(overlapped), 0);
-      overlapped.Offset = position & 0xFFFFFFFF;
-      overlapped.OffsetHigh = 0;
-      EXPECT_NO_THROW(success =
-          dtc::WriteFileCommand(handle.get(), temp_file, original, &count, &overlapped));
-      ASSERT_NE(0, success);
-      ASSERT_TRUE(count == size);
+    for (uint32_t i = 0; i != (1 << 8); ++i) {
+      out_file << RandomString(read_size);
+      ASSERT_TRUE(out_file.good()) << "Count :" << i;
     }
-
-    EXPECT_TRUE((file_size = dtc::GetFileSizeCommand(handle.get(), nullptr)) == (1 << 28));
   }
 
-  ASSERT_NO_THROW(fs::copy_file(temp_file, root_file));
+  EXPECT_NO_THROW(fs::copy_file(temp_file, root_file));
   ASSERT_TRUE(fs::exists(root_file));
-  
-  drive::detail::WinHandle temp_handle(nullptr), root_handle(nullptr);
-  EXPECT_NO_THROW(temp_handle =
-      dtc::CreateFileCommand(temp_file, (GENERIC_READ | GENERIC_WRITE), 0, OPEN_EXISTING, attributes));
-  ASSERT_NE(nullptr, temp_handle);
-  ASSERT_NO_THROW(root_handle =
-      dtc::CreateFileCommand(root_file, (GENERIC_READ | GENERIC_WRITE), 0, OPEN_EXISTING, attributes));
-  ASSERT_NE(nullptr, root_handle);
 
-  for (uint32_t i = 0; i != (1 << 12); ++i) {
-    success = 0, count = 0, position = i * size;
-    FillMemory(&overlapped, sizeof(overlapped), 0);
-    overlapped.Offset = position & 0xFFFFFFFF;
-    overlapped.OffsetHigh = 0;
-    ASSERT_NO_THROW(
-        success = dtc::ReadFileCommand(temp_handle.get(), temp_file, original, &count, &overlapped));
-    ASSERT_NE(0, success);
-    ASSERT_TRUE(count == size);
-    success = 0, count = 0;
-    ASSERT_NO_THROW(
-        success = dtc::ReadFileCommand(root_handle.get(), root_file, recovered, &count, &overlapped));
-    ASSERT_NE(0, success);
-    ASSERT_TRUE(count == size);
-    ASSERT_TRUE(original == recovered);
+  {
+    std::ifstream original(temp_file.string().c_str(), std::ifstream::binary);
+    std::ifstream copy(root_file.string().c_str(), std::ifstream::binary);
+    ASSERT_TRUE(original.good());
+    ASSERT_TRUE(copy.good());
+
+    std::string original_data(read_size, '\0');
+    std::string copied_data(read_size, '\0');
+
+    for (uint32_t i = 0; i != (1 << 8); ++i) {
+      original.read(&original_data[0], original_data.size());
+      copy.read(&copied_data[0], copied_data.size());
+
+      EXPECT_EQ(original_data.size(), original.gcount());
+      EXPECT_EQ(original.gcount(), copy.gcount());
+      ASSERT_TRUE(original.good()) << "Count: " << i;
+      ASSERT_TRUE(copy.good()) << "Count: " << i;
+
+      EXPECT_TRUE(original_data == copied_data) <<
+        "Count : " << i <<
+        " original " << HexSubstr(original_data) <<
+        " actual " << HexSubstr(copied_data);
+    }
   }
-
-  
-#endif
-  // (TODO Team): Implementation required
 }
 
 TEST(FileSystemTest, DISABLED_BEH_WriteUtf8FileAndEdit) {
