@@ -177,8 +177,8 @@ inline struct stat ToStat(const MetaData& meta,
       detail::ToFileMode(meta.file_type()) |
       detail::ToPermissionMode(
           meta.GetPermissions(base_permissions));
-  result.st_uid = fuse_get_context()->uid;
-  result.st_gid = fuse_get_context()->gid;
+  result.st_uid = getuid();
+  result.st_gid = getgid();
   result.st_nlink = (meta.file_type() == MetaData::FileType::directory_file) ? 2 : 1;
   result.st_size = meta.size();
   result.st_blksize = detail::kFileBlockSize;
