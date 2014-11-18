@@ -1403,6 +1403,8 @@ TEST(FileSystemTest, BEH_Locale) {
   EXPECT_TRUE(it->path().filename() == ReadFile(file).string());
 }
 
+/* Drive currently marks all files as non-executable, and this cannot be
+   modified currently. Re-enable this test when/if this changes. */
 TEST(FileSystemTest, DISABLED_FUNC_CreateAndBuildMinimalCXXProject) {
   const on_scope_exit cleanup(clean_root);
   ASSERT_NO_THROW(CreateAndBuildMinimalCppProject(g_root));
@@ -1456,6 +1458,8 @@ TEST(FileSystemTest, BEH_Write256MbFileToTempAndCopyToDrive) {
   }
 }
 
+/* Drive currently marks all files as non-executable, and this cannot be
+   modified currently. Re-enable this test when/if this changes. */
 TEST(FileSystemTest, DISABLED_BEH_WriteUtf8FileAndEdit) {
   const on_scope_exit cleanup(clean_root);
   ASSERT_NO_THROW(WriteUtf8FileAndEdit(g_temp));
@@ -1471,38 +1475,56 @@ TEST(FileSystemTest, DISABLED_FUNC_DownloadMovieThenCopyToDrive) {
   ASSERT_TRUE(fs::exists(g_root / movie)) << "Failed to find " << (g_root / movie).string();
 }
 
+TEST(FileSystemTest, FUNC_RemountDrive) {
 
-TEST(FileSystemTest, DISABLED_FUNC_RemountDrive) {
-  bool do_test(g_test_type == drive::DriveType::kLocal ||
-               g_test_type == drive::DriveType::kLocalConsole ||
-               g_test_type == drive::DriveType::kNetwork ||
-               g_test_type == drive::DriveType::kNetworkConsole);
+  const bool do_test(g_test_type == drive::DriveType::kLocal ||
+                     g_test_type == drive::DriveType::kLocalConsole ||
+                     g_test_type == drive::DriveType::kNetwork ||
+                     g_test_type == drive::DriveType::kNetworkConsole);
 
   if (do_test) {
-    on_scope_exit cleanup(clean_root);
+    const auto scratch_area = ::maidsafe::test::CreateTestPath("MaidSafe_Test_Drive");
+    ASSERT_NE(nullptr, scratch_area);
+
+    const fs::path drive_path = *scratch_area / "drive";
+    const fs::path chunk_storage = *scratch_area / "chunks";
+    fs::create_directories(drive_path);
+    fs::create_directories(chunk_storage);
+
+    drive::Options options;
+#ifdef MAIDSAFE_WIN32
+    options.mount_path = drive::GetNextAvailableDrivePath();
+#else
+    options.mount_path = drive_path;
+#endif
+    options.storage_path = chunk_storage;
+    options.drive_name = RandomAlphaNumericString(10);
+    options.unique_id = Identity(RandomAlphaNumericString(64));
+    options.root_parent_id = Identity(RandomAlphaNumericString(64));
+    options.create_store = true;
+    options.drive_type = g_test_type;
 
     // Create a new hierarchy in 'g_temp'
-    std::vector<fs::path> directories(CreateDirectoryHierarchy(g_temp));
+    const std::vector<fs::path> directories(CreateDirectoryHierarchy(g_temp));
     {
-      // Copy hierarchy to 'g_root'
-      ASSERT_TRUE(CopyDirectory(directories.front(), g_root));
-      auto copied_directory(g_root / directories.front().filename());
+      const std::unique_ptr<drive::Launcher> launcher(
+          maidsafe::make_unique<drive::Launcher>(options));
+
+      // Copy hierarchy to 'temp_root'
+      ASSERT_TRUE(CopyDirectory(directories.front(), options.mount_path));
+      auto copied_directory(options.mount_path / directories.front().filename());
       RequireExists(copied_directory);
       boost::system::error_code error_code;
       ASSERT_TRUE(!fs::is_empty(copied_directory, error_code));
       ASSERT_TRUE(error_code.value() == 0);
       RequireDirectoriesEqual(directories.front(), copied_directory, true);
-
-      Sleep(std::chrono::seconds(3));
-      g_launcher->StopDriveProcess(true);
-      g_launcher.reset();
     }
+    options.create_store = false;
     {
-      // Remount and check hierarchy for equality
-      g_options.create_store = false;
-      g_launcher.reset(new drive::Launcher(g_options));
+      const std::unique_ptr<drive::Launcher> launcher(
+          maidsafe::make_unique<drive::Launcher>(options));
 
-      auto directory(g_root / directories.front().filename());
+      auto directory(options.mount_path / directories.front().filename());
       RequireExists(directory);
       boost::system::error_code error_code;
       ASSERT_TRUE(!fs::is_empty(directory, error_code));
@@ -1655,50 +1677,6 @@ TEST(FileSystemTest, FUNC_CrossPlatformFileCheck) {
     ASSERT_TRUE(fs::remove(root));
     ASSERT_TRUE(!fs::exists(root));
 #endif
-  }
-}
-
-TEST(FileSystemTest, FUNC_FlushToStorage) {
-  // Involves mounting a drive of type g_test_type so don't attempt it if we're doing a disk test
-  if (g_test_type == drive::DriveType::kLocal || g_test_type == drive::DriveType::kLocalConsole ||
-      g_test_type == drive::DriveType::kNetwork ||
-      g_test_type == drive::DriveType::kNetworkConsole) {
-
-    const auto scratch_area = ::maidsafe::test::CreateTestPath("MaidSafe_Test_Drive");
-    ASSERT_NE(nullptr, scratch_area);
-
-    const fs::path drive_path = *scratch_area / "drive";
-    const fs::path chunk_storage = *scratch_area / "chunks";
-    fs::create_directories(drive_path);
-    fs::create_directories(chunk_storage);
-
-    drive::Options options;
-#ifdef MAIDSAFE_WIN32
-    options.mount_path = drive::GetNextAvailableDrivePath();
-#else
-    options.mount_path = drive_path;
-#endif
-    options.storage_path = chunk_storage;
-    options.drive_name = RandomAlphaNumericString(10);
-    options.unique_id = Identity(RandomAlphaNumericString(64));
-    options.root_parent_id = Identity(RandomAlphaNumericString(64));
-    options.create_store = true;
-    options.drive_type = g_test_type;
-
-    // Store a Random 2MB file.
-    const std::string file_contents(RandomString(2*1024*1024));
-    const fs::path test_file(drive_path / "test_file");
-    {
-      const std::unique_ptr<drive::Launcher> launcher(
-          maidsafe::make_unique<drive::Launcher>(options));
-      EXPECT_TRUE(WriteFile(test_file, file_contents));
-    }
-    options.create_store = false;
-    {
-      const std::unique_ptr<drive::Launcher> launcher(
-          maidsafe::make_unique<drive::Launcher>(options));
-      EXPECT_EQ(file_contents, ReadFile(test_file).string());
-    }
   }
 }
 
