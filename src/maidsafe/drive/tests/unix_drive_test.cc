@@ -97,7 +97,7 @@ TEST(UnixDriveTest, BEH_ToPermssionMode) {
   {
     const mode_t mode = detail::ToPermissionMode(detail::MetaData::Permissions::no_perms);
     EXPECT_TRUE(VerifyNonPermissionBits(mode));
-    EXPECT_TRUE(VerifyPermissions({}, mode));
+    EXPECT_TRUE(VerifyPermissions(std::set<mode_t>{}, mode));
   }
   {
     const mode_t mode = detail::ToPermissionMode(detail::MetaData::Permissions::owner_read);
