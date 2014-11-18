@@ -1022,11 +1022,11 @@ TEST(FileSystemTest, BEH_CheckFailures) {
 
 TEST(FileSystemTest, BEH_ReadOnlyAttribute) {
   const on_scope_exit cleanup(clean_root);
-#ifdef MAIDSAFE_WIN32
-  
-  fs::path path(g_root / RandomAlphaNumericString(8));
+  const fs::path path(g_root / RandomAlphaNumericString(8));
   const size_t buffer_size(1024);
   std::string buffer(RandomString(buffer_size));
+
+#ifdef MAIDSAFE_WIN32
   DWORD position(0), size(0), attributes(0);
   BOOL success(0);
   OVERLAPPED overlapped;
@@ -1087,9 +1087,6 @@ TEST(FileSystemTest, BEH_ReadOnlyAttribute) {
   EXPECT_NO_THROW(success = dtc::DeleteFileCommand(path));
 #else
   int file_descriptor(-1);
-  fs::path path(g_root / RandomAlphaNumericString(8));
-  const size_t buffer_size(1024);
-  std::string buffer(RandomString(buffer_size));
   int flags(O_CREAT | O_RDWR), size(0);
   ssize_t result(0);
   mode_t mode(S_IRWXU);
@@ -1119,25 +1116,11 @@ TEST(FileSystemTest, BEH_ReadOnlyAttribute) {
   EXPECT_TRUE((mode & S_IRUSR) == S_IRUSR);
   EXPECT_TRUE((mode & S_IWUSR) == S_IWUSR);
   mode = S_IRUSR;
-  EXPECT_NO_THROW(dtc::SetModeCommand(path, mode));
+  EXPECT_THROW(dtc::SetModeCommand(path, mode), maidsafe::common_error) << "Mode setting should be disabled";
   EXPECT_NO_THROW(mode = dtc::GetModeCommand(path));
   EXPECT_TRUE((mode & S_IFREG) == S_IFREG);
   EXPECT_TRUE((mode & S_IRUSR) == S_IRUSR);
-  EXPECT_TRUE((mode & S_IWUSR) == 0);
-  // check we can open for reading but can't write to the file
-  EXPECT_THROW(file_descriptor = dtc::CreateFileCommand(path, flags), std::exception);
-  flags = O_RDONLY;
-  EXPECT_NO_THROW(file_descriptor = dtc::CreateFileCommand(path, flags));
-  buffer = RandomString(buffer_size);
-  offset = 2;
-  EXPECT_THROW(result = dtc::WriteFileCommand(file_descriptor, buffer, offset), std::exception);
-  size = 0;
-  EXPECT_NO_THROW(size = dtc::GetFileSizeCommand(file_descriptor));
-  EXPECT_TRUE(size == buffer_size + 1);
-  EXPECT_NO_THROW(dtc::CloseFileCommand(file_descriptor));
-  // remove the read-only attribute so the file can be deleted ???
-  mode = S_IRWXU;
-  EXPECT_NO_THROW(dtc::SetModeCommand(path, mode));
+  EXPECT_TRUE((mode & S_IWUSR) == S_IWUSR);
 #endif
 }
 
