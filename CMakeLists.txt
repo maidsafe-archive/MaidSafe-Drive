@@ -137,7 +137,7 @@ target_link_libraries(drive maidsafe_drive maidsafe_drive_launcher maidsafe_nfs_
 if(WIN32)
   set_property(TARGET local_drive drive PROPERTY WIN32_EXECUTABLE TRUE)
   target_compile_options(drive PUBLIC $<$<CONFIG:Debug>: /bigobj>)
-  if(MaidsafeTesting)
+  if(INCLUDE_TESTS)
     ms_add_executable(local_drive_console "Tools/Drive" ${LocalDriveMain})
     target_link_libraries(local_drive_console maidsafe_drive maidsafe_drive_launcher maidsafe_nfs_client)
     ms_add_executable(drive_console "Tools/Drive" ${NetworkDriveMain})
@@ -146,7 +146,7 @@ if(WIN32)
   endif()
 endif()
 
-if(MaidsafeTesting)
+if(INCLUDE_TESTS)
   ms_add_executable(weekly_test_filesystem "Tests/Drive"
                     ${DriveSourcesDir}/tools/filesystem_weekly.cc
                     ${DriveSourcesDir}/tools/tool_main.cc)
@@ -208,7 +208,7 @@ target_compile_definitions(maidsafe_drive PUBLIC $<$<BOOL:${UNIX}>:FUSE_USE_VERS
 target_compile_definitions(local_drive PRIVATE $<$<BOOL:${WIN32}>:USES_WINMAIN>)
 target_compile_definitions(drive PRIVATE $<$<BOOL:${WIN32}>:USES_WINMAIN>)
 
-if(MaidsafeTesting)
+if(INCLUDE_TESTS)
   target_compile_definitions(weekly_test_filesystem PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
   target_compile_definitions(test_filesystem PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
   set_property(TARGET weekly_test_filesystem APPEND PROPERTY COMPILE_DEFINITIONS "CMAKE_GENERATOR=\"${CMAKE_GENERATOR}\"")
@@ -232,7 +232,7 @@ if(CbfsFound)
   set_property(TARGET cbfs_driver_installer APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_ROOT_DIR=${CBFS_ROOT_DIR}")
   set(ProductId "47584d51-4651-487a-534c-675242655154")
   set_property(TARGET drive local_drive cbfs_driver_installer APPEND PROPERTY COMPILE_DEFINITIONS "PRODUCT_ID=${ProductId}")
-  if(MaidsafeTesting)
+  if(INCLUDE_TESTS)
     set_property(TARGET drive_console local_drive_console APPEND PROPERTY COMPILE_DEFINITIONS "PRODUCT_ID=${ProductId}")
   endif()
 endif()
@@ -241,7 +241,7 @@ endif()
 #==================================================================================================#
 # Tests                                                                                            #
 #==================================================================================================#
-if(MaidsafeTesting)
+if(INCLUDE_TESTS)
   if(WIN32)
     set(Exclusions "maidsafe/drive/unix_drive.h")
   else()
