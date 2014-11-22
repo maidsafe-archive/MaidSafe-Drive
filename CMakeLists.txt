@@ -125,9 +125,9 @@ else()
 endif()
 
 ms_add_static_library(maidsafe_drive_launcher ${DriveLauncherFiles})
-target_include_directories(maidsafe_drive_launcher PUBLIC ${PROJECT_SOURCE_DIR}/include PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_include_directories(maidsafe_drive_launcher PUBLIC ${PROJECT_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}/GeneratedProtoFiles PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(maidsafe_drive maidsafe_drive_launcher maidsafe_encrypt)
-target_link_libraries(maidsafe_drive_launcher maidsafe_common maidsafe_nfs_client)
+target_link_libraries(maidsafe_drive_launcher maidsafe_common maidsafe_nfs_client protobuf_lite)
 
 ms_add_executable(local_drive "Tools/Drive" ${LocalDriveMain})
 target_link_libraries(local_drive maidsafe_drive maidsafe_drive_launcher maidsafe_nfs_client)
