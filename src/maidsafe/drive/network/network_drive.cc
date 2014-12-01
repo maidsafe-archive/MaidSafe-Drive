@@ -29,11 +29,7 @@
 #include <fstream>  // NOLINT
 #include <iterator>
 
-#ifndef MAIDSAFE_WIN32
 #include <locale>  // NOLINT
-#else
-#include "boost/locale/generator.hpp"
-#endif
 
 #include "boost/filesystem.hpp"
 #include "boost/program_options.hpp"
@@ -256,11 +252,7 @@ int CALLBACK wWinMain(HINSTANCE /*handle_to_instance*/, HINSTANCE /*handle_to_pr
 #else
 int main(int argc, char* argv[]) {
 #endif
-#ifdef MAIDSAFE_WIN32
-  std::locale::global(boost::locale::generator().generate(""));
-#else
   std::locale::global(std::locale(""));
-#endif
   maidsafe::log::Logging::Instance().Initialise(argc, argv);
   fs::path::imbue(std::locale());
   try {
