@@ -34,6 +34,7 @@
 #include "boost/filesystem/operations.hpp"
 #include "boost/filesystem/fstream.hpp"
 #include "boost/filesystem/path.hpp"
+#include "boost/thread/future.hpp"
 
 #include "maidsafe/common/error.h"
 #include "maidsafe/common/log.h"
@@ -133,9 +134,9 @@ class DirectoryHandler
   std::shared_ptr<Directory::Listener> GetListener();
 
   // Path::Listener
-  virtual void DirectoryPut(std::shared_ptr<Directory>);
-  virtual void DirectoryPutChunk(const ImmutableData&);
-  virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&);
+  virtual void DirectoryPut(std::shared_ptr<Directory>) override;
+  virtual boost::future<void> DirectoryPutChunk(const ImmutableData&) override;
+  virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&) override;
 
   std::shared_ptr<Storage> storage_;
   Identity unique_user_id_, root_parent_id_;
@@ -473,17 +474,22 @@ template <typename Storage>
 void DirectoryHandler<Storage>::Put(std::shared_ptr<Path> path) {
   auto directory(std::static_pointer_cast<Directory>(path));
   ImmutableData encrypted_data_map(SerialiseDirectory(directory));
-  storage_->Put(encrypted_data_map);
+  storage_->Put(encrypted_data_map).get(); // wait until datamap is stored
+
   if (directory->VersionsCount() == 0) {
     auto result(directory->InitialiseVersions(encrypted_data_map.name()));
     MutableData::Name hash_directory_id(crypto::Hash<crypto::SHA512>(std::get<0>(result)));
-    auto future(storage_->CreateVersionTree(hash_directory_id,
-                                            std::get<1>(result), kMaxVersions, 2));
+    auto future(
+	storage_->CreateVersionTree(
+	    hash_directory_id, std::get<1>(result), kMaxVersions, 2));
     future.get();
   } else {
     auto result(directory->AddNewVersion(encrypted_data_map.name()));
     MutableData::Name hash_directory_id(crypto::Hash<crypto::SHA512>(std::get<0>(result)));
-    storage_->PutVersion(hash_directory_id, std::get<1>(result), std::get<2>(result));
+    auto future(
+	storage_->PutVersion(
+	    hash_directory_id, std::get<1>(result), std::get<2>(result)));
+    future.get();
   }
 }
 
@@ -505,13 +511,18 @@ DirectoryHandler<Storage>::SerialiseDirectory(std::shared_ptr<Directory> directo
       BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
     }
   }
+
+  std::vector<boost::future<void>> put_events;
+  put_events.reserve(data_map.chunks.size());
+
   for (const auto& chunk : data_map.chunks) {
     auto content(disk_buffer_.Get(std::string(std::begin(chunk.hash), std::end(chunk.hash))));
-    storage_->Put(ImmutableData(content));
+    put_events.push_back(storage_->Put(ImmutableData(content)));
   }
   auto encrypted_data_map_contents(encrypt::EncryptDataMap(directory->parent_id(),
                                                            directory->directory_id(),
                                                            data_map));
+  boost::wait_for_all(put_events.begin(), put_events.end());
   return ImmutableData(encrypted_data_map_contents);
 }
 
@@ -601,8 +612,8 @@ void DirectoryHandler<Storage>::DirectoryPut(std::shared_ptr<Directory> path) {
 }
 
 template <typename Storage>
-void DirectoryHandler<Storage>::DirectoryPutChunk(const ImmutableData& chunk) {
-  storage_->Put(chunk);
+boost::future<void> DirectoryHandler<Storage>::DirectoryPutChunk(const ImmutableData& chunk) {
+  return storage_->Put(chunk);
 }
 
 template <typename Storage>

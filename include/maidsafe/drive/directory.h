@@ -30,6 +30,7 @@
 #include "boost/asio/steady_timer.hpp"
 #include "boost/filesystem/path.hpp"
 #include "boost/system/error_code.hpp"
+#include "boost/thread/future.hpp"
 
 #include "maidsafe/common/tagged_value.h"
 #include "maidsafe/common/types.h"
@@ -60,7 +61,7 @@ class Directory : public Path {
   class Listener {
   private:
     virtual void DirectoryPut(std::shared_ptr<Directory>) = 0;
-    virtual void DirectoryPutChunk(const ImmutableData&) = 0;
+    virtual boost::future<void> DirectoryPutChunk(const ImmutableData&) = 0;
     virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&) = 0;
 
   public:
@@ -71,8 +72,8 @@ class Directory : public Path {
       DirectoryPut(directory);
     }
 
-    void PutChunk(const ImmutableData& data) {
-      DirectoryPutChunk(data);
+    boost::future<void> PutChunk(const ImmutableData& data) {
+      return DirectoryPutChunk(data);
     }
 
     void IncrementChunks(const std::vector<ImmutableData::Name>& names) {
