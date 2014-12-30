@@ -1157,7 +1157,7 @@ TEST(FileSystemTest, BEH_InsufficientAccess) {
 
 TEST(FileSystemTest, BEH_DeleteOnClose) {
   const on_scope_exit cleanup(clean_root);
-#ifdef MAIDSAFE_WIN32  
+#ifdef MAIDSAFE_WIN32
   const fs::path path(g_root / RandomAlphaNumericString(8));
   {
     drive::detail::WinHandle handle(nullptr);
@@ -1503,10 +1503,15 @@ TEST(FileSystemTest, FUNC_RemountDrive) {
     options.root_parent_id = Identity(RandomAlphaNumericString(64));
     options.create_store = true;
     options.drive_type = g_test_type;
+    options.encrypted_maid = g_options.encrypted_maid;
+    options.symm_key = g_options.symm_key;
+    options.symm_iv = g_options.symm_iv;
 
     // Create a new hierarchy in 'g_temp'
     const std::vector<fs::path> directories(CreateDirectoryHierarchy(g_temp));
     {
+      SCOPED_TRACE("Initial Copy");
+
       const std::unique_ptr<drive::Launcher> launcher(
           maidsafe::make_unique<drive::Launcher>(options));
 
@@ -1517,10 +1522,13 @@ TEST(FileSystemTest, FUNC_RemountDrive) {
       boost::system::error_code error_code;
       ASSERT_TRUE(!fs::is_empty(copied_directory, error_code));
       ASSERT_TRUE(error_code.value() == 0);
+
       RequireDirectoriesEqual(directories.front(), copied_directory, true);
     }
     options.create_store = false;
     {
+      SCOPED_TRACE("Remount");
+
       const std::unique_ptr<drive::Launcher> launcher(
           maidsafe::make_unique<drive::Launcher>(options));
 
@@ -1536,19 +1544,23 @@ TEST(FileSystemTest, FUNC_RemountDrive) {
 
 TEST(FileSystemTest, FUNC_CrossPlatformFileCheck) {
   // Involves mounting a drive of type g_test_type so don't attempt it if we're doing a disk test
-  if (g_test_type == drive::DriveType::kLocal || g_test_type == drive::DriveType::kLocalConsole ||
-      g_test_type == drive::DriveType::kNetwork ||
-      g_test_type == drive::DriveType::kNetworkConsole) {
+  if (g_test_type == drive::DriveType::kLocal || g_test_type == drive::DriveType::kLocalConsole) {
     const on_scope_exit cleanup(clean_root);
     const fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES));
-    const fs::path cross_platform(resources / "cross_platform");
+    const TestPath test_path = maidsafe::test::CreateTestPath("MaidSafe_Test_Drive");
+    const fs::path real_cross_platform = resources / "cross_platform";
+
+    ASSERT_TRUE((fs::exists(real_cross_platform) && fs::is_directory(real_cross_platform)));
+    ASSERT_TRUE(CopyDirectory(real_cross_platform, *test_path));
+
+    const fs::path cross_platform(*test_path / "cross_platform");
     const fs::path ids(cross_platform / "ids");
     const fs::path shell_path(boost::process::shell_path());
     const fs::path prefix_path(g_temp);
 
     fs::path utf8_file(resources / "utf-8.txt");
     fs::path root;
-        
+
     std::string content, script, command_args, utf8_file_name;
     boost::system::error_code error_code;
 
@@ -1614,6 +1626,9 @@ TEST(FileSystemTest, FUNC_CrossPlatformFileCheck) {
     ASSERT_TRUE(fs::exists(root));
 #endif
 
+    options.encrypted_maid = g_options.encrypted_maid;
+    options.symm_key = g_options.symm_key;
+    options.symm_iv = g_options.symm_iv;
     options.mount_path = root;
     options.storage_path = cross_platform;
     options.drive_name = RandomAlphaNumericString(10);
