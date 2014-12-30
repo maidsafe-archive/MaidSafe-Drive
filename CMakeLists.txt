@@ -127,9 +127,9 @@ else()
 endif()
 
 ms_add_static_library(maidsafe_drive_launcher ${DriveLauncherFiles})
-target_include_directories(maidsafe_drive_launcher PUBLIC ${PROJECT_SOURCE_DIR}/include PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_include_directories(maidsafe_drive_launcher PUBLIC ${PROJECT_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}/GeneratedProtoFiles PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(maidsafe_drive maidsafe_drive_launcher maidsafe_encrypt)
-target_link_libraries(maidsafe_drive_launcher maidsafe_common maidsafe_nfs_client)
+target_link_libraries(maidsafe_drive_launcher maidsafe_common maidsafe_nfs_client protobuf_lite)
 
 ms_add_executable(local_drive "Tools/Drive" ${LocalDriveMain})
 target_link_libraries(local_drive maidsafe_drive maidsafe_drive_launcher maidsafe_nfs_client)
@@ -139,7 +139,7 @@ target_link_libraries(drive maidsafe_drive maidsafe_drive_launcher maidsafe_nfs_
 if(WIN32)
   set_property(TARGET local_drive drive PROPERTY WIN32_EXECUTABLE TRUE)
   target_compile_options(drive PUBLIC $<$<CONFIG:Debug>: /bigobj>)
-  if(MaidsafeTesting)
+  if(INCLUDE_TESTS)
     ms_add_executable(local_drive_console "Tools/Drive" ${LocalDriveMain})
     target_link_libraries(local_drive_console maidsafe_drive maidsafe_drive_launcher maidsafe_nfs_client)
     ms_add_executable(drive_console "Tools/Drive" ${NetworkDriveMain})
@@ -148,7 +148,7 @@ if(WIN32)
   endif()
 endif()
 
-if(MaidsafeTesting)
+if(INCLUDE_TESTS)
   ms_add_executable(weekly_test_filesystem "Tests/Drive"
                     ${DriveSourcesDir}/tools/filesystem_weekly.cc
                     ${DriveSourcesDir}/tools/tool_main.cc)
@@ -210,7 +210,7 @@ target_compile_definitions(maidsafe_drive PUBLIC $<$<BOOL:${UNIX}>:FUSE_USE_VERS
 target_compile_definitions(local_drive PRIVATE $<$<BOOL:${WIN32}>:USES_WINMAIN>)
 target_compile_definitions(drive PRIVATE $<$<BOOL:${WIN32}>:USES_WINMAIN>)
 
-if(MaidsafeTesting)
+if(INCLUDE_TESTS)
   target_compile_definitions(weekly_test_filesystem PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
   target_compile_definitions(test_filesystem PRIVATE $<TARGET_PROPERTY:maidsafe_drive,INTERFACE_COMPILE_DEFINITIONS>)
   set_property(TARGET weekly_test_filesystem APPEND PROPERTY COMPILE_DEFINITIONS "CMAKE_GENERATOR=\"${CMAKE_GENERATOR}\"")
@@ -234,7 +234,7 @@ if(CbfsFound)
   set_property(TARGET cbfs_driver_installer APPEND PROPERTY COMPILE_DEFINITIONS "CBFS_ROOT_DIR=${CBFS_ROOT_DIR}")
   set(ProductId "47584d51-4651-487a-534c-675242655154")
   set_property(TARGET drive local_drive cbfs_driver_installer APPEND PROPERTY COMPILE_DEFINITIONS "PRODUCT_ID=${ProductId}")
-  if(MaidsafeTesting)
+  if(INCLUDE_TESTS)
     set_property(TARGET drive_console local_drive_console APPEND PROPERTY COMPILE_DEFINITIONS "PRODUCT_ID=${ProductId}")
   endif()
 endif()
@@ -243,7 +243,7 @@ endif()
 #==================================================================================================#
 # Tests                                                                                            #
 #==================================================================================================#
-if(MaidsafeTesting)
+if(INCLUDE_TESTS)
   if(WIN32)
     set(Exclusions "maidsafe/drive/unix_drive.h")
   else()
@@ -277,7 +277,7 @@ if(MaidsafeTesting)
   set(Timeout 180)
   ms_update_test_timeout(Timeout)
   set_tests_properties("\"Real Disk Filesystem Test\"" "\"Local Drive Filesystem Test\"" "\"Network Drive Filesystem Test\"" PROPERTIES
-                       TIMEOUT ${Timeout} LABELS "Drive;Filesystem")
+                       TIMEOUT ${Timeout} LABELS "Drive;Filesystem;${TASK_LABEL}")
 
   if(WEEKLY)
     add_test(NAME "\"Real Disk Weekly Test\""
@@ -290,7 +290,7 @@ if(MaidsafeTesting)
     set(Timeout 10800)
     ms_update_test_timeout(Timeout)
     set_tests_properties("\"Real Disk Weekly Test\"" "\"Local Drive Weekly Test\"" "\"Network Drive Weekly Test\"" PROPERTIES
-                         TIMEOUT ${Timeout} LABELS "Drive;Filesystem;Weekly")
+                         TIMEOUT ${Timeout} LABELS "Drive;Filesystem;Weekly;${TASK_LABEL}")
   endif()
 
   ms_test_summary_output()
