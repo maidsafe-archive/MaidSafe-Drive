@@ -73,7 +73,7 @@ typedef CbfsDrive<nfs::FakeStore> LocalDrive;
 typedef FuseDrive<nfs::FakeStore> LocalDrive;
 #endif
 
-LocalDrive* g_local_drive(nullptr);
+Drive<nfs::FakeStore>* g_local_drive(nullptr);
 std::once_flag g_unmount_flag;
 const std::string kConfigFile("maidsafe_local_drive.conf");
 std::string g_error_message;

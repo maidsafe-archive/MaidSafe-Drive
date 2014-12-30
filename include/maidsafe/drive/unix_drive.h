@@ -200,8 +200,6 @@ class FuseDrive : public Drive<Storage> {
             const std::string& mount_status_shared_object_name, bool create);
 
   virtual ~FuseDrive();
-  virtual void Mount();
-  virtual void Unmount();
 
  private:
   FuseDrive(const FuseDrive&);
@@ -210,6 +208,9 @@ class FuseDrive : public Drive<Storage> {
 
   void Init();
   void SetMounted();
+
+  virtual void DoMount() override;
+  virtual void DoUnmount() override;
 
   static int OpsAccess(const char* path, int mask);
   static int OpsChmod(const char* path, mode_t mode);
@@ -301,7 +302,7 @@ FuseDrive<Storage>::FuseDrive(std::shared_ptr<Storage> storage, const Identity& 
 
 template <typename Storage>
 FuseDrive<Storage>::~FuseDrive() {
-  Unmount();
+  this->Unmount();
   if (unmount_ipc_waiter_.joinable())
     unmount_ipc_waiter_.join();
   log::Logging::Instance().Flush();
@@ -359,7 +360,7 @@ void FuseDrive<Storage>::SetMounted() {
                     << this->kMountStatusSharedObjectName_;
       unmount_ipc_waiter_ = std::thread([&] {
         NotifyMountedAndWaitForUnmountRequest(this->kMountStatusSharedObjectName_);
-        Unmount();
+        this->Unmount();
       });
     }
     this->mount_promise_.set_value();
@@ -367,7 +368,7 @@ void FuseDrive<Storage>::SetMounted() {
 }
 
 template <typename Storage>
-void FuseDrive<Storage>::Mount() {
+void FuseDrive<Storage>::DoMount() {
   fuse_args args = FUSE_ARGS_INIT(0, nullptr);
   fuse_opt_add_arg(&args, (drive_name_.c_str()));
   fuse_opt_add_arg(&args, (fuse_mountpoint_.c_str()));
@@ -406,7 +407,7 @@ void FuseDrive<Storage>::Mount() {
 
   fuse_ = fuse_new(fuse_channel_, &args, &maidsafe_ops_, sizeof(maidsafe_ops_), nullptr);
   fuse_opt_free_args(&args);
-  on_scope_exit cleanup_on_error([&]()->void { Unmount(); });
+  on_scope_exit cleanup_on_error([&]()->void { this->Unmount(); });
   if (!fuse_)
     BOOST_THROW_EXCEPTION(MakeError(DriveErrors::failed_to_mount));
 
@@ -429,7 +430,7 @@ void FuseDrive<Storage>::Mount() {
 }
 
 template <typename Storage>
-void FuseDrive<Storage>::Unmount() {
+void FuseDrive<Storage>::DoUnmount() {
   try {
     std::call_once(this->unmounted_once_flag_, [&] {
       if (fuse_) {

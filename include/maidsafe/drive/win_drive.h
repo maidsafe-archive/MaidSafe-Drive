@@ -118,14 +118,15 @@ class CbfsDrive : public Drive<Storage> {
 
   // This must be called before 'Mount' to allow 'Mount' to succeed.
   void SetGuid(const std::string& guid);
-  virtual void Mount();
-  virtual void Unmount();
   uint32_t max_file_path_length() const;
 
  private:
   CbfsDrive(const CbfsDrive&);
   CbfsDrive(CbfsDrive&&);
   CbfsDrive& operator=(CbfsDrive);
+
+  virtual void DoMount() override;
+  virtual void DoUnmount() override;
 
   void UnmountDrive(const std::chrono::steady_clock::duration& timeout_before_force);
   std::wstring drive_name() const;
@@ -243,7 +244,7 @@ void CbfsDrive<Storage>::SetGuid(const std::string& guid) {
 }
 
 template <typename Storage>
-void CbfsDrive<Storage>::Mount() {
+void CbfsDrive<Storage>::DoMount() {
 #ifndef NDEBUG
     int timeout_milliseconds(0);
 #else
@@ -302,7 +303,7 @@ void CbfsDrive<Storage>::UnmountDrive(
 }
 
 template <typename Storage>
-void CbfsDrive<Storage>::Unmount() {
+void CbfsDrive<Storage>::DoUnmount() {
   try {
     std::call_once(this->unmounted_once_flag_, [&] {
         // Only one instance of this lambda function can be run simultaneously.  If any CBFS
@@ -591,7 +592,7 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
   const boost::filesystem::path relative_path(file_name);
 
   LOG(kInfo) << "CbFsCreateFile - " << relative_path << " 0x" << std::hex << file_attributes;
- 
+
   try {
     //
     // Check for write access to directory
@@ -1056,7 +1057,7 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
     bool changed = false;
     const auto path(cbfs_drive->GetMutableContext(relative_path));
     assert(path != nullptr);
-    
+
     if (file_attributes && path->meta_data.attributes() != file_attributes) {
       changed = true;
       path->meta_data.set_attributes(file_attributes);
