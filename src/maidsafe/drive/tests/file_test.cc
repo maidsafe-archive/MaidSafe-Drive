@@ -1,3 +1,20 @@
+/*  Copyright 2014 MaidSafe.net limited
+
+    This MaidSafe Software is licensed to you under (1) the MaidSafe.net Commercial License,
+    version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
+    licence you accepted on initial access to the Software (the "Licences").
+
+    By contributing code to the MaidSafe Software, or to this project generally, you agree to be
+    bound by the terms of the MaidSafe Contributor Agreement, version 1.0, found in the root
+    directory of this project at LICENSE, COPYING and CONTRIBUTOR respectively and also
+    available at: http://www.maidsafe.net/licenses
+
+    Unless required by applicable law or agreed to in writing, the MaidSafe Software distributed
+    under the GPL Licence is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
+    OF ANY KIND, either express or implied.
+
+    See the Licences for the specific language governing permissions and limitations relating to
+    use of the MaidSafe Software.                                                                 */
 #include <cassert>
 #include <memory>
 #include <stdexcept>
@@ -38,8 +55,8 @@ namespace {
 
    private:
 
-    virtual void DirectoryPut(std::shared_ptr<Directory>) {}
-    virtual void DirectoryPutChunk(const ImmutableData& data) {
+    virtual void DirectoryPut(std::shared_ptr<Directory>) override {}
+    virtual boost::future<void> DirectoryPutChunk(const ImmutableData& data) override {
       auto& map_storage = chunk_map_[data.name().value.string()];
       if (map_storage.second == 0) {
         map_storage.first = data.data();
@@ -50,9 +67,10 @@ namespace {
         }
       }
       ++(map_storage.second);
+      return boost::make_ready_future();
     }
 
-    virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>& increment) {
+    virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>& increment) override {
       for (const auto& name : increment) {
         const auto find_iter = chunk_map_.find(name.value.string());
         if (find_iter != chunk_map_.end()) {
@@ -427,7 +445,7 @@ TEST_F(FileTests, BEH_ExceedMaxDiskUsage) {
   EXPECT_THROW(WaitForHandlers(1), maidsafe::common_error);
 }
 
-TEST_F(FileTests, FlushFile) {
+TEST_F(FileTests, BEH_FlushFile) {
   /* Compression appears to differ slightly in windows, so this test was
     designed so that each chunk has a single value (the simple case
     for compression). Keep that in mind when updating. */
@@ -552,7 +570,7 @@ TEST_F(FileTests, FlushFile) {
       });
 }
 
-TEST_F(FileTests, FileReopen) {
+TEST_F(FileTests, BEH_FileReopen) {
   /* Compression appears to differ slightly in windows, so this test was
     designed so that each chunk has a single value (the simple case
     for compression). Keep that in mind when updating. */

@@ -310,7 +310,7 @@ void Launcher::StopDriveProcess(bool terminate_on_ipc_failure) {
     bi::scoped_lock<bi::interprocess_mutex> lock(mount_status_->mutex);
     mount_status_->unmount = true;
     mount_status_->condition.notify_one();
-    bptime::ptime timeout(bptime::second_clock::universal_time() + bptime::seconds(10));
+    bptime::ptime timeout(bptime::second_clock::universal_time() + bptime::minutes(1));
     if (!mount_status_->condition.timed_wait(lock, timeout,
                                              [&] { return !mount_status_->mounted; })) {
       if (terminate_on_ipc_failure) {

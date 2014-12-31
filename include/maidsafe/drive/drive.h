@@ -55,15 +55,16 @@ class Drive {
   Identity root_parent_id() const;
   boost::future<void> GetMountFuture();
 
+  virtual ~Drive();
+
+  void Unmount();
+  void Mount();
+
  protected:
   Drive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
         const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
         const boost::filesystem::path& user_app_dir,
-        const std::string& mount_status_shared_object_name, bool create);
-
-  virtual ~Drive();
-  virtual void Mount() = 0;
-  virtual void Unmount() = 0;
+        std::string mount_status_shared_object_name, bool create);
 
   template <typename T = detail::Path>
   typename std::enable_if<std::is_base_of<detail::Path, T>::value, const std::shared_ptr<const T>>::type
@@ -90,6 +91,10 @@ class Drive {
   std::once_flag unmounted_once_flag_;
 
  private:
+  virtual void DoMount() = 0;
+  virtual void DoUnmount() = 0;
+
+ private:
   typedef detail::File::Buffer Buffer;
 
   std::function<NonEmptyString(const std::string&)> get_chunk_from_store_;
@@ -108,7 +113,7 @@ template <typename Storage>
 Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
                       const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
                       const boost::filesystem::path& user_app_dir,
-                      const std::string& mount_status_shared_object_name, bool create)
+                      std::string mount_status_shared_object_name, bool create)
     : kMountDir_(mount_dir),
       kUserAppDir_(user_app_dir),
       kBufferRoot_(new boost::filesystem::path(user_app_dir / "Buffers"),
@@ -122,7 +127,7 @@ Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_u
                      }
                      delete delete_path;
                    }),
-      kMountStatusSharedObjectName_(mount_status_shared_object_name),
+      kMountStatusSharedObjectName_(std::move(mount_status_shared_object_name)),
       mount_promise_(),
       unmounted_once_flag_(),
       get_chunk_from_store_(),
@@ -161,6 +166,17 @@ Drive<Storage>::~Drive() {
   }
   catch (...) {
   }
+}
+
+template<typename Storage>
+void Drive<Storage>::Unmount() {
+  asio_service_.Stop();
+  DoUnmount();
+}
+
+template<typename Storage>
+void Drive<Storage>::Mount() {
+  DoMount();
 }
 
 template <typename Storage>

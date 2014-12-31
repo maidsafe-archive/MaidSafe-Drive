@@ -300,16 +300,23 @@ void File::CloseEncryptor(std::vector<ImmutableData::Name>& chunks_to_be_increme
   file_data_->self_encryptor_.Close();
 
   if (file_data_->self_encryptor_.original_data_map().chunks.empty()) {
+    std::vector<boost::future<void>> put_requests;
+    put_requests.reserve(file_data_->self_encryptor_.data_map().chunks.size());
+
     // If the original data map didn't contain any chunks, just store the new ones.
     for (const auto& chunk : file_data_->self_encryptor_.data_map().chunks) {
       auto content(file_data_->buffer_.Get(
                        std::string(std::begin(chunk.hash), std::end(chunk.hash))));
       if (listener) {
-	listener->PutChunk(ImmutableData(content));
+	put_requests.push_back(listener->PutChunk(ImmutableData(content)));
       }
     }
+    boost::wait_for_all(put_requests.begin(), put_requests.end());
   }
   else {
+    std::vector<boost::future<void>> put_requests;
+    put_requests.reserve(file_data_->self_encryptor_.data_map().chunks.size());
+
     // Check each new chunk against the original data map's chunks.  Store the new ones and
     // increment the reference count on the existing chunks.
     for (const auto& chunk : file_data_->self_encryptor_.data_map().chunks) {
@@ -324,10 +331,11 @@ void File::CloseEncryptor(std::vector<ImmutableData::Name>& chunks_to_be_increme
         auto content(file_data_->buffer_.Get(
                          std::string(std::begin(chunk.hash), std::end(chunk.hash))));
 	if (listener) {
-	  listener->PutChunk(ImmutableData(content));
+	  put_requests.push_back(listener->PutChunk(ImmutableData(content)));
 	}
       }
     }
+    boost::wait_for_all(put_requests.begin(), put_requests.end());
   }
 
   skip_chunk_incrementing_ = true;

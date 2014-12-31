@@ -57,15 +57,16 @@ class DirectoryTestListener
     public Directory::Listener {
  public:
   // Directory::Listener
-  virtual void DirectoryPut(std::shared_ptr<Directory> path) {
+  virtual void DirectoryPut(std::shared_ptr<Directory> path) override {
     LOG(kInfo) << "Putting directory.";
     ImmutableData contents(NonEmptyString(path->Serialise()));
     std::static_pointer_cast<Directory>(path)->AddNewVersion(contents.name());
   }
-  virtual void DirectoryPutChunk(const ImmutableData&) {
+  virtual boost::future<void> DirectoryPutChunk(const ImmutableData&) override {
     LOG(kInfo) << "Putting chunk.";
+    return boost::make_ready_future();
   }
-  virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&) {
+  virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&) override {
     LOG(kInfo) << "Incrementing chunks.";
   }
 };

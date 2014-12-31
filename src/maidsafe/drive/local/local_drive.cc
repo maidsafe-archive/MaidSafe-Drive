@@ -73,7 +73,7 @@ typedef CbfsDrive<nfs::FakeStore> LocalDrive;
 typedef FuseDrive<nfs::FakeStore> LocalDrive;
 #endif
 
-LocalDrive* g_local_drive(nullptr);
+Drive<nfs::FakeStore>* g_local_drive(nullptr);
 std::once_flag g_unmount_flag;
 const std::string kConfigFile("maidsafe_local_drive.conf");
 std::string g_error_message;
@@ -275,12 +275,14 @@ int MountAndWaitForIpcNotification(const Options& options) {
 
   LocalDrive drive(storage, options.unique_id, options.root_parent_id, options.mount_path,
                    GetUserAppDir(), options.drive_name, options.mount_status_shared_object_name,
-                   options.create_store);
-  g_local_drive = &drive;
+                   options.create_store
 #ifdef MAIDSAFE_WIN32
-  std::string guid(BOOST_PP_STRINGIZE(PRODUCT_ID));
-  drive.SetGuid(guid);
+                   , BOOST_PP_STRINGIZE(PRODUCT_ID)
 #endif
+                   );
+
+  g_local_drive = &drive;
+
   // Start a thread to poll the parent process' continued existence *before* calling drive.Mount().
   std::thread poll_parent([&] { MonitorParentProcess(options); });
 
@@ -315,12 +317,14 @@ int MountAndWaitForSignal(const Options& options) {
   }
 
   LocalDrive drive(storage, options.unique_id, options.root_parent_id, options.mount_path,
-                   GetUserAppDir(), options.drive_name, "", options.create_store);
-  g_local_drive = &drive;
+                   GetUserAppDir(), options.drive_name, "", options.create_store
 #ifdef MAIDSAFE_WIN32
-  std::string guid(BOOST_PP_STRINGIZE(PRODUCT_ID));
-  drive.SetGuid(guid);
+                   , BOOST_PP_STRINGIZE(PRODUCT_ID)
 #endif
+                   );
+
+  g_local_drive = &drive;
+
   drive.Mount();
   return 0;
 }

@@ -75,7 +75,7 @@ typedef CbfsDrive<nfs_client::MaidNodeNfs> NetworkDrive;
 typedef FuseDrive<nfs_client::MaidNodeNfs> NetworkDrive;
 #endif
 
-std::unique_ptr<NetworkDrive> g_network_drive(nullptr);
+std::unique_ptr<Drive<nfs_client::MaidNodeNfs>> g_network_drive(nullptr);
 std::shared_ptr<nfs_client::MaidNodeNfs> g_maid_node_nfs;
 std::once_flag g_unmount_flag;
 std::string g_error_message;
@@ -83,8 +83,8 @@ int g_return_code(0);
 
 void Unmount() {
   std::call_once(g_unmount_flag, [&] {
-    g_maid_node_nfs->Stop();
     g_network_drive->Unmount();
+    g_maid_node_nfs->Stop();
     g_network_drive = nullptr;
   });
 }
@@ -226,18 +226,35 @@ int Mount(const Options& options) {
   g_maid_node_nfs = nfs_client::MaidNodeNfs::MakeShared(*maid);
   g_network_drive.reset(new NetworkDrive(g_maid_node_nfs, options.unique_id,
     options.root_parent_id, options.mount_path, user_app_dir, options.drive_name,
-    options.mount_status_shared_object_name, options.create_store));
-
+    options.mount_status_shared_object_name, options.create_store
 #ifdef MAIDSAFE_WIN32
-  g_network_drive->SetGuid(BOOST_PP_STRINGIZE(PRODUCT_ID));
+    , BOOST_PP_STRINGIZE(PRODUCT_ID)
 #endif
+    ));
 
   if (options.monitor_parent) {
-    std::thread poll_parent([&] { MonitorParentProcess(options); });
-    g_network_drive->Mount();
+    std::thread poll_parent([&] {
+        try {
+          MonitorParentProcess(options);
+        }
+        catch (const std::exception& e) {
+          LOG(kError) << "Error: " << e.what();
+        }
+        catch (...) {
+          LOG(kError) << "Unknown Error";
+        }
+      });
+
+    try {
+      g_network_drive->Mount();
+    } catch (const std::exception& e) {
+      LOG(kError) << "using VFS caught an exception " << boost::diagnostic_information(e);
+    }
+    Unmount();
     poll_parent.join();
   } else {
     g_network_drive->Mount();
+    Unmount();
   }
   return 0;
 }

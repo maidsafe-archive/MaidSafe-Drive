@@ -112,20 +112,20 @@ class CbfsDrive : public Drive<Storage> {
   CbfsDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
             const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
             const boost::filesystem::path& user_app_dir, const boost::filesystem::path& drive_name,
-            const std::string& mount_status_shared_object_name, bool create);
+            std::string mount_status_shared_object_name, bool create,
+            std::string guid);
 
   virtual ~CbfsDrive();
 
-  // This must be called before 'Mount' to allow 'Mount' to succeed.
-  void SetGuid(const std::string& guid);
-  virtual void Mount();
-  virtual void Unmount();
   uint32_t max_file_path_length() const;
 
  private:
   CbfsDrive(const CbfsDrive&);
   CbfsDrive(CbfsDrive&&);
   CbfsDrive& operator=(CbfsDrive);
+
+  virtual void DoMount() override;
+  virtual void DoUnmount() override;
 
   void UnmountDrive(const std::chrono::steady_clock::duration& timeout_before_force);
   std::wstring drive_name() const;
@@ -209,7 +209,7 @@ class CbfsDrive : public Drive<Storage> {
   mutable CallbackFileSystem callback_filesystem_;
   LPCWSTR icon_id_;
   std::wstring drive_name_;
-  std::string guid_;
+  const std::string guid_;
   boost::promise<void> unmounted_;
 };
 
@@ -219,13 +219,15 @@ CbfsDrive<Storage>::CbfsDrive(std::shared_ptr<Storage> storage, const Identity& 
                               const boost::filesystem::path& mount_dir,
                               const boost::filesystem::path& user_app_dir,
                               const boost::filesystem::path& drive_name,
-                              const std::string& mount_status_shared_object_name, bool create)
+                              std::string mount_status_shared_object_name, bool create,
+                              std::string guid)
     : Drive(storage, unique_user_id, root_parent_id, mount_dir, user_app_dir,
-            mount_status_shared_object_name, create),
+            std::move(mount_status_shared_object_name), create),
       process_owner_(),
       callback_filesystem_(),
       icon_id_(L"MaidSafeDriveIcon"),
       drive_name_(drive_name.wstring()),
+      guid_(std::move(guid)),
       unmounted_() {}
 
 template <typename Storage>
@@ -234,16 +236,7 @@ CbfsDrive<Storage>::~CbfsDrive() {
 }
 
 template <typename Storage>
-void CbfsDrive<Storage>::SetGuid(const std::string& guid) {
-  if (!guid_.empty()) {
-    LOG(kError) << "GUID has already been set to " << guid_;
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::unable_to_handle_request));
-  }
-  guid_ = guid;
-}
-
-template <typename Storage>
-void CbfsDrive<Storage>::Mount() {
+void CbfsDrive<Storage>::DoMount() {
 #ifndef NDEBUG
     int timeout_milliseconds(0);
 #else
@@ -302,7 +295,7 @@ void CbfsDrive<Storage>::UnmountDrive(
 }
 
 template <typename Storage>
-void CbfsDrive<Storage>::Unmount() {
+void CbfsDrive<Storage>::DoUnmount() {
   try {
     std::call_once(this->unmounted_once_flag_, [&] {
         // Only one instance of this lambda function can be run simultaneously.  If any CBFS
@@ -591,7 +584,7 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
   const boost::filesystem::path relative_path(file_name);
 
   LOG(kInfo) << "CbFsCreateFile - " << relative_path << " 0x" << std::hex << file_attributes;
- 
+
   try {
     //
     // Check for write access to directory
@@ -1056,7 +1049,7 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
     bool changed = false;
     const auto path(cbfs_drive->GetMutableContext(relative_path));
     assert(path != nullptr);
-    
+
     if (file_attributes && path->meta_data.attributes() != file_attributes) {
       changed = true;
       path->meta_data.set_attributes(file_attributes);
