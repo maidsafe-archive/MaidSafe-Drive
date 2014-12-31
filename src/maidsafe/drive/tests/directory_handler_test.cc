@@ -27,6 +27,14 @@
 #include <string>
 
 #include "boost/filesystem/path.hpp"
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4702)
+#endif
+#include "boost/thread/future.hpp"
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 #include "maidsafe/common/asio_service.h"
 #include "maidsafe/common/crypto.h"
