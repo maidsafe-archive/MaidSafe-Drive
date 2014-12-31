@@ -82,8 +82,8 @@ inline std::string GetFileType(mode_t mode) {
 }
 
 inline common::Clock::time_point ToTimePoint(const struct timespec& ts) {
-  using namespace std::chrono;
-  return common::Clock::time_point(seconds(ts.tv_sec) + nanoseconds(ts.tv_nsec));
+  return common::Clock::time_point(std::chrono::seconds(ts.tv_sec) +
+                                   std::chrono::nanoseconds(ts.tv_nsec));
 }
 
 // template <typename Storage>
@@ -1222,8 +1222,6 @@ int FuseDrive<Storage>::CreateFile(const fs::path& target, mode_t mode) {
 template <typename Storage>
 int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
   try {
-    using namespace std::chrono;
-
     const auto file(Global<Storage>::g_fuse_drive->GetContext(path));
     *stbuf = ToStat(file->meta_data, Global<Storage>::g_fuse_drive->get_base_file_permissions());
     LOG(kVerbose) << " meta_data info  = ";
@@ -1255,7 +1253,6 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
 template <typename Storage>
 int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
   try {
-
     if (size < 0) {
       return -EINVAL;
     }

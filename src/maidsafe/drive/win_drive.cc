@@ -93,7 +93,6 @@ std::pair<EXPLICIT_ACCESS, std::unique_ptr<SID>> MakeAce(
     const std::tuple<const WELL_KNOWN_SID_TYPE, const TRUSTEE_TYPE,
                      const detail::MetaData::Permissions, const detail::MetaData::Permissions,
                      const detail::MetaData::Permissions>& mappings) {
-
   MAIDSAFE_CONSTEXPR_OR_CONST std::size_t SidType = 0;
   MAIDSAFE_CONSTEXPR_OR_CONST std::size_t TrusteeType = 1;
   MAIDSAFE_CONSTEXPR_OR_CONST std::size_t ReadPermission = 2;
@@ -146,7 +145,6 @@ std::pair<EXPLICIT_ACCESS, std::unique_ptr<SID>> MakeAce(
 DWORD ConvertToRelative(const detail::WinProcess& object_creator, const bool is_directory,
                         SECURITY_DESCRIPTOR& absolute, PSECURITY_DESCRIPTOR relative,
                         const DWORD relative_size) {
-
   WinPrivateObjectSecurity private_descriptor{};
   {
     GENERIC_MAPPING mapping = default_access_mappings;
@@ -201,13 +199,14 @@ void ErrorMessage(const std::string& method_name, ECBFSError error) {
 FILETIME ToFileTime(const common::Clock::time_point& input) {
   // FILETIME epoch = 1601-01-01T00:00:00Z in 100 nanosecond ticks
   // MaidSafe epoch = 1970-01-01T00:00:00Z in 1 nanosecond ticks
-  using namespace std::chrono;
   const ULONGLONG filetimeTicks = 100ULL;
   const ULONGLONG chronoTicks = 1ULL;
   // 369 years
   const ULONGLONG epochDifference = 11644473600ULL * (chronoTicks / filetimeTicks);
-  ULONGLONG stamp = epochDifference +
-                    (duration_cast<nanoseconds>(input.time_since_epoch()).count() / filetimeTicks);
+  ULONGLONG stamp =
+      epochDifference +
+      (std::chrono::duration_cast<std::chrono::nanoseconds>(input.time_since_epoch()).count() /
+       filetimeTicks);
   FILETIME result;
   result.dwHighDateTime = stamp >> 32;
   result.dwLowDateTime = stamp & 0xFFFFFFFF;
@@ -216,19 +215,17 @@ FILETIME ToFileTime(const common::Clock::time_point& input) {
 
 common::Clock::time_point ToTimePoint(const FILETIME& input) {
   // See ToFileTime
-  using namespace std::chrono;
   const ULONGLONG filetimeTicks = 100ULL;
   const ULONGLONG chronoTicks = 1ULL;
   const ULONGLONG epochDifference = 11644473600ULL * (chronoTicks / filetimeTicks);
   ULONGLONG filetime = ((ULONGLONG)(input.dwHighDateTime) << 32) + input.dwLowDateTime;
   ULONGLONG stamp = (filetime - epochDifference) * (filetimeTicks / chronoTicks);
-  return common::Clock::time_point(nanoseconds(stamp));
+  return common::Clock::time_point(std::chrono::nanoseconds(stamp));
 }
 
 bool HaveAccessInternal(const WinHandle& originator, DWORD desired_permissions,
                         const detail::WinProcess& owner, const detail::MetaData::FileType path_type,
                         const detail::MetaData::Permissions path_permissions) {
-
   const DWORD desired_length = GetFileSecurityInternal(owner, path_type, path_permissions, NULL, 0);
 
   const std::unique_ptr<char[]> security(maidsafe::make_unique<char[]>(desired_length));
@@ -273,7 +270,6 @@ DWORD GetFileSecurityInternal(const detail::WinProcess& owner,
                               const detail::MetaData::Permissions path_permissions,
                               PSECURITY_DESCRIPTOR out_descriptor,
                               const DWORD out_descriptor_length) {
-
   const std::unique_ptr<SECURITY_DESCRIPTOR> temp_descriptor(
       maidsafe::make_unique<SECURITY_DESCRIPTOR>());
 
@@ -283,7 +279,6 @@ DWORD GetFileSecurityInternal(const detail::WinProcess& owner,
 
   if (!owner.GetOwnerSid() ||
       !SetSecurityDescriptorOwner(temp_descriptor.get(), owner.GetOwnerSid(), false)) {
-
     // If a owner could not be determined/set, designate no owner
     if (!SetSecurityDescriptorOwner(temp_descriptor.get(), NULL, false)) {
       ThrowWinFunctionError("SetSecurityDescriptorOwner");
@@ -312,7 +307,7 @@ DWORD GetFileSecurityInternal(const detail::WinProcess& owner,
         std::make_tuple(WinWorldSid, TRUSTEE_IS_WELL_KNOWN_GROUP, Permissions::others_read,
                         Permissions::others_write, Permissions::others_exe)};
 
-    // TODO upgrade to static_assert with newer Visual Studios
+    // TODO(Team) upgrade to static_assert with newer Visual Studios
     assert(aces_size == ownership_mappings.size());
     assert(ownership_mappings.size() == aces.size());
     assert(ownership_mappings.size() == sids.size());

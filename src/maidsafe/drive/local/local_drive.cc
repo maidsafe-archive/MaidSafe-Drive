@@ -280,7 +280,7 @@ int MountAndWaitForIpcNotification(const Options& options) {
                    ,
                    BOOST_PP_STRINGIZE(PRODUCT_ID)
 #endif
-                       );
+                       );  // NOLINT
 
   g_local_drive = &drive;
 
@@ -323,7 +323,7 @@ int MountAndWaitForSignal(const Options& options) {
                    ,
                    BOOST_PP_STRINGIZE(PRODUCT_ID)
 #endif
-                       );
+                       );  // NOLINT
 
   g_local_drive = &drive;
 

@@ -216,7 +216,6 @@ void Directory::DoScheduleForStoring() {
 }
 
 void Directory::ProcessTimer(const boost::system::error_code& ec) {
-
   std::shared_ptr<Listener> listener;
   {
     const std::unique_lock<std::mutex> lock(mutex_);

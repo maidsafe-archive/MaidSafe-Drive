@@ -23,6 +23,7 @@
 #include <atomic>
 #include <thread>
 #include <string>
+#include <vector>
 
 #include "maidsafe/common/config.h"
 #include "maidsafe/encrypt/self_encryptor.h"

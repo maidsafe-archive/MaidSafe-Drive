@@ -228,7 +228,7 @@ int Mount(const Options& options) {
       ,
       BOOST_PP_STRINGIZE(PRODUCT_ID)
 #endif
-          ));
+          ));  // NOLINT
 
   if (options.monitor_parent) {
     std::thread poll_parent([&] {

@@ -22,8 +22,8 @@
 #include "maidsafe/common/test.h"
 #include "maidsafe/drive/unix_drive.h"
 
-#include "meta_data_test.h"
-#include "test_utils.h"
+#include "maidsafe/drive/tests/meta_data_test.h"
+#include "maidsafe/drive/tests/test_utils.h"
 
 namespace maidsafe {
 namespace drive {
@@ -45,7 +45,6 @@ bool VerifyNonPermissionBits(const mode_t mode) {
 }
 
 bool VerifyPermissions(const std::set<mode_t>& expected, const mode_t actual) {
-
   const auto has_expected =
       [actual](const mode_t expected) { return (actual & expected) == expected; };
 
@@ -134,8 +133,8 @@ TEST(UnixDriveTest, BEH_IsSupported) {
   }
 }
 
-}  // test
-}  // drive
-}  // maidsafe
+}  // namespace test
+}  // namespace drive
+}  // namespace maidsafe
 
 #endif  // !WIN32

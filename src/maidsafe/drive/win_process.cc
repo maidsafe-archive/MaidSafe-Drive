@@ -18,11 +18,11 @@
 
 #include "maidsafe/drive/win_process.h"
 
+#include <iostream>
 #include <utility>
 
 #include "maidsafe/common/make_unique.h"
 
-#include <iostream>
 namespace maidsafe {
 namespace drive {
 namespace detail {
@@ -54,6 +54,6 @@ WinProcess::WinProcess() : process_handle_(), sid_memory_() {
   }
 }
 
-}  // detail
-}  // drive
-}  // maidsafe
+}  // namespace detail
+}  // namespace drive
+}  // namespace maidsafe

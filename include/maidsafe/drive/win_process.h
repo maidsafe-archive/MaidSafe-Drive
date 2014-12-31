@@ -58,9 +58,8 @@ class WinProcess {
   std::unique_ptr<char[]> sid_memory_;
 };
 
-}  // drive
-}  // detail
-}  // maidsafe
-
+}  // namespace detail
+}  // namespace drive
+}  // namespace maidsafe
 
 #endif  // MAIDSAFE_DRIVE_WIN_PROCESS_H_

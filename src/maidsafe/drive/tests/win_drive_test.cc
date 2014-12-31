@@ -26,7 +26,7 @@
 #include "maidsafe/drive/win_drive.h"
 #include "maidsafe/drive/win_process.h"
 
-#include "test_utils.h"
+#include "maidsafe/drive/tests/test_utils.h"
 
 namespace maidsafe {
 namespace drive {
@@ -74,7 +74,6 @@ bool IsExpectedGroup(PSID actual_owner) {
   if (!GetTokenInformation(current_process.GetAccessToken().get(), TokenPrimaryGroup, NULL, 0,
                            &group_token_size) &&
       GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
-
     const auto sid_memory = maidsafe::make_unique<char[]>(group_token_size);
     if (GetTokenInformation(current_process.GetAccessToken().get(), TokenPrimaryGroup,
                             sid_memory.get(), group_token_size, &group_token_size)) {
@@ -112,7 +111,6 @@ std::pair<WinAces, ULONG> GetWinAces(const std::unique_ptr<char[]>& security_des
   PACL dacl{};
   BOOL defaulted_dacl = 0;
   if (GetSecurityDescriptorDacl(security_descriptor.get(), &dacl_present, &dacl, &defaulted_dacl)) {
-
     ULONG count = 0;
     PEXPLICIT_ACCESS aces{};
     if (GetExplicitEntriesFromAcl(dacl, &count, &aces) == ERROR_SUCCESS) {
@@ -202,7 +200,7 @@ void VerifySecurityFunctions(const detail::MetaData::FileType test_file_type,
   }
 }
 
-}  // anonymous
+}  // anonymous namespace
 
 /* We can only test as current user, so access granting to owner, group,
 and others will all return the same result. I gave up trying to figure out
@@ -382,8 +380,8 @@ TEST(WinDriveTests, BEH_ReadWriteExePermissionsDirectory) {
   }
 }
 
-}  // test
-}  // drive
-}  // maidsafe
+}  // namespace test
+}  // namespace drive
+}  // namespace maidsafe
 
 #endif  // WIN32

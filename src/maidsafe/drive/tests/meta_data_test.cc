@@ -23,7 +23,7 @@
 #include "maidsafe/common/test.h"
 #include "maidsafe/drive/meta_data.h"
 
-#include "test_utils.h"
+#include "maidsafe/drive/tests/test_utils.h"
 
 namespace maidsafe {
 namespace drive {
@@ -444,7 +444,7 @@ TEST(MetaDataTest, BEH_GetPermissionsDirectory) {
           MetaData::Permissions::others_read | MetaData::Permissions::others_write)));
 }
 
-}  // test
-}  // detail
-}  // drive
-}  // maidsafe
+}  // namespace test
+}  // namespace detail
+}  // namespace drive
+}  // namespace maidsafe

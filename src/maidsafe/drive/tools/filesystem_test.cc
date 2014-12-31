@@ -1482,7 +1482,6 @@ TEST(FileSystemTest, DISABLED_FUNC_DownloadMovieThenCopyToDrive) {
 }
 
 TEST(FileSystemTest, FUNC_RemountDrive) {
-
   const bool do_test(g_test_type == drive::DriveType::kLocal ||
                      g_test_type == drive::DriveType::kLocalConsole ||
                      g_test_type == drive::DriveType::kNetwork ||

@@ -137,11 +137,10 @@ MetaData::MetaData(const protobuf::Path& entry)
       break;
   }
   {
-    using namespace std::chrono;
-    creation_time_ = TimePoint(nanoseconds(attributes.creation_time()));
-    last_status_time_ = TimePoint(nanoseconds(attributes.last_status_time()));
-    last_write_time_ = TimePoint(nanoseconds(attributes.last_write_time()));
-    last_access_time_ = TimePoint(nanoseconds(attributes.last_access_time()));
+    creation_time_ = TimePoint(std::chrono::nanoseconds(attributes.creation_time()));
+    last_status_time_ = TimePoint(std::chrono::nanoseconds(attributes.last_status_time()));
+    last_write_time_ = TimePoint(std::chrono::nanoseconds(attributes.last_write_time()));
+    last_access_time_ = TimePoint(std::chrono::nanoseconds(attributes.last_access_time()));
   }
 
 #ifdef MAIDSAFE_WIN32

@@ -186,7 +186,7 @@ class FileTests : public ::testing::Test {
   std::shared_ptr<Directory> test_directory_;
   ::maidsafe::test::TestPath test_path_;
 };
-}  // anonymous
+}  // anonymous namespace
 
 
 TEST_F(FileTests, BEH_EmptyFile) {
@@ -621,7 +621,7 @@ TEST_F(FileTests, BEH_FileReopen) {
   }
 }
 
-}  // test
-}  // detail
-}  // drive
-}  // maidsafe
+}  // namespace test
+}  // namespace detail
+}  // namespace drive
+}  // namespace maidsafe

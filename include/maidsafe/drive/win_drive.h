@@ -1021,7 +1021,6 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(CallbackFileSystem* sender, CbFsF
   LOG(kInfo) << "CbFsSetFileAttributes- " << relative_path << " 0x" << std::hex << file_attributes;
 
   try {
-
     // File type cannot be changed
     bool changed = false;
     const auto path(cbfs_drive->GetMutableContext(relative_path));

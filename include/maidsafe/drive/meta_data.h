@@ -59,7 +59,7 @@ class MetaData {
   using FileType = boost::filesystem::file_type;
   using Permissions = boost::filesystem::perms;
 
-  // TODO Drop this extra constructor - required by path currently
+  // TODO(Team) Drop this extra constructor - required by path currently
   explicit MetaData(FileType file_type);
   MetaData(const boost::filesystem::path& name, FileType);
   explicit MetaData(const protobuf::Path& protobuf_path);

@@ -24,6 +24,7 @@
 #include <memory>
 #include <atomic>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "boost/asio/io_service.hpp"
@@ -32,6 +33,7 @@
 #include "boost/system/error_code.hpp"
 #include "boost/thread/future.hpp"
 
+#include "maidsafe/common/profiler.h"
 #include "maidsafe/common/tagged_value.h"
 #include "maidsafe/common/types.h"
 #include "maidsafe/common/data_types/immutable_data.h"
@@ -191,8 +193,6 @@ bool operator<(const Directory& lhs, const Directory& rhs);
 }  // namespace maidsafe
 
 
-#include <thread>
-#include "maidsafe/common/profiler.h"
 
 namespace maidsafe {
 

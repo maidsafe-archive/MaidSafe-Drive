@@ -21,6 +21,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "boost/asio/steady_timer.hpp"
 #include "boost/filesystem/path.hpp"
@@ -91,7 +92,6 @@ class File : public Path {
 
  private:
   struct Data {
-
     // Stores some of the original constructor values that are encapsulated in
     // other objects. Needed to "flush" self encryptor (only close is given).
     struct OriginalParameters {

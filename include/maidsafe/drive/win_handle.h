@@ -16,8 +16,8 @@
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
 
-#ifndef MAIDSAFE_WIN_HANDLE_H_
-#define MAIDSAFE_WIN_HANDLE_H_
+#ifndef MAIDSAFE_DRIVE_WIN_HANDLE_H_
+#define MAIDSAFE_DRIVE_WIN_HANDLE_H_
 
 #include <Winbase.h>
 #include <memory>
@@ -36,8 +36,8 @@ struct CloseHandleFunctor {
 
 using WinHandle = std::unique_ptr<void, CloseHandleFunctor>;
 
-}  // detail
-}  // drive
-}  // maidsafe
+}  // namespace detail
+}  // namespace drive
+}  // namespace maidsafe
 
-#endif  // MAIDSAFE_WIN_HANDLE_H_
+#endif  // MAIDSAFE_DRIVE_WIN_HANDLE_H_

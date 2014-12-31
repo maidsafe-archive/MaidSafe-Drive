@@ -19,9 +19,12 @@
 #ifndef MAIDSAFE_DRIVE_SYMLINK_H_
 #define MAIDSAFE_DRIVE_SYMLINK_H_
 
-#include "maidsafe/drive/path.h"
+#include <string>
+#include <vector>
 
 #include "boost/filesystem/path.hpp"
+
+#include "maidsafe/drive/path.h"
 
 namespace maidsafe {
 namespace drive {
