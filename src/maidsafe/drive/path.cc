@@ -26,25 +26,14 @@ namespace drive {
 
 namespace detail {
 
-Path::Path(MetaData::FileType file_type)
-    : meta_data(file_type)
-{
-}
+Path::Path(MetaData::FileType file_type) : meta_data(file_type) {}
 
-Path::Path(std::shared_ptr<Directory> parent,
-           MetaData::FileType file_type)
-    : parent_(parent),
-      meta_data(file_type)
-{
-}
+Path::Path(std::shared_ptr<Directory> parent, MetaData::FileType file_type)
+    : parent_(parent), meta_data(file_type) {}
 
-std::shared_ptr<Directory> Path::Parent() const {
-  return parent_.lock();
-}
+std::shared_ptr<Directory> Path::Parent() const { return parent_.lock(); }
 
-void Path::SetParent(std::shared_ptr<Directory> parent) {
-  parent_ = parent;
-}
+void Path::SetParent(std::shared_ptr<Directory> parent) { parent_ = parent; }
 
 bool operator<(const Path& lhs, const Path& rhs) {
   return lhs.meta_data.name() < rhs.meta_data.name();

@@ -105,11 +105,9 @@ void GetAndExecuteCommand() {
         default:
           BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
       }
-    }
-    catch (const Restart&) {
+    } catch (const Restart&) {
       return;
-    }
-    catch (const std::exception&) {
+    } catch (const std::exception&) {
       std::cout << "Invalid choice.  Enter number between 0 and "
                 << static_cast<int>(Operation::kUninitialised) - 1 << " inclusive: ";
       operation = Operation::kUninitialised;

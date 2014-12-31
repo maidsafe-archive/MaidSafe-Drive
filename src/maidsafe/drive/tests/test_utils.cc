@@ -141,19 +141,19 @@ void PrintResult(const bptime::ptime& start_time, const bptime::ptime& stop_time
     duration = 1;
   uint64_t rate((static_cast<uint64_t>(size) * 1000000) / duration);
   switch (operation_code) {
-    case(kCopy) : {
+    case (kCopy): {
       std::cout << "Copy " << BytesToBinarySiUnits(size) << " of data to drive in "
                 << (duration / 1000000.0) << " seconds at a speed of " << BytesToBinarySiUnits(rate)
                 << "/s" << std::endl;
       break;
     }
-    case(kRead) : {
+    case (kRead): {
       std::cout << "Read " << BytesToBinarySiUnits(size) << " Bytes of data from drive in "
                 << (duration / 1000000.0) << " seconds at a speed of " << BytesToBinarySiUnits(rate)
                 << "/s" << std::endl;
       break;
     }
-    case(kCompare) : {
+    case (kCompare): {
       std::cout << "Compare " << BytesToBinarySiUnits(size) << " Bytes of data from drive in "
                 << (duration / 1000000.0) << " seconds at a speed of " << BytesToBinarySiUnits(rate)
                 << "/s" << std::endl;
@@ -259,8 +259,7 @@ fs::path CreateNamedFile(fs::path const& path, const std::string& name, int64_t&
         return fs::path();
       }
       ofs.close();
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       LOG(kError) << "CreateNamedFile error: " << e.what();
       return fs::path();
     }
@@ -301,8 +300,7 @@ bool ModifyFile(fs::path const& path, int64_t& file_size) {
         return false;
       }
       ofs.close();
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       LOG(kError) << "ModifyFile error: " << e.what();
       return false;
     }
@@ -334,8 +332,7 @@ uint64_t TotalSize(const encrypt::DataMap& data_map) {
 
 void GenerateDirectoryListingEntryForFile(boost::asio::io_service& io_service,
                                           std::shared_ptr<Directory> directory,
-                                          const fs::path& path,
-                                          const uintmax_t& file_size) {
+                                          const fs::path& path, const uintmax_t& file_size) {
   auto file(File::Create(io_service, path.filename(), false));
   file->meta_data.UpdateSize(file_size);
 #ifdef MAIDSAFE_WIN32

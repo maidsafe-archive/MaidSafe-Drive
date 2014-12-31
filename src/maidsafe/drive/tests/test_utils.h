@@ -76,8 +76,7 @@ uint64_t TotalSize(const encrypt::DataMap& data_map);
 
 void GenerateDirectoryListingEntryForFile(boost::asio::io_service& io_service,
                                           std::shared_ptr<Directory> directory,
-                                          const fs::path& path,
-                                          const uintmax_t& file_size);
+                                          const fs::path& path, const uintmax_t& file_size);
 
 void CheckedExists(const fs::path& path);
 void CheckedNotExists(const fs::path& path);
@@ -99,12 +98,11 @@ void CheckedNotCreateDirectories(const fs::path& path);
 void RequiredCreateDirectories(const fs::path& path);
 void RequiredNotCreateDirectories(const fs::path& path);
 
-template<typename SetType, typename Expected, typename Unexpected>
-bool VerifyDistinctSets(
-    const std::set<SetType>& expected_set,
-    const std::initializer_list<SetType>& all_possible_set,
-    const Expected& expected_predicate,
-    const Unexpected& unexpected_predicate) {
+template <typename SetType, typename Expected, typename Unexpected>
+bool VerifyDistinctSets(const std::set<SetType>& expected_set,
+                        const std::initializer_list<SetType>& all_possible_set,
+                        const Expected& expected_predicate,
+                        const Unexpected& unexpected_predicate) {
   std::vector<SetType> unexpected_set;
 
   for (const auto permission : all_possible_set) {
@@ -113,15 +111,11 @@ bool VerifyDistinctSets(
     }
   }
 
-  const bool has_expected = std::find_if_not(
-      expected_set.begin(),
-      expected_set.end(),
-      expected_predicate) == expected_set.end();
+  const bool has_expected = std::find_if_not(expected_set.begin(), expected_set.end(),
+                                             expected_predicate) == expected_set.end();
 
-  const bool not_has_unexpected = std::find_if_not(
-      unexpected_set.begin(),
-      unexpected_set.end(),
-      unexpected_predicate) == unexpected_set.end();
+  const bool not_has_unexpected = std::find_if_not(unexpected_set.begin(), unexpected_set.end(),
+                                                   unexpected_predicate) == unexpected_set.end();
 
   return has_expected && not_has_unexpected;
 }

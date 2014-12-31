@@ -104,8 +104,8 @@ ssize_t ReadFileCommand(int file_descriptor, const std::string& buffer) {
 }
 
 ssize_t ReadFileCommand(int file_descriptor, const std::string& buffer, off_t offset) {
-  ssize_t bytes_read(pread(file_descriptor, const_cast<char*>(buffer.c_str()), buffer.size(),
-                           offset));
+  ssize_t bytes_read(
+      pread(file_descriptor, const_cast<char*>(buffer.c_str()), buffer.size(), offset));
   if (bytes_read == -1) {
     LOG(kError) << "Failed to read from file with descriptor " << file_descriptor;
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
@@ -220,7 +220,7 @@ std::vector<boost::filesystem::path> EnumerateDirectoryCommand(
     // TODO(Brian) change to use readdir_r
     while ((dir = readdir(directory)) != nullptr) {  // NOLINT
       if (dir->d_type == DT_REG) {
-         files.push_back(dir->d_name);
+        files.push_back(dir->d_name);
       }
     }
     closedir(directory);

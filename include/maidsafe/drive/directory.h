@@ -59,22 +59,17 @@ void SortAndResetChildrenCounter(Directory& lhs);
 class Directory : public Path {
  public:
   class Listener {
-  private:
+   private:
     virtual void DirectoryPut(std::shared_ptr<Directory>) = 0;
     virtual boost::future<void> DirectoryPutChunk(const ImmutableData&) = 0;
     virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&) = 0;
 
-  public:
-
+   public:
     virtual ~Listener() {}
 
-    void Put(std::shared_ptr<Directory> directory) {
-      DirectoryPut(directory);
-    }
+    void Put(std::shared_ptr<Directory> directory) { DirectoryPut(directory); }
 
-    boost::future<void> PutChunk(const ImmutableData& data) {
-      return DirectoryPutChunk(data);
-    }
+    boost::future<void> PutChunk(const ImmutableData& data) { return DirectoryPutChunk(data); }
 
     void IncrementChunks(const std::vector<ImmutableData::Name>& names) {
       DirectoryIncrementChunks(names);
@@ -101,8 +96,8 @@ class Directory : public Path {
   void FlushChildAndDeleteEncryptor(File* child);
 
   size_t VersionsCount() const;
-  std::tuple<DirectoryId, StructuredDataVersions::VersionName>
-      InitialiseVersions(ImmutableData::Name version_id);
+  std::tuple<DirectoryId, StructuredDataVersions::VersionName> InitialiseVersions(
+      ImmutableData::Name version_id);
   // This marks the end of an attempt to store the directory.  It returns directory_id and most
   // recent 2 version names (including the one passed in), and sets 'store_state_' to kComplete.
   std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
@@ -111,7 +106,8 @@ class Directory : public Path {
   std::shared_ptr<Listener> GetListener() const;
   bool HasChild(const boost::filesystem::path& name) const;
   template <typename T = Path>
-  typename std::enable_if<std::is_base_of<detail::Path, T>::value, const std::shared_ptr<const T>>::type
+  typename std::enable_if<std::is_base_of<detail::Path, T>::value,
+                          const std::shared_ptr<const T>>::type
       GetChild(const boost::filesystem::path& name) const;
   template <typename T = Path>
   typename std::enable_if<std::is_base_of<detail::Path, T>::value, std::shared_ptr<T>>::type
@@ -138,34 +134,25 @@ class Directory : public Path {
   Directory(Directory&& other) = delete;
   Directory& operator=(Directory) = delete;
 
-  Directory(ParentId parent_id,
-            DirectoryId directory_id,
-            boost::asio::io_service& io_service,
+  Directory(ParentId parent_id, DirectoryId directory_id, boost::asio::io_service& io_service,
             std::weak_ptr<Directory::Listener> listener,
             const boost::filesystem::path& path);  // NOLINT
-  Directory(ParentId parent_id,
-            const std::string& serialised_directory,
+  Directory(ParentId parent_id, const std::string& serialised_directory,
             const std::vector<StructuredDataVersions::VersionName>& versions,
-            boost::asio::io_service& io_service,
-            std::weak_ptr<Directory::Listener> listener,
+            boost::asio::io_service& io_service, std::weak_ptr<Directory::Listener> listener,
             const boost::filesystem::path& path);
 
-  void Initialise(const ParentId&,
-                  const DirectoryId&,
-                  boost::asio::io_service&,
+  void Initialise(const ParentId&, const DirectoryId&, boost::asio::io_service&,
                   std::weak_ptr<Directory::Listener>,
                   const boost::filesystem::path&);  // NOLINT
-  void Initialise(const ParentId&,
-                  const std::string& serialised_directory,
+  void Initialise(const ParentId&, const std::string& serialised_directory,
                   const std::vector<StructuredDataVersions::VersionName>&,
-                  boost::asio::io_service& io_service,
-                  std::weak_ptr<Directory::Listener>,
+                  boost::asio::io_service& io_service, std::weak_ptr<Directory::Listener>,
                   const boost::filesystem::path&);
 
   typedef std::vector<std::shared_ptr<Path>> Children;
 
-  virtual void Serialise(protobuf::Directory&,
-                         std::vector<ImmutableData::Name>&);
+  virtual void Serialise(protobuf::Directory&, std::vector<ImmutableData::Name>&);
 
   Children::iterator Find(const boost::filesystem::path& name);
   Children::const_iterator Find(const boost::filesystem::path& name) const;
@@ -184,7 +171,7 @@ class Directory : public Path {
   enum class StoreState { kPending, kOngoing, kComplete } store_state_;
   struct NewParent {
     NewParent(const ParentId& parent_id, const boost::filesystem::path& path)
-      : parent_id_(parent_id), path_(path) {}
+        : parent_id_(parent_id), path_(path) {}
     ParentId parent_id_;
     boost::filesystem::path path_;
   };
@@ -221,8 +208,9 @@ std::shared_ptr<Directory> Directory::Create(Types&&... args) {
 }
 
 template <typename T>
-typename std::enable_if<std::is_base_of<detail::Path, T>::value, const std::shared_ptr<const T>>::type
-Directory::GetChild(const boost::filesystem::path& name) const {
+typename std::enable_if<std::is_base_of<detail::Path, T>::value,
+                        const std::shared_ptr<const T>>::type
+    Directory::GetChild(const boost::filesystem::path& name) const {
   std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(name));
   if (itr == std::end(children_))
@@ -232,7 +220,7 @@ Directory::GetChild(const boost::filesystem::path& name) const {
 
 template <typename T>
 typename std::enable_if<std::is_base_of<detail::Path, T>::value, std::shared_ptr<T>>::type
-Directory::GetMutableChild(const boost::filesystem::path& name) {
+    Directory::GetMutableChild(const boost::filesystem::path& name) {
   SCOPED_PROFILE
   std::lock_guard<std::mutex> lock(mutex_);
   auto itr(Find(name));

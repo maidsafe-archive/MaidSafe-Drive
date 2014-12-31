@@ -110,9 +110,7 @@ void SetSignalHandler() {
 
 #else
 
-process::ProcessInfo GetParentProcessInfo(const Options& /*options*/) {
-  return getppid();
-}
+process::ProcessInfo GetParentProcessInfo(const Options& /*options*/) { return getppid(); }
 
 void SetSignalHandler() {}
 
@@ -137,20 +135,20 @@ po::options_description VisibleOptions() {
 #else
       ("mount_dir,D", po::value<std::string>(), " virtual drive mount point (required)")
 #endif
-      ("storage_dir,S", po::value<std::string>(), " directory to store chunks (required)")
-      ("unique_id,U", po::value<std::string>(), " unique identifier (required)")
-      ("parent_id,R", po::value<std::string>(), " root parent directory identifier (required)")
-      ("drive_name,N", po::value<std::string>(), " virtual drive name")
-      ("create,C", " Must be called on first run")
-      ("check_data,Z", " check all data in chunkstore");
+          ("storage_dir,S", po::value<std::string>(), " directory to store chunks (required)")(
+              "unique_id,U", po::value<std::string>(),
+              " unique identifier (required)")("parent_id,R", po::value<std::string>(),
+                                               " root parent directory identifier (required)")(
+              "drive_name,N", po::value<std::string>(), " virtual drive name")(
+              "create,C", " Must be called on first run")("check_data,Z",
+                                                          " check all data in chunkstore");
   return options;
 }
 
 po::options_description HiddenOptions() {
   po::options_description options("Hidden options");
-  options.add_options()
-      ("help,h", "help message")
-      ("shared_memory", po::value<std::string>(), "shared memory name (IPC)");
+  options.add_options()("help,h", "help message")("shared_memory", po::value<std::string>(),
+                                                  "shared memory name (IPC)");
   return options;
 }
 
@@ -161,8 +159,11 @@ po::variables_map ParseAllOptions(int argc, Char* argv[],
   po::variables_map variables_map;
   try {
     // Parse command line
-    po::store(po::basic_command_line_parser<Char>(argc, argv).options(command_line_options).
-                  allow_unregistered().run(), variables_map);
+    po::store(po::basic_command_line_parser<Char>(argc, argv)
+                  .options(command_line_options)
+                  .allow_unregistered()
+                  .run(),
+              variables_map);
     po::notify(variables_map);
 
     // Try to open local or main config files
@@ -180,10 +181,9 @@ po::variables_map ParseAllOptions(int argc, Char* argv[],
       po::store(parse_config_file(main_config_file, config_file_options), variables_map);
       po::notify(variables_map);
     }
-  }
-  catch (const std::exception& e) {
-    g_error_message = "Fatal error:\n  " + std::string(e.what()) +
-                      "\nRun with -h to see all options.\n\n";
+  } catch (const std::exception& e) {
+    g_error_message =
+        "Fatal error:\n  " + std::string(e.what()) + "\nRun with -h to see all options.\n\n";
     g_return_code = 32;
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
   }
@@ -193,8 +193,8 @@ po::variables_map ParseAllOptions(int argc, Char* argv[],
 void HandleHelp(const po::variables_map& variables_map) {
   if (variables_map.count("help")) {
     std::ostringstream stream;
-    stream << VisibleOptions() << "\nThese can also be set via a config file at \"./"
-           << kConfigFile << "\" or at " << fs::path(GetUserAppDir() / kConfigFile) << "\n\n";
+    stream << VisibleOptions() << "\nThese can also be set via a config file at \"./" << kConfigFile
+           << "\" or at " << fs::path(GetUserAppDir() / kConfigFile) << "\n\n";
     g_error_message = stream.str();
     g_return_code = 0;
     throw MakeError(CommonErrors::success);
@@ -277,9 +277,10 @@ int MountAndWaitForIpcNotification(const Options& options) {
                    GetUserAppDir(), options.drive_name, options.mount_status_shared_object_name,
                    options.create_store
 #ifdef MAIDSAFE_WIN32
-                   , BOOST_PP_STRINGIZE(PRODUCT_ID)
+                   ,
+                   BOOST_PP_STRINGIZE(PRODUCT_ID)
 #endif
-                   );
+                       );
 
   g_local_drive = &drive;
 
@@ -319,9 +320,10 @@ int MountAndWaitForSignal(const Options& options) {
   LocalDrive drive(storage, options.unique_id, options.root_parent_id, options.mount_path,
                    GetUserAppDir(), options.drive_name, "", options.create_store
 #ifdef MAIDSAFE_WIN32
-                   , BOOST_PP_STRINGIZE(PRODUCT_ID)
+                   ,
+                   BOOST_PP_STRINGIZE(PRODUCT_ID)
 #endif
-                   );
+                       );
 
   g_local_drive = &drive;
 
@@ -360,8 +362,8 @@ int main(int argc, char* argv[]) {
     config_file_options.add(visible_options);
 
     // Read in options
-    auto variables_map(maidsafe::drive::ParseAllOptions(argc, argv, command_line_options,
-                                                        config_file_options));
+    auto variables_map(
+        maidsafe::drive::ParseAllOptions(argc, argv, command_line_options, config_file_options));
     maidsafe::drive::HandleHelp(variables_map);
     maidsafe::drive::Options options;
     bool using_ipc(maidsafe::drive::GetFromIpc(variables_map, options));
@@ -376,15 +378,13 @@ int main(int argc, char* argv[]) {
       maidsafe::drive::SetSignalHandler();
       return maidsafe::drive::MountAndWaitForSignal(options);
     }
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     if (!maidsafe::drive::g_error_message.empty()) {
       std::cout << maidsafe::drive::g_error_message;
       return maidsafe::drive::g_return_code;
     }
     LOG(kError) << "Exception: " << e.what();
-  }
-  catch (...) {
+  } catch (...) {
     LOG(kError) << "Exception of unknown type!";
   }
   return 64;

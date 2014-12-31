@@ -83,8 +83,7 @@ void CloseHandleToThisProcess(void* this_process) {
   // We don't want this to throw (it's called in Launcher's d'tor), but we don't care if it succeeds
   try {
     CloseHandle(this_process);
-  }
-  catch (...) {
+  } catch (...) {
   }
 }
 
@@ -129,8 +128,7 @@ void DoNotifyMountStatus(const std::string& mount_status_shared_object_name, boo
     mount_status->condition.notify_one();
     if (mount_and_wait)
       mount_status->condition.wait(lock, [&] { return mount_status->unmount; });
-  }
-  catch (...) {
+  } catch (...) {
     // in case parent process is gone, try to access shared_memory will raise exception of
     // 'boost::interprocess::interprocess_exception'
   }
@@ -237,9 +235,8 @@ void Launcher::StartDriveProcess(const Options& options) {
 #ifdef MAIDSAFE_WIN32
   drive_process_.reset(new bp::child(bp::execute(
       bp::initializers::run_exe(kExePath),
-      bp::initializers::on_CreateProcess_setup([](bp::windows::executor& executor) {
-        executor.inherit_handles = TRUE;
-      }),
+      bp::initializers::on_CreateProcess_setup(
+          [](bp::windows::executor& executor) { executor.inherit_handles = TRUE; }),
       bp::initializers::set_cmd_line(kCommandLine), bp::initializers::set_on_error(error_code))));
 #else
   // Copy the "TERM" environment variable to the child process to allow for coloured logging.
@@ -252,9 +249,8 @@ void Launcher::StartDriveProcess(const Options& options) {
   static_cast<void>(env);
   drive_process_.reset(new bp::child(bp::execute(
       bp::initializers::run_exe(kExePath),
-      bp::initializers::on_fork_setup([env](bp::posix::executor& executor) {
-        executor.env = const_cast<char**>(env);
-      }),
+      bp::initializers::on_fork_setup(
+          [env](bp::posix::executor& executor) { executor.env = const_cast<char**>(env); }),
       bp::initializers::set_cmd_line(kCommandLine), bp::initializers::set_on_error(error_code))));
 #endif
   if (error_code) {
@@ -291,8 +287,7 @@ void Launcher::Cleanup() {
   CloseHandleToThisProcess(this_process_handle_);
   try {
     StopDriveProcess();
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(kError) << e.what();
   }
   ipc::RemoveSharedMemory(initial_shared_memory_name_);

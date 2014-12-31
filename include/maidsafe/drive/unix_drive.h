@@ -122,9 +122,9 @@ inline mode_t ToFileMode(const MetaData::FileType file_type) {
     case fs::symlink_file:
       return S_IFLNK;
     default:
-      assert(false); // Not supported yet
+      assert(false);  // Not supported yet
       return 0;
-    }
+  }
 }
 
 inline bool IsSupported(const mode_t mode) {
@@ -132,51 +132,44 @@ inline bool IsSupported(const mode_t mode) {
 }
 
 inline MAIDSAFE_CONSTEXPR bool HaveEquivalentPermissions() {
-  return
-      static_cast<mode_t>(MetaData::Permissions::owner_read) ==  S_IRUSR &&
-      static_cast<mode_t>(MetaData::Permissions::owner_write) ==  S_IWUSR &&
-      static_cast<mode_t>(MetaData::Permissions::owner_exe) ==  S_IXUSR &&
-      static_cast<mode_t>(MetaData::Permissions::group_read) ==  S_IRGRP &&
-      static_cast<mode_t>(MetaData::Permissions::group_write) ==  S_IWGRP &&
-      static_cast<mode_t>(MetaData::Permissions::group_exe) ==  S_IXGRP &&
-      static_cast<mode_t>(MetaData::Permissions::others_read) ==  S_IROTH &&
-      static_cast<mode_t>(MetaData::Permissions::others_write) ==  S_IWOTH &&
-      static_cast<mode_t>(MetaData::Permissions::others_exe) ==  S_IXOTH &&
-      static_cast<mode_t>(MetaData::Permissions::set_uid_on_exe) ==  S_ISUID &&
-      static_cast<mode_t>(MetaData::Permissions::set_gid_on_exe) ==  S_ISGID &&
-      static_cast<mode_t>(MetaData::Permissions::sticky_bit) ==  S_ISVTX;
+  return static_cast<mode_t>(MetaData::Permissions::owner_read) == S_IRUSR &&
+         static_cast<mode_t>(MetaData::Permissions::owner_write) == S_IWUSR &&
+         static_cast<mode_t>(MetaData::Permissions::owner_exe) == S_IXUSR &&
+         static_cast<mode_t>(MetaData::Permissions::group_read) == S_IRGRP &&
+         static_cast<mode_t>(MetaData::Permissions::group_write) == S_IWGRP &&
+         static_cast<mode_t>(MetaData::Permissions::group_exe) == S_IXGRP &&
+         static_cast<mode_t>(MetaData::Permissions::others_read) == S_IROTH &&
+         static_cast<mode_t>(MetaData::Permissions::others_write) == S_IWOTH &&
+         static_cast<mode_t>(MetaData::Permissions::others_exe) == S_IXOTH &&
+         static_cast<mode_t>(MetaData::Permissions::set_uid_on_exe) == S_ISUID &&
+         static_cast<mode_t>(MetaData::Permissions::set_gid_on_exe) == S_ISGID &&
+         static_cast<mode_t>(MetaData::Permissions::sticky_bit) == S_ISVTX;
 }
 
-inline MAIDSAFE_CONSTEXPR mode_t ModePermissionMask()
-{
+inline MAIDSAFE_CONSTEXPR mode_t ModePermissionMask() {
   return (S_IRWXU | S_IRWXG | S_IRWXO | S_ISVTX | S_ISGID | S_ISUID);
 }
 
 inline mode_t ToPermissionMode(const MetaData::Permissions permissions) {
-  static_assert(
-      HaveEquivalentPermissions(),
-      "MetaData::Permissions and local POSIX permissions differ");
+  static_assert(HaveEquivalentPermissions(),
+                "MetaData::Permissions and local POSIX permissions differ");
 
   return static_cast<mode_t>(permissions) & ModePermissionMask();
 }
 
 inline MetaData::Permissions ToPermissions(const mode_t mode) {
-  static_assert(
-      HaveEquivalentPermissions(),
-      "MetaData::Permissions and local POSIX permissions differ");
+  static_assert(HaveEquivalentPermissions(),
+                "MetaData::Permissions and local POSIX permissions differ");
 
   return static_cast<MetaData::Permissions>(mode & ModePermissionMask());
 }
 
-inline struct stat ToStat(const MetaData& meta,
-                          const MetaData::Permissions base_permissions) {
+inline struct stat ToStat(const MetaData& meta, const MetaData::Permissions base_permissions) {
   struct stat result;
   std::memset(&result, 0, sizeof(result));
   result.st_ino = std::hash<std::string>()(meta.name().native());
-  result.st_mode =
-      detail::ToFileMode(meta.file_type()) |
-      detail::ToPermissionMode(
-          meta.GetPermissions(base_permissions));
+  result.st_mode = detail::ToFileMode(meta.file_type()) |
+                   detail::ToPermissionMode(meta.GetPermissions(base_permissions));
   result.st_uid = getuid();
   result.st_gid = getgid();
   result.st_nlink = (meta.file_type() == MetaData::FileType::directory_file) ? 2 : 1;
@@ -224,9 +217,9 @@ class FuseDrive : public Drive<Storage> {
   static int OpsFtruncate(const char* path, off_t size, struct fuse_file_info* file_info);
   static int OpsGetattr(const char* path, struct stat* stbuf);
   static void* OpsInit(struct fuse_conn_info* conn);
-//  static int OpsLink(const char* to, const char* from);
-//  static int OpsLock(const char* path, struct fuse_file_info* file_info, int cmd,
-//                     struct flock* lock);
+  //  static int OpsLink(const char* to, const char* from);
+  //  static int OpsLock(const char* path, struct fuse_file_info* file_info, int cmd,
+  //                     struct flock* lock);
   static int OpsMkdir(const char* path, mode_t mode);
   static int OpsMknod(const char* path, mode_t mode, dev_t rdev);
   static int OpsOpen(const char* path, struct fuse_file_info* file_info);
@@ -311,20 +304,20 @@ FuseDrive<Storage>::~FuseDrive() {
 template <typename Storage>
 void FuseDrive<Storage>::Init() {
   Global<Storage>::g_fuse_drive = this;
-//  maidsafe_ops_.access = OpsAccess;
+  //  maidsafe_ops_.access = OpsAccess;
   maidsafe_ops_.chmod = OpsChmod;
   maidsafe_ops_.chown = OpsChown;
   maidsafe_ops_.create = OpsCreate;
   maidsafe_ops_.destroy = OpsDestroy;
   maidsafe_ops_.fgetattr = OpsFgetattr;
   maidsafe_ops_.flush = OpsFlush;
-//  maidsafe_ops_.fsync = OpsFsync;
-//  maidsafe_ops_.fsyncdir = OpsFsyncDir;
+  //  maidsafe_ops_.fsync = OpsFsync;
+  //  maidsafe_ops_.fsyncdir = OpsFsyncDir;
   maidsafe_ops_.ftruncate = OpsFtruncate;
   maidsafe_ops_.getattr = OpsGetattr;
   maidsafe_ops_.init = OpsInit;
-//  maidsafe_ops_.link = OpsLink;
-//  maidsafe_ops_.lock = OpsLock;
+  //  maidsafe_ops_.link = OpsLink;
+  //  maidsafe_ops_.lock = OpsLock;
   maidsafe_ops_.mkdir = OpsMkdir;
   maidsafe_ops_.mknod = OpsMknod;
   maidsafe_ops_.open = OpsOpen;
@@ -382,8 +375,8 @@ void FuseDrive<Storage>::DoMount() {
   //      permitted for the given flags.  We also need to implement OpsAccess.
   fuse_opt_add_arg(&args, "-odefault_permissions,kernel_cache");
 #ifndef NDEBUG
-  // fuse_opt_add_arg(&args, "-d");  // print debug info
-  // fuse_opt_add_arg(&args, "-f");  // run in foreground
+// fuse_opt_add_arg(&args, "-d");  // print debug info
+// fuse_opt_add_arg(&args, "-f");  // run in foreground
 #endif
   // TODO(Fraser#5#): 2014-01-08 - BEFORE_RELEASE Avoid running in foreground.
   fuse_opt_add_arg(&args, "-f");  // run in foreground
@@ -395,7 +388,7 @@ void FuseDrive<Storage>::DoMount() {
   // fuse_main(args.argc, args.argv, &maidsafe_ops_, NULL);
 
   int multithreaded, foreground;
-  char *mountpoint(nullptr);
+  char* mountpoint(nullptr);
   if (fuse_parse_cmdline(&args, &mountpoint, &multithreaded, &foreground) == -1)
     BOOST_THROW_EXCEPTION(MakeError(DriveErrors::failed_to_mount));
 
@@ -407,7 +400,7 @@ void FuseDrive<Storage>::DoMount() {
 
   fuse_ = fuse_new(fuse_channel_, &args, &maidsafe_ops_, sizeof(maidsafe_ops_), nullptr);
   fuse_opt_free_args(&args);
-  on_scope_exit cleanup_on_error([&]()->void { this->Unmount(); });
+  on_scope_exit cleanup_on_error([&]() -> void { this->Unmount(); });
   if (!fuse_)
     BOOST_THROW_EXCEPTION(MakeError(DriveErrors::failed_to_mount));
 
@@ -440,11 +433,9 @@ void FuseDrive<Storage>::DoUnmount() {
         this->directory_handler_->StoreAll();
       }
     });
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(kError) << "Exception in Unmount: " << e.what();
-  }
-  catch (...) {
+  } catch (...) {
     LOG(kError) << "Unknown exception in Unmount";
   }
   if (!this->kMountStatusSharedObjectName_.empty())
@@ -491,11 +482,10 @@ int FuseDrive<Storage>::OpsChown(const char* path, uid_t, gid_t) {
 // If this method is not implemented or under Linux kernel versions earlier than 2.6.15, the mknod()
 // and open() methods will be called instead.
 template <typename Storage>
-int FuseDrive<Storage>::OpsCreate(const char* path,
-                                  mode_t mode,
+int FuseDrive<Storage>::OpsCreate(const char* path, mode_t mode,
                                   struct fuse_file_info* /*file_info*/) {
-  LOG(kInfo) << "OpsCreate: " << path << " (" << detail::GetFileType(mode) << "), mode: "
-             << std::oct << mode;
+  LOG(kInfo) << "OpsCreate: " << path << " (" << detail::GetFileType(mode)
+             << "), mode: " << std::oct << mode;
   switch (detail::ToFileType(mode)) {
     case fs::symlink_file:
       // FIXME: Permissions (mode) are ignored
@@ -556,12 +546,10 @@ int FuseDrive<Storage>::OpsFlush(const char* path, struct fuse_file_info* file_i
   LOG(kInfo) << "OpsFlush: " << path << ", flags: " << file_info->flags;
   try {
     Global<Storage>::g_fuse_drive->GetMutableContext(path)->ScheduleForStoring();
-  }
-  catch (const drive_error& error) {
+  } catch (const drive_error& error) {
     LOG(kError) << "OpsFlush: " << fs::path(path) << ": " << error.what();
     return (error.code() == make_error_code(DriveErrors::no_such_file)) ? -EINVAL : -EBADF;
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(kError) << "OpsFlush: " << fs::path(path) << ": " << e.what();
     return -EBADF;
   }
@@ -755,8 +743,9 @@ int FuseDrive<Storage>::OpsMknod(const char* path, mode_t mode, dev_t) {
 // fuse_file_info structure, which will be passed to all file operations.
 template <typename Storage>
 int FuseDrive<Storage>::OpsOpen(const char* path, struct fuse_file_info* file_info) {
-  LOG(kInfo) << "OpsOpen: " << path << ", flags: " << file_info->flags << ", keep_cache: "
-             << file_info->keep_cache << ", direct_io: " << file_info->direct_io;
+  LOG(kInfo) << "OpsOpen: " << path << ", flags: " << file_info->flags
+             << ", keep_cache: " << file_info->keep_cache
+             << ", direct_io: " << file_info->direct_io;
 
   if (file_info->flags & O_NOFOLLOW) {
     LOG(kError) << "OpsOpen: " << path << " is a symlink.";
@@ -771,7 +760,8 @@ int FuseDrive<Storage>::OpsOpen(const char* path, struct fuse_file_info* file_in
     if (file != nullptr) {
       Global<Storage>::g_fuse_drive->Open(*file);
 
-      // Safe to allow the kernel to cache the file assuming it doesn't change "spontaneously".  For us,
+      // Safe to allow the kernel to cache the file assuming it doesn't change "spontaneously".  For
+      // us,
       // that presumably can happen on files which are part of a share, or if a user has >1 client
       // instance, each with this file open.  To handle this, we need to either avoid allowing the
       // kernel caching (set 'file_info->keep_cache' to 0), or preferrably use the low-level FUSE
@@ -780,8 +770,7 @@ int FuseDrive<Storage>::OpsOpen(const char* path, struct fuse_file_info* file_in
       file_info->keep_cache = 1;
       return 0;
     }
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(kError) << "OpsOpen: " << fs::path(path) << ": " << e.what();
   }
 
@@ -797,8 +786,9 @@ int FuseDrive<Storage>::OpsOpen(const char* path, struct fuse_file_info* file_in
 // fuse_file_info structure, which will be passed to readdir, closedir and fsyncdir.
 template <typename Storage>
 int FuseDrive<Storage>::OpsOpendir(const char* path, struct fuse_file_info* file_info) {
-  LOG(kInfo) << "OpsOpendir: " << path << ", flags: " << file_info->flags << ", keep_cache: "
-             << file_info->keep_cache << ", direct_io: " << file_info->direct_io;
+  LOG(kInfo) << "OpsOpendir: " << path << ", flags: " << file_info->flags
+             << ", keep_cache: " << file_info->keep_cache
+             << ", direct_io: " << file_info->direct_io;
   if (file_info->flags & O_NOFOLLOW) {
     LOG(kError) << "OpsOpendir: " << path << " is a symlink.";
     return -ELOOP;
@@ -810,8 +800,7 @@ int FuseDrive<Storage>::OpsOpendir(const char* path, struct fuse_file_info* file
     if (context->meta_data.file_type() == detail::MetaData::FileType::directory_file) {
       return 0;
     }
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(kError) << "OpsOpendir" << fs::path(path) << ": " << e.what();
   }
 
@@ -834,15 +823,13 @@ int FuseDrive<Storage>::OpsRead(const char* path, char* buf, size_t size, off_t 
   try {
     const auto file = Global<Storage>::g_fuse_drive->template GetMutableContext<detail::File>(path);
     if (file != nullptr) {
-      static_assert(
-          unsigned(std::numeric_limits<int>::max()) <= std::numeric_limits<std::size_t>::max(),
-          "expected size_t::max to be greater than int max");
-      const std::size_t read_size =
-          std::min<std::size_t>(std::numeric_limits<int>::max(), size);
+      static_assert(unsigned(std::numeric_limits<int>::max()) <=
+                        std::numeric_limits<std::size_t>::max(),
+                    "expected size_t::max to be greater than int max");
+      const std::size_t read_size = std::min<std::size_t>(std::numeric_limits<int>::max(), size);
       return int(file->Read(buf, read_size, offset));
     }
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(kWarning) << "Failed to read " << path << ": " << e.what();
   }
 
@@ -873,8 +860,7 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
   try {
     directory =
         Global<Storage>::g_fuse_drive->directory_handler_->template Get<detail::Directory>(path);
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(kError) << "OpsReaddir: " << path << ", can't get directory: " << e.what();
     return -EBADF;
   }
@@ -886,18 +872,17 @@ int FuseDrive<Storage>::OpsReaddir(const char* path, void* buf, fuse_fill_dir_t 
 
   auto file(directory->GetChildAndIncrementCounter());
   while (file) {
-    struct stat attributes = ToStat(
-        file->meta_data,
-        Global<Storage>::g_fuse_drive->get_base_file_permissions());
+    struct stat attributes =
+        ToStat(file->meta_data, Global<Storage>::g_fuse_drive->get_base_file_permissions());
     if (filler(buf, file->meta_data.name().c_str(), &attributes, 0))
       break;
     file = directory->GetChildAndIncrementCounter();
   }
 
-//  if (file_context) {
-//    file_context->content_changed = true;
-//    time(&file_context->meta_data->attributes.st_atime);
-//  }
+  //  if (file_context) {
+  //    file_context->content_changed = true;
+  //    time(&file_context->meta_data->attributes.st_atime);
+  //  }
   return 0;
 }
 
@@ -928,8 +913,7 @@ int FuseDrive<Storage>::OpsReadlink(const char* path, char* buf, size_t size) {
       LOG(kError) << "OpsReadlink " << path << ", no link returned.";
       return -EINVAL;
     }
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(kWarning) << "OpsReadlink: " << path << ": " << e.what();
     return -ENOENT;
   }
@@ -956,8 +940,7 @@ int FuseDrive<Storage>::OpsRelease(const char* path, struct fuse_file_info* file
       file->Close();
       return 0;
     }
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(kError) << "OpsRelease: " << path << ": " << e.what();
     return -EBADF;
   }
@@ -972,8 +955,7 @@ int FuseDrive<Storage>::OpsReleasedir(const char* path, struct fuse_file_info* f
   LOG(kInfo) << "OpsReleasedir: " << path << ", flags: " << file_info->flags;
   try {
     Global<Storage>::g_fuse_drive->ReleaseDir(path);
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(kError) << "OpsReleasedir: " << path << ": " << e.what();
     return -EBADF;
   }
@@ -988,8 +970,7 @@ int FuseDrive<Storage>::OpsRename(const char* old_name, const char* new_name) {
   LOG(kInfo) << "OpsRename: " << old_name << " to " << new_name;
   try {
     Global<Storage>::g_fuse_drive->Rename(old_name, new_name);
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(kError) << "Failed to rename " << old_name << " to " << new_name << ": " << e.what();
     //     switch (result) {
     //       case kChildAlreadyExists:
@@ -1015,8 +996,7 @@ int FuseDrive<Storage>::OpsRmdir(const char* path) {
   LOG(kInfo) << "OpsRmdir: " << path;
   try {
     Global<Storage>::g_fuse_drive->Delete(path);
-  }
-  catch (const std::exception&) {
+  } catch (const std::exception&) {
     return -EIO;
   }
   return 0;
@@ -1055,8 +1035,7 @@ int FuseDrive<Storage>::OpsSymlink(const char* to, const char* from) {
 
   try {
     return CreateSymlink(fs::path(from), fs::path(to));
-  }
-  catch (const std::exception&) {
+  } catch (const std::exception&) {
     return -EIO;
   }
 }
@@ -1078,8 +1057,7 @@ int FuseDrive<Storage>::OpsUnlink(const char* path) {
   LOG(kInfo) << "OpsUnlink: " << path;
   try {
     Global<Storage>::g_fuse_drive->Delete(path);
-  }
-  catch (const std::exception&) {
+  } catch (const std::exception&) {
     return -EIO;
   }
   return 0;
@@ -1101,8 +1079,7 @@ int FuseDrive<Storage>::OpsUtimens(const char* path, const struct timespec ts[2]
     file->meta_data.set_last_access_time(detail::ToTimePoint(ts[0]));
     file->meta_data.set_last_write_time(detail::ToTimePoint(ts[1]));
     file->meta_data.set_status_time(common::Clock::now());
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(kWarning) << "Failed to change times for " << path << ": " << e.what();
     return -ENOENT;
   }
@@ -1130,15 +1107,13 @@ int FuseDrive<Storage>::OpsWrite(const char* path, const char* buf, size_t size,
   try {
     const auto file = Global<Storage>::g_fuse_drive->template GetMutableContext<detail::File>(path);
     if (file != nullptr) {
-      static_assert(
-          unsigned(std::numeric_limits<int>::max()) <= std::numeric_limits<std::size_t>::max(),
-          "expected size_t::max to be greater than int max");
-      const unsigned write_length =
-          std::min<std::size_t>(std::numeric_limits<int>::max(), size);
+      static_assert(unsigned(std::numeric_limits<int>::max()) <=
+                        std::numeric_limits<std::size_t>::max(),
+                    "expected size_t::max to be greater than int max");
+      const unsigned write_length = std::min<std::size_t>(std::numeric_limits<int>::max(), size);
       return int(file->Write(buf, write_length, offset));
     }
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(kWarning) << "Failed to write " << path << ": " << e.what();
   }
   return -EINVAL;
@@ -1159,9 +1134,7 @@ int FuseDrive<Storage>::OpsGetxattr(const char* path, const char* name, char* va
 int FuseDrive<Storage>::OpsListxattr(const char* path, char* list, size_t size) {
   LOG(kInfo) << "OpsListxattr: " << path;
   fs::path full_path(Global<Storage>::g_fuse_drive->metadata_dir_ / list);
-  int res = llistxattr(TranslatePath(full_path.c_str(), path).c_str(),
-                       list,
-                       size);
+  int res = llistxattr(TranslatePath(full_path.c_str(), path).c_str(), list, size);
   if (res == -1) {
     LOG(kError) << "OpsListxattr: " << path;
     return -errno;
@@ -1172,8 +1145,7 @@ int FuseDrive<Storage>::OpsListxattr(const char* path, char* list, size_t size) 
 int FuseDrive<Storage>::OpsRemovexattr(const char* path, const char* name) {
   LOG(kInfo) << "OpsRemovexattr: " << path;
   fs::path full_path(Global<Storage>::g_fuse_drive->metadata_dir_ / name);
-  int res = lremovexattr(TranslatePath(full_path.c_str(), path).c_str(),
-                         name);
+  int res = lremovexattr(TranslatePath(full_path.c_str(), path).c_str(), name);
   if (res == -1) {
     LOG(kError) << "OpsRemovexattr: " << path;
     return -errno;
@@ -1185,8 +1157,7 @@ int FuseDrive<Storage>::OpsSetxattr(const char* path, const char* name, const ch
                                     size_t size, int flags) {
   LOG(kInfo) << "OpsSetxattr: " << path << ", flags: " << flags;
   fs::path full_path(Global<Storage>::g_fuse_drive->metadata_dir_ / name);
-  int res = lsetxattr(TranslatePath(full_path, path).c_str(),
-                      name, value, size, flags);
+  int res = lsetxattr(TranslatePath(full_path, path).c_str(), name, value, size, flags);
   if (res == -1) {
     LOG(kError) << "OpsSetxattr: " << path << ", flags: " << flags;
     return -errno;
@@ -1196,15 +1167,13 @@ int FuseDrive<Storage>::OpsSetxattr(const char* path, const char* name, const ch
 #endif  // HAVE_SETXATTR
 
 template <typename Storage>
-int FuseDrive<Storage>::CreateSymlink(const fs::path& target,
-                                      const fs::path& source) {
+int FuseDrive<Storage>::CreateSymlink(const fs::path& target, const fs::path& source) {
   if (detail::ExcludedFilename(target.filename().stem().string())) {
     LOG(kError) << "Invalid name: " << target;
     return -EINVAL;
   }
   try {
-    auto symlink = detail::Symlink::Create(target.filename(),
-                                           source.filename());
+    auto symlink = detail::Symlink::Create(target.filename(), source.filename());
     Global<Storage>::g_fuse_drive->Create(target, symlink);
   } catch (const std::exception& e) {
     LOG(kError) << "CreateSymlink: " << source << " -> " << target << ": " << e.what();
@@ -1214,16 +1183,14 @@ int FuseDrive<Storage>::CreateSymlink(const fs::path& target,
 }
 
 template <typename Storage>
-int FuseDrive<Storage>::CreateDirectory(const fs::path& target,
-                                        mode_t mode) {
+int FuseDrive<Storage>::CreateDirectory(const fs::path& target, mode_t mode) {
   if (detail::ToFileType(mode) != detail::MetaData::FileType::directory_file) {
     return -EINVAL;
   }
   try {
     // FIXME: Replace with detail::Directory::Create
     auto fuse = Global<Storage>::g_fuse_drive;
-    auto directory = detail::File::Create(
-        fuse->asio_service_.service(), target.filename(), true);
+    auto directory = detail::File::Create(fuse->asio_service_.service(), target.filename(), true);
     fuse->Create(target, directory);
   } catch (const std::exception& e) {
     LOG(kError) << "CreateDirectory: " << target << ": " << e.what();
@@ -1243,8 +1210,7 @@ int FuseDrive<Storage>::CreateFile(const fs::path& target, mode_t mode) {
   }
   try {
     auto fuse = Global<Storage>::g_fuse_drive;
-    const auto file = detail::File::Create(
-        fuse->asio_service_.service(), target.filename(), false);
+    const auto file = detail::File::Create(fuse->asio_service_.service(), target.filename(), false);
     fuse->Create(target, file);
   } catch (const std::exception& e) {
     LOG(kError) << "CreateFile: " << target << ": " << e.what();
@@ -1259,9 +1225,7 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
     using namespace std::chrono;
 
     const auto file(Global<Storage>::g_fuse_drive->GetContext(path));
-    *stbuf = ToStat(
-        file->meta_data,
-        Global<Storage>::g_fuse_drive->get_base_file_permissions());
+    *stbuf = ToStat(file->meta_data, Global<Storage>::g_fuse_drive->get_base_file_permissions());
     LOG(kVerbose) << " meta_data info  = ";
     LOG(kVerbose) << "     name =  " << file->meta_data.name().c_str();
     LOG(kVerbose) << "     st_dev = " << stbuf->st_dev;
@@ -1277,12 +1241,11 @@ int FuseDrive<Storage>::GetAttributes(const char* path, struct stat* stbuf) {
     LOG(kVerbose) << "     st_atim = " << stbuf->st_atime;
     LOG(kVerbose) << "     st_mtim = " << stbuf->st_mtime;
     LOG(kVerbose) << "     st_ctim = " << stbuf->st_ctime;
-  }
-  catch (const std::exception& e) {
-//    if (full_path.filename().string().size() > 255) {
-//      LOG(kError) << "OpsGetattr: " << full_path.filename() << " too long.";
-//      return -ENAMETOOLONG;
-//    }
+  } catch (const std::exception& e) {
+    //    if (full_path.filename().string().size() > 255) {
+    //      LOG(kError) << "OpsGetattr: " << full_path.filename() << " too long.";
+    //      return -ENAMETOOLONG;
+    //    }
     LOG(kWarning) << "OpsGetattr: " << path << " - " << e.what();
     return -ENOENT;
   }
@@ -1302,8 +1265,7 @@ int FuseDrive<Storage>::Truncate(const char* path, off_t size) {
       file->Truncate(size);
       return 0;
     }
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(kWarning) << "Failed to truncate " << path << ": " << e.what();
   }
   return -ENOENT;

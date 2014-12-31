@@ -52,9 +52,8 @@ namespace detail {
 
 namespace test {
 
-class DirectoryTestListener
-  : public std::enable_shared_from_this<DirectoryTestListener>,
-    public Directory::Listener {
+class DirectoryTestListener : public std::enable_shared_from_this<DirectoryTestListener>,
+                              public Directory::Listener {
  public:
   // Directory::Listener
   virtual void DirectoryPut(std::shared_ptr<Directory> path) override {
@@ -80,17 +79,13 @@ class DirectoryTest : public testing::Test {
         parent_id_(crypto::Hash<crypto::SHA512>(main_test_dir_->string())),
         directory_id_(RandomAlphaNumericString(64)),
         asio_service_(1) {
-      listener = std::make_shared<DirectoryTestListener>();
+    listener = std::make_shared<DirectoryTestListener>();
   }
 
-  ~DirectoryTest() {
-    asio_service_.Stop();
-  }
+  ~DirectoryTest() { asio_service_.Stop(); }
 
  protected:
-  std::shared_ptr<Directory::Listener> GetListener() {
-    return listener;
-  }
+  std::shared_ptr<Directory::Listener> GetListener() { return listener; }
 
   void GenerateDirectoryListingEntryForDirectory(std::shared_ptr<Directory> directory,
                                                  fs::path const& path) {
@@ -109,11 +104,8 @@ class DirectoryTest : public testing::Test {
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
     DirectoryId directory_id(crypto::Hash<crypto::SHA512>(absolute_path.string()));
-    auto directory(Directory::Create(parent_id,
-                                     directory_id,
-                                     asio_service_.service(),
-                                     GetListener(),
-                                     relative_path));
+    auto directory(Directory::Create(parent_id, directory_id, asio_service_.service(),
+                                     GetListener(), relative_path));
     fs::directory_iterator itr(path), end;
     try {
       for (; itr != end; ++itr) {
@@ -122,9 +114,8 @@ class DirectoryTest : public testing::Test {
           EXPECT_TRUE(
               GenerateDirectoryListings(itr->path(), relative_path / itr->path().filename()));
         } else if (fs::is_regular_file(*itr)) {
-          GenerateDirectoryListingEntryForFile(asio_service_.service(),
-                                               directory, itr->path().filename(),
-                                               fs::file_size(itr->path()));
+          GenerateDirectoryListingEntryForFile(asio_service_.service(), directory,
+                                               itr->path().filename(), fs::file_size(itr->path()));
         } else {
           if (fs::exists(*itr))
             LOG(kInfo) << "Unknown type found.";
@@ -136,8 +127,7 @@ class DirectoryTest : public testing::Test {
       ImmutableData contents(NonEmptyString(directory->Serialise()));
       EXPECT_TRUE(WriteFile(path / "msdir.listing", contents.data().string()));
       directory->AddNewVersion(contents.name());
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       LOG(kError) << "GenerateDirectoryListings test failed: " << e.what();
       return false;
     }
@@ -150,12 +140,8 @@ class DirectoryTest : public testing::Test {
     std::vector<StructuredDataVersions::VersionName> versions;
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
-    auto directory(Directory::Create(parent_id,
-                                     serialised_directory,
-                                     versions,
-                                     asio_service_.service(),
-                                     GetListener(),
-                                     relative_path));
+    auto directory(Directory::Create(parent_id, serialised_directory, versions,
+                                     asio_service_.service(), GetListener(), relative_path));
 
     std::shared_ptr<Path> file;
     // Remove the directory listing file
@@ -184,8 +170,7 @@ class DirectoryTest : public testing::Test {
           return false;
         }
       }
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       LOG(kError) << "RemoveDirectoryListingsEntries test failed: " << e.what();
       return false;
     }
@@ -199,12 +184,8 @@ class DirectoryTest : public testing::Test {
     std::vector<StructuredDataVersions::VersionName> versions;
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
-    auto directory(Directory::Create(parent_id,
-                                     serialised_directory,
-                                     versions,
-                                     asio_service_.service(),
-                                     GetListener(),
-                                     relative_path));
+    auto directory(Directory::Create(parent_id, serialised_directory, versions,
+                                     asio_service_.service(), GetListener(), relative_path));
 
     std::shared_ptr<Path> file;
     std::string listing("msdir.listing");
@@ -241,8 +222,7 @@ class DirectoryTest : public testing::Test {
           return false;
         }
       }
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       LOG(kError) << "RenameDirectoryEntries test failed: " << e.what();
       return false;
     }
@@ -255,12 +235,8 @@ class DirectoryTest : public testing::Test {
     std::vector<StructuredDataVersions::VersionName> versions;
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
-    auto directory(Directory::Create(parent_id,
-                                     serialised_directory,
-                                     versions,
-                                     asio_service_.service(),
-                                     GetListener(),
-                                     relative_path));
+    auto directory(Directory::Create(parent_id, serialised_directory, versions,
+                                     asio_service_.service(), GetListener(), relative_path));
 
     std::string listing("msdir.listing");
     fs::directory_iterator itr(path), end;
@@ -282,8 +258,7 @@ class DirectoryTest : public testing::Test {
           }
         }
       }
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       LOG(kError) << "DirectoryHasChild test failed: " << e.what();
       return false;
     }
@@ -296,12 +271,8 @@ class DirectoryTest : public testing::Test {
     std::vector<StructuredDataVersions::VersionName> versions;
     fs::path absolute_path((*main_test_dir_ / relative_path));
     ParentId parent_id(crypto::Hash<crypto::SHA512>(absolute_path.parent_path().string()));
-    auto directory(Directory::Create(parent_id,
-                                     serialised_directory,
-                                     versions,
-                                     asio_service_.service(),
-                                     GetListener(),
-                                     relative_path));
+    auto directory(Directory::Create(parent_id, serialised_directory, versions,
+                                     asio_service_.service(), GetListener(), relative_path));
 
     std::shared_ptr<const Path> file;
     std::string listing("msdir.listing");
@@ -328,8 +299,7 @@ class DirectoryTest : public testing::Test {
           return false;
         }
       }
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       LOG(kError) << "MatchEntries test failed: " << e.what();
       return false;
     }
@@ -424,17 +394,12 @@ void DirectoriesMatch(const Directory& lhs, const Directory& rhs) {
   }
 }
 
-void SortAndResetChildrenCounter(Directory& lhs) {
-    lhs.SortAndResetChildrenCounter();
-}
+void SortAndResetChildrenCounter(Directory& lhs) { lhs.SortAndResetChildrenCounter(); }
 
 TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
   maidsafe::test::TestPath testpath(maidsafe::test::CreateTestPath("MaidSafe_Test_Drive"));
-  auto directory(Directory::Create(ParentId(unique_id_),
-                                   parent_id_,
-                                   asio_service_.service(),
-                                   GetListener(),
-                                   ""));
+  auto directory(Directory::Create(ParentId(unique_id_), parent_id_, asio_service_.service(),
+                                   GetListener(), ""));
   boost::system::error_code error_code;
   int64_t file_size(0);
   std::string name(RandomAlphaNumericString(10));
@@ -471,21 +436,14 @@ TEST_F(DirectoryTest, BEH_SerialiseAndParse) {
 
   std::string serialised_directory(directory->Serialise());
   std::vector<StructuredDataVersions::VersionName> versions;
-  auto recovered_directory(Directory::Create(directory->parent_id(),
-                                             serialised_directory,
-                                             versions,
-                                             asio_service_.service(),
-                                             GetListener(),
-                                             ""));
+  auto recovered_directory(Directory::Create(directory->parent_id(), serialised_directory, versions,
+                                             asio_service_.service(), GetListener(), ""));
   DirectoriesMatch(*directory, *recovered_directory);
 }
 
 TEST_F(DirectoryTest, BEH_IteratorReset) {
-  auto directory(Directory::Create(ParentId(unique_id_),
-                                   parent_id_,
-                                   asio_service_.service(),
-                                   GetListener(),
-                                   ""));
+  auto directory(Directory::Create(ParentId(unique_id_), parent_id_, asio_service_.service(),
+                                   GetListener(), ""));
   // Add elements
   const size_t kTestCount(10);
   ResetChildrenCounter(directory);

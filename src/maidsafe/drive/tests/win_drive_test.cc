@@ -15,7 +15,7 @@
 
     See the Licences for the specific language governing permissions and limitations relating to
     use of the MaidSafe Software.                                                                 */
-#ifdef WIN32 // Windows test
+#ifdef WIN32  // Windows test
 
 #include <aclapi.h>
 #include <accctrl.h>
@@ -71,17 +71,13 @@ bool IsExpectedGroup(PSID actual_owner) {
   const detail::WinProcess current_process{};
 
   DWORD group_token_size = 0;
-  if (!GetTokenInformation(
-        current_process.GetAccessToken().get(), TokenPrimaryGroup, NULL, 0, &group_token_size) &&
+  if (!GetTokenInformation(current_process.GetAccessToken().get(), TokenPrimaryGroup, NULL, 0,
+                           &group_token_size) &&
       GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
 
     const auto sid_memory = maidsafe::make_unique<char[]>(group_token_size);
-    if (GetTokenInformation(
-          current_process.GetAccessToken().get(),
-          TokenPrimaryGroup,
-          sid_memory.get(),
-          group_token_size,
-          &group_token_size)) {
+    if (GetTokenInformation(current_process.GetAccessToken().get(), TokenPrimaryGroup,
+                            sid_memory.get(), group_token_size, &group_token_size)) {
       TOKEN_PRIMARY_GROUP* const expected_group =
           reinterpret_cast<TOKEN_PRIMARY_GROUP*>(sid_memory.get());
       if (actual_owner != nullptr && expected_group != nullptr) {
@@ -105,8 +101,7 @@ bool IsDaclEmpty(const std::unique_ptr<char[]>& security_desciptor) {
   BOOL dacl_present = 0;
   PACL dacl{};
   BOOL defaulted_dacl = 0;
-  if (GetSecurityDescriptorDacl(
-        security_desciptor.get(), &dacl_present, &dacl, &defaulted_dacl)) {
+  if (GetSecurityDescriptorDacl(security_desciptor.get(), &dacl_present, &dacl, &defaulted_dacl)) {
     return dacl_present == FALSE;
   }
   return false;
@@ -116,27 +111,24 @@ std::pair<WinAces, ULONG> GetWinAces(const std::unique_ptr<char[]>& security_des
   BOOL dacl_present = 0;
   PACL dacl{};
   BOOL defaulted_dacl = 0;
-  if (GetSecurityDescriptorDacl(
-        security_descriptor.get(), &dacl_present, &dacl, &defaulted_dacl)) {
+  if (GetSecurityDescriptorDacl(security_descriptor.get(), &dacl_present, &dacl, &defaulted_dacl)) {
 
     ULONG count = 0;
     PEXPLICIT_ACCESS aces{};
     if (GetExplicitEntriesFromAcl(dacl, &count, &aces) == ERROR_SUCCESS) {
-      return std::make_pair(WinAces{ aces }, count);
+      return std::make_pair(WinAces{aces}, count);
     }
   }
   return std::make_pair(WinAces{}, 0);
 }
 
-void VerifySecurityFunctions(
-    const detail::MetaData::FileType test_file_type,
-    const detail::MetaData::Permissions test_permissions,
-    const std::set<DWORD>& expected_owner_permissions) {
+void VerifySecurityFunctions(const detail::MetaData::FileType test_file_type,
+                             const detail::MetaData::Permissions test_permissions,
+                             const std::set<DWORD>& expected_owner_permissions) {
   MAIDSAFE_CONSTEXPR_OR_CONST std::initializer_list<DWORD> check_permissions = {
-    GENERIC_READ, GENERIC_WRITE, GENERIC_EXECUTE, GENERIC_ALL,
-    FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_GENERIC_EXECUTE, FILE_EXECUTE, FILE_ALL_ACCESS,
-    FILE_TRAVERSE, DELETE, READ_CONTROL
-  };
+      GENERIC_READ, GENERIC_WRITE, GENERIC_EXECUTE, GENERIC_ALL, FILE_GENERIC_READ,
+      FILE_GENERIC_WRITE, FILE_GENERIC_EXECUTE, FILE_EXECUTE, FILE_ALL_ACCESS, FILE_TRAVERSE,
+      DELETE, READ_CONTROL};
 
   const detail::WinProcess current_process{};
   ASSERT_NE(nullptr, current_process.GetAccessToken().get());
@@ -144,34 +136,19 @@ void VerifySecurityFunctions(
   // Check raw security descriptor first
   {
     const DWORD descriptor_length =
-        detail::GetFileSecurityInternal(
-            current_process,
-            test_file_type,
-            test_permissions,
-            NULL,
-            0);
+        detail::GetFileSecurityInternal(current_process, test_file_type, test_permissions, NULL, 0);
     ASSERT_LT(0u, descriptor_length);
 
     const std::unique_ptr<char[]> descriptor_storage(
         maidsafe::make_unique<char[]>(descriptor_length));
 
     // verify one less doesn't crash function
-    EXPECT_EQ(
-        descriptor_length,
-        detail::GetFileSecurityInternal(
-            current_process,
-            test_file_type,
-            test_permissions,
-            descriptor_storage.get(),
-            descriptor_length - 1));
-    EXPECT_EQ(
-        descriptor_length,
-        detail::GetFileSecurityInternal(
-            current_process,
-            test_file_type,
-            test_permissions,
-            descriptor_storage.get(),
-            descriptor_length));
+    EXPECT_EQ(descriptor_length,
+              detail::GetFileSecurityInternal(current_process, test_file_type, test_permissions,
+                                              descriptor_storage.get(), descriptor_length - 1));
+    EXPECT_EQ(descriptor_length,
+              detail::GetFileSecurityInternal(current_process, test_file_type, test_permissions,
+                                              descriptor_storage.get(), descriptor_length));
 
     EXPECT_FALSE(IsOwnerEmpty(descriptor_storage));
     EXPECT_TRUE(IsExpectedOwner(descriptor_storage));
@@ -183,7 +160,8 @@ void VerifySecurityFunctions(
     const std::unique_ptr<SID> everyone_sid(maidsafe::make_unique<SID>());
     {
       DWORD sid_size = sizeof(SID);
-      ASSERT_NE(0, CreateWellKnownSid(WinWorldSid, NULL, everyone_sid.get(), &sid_size)) << GetLastError();
+      ASSERT_NE(0, CreateWellKnownSid(WinWorldSid, NULL, everyone_sid.get(), &sid_size))
+          << GetLastError();
     }
 
     // Rough checks for ensuring that bits in access mask are set iff one of
@@ -198,43 +176,33 @@ void VerifySecurityFunctions(
       if (aces.first[index].grfAccessMode == GRANT_ACCESS &&
           aces.first[index].grfAccessPermissions != 0) {
         if (IsExpectedOwner(aces.first[index].Trustee.ptstrName)) {
-          EXPECT_NE(
-              0u,
-              static_cast<unsigned>(test_permissions & detail::MetaData::Permissions::owner_all));
-        }
-        else if (IsExpectedGroup(aces.first[index].Trustee.ptstrName)) {
-          EXPECT_NE(
-              0u,
-              static_cast<unsigned>(test_permissions & detail::MetaData::Permissions::group_all));
-        }
-        else if (EqualSid(everyone_sid.get(), aces.first[index].Trustee.ptstrName)) {
-          EXPECT_NE(
-              0u,
-              static_cast<unsigned>(test_permissions & detail::MetaData::Permissions::others_all));
-        }
-        else {
+          EXPECT_NE(0u, static_cast<unsigned>(test_permissions &
+                                              detail::MetaData::Permissions::owner_all));
+        } else if (IsExpectedGroup(aces.first[index].Trustee.ptstrName)) {
+          EXPECT_NE(0u, static_cast<unsigned>(test_permissions &
+                                              detail::MetaData::Permissions::group_all));
+        } else if (EqualSid(everyone_sid.get(), aces.first[index].Trustee.ptstrName)) {
+          EXPECT_NE(0u, static_cast<unsigned>(test_permissions &
+                                              detail::MetaData::Permissions::others_all));
+        } else {
           ADD_FAILURE() << "Permission was given to an unexpected SID";
         }
       }
     }
   }
-  
+
   for (const auto check_permission : check_permissions) {
     const bool expect_access =
         (expected_owner_permissions.find(check_permission) != expected_owner_permissions.end());
 
-    EXPECT_EQ(
-        expect_access,
-        detail::HaveAccessInternal(
-            current_process.GetAccessToken(),
-            check_permission,
-            current_process,
-            test_file_type,
-            test_permissions)) << "Failed permission: " << check_permission;
+    EXPECT_EQ(expect_access,
+              detail::HaveAccessInternal(current_process.GetAccessToken(), check_permission,
+                                         current_process, test_file_type, test_permissions))
+        << "Failed permission: " << check_permission;
   }
 }
 
-} // anonymous
+}  // anonymous
 
 /* We can only test as current user, so access granting to owner, group,
 and others will all return the same result. I gave up trying to figure out
@@ -244,239 +212,178 @@ owner and group permissions fail (but creating the token appears tricky!).
 */
 
 TEST(WinDriveTests, BEH_NoPermissionsFile) {
-  VerifySecurityFunctions(
-      detail::MetaData::FileType::regular_file,
-      detail::MetaData::Permissions::no_perms,
-      { READ_CONTROL });
+  VerifySecurityFunctions(detail::MetaData::FileType::regular_file,
+                          detail::MetaData::Permissions::no_perms, {READ_CONTROL});
 }
 
 TEST(WinDriveTests, BEH_NoPermissionsDirectory) {
-  VerifySecurityFunctions(
-      detail::MetaData::FileType::directory_file,
-      detail::MetaData::Permissions::no_perms,
-      { READ_CONTROL });
+  VerifySecurityFunctions(detail::MetaData::FileType::directory_file,
+                          detail::MetaData::Permissions::no_perms, {READ_CONTROL});
 }
 
 TEST(WinDriveTests, BEH_ReadPermissionsFile) {
   using Permissions = detail::MetaData::Permissions;
-  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type =
-      detail::MetaData::FileType::regular_file;
+  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type = detail::MetaData::FileType::regular_file;
   MAIDSAFE_CONSTEXPR_OR_CONST auto test_permissions = {
-      Permissions::owner_read, Permissions::group_read, Permissions::others_read
-  };
+      Permissions::owner_read, Permissions::group_read, Permissions::others_read};
 
   for (const auto test_permission : test_permissions) {
-    VerifySecurityFunctions(
-        test_file_type,
-        test_permission,
-        { GENERIC_READ, FILE_GENERIC_READ, READ_CONTROL });
+    VerifySecurityFunctions(test_file_type, test_permission,
+                            {GENERIC_READ, FILE_GENERIC_READ, READ_CONTROL});
   }
 }
 
 TEST(WinDriveTests, BEH_ReadPermissionsDirectory) {
   using Permissions = detail::MetaData::Permissions;
-  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type =
-      detail::MetaData::FileType::directory_file;
+  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type = detail::MetaData::FileType::directory_file;
   MAIDSAFE_CONSTEXPR_OR_CONST auto test_permissions = {
-      Permissions::owner_read, Permissions::group_read, Permissions::others_read
-  };
+      Permissions::owner_read, Permissions::group_read, Permissions::others_read};
 
   for (const auto test_permission : test_permissions) {
-    VerifySecurityFunctions(test_file_type, test_permission, { READ_CONTROL });
+    VerifySecurityFunctions(test_file_type, test_permission, {READ_CONTROL});
   }
 }
 
 TEST(WinDriveTests, BEH_WritePermissionsFile) {
   using Permissions = detail::MetaData::Permissions;
-  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type =
-      detail::MetaData::FileType::regular_file;
+  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type = detail::MetaData::FileType::regular_file;
   MAIDSAFE_CONSTEXPR_OR_CONST auto test_permissions = {
-      Permissions::owner_write, Permissions::group_write, Permissions::others_write
-  };
+      Permissions::owner_write, Permissions::group_write, Permissions::others_write};
 
   for (const auto test_permission : test_permissions) {
-    VerifySecurityFunctions(
-        test_file_type,
-        test_permission,
-        { GENERIC_WRITE, FILE_GENERIC_WRITE, DELETE, READ_CONTROL });
+    VerifySecurityFunctions(test_file_type, test_permission,
+                            {GENERIC_WRITE, FILE_GENERIC_WRITE, DELETE, READ_CONTROL});
   }
 }
 
 TEST(WinDriveTests, BEH_WritePermissionsDirectory) {
   using Permissions = detail::MetaData::Permissions;
-  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type =
-      detail::MetaData::FileType::directory_file;
+  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type = detail::MetaData::FileType::directory_file;
   MAIDSAFE_CONSTEXPR_OR_CONST auto test_permissions = {
-      Permissions::owner_write, Permissions::group_write, Permissions::others_write
-  };
+      Permissions::owner_write, Permissions::group_write, Permissions::others_write};
 
   for (const auto test_permission : test_permissions) {
-    VerifySecurityFunctions(
-        test_file_type,
-        test_permission,
-        { GENERIC_WRITE, FILE_GENERIC_WRITE, DELETE, READ_CONTROL });
+    VerifySecurityFunctions(test_file_type, test_permission,
+                            {GENERIC_WRITE, FILE_GENERIC_WRITE, DELETE, READ_CONTROL});
   }
 }
 
 TEST(WinDriveTests, BEH_ExePermissionsFile) {
   using Permissions = detail::MetaData::Permissions;
-  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type =
-      detail::MetaData::FileType::regular_file;
+  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type = detail::MetaData::FileType::regular_file;
   MAIDSAFE_CONSTEXPR_OR_CONST auto test_permissions = {
-      Permissions::owner_exe, Permissions::group_exe, Permissions::others_exe
-  };
+      Permissions::owner_exe, Permissions::group_exe, Permissions::others_exe};
 
   for (const auto test_permission : test_permissions) {
-    VerifySecurityFunctions(
-        test_file_type,
-        test_permission,
-        { GENERIC_EXECUTE, FILE_GENERIC_EXECUTE, FILE_EXECUTE, READ_CONTROL });
+    VerifySecurityFunctions(test_file_type, test_permission,
+                            {GENERIC_EXECUTE, FILE_GENERIC_EXECUTE, FILE_EXECUTE, READ_CONTROL});
   }
 }
 
 TEST(WinDriveTests, BEH_ExePermissionsDirectory) {
   using Permissions = detail::MetaData::Permissions;
-  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type =
-      detail::MetaData::FileType::directory_file;
+  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type = detail::MetaData::FileType::directory_file;
   MAIDSAFE_CONSTEXPR_OR_CONST auto test_permissions = {
-      Permissions::owner_exe, Permissions::group_exe, Permissions::others_exe
-  };
+      Permissions::owner_exe, Permissions::group_exe, Permissions::others_exe};
 
   for (const auto test_permission : test_permissions) {
-    VerifySecurityFunctions(test_file_type, test_permission, { READ_CONTROL });
+    VerifySecurityFunctions(test_file_type, test_permission, {READ_CONTROL});
   }
 }
 
 TEST(WinDriveTests, BEH_ReadWritePermissionsFile) {
   using Permissions = detail::MetaData::Permissions;
-  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type =
-      detail::MetaData::FileType::regular_file;
+  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type = detail::MetaData::FileType::regular_file;
   MAIDSAFE_CONSTEXPR_OR_CONST auto test_permissions = {
-      Permissions::owner_read | Permissions::owner_write, 
+      Permissions::owner_read | Permissions::owner_write,
       Permissions::group_read | Permissions::group_write,
-      Permissions::others_read | Permissions::others_write
-  };
+      Permissions::others_read | Permissions::others_write};
 
   for (const auto test_permission : test_permissions) {
     VerifySecurityFunctions(
-        test_file_type,
-        test_permission, 
-        {
-          GENERIC_READ, GENERIC_WRITE,
-          FILE_GENERIC_READ, FILE_GENERIC_WRITE,
-          DELETE, READ_CONTROL
-        });
+        test_file_type, test_permission,
+        {GENERIC_READ, GENERIC_WRITE, FILE_GENERIC_READ, FILE_GENERIC_WRITE, DELETE, READ_CONTROL});
   }
 }
 
 TEST(WinDriveTests, BEH_ReadWritePermissionsDirectory) {
   using Permissions = detail::MetaData::Permissions;
-  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type =
-      detail::MetaData::FileType::directory_file;
+  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type = detail::MetaData::FileType::directory_file;
   MAIDSAFE_CONSTEXPR_OR_CONST auto test_permissions = {
       Permissions::owner_read | Permissions::owner_write,
       Permissions::group_read | Permissions::group_write,
-      Permissions::others_read | Permissions::others_write
-  };
+      Permissions::others_read | Permissions::others_write};
 
   for (const auto test_permission : test_permissions) {
-    VerifySecurityFunctions(
-        test_file_type,
-        test_permission,
-        { GENERIC_WRITE, FILE_GENERIC_WRITE, DELETE, READ_CONTROL });
+    VerifySecurityFunctions(test_file_type, test_permission,
+                            {GENERIC_WRITE, FILE_GENERIC_WRITE, DELETE, READ_CONTROL});
   }
 }
 
 TEST(WinDriveTests, BEH_ReadExePermissionsFile) {
   using Permissions = detail::MetaData::Permissions;
-  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type =
-      detail::MetaData::FileType::regular_file;
+  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type = detail::MetaData::FileType::regular_file;
   MAIDSAFE_CONSTEXPR_OR_CONST auto test_permissions = {
       Permissions::owner_read | Permissions::owner_exe,
       Permissions::group_read | Permissions::group_exe,
-      Permissions::others_read | Permissions::others_exe
-  };
+      Permissions::others_read | Permissions::others_exe};
 
   for (const auto test_permission : test_permissions) {
-    VerifySecurityFunctions(
-        test_file_type,
-        test_permission,
-        {
-          GENERIC_READ, GENERIC_EXECUTE,
-          FILE_GENERIC_READ, FILE_GENERIC_EXECUTE, FILE_EXECUTE,
-          READ_CONTROL
-        });
+    VerifySecurityFunctions(test_file_type, test_permission,
+                            {GENERIC_READ, GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_EXECUTE,
+                             FILE_EXECUTE, READ_CONTROL});
   }
 }
 
 TEST(WinDriveTests, BEH_ReadExePermissionsDirectory) {
   using Permissions = detail::MetaData::Permissions;
-  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type =
-      detail::MetaData::FileType::directory_file;
+  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type = detail::MetaData::FileType::directory_file;
   MAIDSAFE_CONSTEXPR_OR_CONST auto test_permissions = {
       Permissions::owner_read | Permissions::owner_exe,
       Permissions::group_read | Permissions::group_exe,
-      Permissions::others_read | Permissions::others_exe
-  };
+      Permissions::others_read | Permissions::others_exe};
 
   for (const auto test_permission : test_permissions) {
-    VerifySecurityFunctions(
-        test_file_type,
-        test_permission,
-        {
-          GENERIC_READ, GENERIC_EXECUTE,
-          FILE_GENERIC_READ, FILE_GENERIC_EXECUTE,
-          FILE_TRAVERSE, READ_CONTROL
-        });
+    VerifySecurityFunctions(test_file_type, test_permission,
+                            {GENERIC_READ, GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_EXECUTE,
+                             FILE_TRAVERSE, READ_CONTROL});
   }
 }
 
 TEST(WinDriveTests, BEH_ReadWriteExePermissionsFile) {
   using Permissions = detail::MetaData::Permissions;
-  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type =
-      detail::MetaData::FileType::regular_file;
+  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type = detail::MetaData::FileType::regular_file;
   MAIDSAFE_CONSTEXPR_OR_CONST auto test_permissions = {
       Permissions::owner_read | Permissions::owner_write | Permissions::owner_exe,
       Permissions::group_read | Permissions::group_write | Permissions::group_exe,
-      Permissions::others_read | Permissions::others_write | Permissions::others_exe
-  };
+      Permissions::others_read | Permissions::others_write | Permissions::others_exe};
 
   for (const auto test_permission : test_permissions) {
-    VerifySecurityFunctions(
-        test_file_type,
-        test_permission,
-        {
-          GENERIC_READ, GENERIC_WRITE, GENERIC_EXECUTE,
-          FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_GENERIC_EXECUTE, FILE_EXECUTE,
-          DELETE, READ_CONTROL
-        });
+    VerifySecurityFunctions(test_file_type, test_permission,
+                            {GENERIC_READ, GENERIC_WRITE, GENERIC_EXECUTE, FILE_GENERIC_READ,
+                             FILE_GENERIC_WRITE, FILE_GENERIC_EXECUTE, FILE_EXECUTE, DELETE,
+                             READ_CONTROL});
   }
 }
 
 TEST(WinDriveTests, BEH_ReadWriteExePermissionsDirectory) {
   using Permissions = detail::MetaData::Permissions;
-  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type =
-      detail::MetaData::FileType::directory_file;
+  MAIDSAFE_CONSTEXPR_OR_CONST auto test_file_type = detail::MetaData::FileType::directory_file;
   MAIDSAFE_CONSTEXPR_OR_CONST auto test_permissions = {
       Permissions::owner_read | Permissions::owner_write | Permissions::owner_exe,
       Permissions::group_read | Permissions::group_write | Permissions::group_exe,
-      Permissions::others_read | Permissions::others_write | Permissions::others_exe
-  };
+      Permissions::others_read | Permissions::others_write | Permissions::others_exe};
 
   for (const auto test_permission : test_permissions) {
-    VerifySecurityFunctions(
-        test_file_type,
-        test_permission,
-        {
-          GENERIC_READ, GENERIC_WRITE, GENERIC_EXECUTE,
-          FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_GENERIC_EXECUTE,
-          FILE_TRAVERSE, DELETE, READ_CONTROL
-        });
+    VerifySecurityFunctions(test_file_type, test_permission,
+                            {GENERIC_READ, GENERIC_WRITE, GENERIC_EXECUTE, FILE_GENERIC_READ,
+                             FILE_GENERIC_WRITE, FILE_GENERIC_EXECUTE, FILE_TRAVERSE, DELETE,
+                             READ_CONTROL});
   }
 }
 
-} // test
-} // drive
-} // maidsafe
+}  // test
+}  // drive
+}  // maidsafe
 
-#endif //WIN32
+#endif  // WIN32

@@ -38,9 +38,7 @@ void ConvertToLowerCase(std::string& input, size_t count) {
                  [](char c) { return std::tolower<char>(c, std::locale("")); });
 }
 
-void ConvertToLowerCase(std::string& input) {
-  ConvertToLowerCase(input, input.size());
-}
+void ConvertToLowerCase(std::string& input) { ConvertToLowerCase(input, input.size()); }
 
 std::string GetLowerCase(std::string input) {
   ConvertToLowerCase(input);
@@ -62,13 +60,12 @@ bool ExcludedFilename(const boost::filesystem::path& path) {
     if (file_name == "clock")
       return true;
   }
-  static const char kExcluded[] = { '"', '*', '/', ':', '<', '>', '?', '\\', '|' };
+  static const char kExcluded[] = {'"', '*', '/', ':', '<', '>', '?', '\\', '|'};
   assert(std::is_sorted(std::begin(kExcluded), std::end(kExcluded)));
   std::sort(std::begin(file_name), std::end(file_name));
   std::vector<char> intersection;
-  std::set_intersection(std::begin(file_name), std::end(file_name),
-                        std::begin(kExcluded), std::end(kExcluded),
-                        std::back_inserter(intersection));
+  std::set_intersection(std::begin(file_name), std::end(file_name), std::begin(kExcluded),
+                        std::end(kExcluded), std::back_inserter(intersection));
   return !intersection.empty();
 }
 

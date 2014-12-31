@@ -58,29 +58,22 @@ class File : public Path {
   //
 
   virtual std::string Serialise();
-  virtual void Serialise(protobuf::Directory&,
-                         std::vector<ImmutableData::Name>&);
+  virtual void Serialise(protobuf::Directory&, std::vector<ImmutableData::Name>&);
   virtual void ScheduleForStoring();
 
-  void Open(
-      const std::function<NonEmptyString(const std::string&)>& get_chunk_from_store,
-      const MemoryUsage max_memory_usage,
-      const DiskUsage max_disk_usage,
-      const boost::filesystem::path& disk_buffer_location);
+  void Open(const std::function<NonEmptyString(const std::string&)>& get_chunk_from_store,
+            const MemoryUsage max_memory_usage, const DiskUsage max_disk_usage,
+            const boost::filesystem::path& disk_buffer_location);
   std::uint32_t Read(char* data, std::uint32_t length, std::uint64_t offset);
   std::uint32_t Write(const char* data, std::uint32_t length, std::uint64_t offset);
   void Truncate(std::uint64_t offset);
   void Close();
 
  private:
-  File(
-      boost::asio::io_service& asio_service,
-      MetaData meta_data_in,
-      std::shared_ptr<Directory> parent_in);
-  File(
-      boost::asio::io_service& asio_service,
-      const boost::filesystem::path& name,
-      bool is_directory);
+  File(boost::asio::io_service& asio_service, MetaData meta_data_in,
+       std::shared_ptr<Directory> parent_in);
+  File(boost::asio::io_service& asio_service, const boost::filesystem::path& name,
+       bool is_directory);
   File(File&&) = delete;
   File& operator=(File) = delete;
 
@@ -92,25 +85,21 @@ class File : public Path {
   // Throw exception if file is not open
   void VerifyHasBuffer() const;
 
-  void CloseEncryptor(
-      std::vector<ImmutableData::Name>& chunks_to_be_incremented);
+  void CloseEncryptor(std::vector<ImmutableData::Name>& chunks_to_be_incremented);
 
   void Serialise(protobuf::Path&);
 
  private:
-
   struct Data {
 
     // Stores some of the original constructor values that are encapsulated in
     // other objects. Needed to "flush" self encryptor (only close is given).
     struct OriginalParameters {
-      OriginalParameters(
-          const MemoryUsage max_memory_usage,
-          const DiskUsage max_disk_usage,
-          const boost::filesystem::path& disk_buffer_location,
-          std::function<NonEmptyString(const std::string&)> get_chunk_from_store);
+      OriginalParameters(const MemoryUsage max_memory_usage, const DiskUsage max_disk_usage,
+                         const boost::filesystem::path& disk_buffer_location,
+                         std::function<NonEmptyString(const std::string&)> get_chunk_from_store);
 
-      OriginalParameters(OriginalParameters&& rhs); // alow move construction
+      OriginalParameters(OriginalParameters&& rhs);  // alow move construction
       OriginalParameters(const OriginalParameters&) = delete;
       OriginalParameters& operator==(const OriginalParameters&) = delete;
       OriginalParameters& operator==(OriginalParameters&&) = delete;
@@ -121,10 +110,8 @@ class File : public Path {
       DiskUsage max_disk_usage_;
     };
 
-    Data(
-        OriginalParameters original_parameters,
-        const boost::filesystem::path& name,
-        encrypt::DataMap& data_map);
+    Data(OriginalParameters original_parameters, const boost::filesystem::path& name,
+         encrypt::DataMap& data_map);
 
     bool IsOpen() const { return open_count_ > 0; }
 

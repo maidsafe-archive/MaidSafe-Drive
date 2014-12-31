@@ -77,8 +77,8 @@ boost::filesystem::path GetRelativePath(CbfsDrive<Storage>* cbfs_drive, CbFsFile
 bool LastAccessUpdateIsDisabled();
 
 // Returns new timestamp if changed, empty optional if not
-boost::optional<common::Clock::time_point> GetNewFiletime(
-    const common::Clock::time_point filetime, const PFILETIME new_value);
+boost::optional<common::Clock::time_point> GetNewFiletime(const common::Clock::time_point filetime,
+                                                          const PFILETIME new_value);
 
 void ErrorMessage(const std::string& method_name, ECBFSError error);
 
@@ -88,21 +88,17 @@ common::Clock::time_point ToTimePoint(const FILETIME&);
 
 // Return true if access is granted to originator. common_error thrown if
 // a windows function fails unexpectedly.
-bool HaveAccessInternal(
-    const WinHandle& originator,
-    DWORD desired_permissions,
-    const detail::WinProcess& owner,
-    const detail::MetaData::FileType path_type,
-    const detail::MetaData::Permissions path_permissions);
+bool HaveAccessInternal(const WinHandle& originator, DWORD desired_permissions,
+                        const detail::WinProcess& owner, const detail::MetaData::FileType path_type,
+                        const detail::MetaData::Permissions path_permissions);
 
 // Return the number of bytes needed for the security descriptor.
 // common_error thrown if a windows function fails unexpectedly.
-DWORD GetFileSecurityInternal(
-    const detail::WinProcess& owner,
-    const detail::MetaData::FileType path_type,
-    const detail::MetaData::Permissions path_permissions,
-    PSECURITY_DESCRIPTOR out_descriptor,
-    const DWORD out_descriptor_length);
+DWORD GetFileSecurityInternal(const detail::WinProcess& owner,
+                              const detail::MetaData::FileType path_type,
+                              const detail::MetaData::Permissions path_permissions,
+                              PSECURITY_DESCRIPTOR out_descriptor,
+                              const DWORD out_descriptor_length);
 
 }  // namespace detail
 
@@ -112,8 +108,7 @@ class CbfsDrive : public Drive<Storage> {
   CbfsDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
             const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
             const boost::filesystem::path& user_app_dir, const boost::filesystem::path& drive_name,
-            std::string mount_status_shared_object_name, bool create,
-            std::string guid);
+            std::string mount_status_shared_object_name, bool create, std::string guid);
 
   virtual ~CbfsDrive();
 
@@ -160,8 +155,7 @@ class CbfsDrive : public Drive<Storage> {
                               PFILETIME last_write_time, int64_t* end_of_file,
                               int64_t* allocation_size, int64_t* file_id OPTIONAL,
                               PDWORD file_attributes, LPWSTR short_file_name OPTIONAL,
-                              PWORD short_file_name_length OPTIONAL,
-                              LPWSTR real_file_name OPTIONAL,
+                              PWORD short_file_name_length OPTIONAL, LPWSTR real_file_name OPTIONAL,
                               LPWORD real_file_name_length OPTIONAL);
   static void CbFsEnumerateDirectory(
       CallbackFileSystem* sender, CbFsFileInfo* directory_info, CbFsHandleInfo* handle_info,
@@ -238,9 +232,9 @@ CbfsDrive<Storage>::~CbfsDrive() {
 template <typename Storage>
 void CbfsDrive<Storage>::DoMount() {
 #ifndef NDEBUG
-    int timeout_milliseconds(0);
+  int timeout_milliseconds(0);
 #else
-    int timeout_milliseconds(30000);
+  int timeout_milliseconds(30000);
 #endif
   if (guid_.empty()) {
     LOG(kError) << "GUID is empty - 'SetGuid' must be called before 'Mount'";
@@ -257,12 +251,10 @@ void CbfsDrive<Storage>::DoMount() {
     // The following can only be called when the media is mounted.
     callback_filesystem_.AddMountingPoint(kMountDir_.c_str());
     UpdateMountingPoints();
-  }
-  catch (const ECBFSError& error) {
+  } catch (const ECBFSError& error) {
     detail::ErrorMessage("Mount: ", error);
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::uninitialised));
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(kError) << "Mount: " << e.what();
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::uninitialised));
   }
@@ -287,8 +279,7 @@ void CbfsDrive<Storage>::UnmountDrive(
       for (int index = callback_filesystem_.GetMountingPointCount() - 1; index >= 0; --index)
         callback_filesystem_.DeleteMountingPoint(index);
       callback_filesystem_.UnmountMedia(std::chrono::steady_clock::now() < timeout);
-    }
-    catch (const ECBFSError&) {
+    } catch (const ECBFSError&) {
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
   }
@@ -298,20 +289,19 @@ template <typename Storage>
 void CbfsDrive<Storage>::DoUnmount() {
   try {
     std::call_once(this->unmounted_once_flag_, [&] {
-        // Only one instance of this lambda function can be run simultaneously.  If any CBFS
-        // function throws, the unmounted_once_flag_ remains unset and another attempt can be made.
-        UnmountDrive(std::chrono::seconds(3));
-        if (callback_filesystem_.StoragePresent())
-          callback_filesystem_.DeleteStorage();
-        callback_filesystem_.SetRegistrationKey(nullptr);
-        unmounted_.set_value();
-        if (!kMountStatusSharedObjectName_.empty())
-          NotifyUnmounted(kMountStatusSharedObjectName_);
+      // Only one instance of this lambda function can be run simultaneously.  If any CBFS
+      // function throws, the unmounted_once_flag_ remains unset and another attempt can be made.
+      UnmountDrive(std::chrono::seconds(3));
+      if (callback_filesystem_.StoragePresent())
+        callback_filesystem_.DeleteStorage();
+      callback_filesystem_.SetRegistrationKey(nullptr);
+      unmounted_.set_value();
+      if (!kMountStatusSharedObjectName_.empty())
+        NotifyUnmounted(kMountStatusSharedObjectName_);
 
-        this->directory_handler_->StoreAll();
+      this->directory_handler_->StoreAll();
     });
-  }
-  catch (const ECBFSError& error) {
+  } catch (const ECBFSError& error) {
     detail::ErrorMessage("Unmount", error);
   }
 }
@@ -392,9 +382,11 @@ template <typename Storage>
 void CbfsDrive<Storage>::InitialiseCbfs() {
   try {
     // Properties
-    callback_filesystem_.SetCallAllOpenCloseCallbacks(true); // True needed for proper permissions checking
+    callback_filesystem_.SetCallAllOpenCloseCallbacks(
+        true);  // True needed for proper permissions checking
     callback_filesystem_.SetCaseSensitiveFileNames(true);
-    callback_filesystem_.SetClusterSize(32 * detail::kFileBlockSize);  // must be a multiple of sector size
+    callback_filesystem_.SetClusterSize(
+        32 * detail::kFileBlockSize);  // must be a multiple of sector size
     callback_filesystem_.SetFileCacheEnabled(true);
     callback_filesystem_.SetMaxFileNameLength(MAX_PATH);
     callback_filesystem_.SetMaxFilePathLength(32767);
@@ -406,15 +398,15 @@ void CbfsDrive<Storage>::InitialiseCbfs() {
     callback_filesystem_.SetSectorSize(detail::kFileBlockSize);
     callback_filesystem_.SetSerializeCallbacks(true);
     callback_filesystem_.SetShortFileNameSupport(false);
-//    callback_filesystem_.SetStorageCharacteristics(
-//        CallbackFileSystem::CbFsStorageCharacteristics(
-//            CallbackFileSystem::scRemovableMedia |
-//            CallbackFileSystem::scShowInEjectionTray |
-//            CallbackFileSystem::scAllowEjection));
-//    callback_filesystem_.SetStorageType(CallbackFileSystem::stDiskPnP);
+    //    callback_filesystem_.SetStorageCharacteristics(
+    //        CallbackFileSystem::CbFsStorageCharacteristics(
+    //            CallbackFileSystem::scRemovableMedia |
+    //            CallbackFileSystem::scShowInEjectionTray |
+    //            CallbackFileSystem::scAllowEjection));
+    //    callback_filesystem_.SetStorageType(CallbackFileSystem::stDiskPnP);
     callback_filesystem_.SetStorageType(CallbackFileSystem::stDisk);
     callback_filesystem_.SetTag(static_cast<void*>(this));
-//    callback_filesystem_.SetMaxWorkerThreadCount(Concurrency());
+    //    callback_filesystem_.SetMaxWorkerThreadCount(Concurrency());
     callback_filesystem_.SetUseFileCreationFlags(true);
 
     // Methods
@@ -446,8 +438,7 @@ void CbfsDrive<Storage>::InitialiseCbfs() {
     callback_filesystem_.SetOnFlushFile(CbFsFlushFile);
     callback_filesystem_.SetOnSetFileSecurity(CbFsSetFileSecurity);
     callback_filesystem_.SetOnGetFileSecurity(CbFsGetFileSecurity);
-  }
-  catch (const ECBFSError& error) {
+  } catch (const ECBFSError& error) {
     detail::ErrorMessage("InitialiseCbfs", error);
   }
   return;
@@ -455,15 +446,11 @@ void CbfsDrive<Storage>::InitialiseCbfs() {
 
 // Return true if access is granted to originator. common_error thrown if
 // a windows function fails unexpectedly.
-template<typename Storage>
-bool CbfsDrive<Storage>::HaveAccess(
-    const detail::Path& path, const DWORD desired_permissions) {
-  return HaveAccessInternal(
-      detail::WinHandle(callback_filesystem_.GetOriginatorToken()),
-      desired_permissions,
-      process_owner_,
-      path.meta_data.file_type(),
-      path.meta_data.GetPermissions(this->get_base_file_permissions()));
+template <typename Storage>
+bool CbfsDrive<Storage>::HaveAccess(const detail::Path& path, const DWORD desired_permissions) {
+  return HaveAccessInternal(detail::WinHandle(callback_filesystem_.GetOriginatorToken()),
+                            desired_permissions, process_owner_, path.meta_data.file_type(),
+                            path.meta_data.GetPermissions(this->get_base_file_permissions()));
 }
 
 // =============================== Callbacks =======================================================
@@ -567,9 +554,8 @@ void CbfsDrive<Storage>::CbFsGetVolumeId(CallbackFileSystem* /*sender*/, PDWORD 
 // proper error code in this situation.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file_name,
-                                        ACCESS_MASK /*desired_access*/,
-                                        DWORD file_attributes, DWORD /*share_mode*/,
-                                        CbFsFileInfo* /*file_info*/,
+                                        ACCESS_MASK /*desired_access*/, DWORD file_attributes,
+                                        DWORD /*share_mode*/, CbFsFileInfo* /*file_info*/,
                                         CbFsHandleInfo* /*handle_info*/) {
   SCOPED_PROFILE
   assert(sender != nullptr);
@@ -602,14 +588,12 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
     // The desired_access field is currently ignored, and we enforce our own.
     // This could be confusing - but denying the file creation seems odd since
     // the user does have write permissions on the directory.
-    const auto file(
-        detail::File::Create(
-            cbfs_drive->asio_service_.service(), relative_path.filename(), is_directory));
+    const auto file(detail::File::Create(cbfs_drive->asio_service_.service(),
+                                         relative_path.filename(), is_directory));
     assert(file.get() != nullptr);
     file->meta_data.set_attributes(file_attributes);
     cbfs_drive->Create(relative_path, file);
-  }
-  catch (const maidsafe_error& error) {
+  } catch (const maidsafe_error& error) {
     LOG(kWarning) << "CbfsCreateFile: " << relative_path << ": " << error.what();
     if (error.code() == make_error_code(DriveErrors::file_exists)) {
       throw ECBFSError(ERROR_ALREADY_EXISTS);
@@ -646,9 +630,8 @@ void CbfsDrive<Storage>::CbFsCreateFile(CallbackFileSystem* sender, LPCTSTR file
 // ERROR_FILE_NOT_FOUND error.
 template <typename Storage>
 void CbfsDrive<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_name,
-                                      ACCESS_MASK desired_access,
-                                      DWORD /*file_attributes*/, DWORD /*share_mode*/,
-                                      CbFsFileInfo* /*file_info*/,
+                                      ACCESS_MASK desired_access, DWORD /*file_attributes*/,
+                                      DWORD /*share_mode*/, CbFsFileInfo* /*file_info*/,
                                       CbFsHandleInfo* /*handle_info*/) {
   SCOPED_PROFILE
   assert(sender != nullptr);
@@ -670,13 +653,12 @@ void CbfsDrive<Storage>::CbFsOpenFile(CallbackFileSystem* sender, LPCWSTR file_n
     }
 
     if (!cbfs_drive->HaveAccess(*open_file, desired_access)) {
-      LOG(kWarning) << "CbfsOpenFile: " << relative_path <<
-                        ": Access denied (Requested access " << desired_access << ")";
+      LOG(kWarning) << "CbfsOpenFile: " << relative_path << ": Access denied (Requested access "
+                    << desired_access << ")";
       throw ECBFSError(ERROR_ACCESS_DENIED);
     }
     cbfs_drive->Open(*open_file);
-  }
-  catch (const maidsafe_error& error) {
+  } catch (const maidsafe_error& error) {
     LOG(kWarning) << "CbFsOpenFile: " << relative_path << ": " << error.what();
     if (error.code() == make_error_code(DriveErrors::no_such_file)) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -714,8 +696,7 @@ void CbfsDrive<Storage>::CbFsCloseFile(CallbackFileSystem* sender, CbFsFileInfo*
       throw ECBFSError(ERROR_INVALID_HANDLE);
     }
     close_file->Close();
-  }
-  catch (const maidsafe_error& error) {
+  } catch (const maidsafe_error& error) {
     LOG(kWarning) << "CbFsCloseFile: " << relative_path << ": " << error.what();
     if (error.code() == make_error_code(DriveErrors::no_such_file)) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -778,8 +759,7 @@ void CbfsDrive<Storage>::CbFsGetFileInfo(
       LOG(kWarning) << "CbFsGetfileInfo " << relative_path << ": Access denied";
       throw ECBFSError(ERROR_ACCESS_DENIED);
     }
-  }
-  catch (const maidsafe_error& error) {
+  } catch (const maidsafe_error& error) {
     LOG(kWarning) << "CbFsGetFileInfo: " << relative_path << ": " << error.what();
     if (error.code() == make_error_code(DriveErrors::no_such_file)) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -866,8 +846,9 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
   CbfsDrive<Storage>* const cbfs_drive(detail::GetDrive<Storage>(sender));
   const auto relative_path(detail::GetRelativePath<Storage>(cbfs_drive, directory_info));
   const std::wstring mask_str(mask);
-  LOG(kInfo) << "CbFsEnumerateDirectory - " << relative_path << " mask: "
-             << WstringToString(mask_str) << " restart: " << std::boolalpha << (restart != 0);
+  LOG(kInfo) << "CbFsEnumerateDirectory - " << relative_path
+             << " mask: " << WstringToString(mask_str) << " restart: " << std::boolalpha
+             << (restart != 0);
   const bool exact_match(mask_str != L"*");
 
   std::shared_ptr<detail::Directory> directory(nullptr);
@@ -883,8 +864,7 @@ void CbfsDrive<Storage>::CbFsEnumerateDirectory(
     if (restart) {
       directory->ResetChildrenCounter();
     }
-  }
-  catch (const maidsafe_error& e) {
+  } catch (const maidsafe_error& e) {
     LOG(kWarning) << "Failed enumerating " << relative_path << ": " << e.what();
     if (e.code() == make_error_code(DriveErrors::no_such_file)) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -939,8 +919,7 @@ void CbfsDrive<Storage>::CbFsCloseDirectoryEnumeration(
   LOG(kInfo) << "CbFsCloseEnumeration - " << relative_path;
   try {
     cbfs_drive->ReleaseDir(relative_path);
-  }
-  catch (const maidsafe_error& e) {
+  } catch (const maidsafe_error& e) {
     LOG(kWarning) << "CbFsCloseDirectoryEnumeration " << relative_path << ": " << e.what();
     if (e.code() == make_error_code(DriveErrors::no_such_file)) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -978,8 +957,7 @@ void CbfsDrive<Storage>::CbFsSetAllocationSize(CallbackFileSystem* sender, CbFsF
     assert(file.get() != nullptr);
     file->meta_data.UpdateAllocationSize(allocation_size);
     file->ScheduleForStoring();
-  }
-  catch (const maidsafe_error& e) {
+  } catch (const maidsafe_error& e) {
     LOG(kWarning) << "CbFsSetAllocationSize " << relative_path << ": " << e.what();
     if (e.code() == make_error_code(DriveErrors::no_such_file)) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -1011,8 +989,7 @@ void CbfsDrive<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileIn
       throw ECBFSError(ERROR_INVALID_HANDLE);
     }
     file->Truncate(end_of_file);
-  }
-  catch (const maidsafe_error& e) {
+  } catch (const maidsafe_error& e) {
     LOG(kWarning) << "CbFsSetEndOfFile " << relative_path << ": " << e.what();
     if (e.code() == make_error_code(DriveErrors::no_such_file)) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -1026,10 +1003,10 @@ void CbfsDrive<Storage>::CbFsSetEndOfFile(CallbackFileSystem* sender, CbFsFileIn
 // This event is fired when the OS or the application needs to change the times and/or the
 // attributes of the open file.  If times are nullptrs or if attributes is 0, they aren't set.
 template <typename Storage>
-void CbfsDrive<Storage>::CbFsSetFileAttributes(
-    CallbackFileSystem* sender, CbFsFileInfo* file_info, CbFsHandleInfo* /*handle_info*/,
-    PFILETIME creation_time, PFILETIME last_access_time, PFILETIME last_write_time,
-    DWORD file_attributes) {
+void CbfsDrive<Storage>::CbFsSetFileAttributes(CallbackFileSystem* sender, CbFsFileInfo* file_info,
+                                               CbFsHandleInfo* /*handle_info*/,
+                                               PFILETIME creation_time, PFILETIME last_access_time,
+                                               PFILETIME last_write_time, DWORD file_attributes) {
   SCOPED_PROFILE
   assert(sender != nullptr);
   assert(file_info != nullptr);
@@ -1085,8 +1062,7 @@ void CbfsDrive<Storage>::CbFsSetFileAttributes(
       path->meta_data.set_status_time(common::Clock::now());
       path->ScheduleForStoring();
     }
-  }
-  catch (const maidsafe_error& e) {
+  } catch (const maidsafe_error& e) {
     LOG(kWarning) << "CbFsSetFileAttributes " << relative_path << ": " << e.what();
     if (e.code() == maidsafe::DriveErrors::no_such_file) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -1134,8 +1110,7 @@ void CbfsDrive<Storage>::CbFsDeleteFile(CallbackFileSystem* sender, CbFsFileInfo
   LOG(kInfo) << "CbFsDeleteFile - " << relative_path;
   try {
     cbfs_drive->Delete(relative_path);
-  }
-  catch (const maidsafe_error& e) {
+  } catch (const maidsafe_error& e) {
     LOG(kWarning) << "CbFsDeleteFile " << relative_path << ": " << e.what();
     if (e.code() == make_error_code(DriveErrors::no_such_file)) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -1166,9 +1141,9 @@ void CbfsDrive<Storage>::CbFsRenameOrMoveFile(CallbackFileSystem* sender, CbFsFi
   LOG(kInfo) << "CbFsRenameOrMoveFile - " << old_relative_path << " to " << new_relative_path;
   try {
     cbfs_drive->Rename(old_relative_path, new_relative_path);
-  }
-  catch (const maidsafe_error& e) {
-    LOG(kWarning) << "CbFsRenameOrMoveFile " << old_relative_path << " to " << new_relative_path << ": " << e.what();
+  } catch (const maidsafe_error& e) {
+    LOG(kWarning) << "CbFsRenameOrMoveFile " << old_relative_path << " to " << new_relative_path
+                  << ": " << e.what();
     if (e.code() == make_error_code(DriveErrors::no_such_file)) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
     }
@@ -1206,10 +1181,9 @@ void CbfsDrive<Storage>::CbFsReadFile(CallbackFileSystem* sender, CbFsFileInfo* 
     if (read_file == nullptr) {
       throw ECBFSError(ERROR_INVALID_HANDLE);
     }
-    *bytes_read = static_cast<DWORD>(
-        read_file->Read(static_cast<char*>(buffer), bytes_to_read, position));
-  }
-  catch (const maidsafe_error& e) {
+    *bytes_read =
+        static_cast<DWORD>(read_file->Read(static_cast<char*>(buffer), bytes_to_read, position));
+  } catch (const maidsafe_error& e) {
     LOG(kWarning) << "Failed to read " << relative_path << ": " << e.what();
     if (e.code() == make_error_code(DriveErrors::no_such_file)) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -1234,8 +1208,7 @@ void CbfsDrive<Storage>::CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo*
   assert(file_info != nullptr);
   assert(buffer != nullptr);
   assert(bytes_written != nullptr);
-  if (sender == nullptr || file_info == nullptr ||
-      buffer == nullptr || bytes_written == nullptr) {
+  if (sender == nullptr || file_info == nullptr || buffer == nullptr || bytes_written == nullptr) {
     throw ECBFSError(ERROR_INVALID_PARAMETER);
   }
   *bytes_written = 0;
@@ -1250,10 +1223,9 @@ void CbfsDrive<Storage>::CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo*
     if (write_file == nullptr) {
       throw ECBFSError(ERROR_INVALID_HANDLE);
     }
-    *bytes_written = static_cast<DWORD>(
-        write_file->Write(static_cast<char*>(buffer), bytes_to_write, position));
-  }
-  catch (const maidsafe_error& e) {
+    *bytes_written =
+        static_cast<DWORD>(write_file->Write(static_cast<char*>(buffer), bytes_to_write, position));
+  } catch (const maidsafe_error& e) {
     LOG(kWarning) << "Failed to write " << relative_path << ": " << e.what();
     if (e.code() == make_error_code(DriveErrors::no_such_file)) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -1267,10 +1239,9 @@ void CbfsDrive<Storage>::CbFsWriteFile(CallbackFileSystem* sender, CbFsFileInfo*
 // This event is fired when the OS wants to check whether the directory is empty or contains some
 // files.
 template <typename Storage>
-void CbfsDrive<Storage>::CbFsIsDirectoryEmpty(
-    CallbackFileSystem* sender,
-    CbFsFileInfo* /*directory_info*/, LPCWSTR file_name,
-    LPBOOL is_empty) {
+void CbfsDrive<Storage>::CbFsIsDirectoryEmpty(CallbackFileSystem* sender,
+                                              CbFsFileInfo* /*directory_info*/, LPCWSTR file_name,
+                                              LPBOOL is_empty) {
   SCOPED_PROFILE
   assert(sender != nullptr);
   assert(file_name != nullptr);
@@ -1284,8 +1255,7 @@ void CbfsDrive<Storage>::CbFsIsDirectoryEmpty(
   try {
     CbfsDrive<Storage>* const cbfs_drive(detail::GetDrive<Storage>(sender));
     *is_empty = cbfs_drive->directory_handler_->template Get<detail::Directory>(file_name)->empty();
-  }
-  catch (const maidsafe_error& e) {
+  } catch (const maidsafe_error& e) {
     LOG(kWarning) << "CbFsIsDirectoryEmpty " << file_name << ": " << e.what();
     if (e.code() == make_error_code(DriveErrors::no_such_file)) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -1294,21 +1264,18 @@ void CbfsDrive<Storage>::CbFsIsDirectoryEmpty(
   }
 }
 
-template<typename Storage>
-void CbfsDrive<Storage>::CbFsSetFileSecurity(
-    CallbackFileSystem*, CbFsFileInfo*, CbFsHandleInfo*, SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, DWORD) {
+template <typename Storage>
+void CbfsDrive<Storage>::CbFsSetFileSecurity(CallbackFileSystem*, CbFsFileInfo*, CbFsHandleInfo*,
+                                             SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, DWORD) {
   throw ECBFSError(ERROR_NOT_SUPPORTED);
 }
 
-template<typename Storage>
-void CbfsDrive<Storage>::CbFsGetFileSecurity(
-    CallbackFileSystem* sender,
-    CbFsFileInfo* file_info,
-    CbFsHandleInfo*,
-    SECURITY_INFORMATION /*requested_information*/,
-    PSECURITY_DESCRIPTOR security_descriptor,
-    DWORD length,
-    PDWORD length_needed) {
+template <typename Storage>
+void CbfsDrive<Storage>::CbFsGetFileSecurity(CallbackFileSystem* sender, CbFsFileInfo* file_info,
+                                             CbFsHandleInfo*,
+                                             SECURITY_INFORMATION /*requested_information*/,
+                                             PSECURITY_DESCRIPTOR security_descriptor, DWORD length,
+                                             PDWORD length_needed) {
   assert(sender != nullptr);
   assert(file_info != nullptr);
   assert(length_needed != nullptr);
@@ -1329,19 +1296,15 @@ void CbfsDrive<Storage>::CbFsGetFileSecurity(
     /* The requested_information parameter is ignored because if a DACL is
     not provided, the access defaults to grant. Therefore, to prevent issues,
     the DACL is always provided (and thus no needed for the parameter). */
-    *length_needed =
-        detail::GetFileSecurityInternal(
-            cbfs_drive->process_owner_,
-            path->meta_data.file_type(),
-            path->meta_data.GetPermissions(cbfs_drive->get_base_file_permissions()),
-            security_descriptor,
-            length);
+    *length_needed = detail::GetFileSecurityInternal(
+        cbfs_drive->process_owner_, path->meta_data.file_type(),
+        path->meta_data.GetPermissions(cbfs_drive->get_base_file_permissions()),
+        security_descriptor, length);
 
     if (*length_needed > length) {
       throw ECBFSError(ERROR_INSUFFICIENT_BUFFER);
     }
-  }
-  catch (const maidsafe_error& e) {
+  } catch (const maidsafe_error& e) {
     LOG(kWarning) << "CbfsGetFile " << relative_path << " : " << e.what();
     if (e.code() == make_error_code(DriveErrors::no_such_file)) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);
@@ -1370,8 +1333,7 @@ void CbfsDrive<Storage>::CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo*
     try {
       cbfs_drive->FlushAll();
       return;
-    }
-    catch (const maidsafe_error& e) {
+    } catch (const maidsafe_error& e) {
       LOG(kWarning) << "CbFsFlushFile for all files: " << e.what();
       if (e.code() == make_error_code(DriveErrors::no_such_file)) {
         throw ECBFSError(ERROR_ERRORS_ENCOUNTERED);
@@ -1385,8 +1347,7 @@ void CbfsDrive<Storage>::CbFsFlushFile(CallbackFileSystem* sender, CbFsFileInfo*
   LOG(kInfo) << "CbFsFlushFile - " << relative_path;
   try {
     cbfs_drive->GetMutableContext(relative_path)->ScheduleForStoring();
-  }
-  catch (const maidsafe_error& error) {
+  } catch (const maidsafe_error& error) {
     LOG(kWarning) << "CbFsFlushFile " << relative_path << ": " << error.what();
     if (error.code() == make_error_code(DriveErrors::no_such_file)) {
       throw ECBFSError(ERROR_FILE_NOT_FOUND);

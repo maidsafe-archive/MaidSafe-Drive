@@ -33,7 +33,6 @@ namespace detail {
 // Retrieves and stores information about a process
 class WinProcess {
  public:
-
   // Retrieve information about the current process
   WinProcess();
 
@@ -46,12 +45,9 @@ class WinProcess {
   }
 
   // Return access token for the process
-  const WinHandle& GetAccessToken() const {
-    return process_handle_;
-  }
+  const WinHandle& GetAccessToken() const { return process_handle_; }
 
  private:
-
   WinProcess(const WinProcess&) = delete;
   WinProcess(WinProcess&&) = delete;
   WinProcess& operator=(const WinProcess&) = delete;
@@ -62,9 +58,9 @@ class WinProcess {
   std::unique_ptr<char[]> sid_memory_;
 };
 
-} //drive
-} // detail
-} // maidsafe
+}  // drive
+}  // detail
+}  // maidsafe
 
 
-#endif // MAIDSAFE_DRIVE_WIN_PROCESS_H_
+#endif  // MAIDSAFE_DRIVE_WIN_PROCESS_H_

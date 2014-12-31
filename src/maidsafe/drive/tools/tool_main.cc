@@ -161,7 +161,7 @@ void RemoveStorageDirectory(const fs::path& storage_path) {
 }
 
 passport::MaidAndSigner CreateAccount() {
-  passport::MaidAndSigner maid_and_signer{ passport::CreateMaidAndSigner() };
+  passport::MaidAndSigner maid_and_signer{passport::CreateMaidAndSigner()};
   auto maid_node_nfs = nfs_client::MaidNodeNfs::MakeShared(maid_and_signer);
   maid_node_nfs->Stop();
   LOG(kSuccess) << " Account created for MAID : " << DebugId(maid_and_signer.first.name());
@@ -172,16 +172,17 @@ po::options_description CommandLineOptions() {
   boost::system::error_code error_code;
   po::options_description command_line_options(std::string("Filesystem Tool Options:\n") +
                                                kHelpInfo);
-  command_line_options.add_options()("help,h", "Show help message.")
-      ("disk", "Perform all tests/benchmarks on native hard disk.")
-      ("local", "Perform all tests/benchmarks on local VFS.")
-      ("network", "Perform all tests/benchmarks on network VFS.");
+  command_line_options.add_options()("help,h", "Show help message.")(
+      "disk", "Perform all tests/benchmarks on native hard disk.")(
+      "local", "Perform all tests/benchmarks on local VFS.")(
+      "network", "Perform all tests/benchmarks on network VFS.");
 #ifdef MAIDSAFE_WIN32
-  command_line_options.add_options()
-      ("local_console", "Perform all tests/benchmarks on local VFS running as a console app.")
-      ("network_console", "Perform all tests/benchmarks on network VFS running as a console app.")
-      ("enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging), "Enable logging on the VFS "
-       "(this is only useful if used with '--local_console' or '--network_console'.");
+  command_line_options.add_options()(
+      "local_console", "Perform all tests/benchmarks on local VFS running as a console app.")(
+      "network_console", "Perform all tests/benchmarks on network VFS running as a console app.")(
+      "enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging),
+      "Enable logging on the VFS "
+      "(this is only useful if used with '--local_console' or '--network_console'.");
 #else
   command_line_options.add_options()(
       "enable_vfs_logging", po::bool_switch(&g_enable_vfs_logging),
@@ -308,10 +309,10 @@ std::function<void()> PrepareNetworkVfs() {
   drive::Options options;
   auto maid_and_signer = CreateAccount();
 
-  crypto::AES256Key symm_key{ RandomString(crypto::AES256_KeySize) };
-  crypto::AES256InitialisationVector symm_iv{ RandomString(crypto::AES256_IVSize) };
-  crypto::CipherText encrypted_maid(passport::EncryptMaid(maid_and_signer.first, symm_key,
-                                                          symm_iv));
+  crypto::AES256Key symm_key{RandomString(crypto::AES256_KeySize)};
+  crypto::AES256InitialisationVector symm_iv{RandomString(crypto::AES256_IVSize)};
+  crypto::CipherText encrypted_maid(
+      passport::EncryptMaid(maid_and_signer.first, symm_key, symm_iv));
   passport::PublicMaid public_maid(maid_and_signer.first);
 
   options.mount_path = g_root;
@@ -370,22 +371,19 @@ int main(int argc, char** argv) {
     auto cleanup_functor(maidsafe::test::PrepareTest());
     maidsafe::on_scope_exit cleanup_on_exit(cleanup_functor);
 
-    auto tests_result(maidsafe::test::RunTool(argc, argv, maidsafe::test::g_root,
-                                              maidsafe::test::g_temp, maidsafe::test::g_options,
-                                              maidsafe::test::g_launcher,
-                                              static_cast<int>(maidsafe::test::g_test_type)));
+    auto tests_result(maidsafe::test::RunTool(
+        argc, argv, maidsafe::test::g_root, maidsafe::test::g_temp, maidsafe::test::g_options,
+        maidsafe::test::g_launcher, static_cast<int>(maidsafe::test::g_test_type)));
     if (maidsafe::test::g_launcher)
       maidsafe::test::g_launcher->StopDriveProcess();
     return tests_result;
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     if (!maidsafe::test::g_error_message.empty()) {
       std::cout << maidsafe::test::g_error_message;
       return maidsafe::test::g_return_code;
     }
     LOG(kError) << "Exception: " << e.what();
-  }
-  catch (...) {
+  } catch (...) {
     LOG(kError) << "Exception of unknown type!";
   }
   return 64;

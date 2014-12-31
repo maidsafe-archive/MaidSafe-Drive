@@ -36,8 +36,8 @@ struct CloseHandleFunctor {
 
 using WinHandle = std::unique_ptr<void, CloseHandleFunctor>;
 
-} // detail
-} // drive
-} // maidsafe
+}  // detail
+}  // drive
+}  // maidsafe
 
-#endif // MAIDSAFE_WIN_HANDLE_H_
+#endif  // MAIDSAFE_WIN_HANDLE_H_

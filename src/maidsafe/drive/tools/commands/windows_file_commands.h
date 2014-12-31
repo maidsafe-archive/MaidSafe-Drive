@@ -38,10 +38,10 @@ detail::WinHandle CreateFileCommand(const boost::filesystem::path& path, DWORD d
                                     DWORD flags_and_attributes);
 DWORD GetFileAttributesCommand(const boost::filesystem::path& path);
 BOOL SetFileAttributesCommand(const boost::filesystem::path& path, DWORD attributes);
-BOOL WriteFileCommand(HANDLE handle, const boost::filesystem::path& path,
-                      const std::string& buffer, LPDWORD bytes_written, LPOVERLAPPED overlapped);
-BOOL ReadFileCommand(HANDLE handle, const boost::filesystem::path& path,
-                     const std::string& buffer, LPDWORD bytes_read, LPOVERLAPPED overlapped);
+BOOL WriteFileCommand(HANDLE handle, const boost::filesystem::path& path, const std::string& buffer,
+                      LPDWORD bytes_written, LPOVERLAPPED overlapped);
+BOOL ReadFileCommand(HANDLE handle, const boost::filesystem::path& path, const std::string& buffer,
+                     LPDWORD bytes_read, LPOVERLAPPED overlapped);
 BOOL DeleteFileCommand(const boost::filesystem::path& path);
 BOOL RemoveDirectoryCommand(const boost::filesystem::path& path);
 DWORD GetFileSizeCommand(HANDLE handle, LPDWORD file_size_high);

@@ -26,26 +26,26 @@
 #include "sigmoid/core/log.h"
 
 #ifdef __MSVC__
-#  pragma warning(push, 1)
+#pragma warning(push, 1)
 #endif
 
 #include "boost/program_options.hpp"
 
 #ifdef __MSVC__
-#  pragma warning(pop)
+#pragma warning(pop)
 #endif
 
 namespace fs = boost::filesystem;
 namespace po = boost::program_options;
 
 namespace {
-  std::string WstringToString(const std::wstring &input) {
-    std::locale locale("");
-    std::string string_buffer(input.size() * 4 + 1, 0);
-    std::use_facet< std::ctype<wchar_t> >(locale).narrow(&input[0],
-        &input[0] + input.size(), '?', &string_buffer[0]);
-    return std::string(&string_buffer[0]);
-  }
+std::string WstringToString(const std::wstring& input) {
+  std::locale locale("");
+  std::string string_buffer(input.size() * 4 + 1, 0);
+  std::use_facet<std::ctype<wchar_t>>(locale)
+      .narrow(&input[0], &input[0] + input.size(), '?', &string_buffer[0]);
+  return std::string(&string_buffer[0]);
+}
 }
 
 enum {
@@ -58,8 +58,7 @@ enum {
   SIGMOID_SERVICE_STOP_REQUESTED
 };
 
-fs::path GetPathFromProgramOption(const std::string &option_name,
-                                  po::variables_map *variables_map,
+fs::path GetPathFromProgramOption(const std::string& option_name, po::variables_map* variables_map,
                                   bool must_exist) {
   if (variables_map->count(option_name)) {
     boost::system::error_code error_code;
@@ -67,21 +66,19 @@ fs::path GetPathFromProgramOption(const std::string &option_name,
     if (must_exist) {
       if (!fs::exists(option_path, error_code) || error_code) {
         LOG(ERROR) << "Invalid " << option_name << " option.  " << option_path
-                   << " doesn't exist or can't be accessed (error message: "
-                   << error_code.message() << ")";
+                   << " doesn't exist or can't be accessed (error message: " << error_code.message()
+                   << ")";
         return fs::path();
       }
       if (!fs::is_directory(option_path, error_code) || error_code) {
         LOG(ERROR) << "Invalid " << option_name << " option.  " << option_path
-                   << " is not a directory (error message: "
-                   << error_code.message() << ")";
+                   << " is not a directory (error message: " << error_code.message() << ")";
         return fs::path();
       }
     } else {
       if (fs::exists(option_path, error_code)) {
         LOG(ERROR) << "Invalid " << option_name << " option.  " << option_path
-                   << " already exists (error message: "
-                   << error_code.message() << ")";
+                   << " already exists (error message: " << error_code.message() << ")";
         return fs::path();
       }
     }
@@ -100,38 +97,25 @@ fs::path ApplicationDataConfigFilePath() {
   boost::system::error_code error_code;
   bool found_config_file = false;
 
-  if (SUCCEEDED(SHGetFolderPath(NULL,
-                                CSIDL_COMMON_APPDATA,
-                                NULL,
-                                0,
-                                application_data_directory))) {
+  if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_COMMON_APPDATA, NULL, 0, application_data_directory))) {
     application_data_path = application_data_directory;
-    application_config_file_path = application_data_path
-                                   / "Sigmoid\\Core\\sigmoid_core.conf";
+    application_config_file_path = application_data_path / "Sigmoid\\Core\\sigmoid_core.conf";
     if (fs::exists(application_config_file_path, error_code)) {
       found_config_file = true;
     } else {
       application_data_directory[0] = '\0';
-      if (SUCCEEDED(SHGetFolderPath(NULL,
-                                    CSIDL_APPDATA,
-                                    NULL,
-                                    0,
-                                    application_data_directory))) {
+      if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, 0, application_data_directory))) {
         application_data_path = application_data_directory;
-        application_config_file_path = application_data_path
-                                       / "Sigmoid\\Core\\sigmoid_core.conf";
+        application_config_file_path = application_data_path / "Sigmoid\\Core\\sigmoid_core.conf";
         if (fs::exists(application_config_file_path, error_code)) {
           found_config_file = true;
         } else {
           application_data_directory[0] = '\0';
-          if (SUCCEEDED(SHGetFolderPath(NULL,
-                                        CSIDL_LOCAL_APPDATA,
-                                        NULL,
-                                        0,
+          if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA, NULL, 0,
                                         application_data_directory))) {
             application_data_path = application_data_directory;
-            application_config_file_path = application_data_path
-                                          / "Sigmoid\\Core\\sigmoid_core.conf";
+            application_config_file_path =
+                application_data_path / "Sigmoid\\Core\\sigmoid_core.conf";
             if (fs::exists(application_config_file_path, error_code)) {
               found_config_file = true;
             }
@@ -145,21 +129,16 @@ fs::path ApplicationDataConfigFilePath() {
     if (!fs::exists(logging_dir, error_code))
       fs::create_directory(logging_dir, error_code);
     fs::path log_path(logging_dir / "sigmoid_core.");
-    for (google::LogSeverity s = google::WARNING; s < google::NUM_SEVERITIES;
-         ++s)
+    for (google::LogSeverity s = google::WARNING; s < google::NUM_SEVERITIES; ++s)
       google::SetLogDestination(s, "");
     google::SetLogDestination(google::INFO, log_path.string().c_str());
-    LOG(INFO) << "Sigmoid log files will be written to "
-              << WstringToString(logging_dir.wstring());
+    LOG(INFO) << "Sigmoid log files will be written to " << WstringToString(logging_dir.wstring());
   }
   return application_config_file_path;
 }
 
 struct NullLogger : public google::base::Logger {
-  virtual void Write(bool should_flush,
-                     time_t timestamp,
-                     const char* message,
-                     int length) {}
+  virtual void Write(bool should_flush, time_t timestamp, const char* message, int length) {}
   virtual void Flush() {}
   virtual std::uint32_t LogSize() { return 0; }
 };
@@ -170,7 +149,7 @@ void SigmoidLogger(int severity, google::base::Logger* logger) {
   google::FlushLogFiles(severity);
 }
 
-void FailureWriter(const char *data, int size) {
+void FailureWriter(const char* data, int size) {
   fs::path logging_dir(fs::temp_directory_path() / "SigmoidCoreLogs");
   boost::system::error_code error_code;
   if (!fs::exists(logging_dir, error_code))
@@ -178,10 +157,9 @@ void FailureWriter(const char *data, int size) {
   std::string data_dump(data, size);
   std::ofstream dump_file;
   dump_file.open(logging_dir.string() + "data_dump.log",
-           std::ios_base::out | std::ios_base::binary);
+                 std::ios_base::out | std::ios_base::binary);
   if (dump_file.bad()) {
-    LOG(INFO) << "Unable to open " << logging_dir.string()
-              << "\\data_dump.log!\n";
+    LOG(INFO) << "Unable to open " << logging_dir.string() << "\\data_dump.log!\n";
   } else {
     dump_file << data_dump;
     dump_file.close();
@@ -204,7 +182,7 @@ void StopService(DWORD exit_code, DWORD error_code) {
 void ServiceMain();
 void ControlHandler(DWORD request);
 
-int main(int /*argc*/, char *argv[]) {
+int main(int /*argc*/, char* argv[]) {
   google::InitGoogleLogging(argv[0]);
   // google::InstallFailureSignalHandler();
   // google::InstallFailureWriter(&FailureWriter);
@@ -221,8 +199,7 @@ int main(int /*argc*/, char *argv[]) {
 
   SERVICE_TABLE_ENTRY service_table[2];
   service_table[0].lpServiceName = g_service_name;
-  service_table[0].lpServiceProc =
-      reinterpret_cast<LPSERVICE_MAIN_FUNCTION>(ServiceMain);
+  service_table[0].lpServiceProc = reinterpret_cast<LPSERVICE_MAIN_FUNCTION>(ServiceMain);
   service_table[1].lpServiceName = NULL;
   service_table[1].lpServiceProc = NULL;
   // Start the control dispatcher thread for our service
@@ -234,15 +211,14 @@ int main(int /*argc*/, char *argv[]) {
 void ServiceMain() {
   g_service_status.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
   g_service_status.dwCurrentState = SERVICE_START_PENDING;
-  g_service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP |
-                                        SERVICE_ACCEPT_SHUTDOWN;
+  g_service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
   g_service_status.dwWin32ExitCode = 0;
   g_service_status.dwServiceSpecificExitCode = 0;
   g_service_status.dwCheckPoint = 0;
   g_service_status.dwWaitHint = 0;
 
-  g_service_status_handle = RegisterServiceCtrlHandler(g_service_name,
-      reinterpret_cast<LPHANDLER_FUNCTION>(ControlHandler));
+  g_service_status_handle = RegisterServiceCtrlHandler(
+      g_service_name, reinterpret_cast<LPHANDLER_FUNCTION>(ControlHandler));
   if (g_service_status_handle == SERVICE_STATUS_HANDLE(0))
     return;
 
@@ -250,16 +226,13 @@ void ServiceMain() {
 
   try {
     po::options_description options_description("Allowed options");
-    options_description.add_options()
-        ("help,H", "print this help message")
-        ("version,V", "Display version")
-        ("chunkdir,C", po::value<std::string>(),
-         "set directory to store chunks")
-        ("metadatadir,M", po::value<std::string>(),
-         "set directory to store metadata")
-        ("mountdir,D", po::value<std::string>(), "set virtual drive name")
-        ("checkdata", "check all data (metadata and chunks)")
-        ("start", "start Sigmoid Core (mount drive) [default]")  // daemonise
+    options_description.add_options()("help,H", "print this help message")(
+        "version,V", "Display version")("chunkdir,C", po::value<std::string>(),
+                                        "set directory to store chunks")(
+        "metadatadir,M", po::value<std::string>(), "set directory to store metadata")(
+        "mountdir,D", po::value<std::string>(),
+        "set virtual drive name")("checkdata", "check all data (metadata and chunks)")(
+        "start", "start Sigmoid Core (mount drive) [default]")  // daemonise
         ("stop", "stop Sigmoid Core (unmount drive) [not implemented]");
 
     po::variables_map variables_map;
@@ -292,45 +265,36 @@ void ServiceMain() {
 
     if (variables_map.count("version")) {
       // We should include version.h and use a standard here
-      LOG(INFO) << "Sigmoid Core version = "
-                << BOOST_PP_STRINGIZE(SIGMOID_CORE_VERSION) << "\n";
-      LOG(INFO) << "MaidSafe-Common Version = "
-                << BOOST_PP_STRINGIZE(MAIDSAFE_COMMON_VERSION) << "\n";
-      LOG(INFO) << "MaidSafe-Encrypt Version = "
-                << BOOST_PP_STRINGIZE(MAIDSAFE_ENCRYPT_VERSION) << "\n";
+      LOG(INFO) << "Sigmoid Core version = " << BOOST_PP_STRINGIZE(SIGMOID_CORE_VERSION) << "\n";
+      LOG(INFO) << "MaidSafe-Common Version = " << BOOST_PP_STRINGIZE(MAIDSAFE_COMMON_VERSION)
+                << "\n";
+      LOG(INFO) << "MaidSafe-Encrypt Version = " << BOOST_PP_STRINGIZE(MAIDSAFE_ENCRYPT_VERSION)
+                << "\n";
       return;
     }
 
-    chunkstore_path = GetPathFromProgramOption("chunkdir", &variables_map,
-                                               true);
-    metadata_path = GetPathFromProgramOption("metadatadir", &variables_map,
-                                             true);
+    chunkstore_path = GetPathFromProgramOption("chunkdir", &variables_map, true);
+    metadata_path = GetPathFromProgramOption("metadatadir", &variables_map, true);
     mount_path = GetPathFromProgramOption("mountdir", &variables_map, false);
 
     if (variables_map.count("stop")) {
       LOG(WARNING) << "Trying to stop.\n";
-      StopService(ERROR_SERVICE_SPECIFIC_ERROR,
-                  SIGMOID_SERVICE_DRIVE_UNMOUNTING);
+      StopService(ERROR_SERVICE_SPECIFIC_ERROR, SIGMOID_SERVICE_DRIVE_UNMOUNTING);
       return;
     }
 
-    if (chunkstore_path == fs::path() ||
-        metadata_path == fs::path() ||
-        mount_path == fs::path()) {
+    if (chunkstore_path == fs::path() || metadata_path == fs::path() || mount_path == fs::path()) {
       LOG(ERROR) << "Usage " << options_description << "\n";
       StopService(ERROR_SERVICE_SPECIFIC_ERROR, SIGMOID_SERVICE_EMPTY_PATH);
       return;
     }
-  }
-  catch(const std::exception& e) {
+  } catch (const std::exception& e) {
     LOG(ERROR) << "Exception: " << e.what() << "\n";
     StopService(ERROR_SERVICE_SPECIFIC_ERROR, SIGMOID_SERVICE_STD_EXCEPTION);
     return;
-  }
-  catch(...) {
+  } catch (...) {
     LOG(ERROR) << "Exception of unknown type!\n";
-    StopService(ERROR_SERVICE_SPECIFIC_ERROR,
-                SIGMOID_SERVICE_UNKNOWN_EXCEPTION);
+    StopService(ERROR_SERVICE_SPECIFIC_ERROR, SIGMOID_SERVICE_UNKNOWN_EXCEPTION);
     return;
   }
 

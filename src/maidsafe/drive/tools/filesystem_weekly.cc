@@ -498,19 +498,22 @@ int RunTool(int argc, char** argv, const fs::path& root, const fs::path& temp,
                                [](const std::string& arg) { return arg == "--no_big_test"; }));
   bool no_small_test(std::any_of(std::begin(arguments), std::end(arguments),
                                  [](const std::string& arg) { return arg == "--no_small_test"; }));
-  bool no_clone_and_build_maidsafe_test(std::any_of(
-      std::begin(arguments), std::end(arguments),
-      [](const std::string& arg) { return arg == "--no_clone_and_build_maidsafe_test"; }));
-  bool no_download_and_build_poco_test(std::any_of(
-      std::begin(arguments), std::end(arguments),
-      [](const std::string& arg) { return arg == "--no_download_and_build_poco_test"; }));
+  bool no_clone_and_build_maidsafe_test(
+      std::any_of(std::begin(arguments), std::end(arguments), [](const std::string& arg) {
+        return arg == "--no_clone_and_build_maidsafe_test";
+      }));
+  bool no_download_and_build_poco_test(
+      std::any_of(std::begin(arguments), std::end(arguments), [](const std::string& arg) {
+        return arg == "--no_download_and_build_poco_test";
+      }));
   bool no_download_and_build_poco_foundation_test(
       std::any_of(std::begin(arguments), std::end(arguments), [](const std::string& arg) {
         return arg == "--no_download_and_build_poco_foundation_test";
       }));
-  bool no_download_and_extract_boost_test(std::any_of(
-      std::begin(arguments), std::end(arguments),
-      [](const std::string& arg) { return arg == "--no_download_and_extract_boost_test"; }));
+  bool no_download_and_extract_boost_test(
+      std::any_of(std::begin(arguments), std::end(arguments), [](const std::string& arg) {
+        return arg == "--no_download_and_extract_boost_test";
+      }));
 
   g_root = root;
   g_temp = temp;

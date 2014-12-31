@@ -27,9 +27,7 @@ namespace maidsafe {
 namespace drive {
 namespace detail {
 
-WinProcess::WinProcess()
-  : process_handle_(),
-    sid_memory_() {
+WinProcess::WinProcess() : process_handle_(), sid_memory_() {
   {
     HANDLE temp_handle{};
     const bool fail =
@@ -49,17 +47,13 @@ WinProcess::WinProcess()
   }
 
   sid_memory_ = maidsafe::make_unique<char[]>(user_token_size);
-  if (!GetTokenInformation(
-        process_handle_.get(),
-        TokenOwner,
-        sid_memory_.get(),
-        user_token_size,
-        &user_token_size)) {
+  if (!GetTokenInformation(process_handle_.get(), TokenOwner, sid_memory_.get(), user_token_size,
+                           &user_token_size)) {
     sid_memory_.reset();
     return;
   }
 }
 
-} // detail
+}  // detail
 }  // drive
-} // maidsafe
+}  // maidsafe

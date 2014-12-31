@@ -24,31 +24,20 @@
 
 namespace fs = boost::filesystem;
 
-namespace maidsafe
-{
-namespace drive
-{
-namespace detail
-{
+namespace maidsafe {
+namespace drive {
+namespace detail {
 
-Symlink::Symlink()
-    : Path(fs::symlink_file) {
-}
+Symlink::Symlink() : Path(fs::symlink_file) {}
 
-Symlink::Symlink(const fs::path& target,
-                 const fs::path& source)
-    : Path(fs::symlink_file),
-      target(target),
-      source(source) {
+Symlink::Symlink(const fs::path& target, const fs::path& source)
+    : Path(fs::symlink_file), target(target), source(source) {
   meta_data.set_name(target);
 }
 
-std::string Symlink::Serialise() {
-  return std::string();
-}
+std::string Symlink::Serialise() { return std::string(); }
 
-void Symlink::Serialise(protobuf::Directory& proto_directory,
-                        std::vector<ImmutableData::Name>&) {
+void Symlink::Serialise(protobuf::Directory& proto_directory, std::vector<ImmutableData::Name>&) {
   auto child = proto_directory.add_children();
   Serialise(*child);
 }
@@ -63,14 +52,12 @@ void Symlink::Serialise(protobuf::Path& proto_path) {
 void Symlink::ScheduleForStoring() {
   std::shared_ptr<Directory> parent = Parent();
   if (parent) {
-      parent->ScheduleForStoring();
+    parent->ScheduleForStoring();
   }
 }
 
-fs::path Symlink::Target() const {
-  return target;
-}
+fs::path Symlink::Target() const { return target; }
 
-} // namespace detail
-} // namespace drive
-} // namespace maidsafe
+}  // namespace detail
+}  // namespace drive
+}  // namespace maidsafe

@@ -36,11 +36,7 @@ namespace drive {
 namespace {
 
 MAIDSAFE_CONSTEXPR_OR_CONST GENERIC_MAPPING default_access_mappings = {
-  FILE_GENERIC_READ,
-  FILE_GENERIC_WRITE,
-  FILE_GENERIC_EXECUTE,
-  FILE_ALL_ACCESS
-};
+    FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_GENERIC_EXECUTE, FILE_ALL_ACCESS};
 
 const auto WinLocalFreeLambda = [](void* memory) {
   if (memory) {
@@ -88,19 +84,15 @@ void ThrowWinFunctionError(const char* const function_name) {
       std::string(function_name) + " failed with code " + std::to_string(win_error_code);
 
   BOOST_THROW_EXCEPTION(
-      common_error(
-          make_error_code(CommonErrors::unable_to_handle_request), error_msg));
+      common_error(make_error_code(CommonErrors::unable_to_handle_request), error_msg));
 }
 
 std::pair<EXPLICIT_ACCESS, std::unique_ptr<SID>> MakeAce(
     const detail::MetaData::FileType path_type,
     const detail::MetaData::Permissions path_permissions,
-    const std::tuple<
-        const WELL_KNOWN_SID_TYPE,
-        const TRUSTEE_TYPE,
-        const detail::MetaData::Permissions,
-        const detail::MetaData::Permissions,
-        const detail::MetaData::Permissions>& mappings) {
+    const std::tuple<const WELL_KNOWN_SID_TYPE, const TRUSTEE_TYPE,
+                     const detail::MetaData::Permissions, const detail::MetaData::Permissions,
+                     const detail::MetaData::Permissions>& mappings) {
 
   MAIDSAFE_CONSTEXPR_OR_CONST std::size_t SidType = 0;
   MAIDSAFE_CONSTEXPR_OR_CONST std::size_t TrusteeType = 1;
@@ -127,13 +119,12 @@ std::pair<EXPLICIT_ACCESS, std::unique_ptr<SID>> MakeAce(
         detail::HasPermission(path_permissions, std::get<ExecutePermission>(mappings))) {
       access_mask |= FILE_GENERIC_READ;
       access_mask |= FILE_TRAVERSE;
-      access_mask |= READ_CONTROL; // allow user to see permissions
+      access_mask |= READ_CONTROL;  // allow user to see permissions
     }
-  }
-  else {
+  } else {
     if (detail::HasPermission(path_permissions, std::get<ReadPermission>(mappings))) {
       access_mask |= FILE_GENERIC_READ;
-      access_mask |= READ_CONTROL; // allow user to see permissions
+      access_mask |= READ_CONTROL;  // allow user to see permissions
     }
 
     if (detail::HasPermission(path_permissions, std::get<ExecutePermission>(mappings))) {
@@ -152,12 +143,9 @@ std::pair<EXPLICIT_ACCESS, std::unique_ptr<SID>> MakeAce(
   return std::make_pair(ace, std::move(sid));
 }
 
-DWORD ConvertToRelative(
-    const detail::WinProcess& object_creator,
-    const bool is_directory,
-    SECURITY_DESCRIPTOR& absolute,
-    PSECURITY_DESCRIPTOR relative,
-    const DWORD relative_size) {
+DWORD ConvertToRelative(const detail::WinProcess& object_creator, const bool is_directory,
+                        SECURITY_DESCRIPTOR& absolute, PSECURITY_DESCRIPTOR relative,
+                        const DWORD relative_size) {
 
   WinPrivateObjectSecurity private_descriptor{};
   {
@@ -165,15 +153,9 @@ DWORD ConvertToRelative(
 
     PSECURITY_DESCRIPTOR temp_private_descriptor{};
     const bool fail =
-        (CreatePrivateObjectSecurityEx(
-            NULL,
-            &absolute,
-            &temp_private_descriptor,
-            NULL,
-            is_directory,
-            SEF_DACL_AUTO_INHERIT,
-            object_creator.GetAccessToken().get(),
-            &mapping) == 0);
+        (CreatePrivateObjectSecurityEx(NULL, &absolute, &temp_private_descriptor, NULL,
+                                       is_directory, SEF_DACL_AUTO_INHERIT,
+                                       object_creator.GetAccessToken().get(), &mapping) == 0);
     private_descriptor.reset(temp_private_descriptor);
 
     if (fail) {
@@ -201,8 +183,8 @@ bool LastAccessUpdateIsDisabled() {
   return kIsDisabled;
 }
 
-boost::optional<common::Clock::time_point> GetNewFiletime(
-    const common::Clock::time_point filetime, const PFILETIME new_value) {
+boost::optional<common::Clock::time_point> GetNewFiletime(const common::Clock::time_point filetime,
+                                                          const PFILETIME new_value) {
   if (new_value) {
     const common::Clock::time_point t = ToTimePoint(*new_value);
     if (filetime != t) {
@@ -212,7 +194,7 @@ boost::optional<common::Clock::time_point> GetNewFiletime(
   return boost::none;
 }
 
-void ErrorMessage(const std::string &method_name, ECBFSError error) {
+void ErrorMessage(const std::string& method_name, ECBFSError error) {
   LOG(kError) << "Cbfs::" << method_name << ": " << WstringToString(error.Message());
 }
 
@@ -224,9 +206,8 @@ FILETIME ToFileTime(const common::Clock::time_point& input) {
   const ULONGLONG chronoTicks = 1ULL;
   // 369 years
   const ULONGLONG epochDifference = 11644473600ULL * (chronoTicks / filetimeTicks);
-  ULONGLONG stamp
-      = epochDifference
-      + (duration_cast<nanoseconds>(input.time_since_epoch()).count() / filetimeTicks);
+  ULONGLONG stamp = epochDifference +
+                    (duration_cast<nanoseconds>(input.time_since_epoch()).count() / filetimeTicks);
   FILETIME result;
   result.dwHighDateTime = stamp >> 32;
   result.dwLowDateTime = stamp & 0xFFFFFFFF;
@@ -244,23 +225,16 @@ common::Clock::time_point ToTimePoint(const FILETIME& input) {
   return common::Clock::time_point(nanoseconds(stamp));
 }
 
-bool HaveAccessInternal(
-    const WinHandle& originator,
-    DWORD desired_permissions,
-    const detail::WinProcess& owner,
-    const detail::MetaData::FileType path_type,
-    const detail::MetaData::Permissions path_permissions) {
+bool HaveAccessInternal(const WinHandle& originator, DWORD desired_permissions,
+                        const detail::WinProcess& owner, const detail::MetaData::FileType path_type,
+                        const detail::MetaData::Permissions path_permissions) {
 
-  const DWORD desired_length =
-      GetFileSecurityInternal(
-          owner, path_type, path_permissions, NULL, 0);
+  const DWORD desired_length = GetFileSecurityInternal(owner, path_type, path_permissions, NULL, 0);
 
-  const std::unique_ptr<char[]> security(
-      maidsafe::make_unique<char[]>(desired_length));
+  const std::unique_ptr<char[]> security(maidsafe::make_unique<char[]>(desired_length));
 
   const DWORD actual_length =
-      GetFileSecurityInternal(
-          owner, path_type, path_permissions, security.get(), desired_length);
+      GetFileSecurityInternal(owner, path_type, path_permissions, security.get(), desired_length);
 
   assert(actual_length >= desired_length);
   assert(IsValidSecurityDescriptor(security.get()) != 0);
@@ -281,33 +255,24 @@ bool HaveAccessInternal(
   MapGenericMask(&desired_permissions, &mapping);
 
   // MSDN says this is optional, but it doesn't appear to be
-  const std::unique_ptr<PRIVILEGE_SET> privilege_set(
-      maidsafe::make_unique<PRIVILEGE_SET>());
+  const std::unique_ptr<PRIVILEGE_SET> privilege_set(maidsafe::make_unique<PRIVILEGE_SET>());
   DWORD privilege_length = sizeof(PRIVILEGE_SET);
 
   DWORD granted_access = 0;
   BOOL access_status = false;
-  if (!AccessCheck(
-        security.get(),
-        impersonation_token.get(),
-        desired_permissions,
-        &mapping,
-        privilege_set.get(),
-        &privilege_length,
-        &granted_access,
-        &access_status)) {
+  if (!AccessCheck(security.get(), impersonation_token.get(), desired_permissions, &mapping,
+                   privilege_set.get(), &privilege_length, &granted_access, &access_status)) {
     ThrowWinFunctionError("AccessCheck");
   }
 
   return access_status != 0;
 }
 
-DWORD GetFileSecurityInternal(
-    const detail::WinProcess& owner,
-    const detail::MetaData::FileType path_type,
-    const detail::MetaData::Permissions path_permissions,
-    PSECURITY_DESCRIPTOR out_descriptor,
-    const DWORD out_descriptor_length) {
+DWORD GetFileSecurityInternal(const detail::WinProcess& owner,
+                              const detail::MetaData::FileType path_type,
+                              const detail::MetaData::Permissions path_permissions,
+                              PSECURITY_DESCRIPTOR out_descriptor,
+                              const DWORD out_descriptor_length) {
 
   const std::unique_ptr<SECURITY_DESCRIPTOR> temp_descriptor(
       maidsafe::make_unique<SECURITY_DESCRIPTOR>());
@@ -339,18 +304,13 @@ DWORD GetFileSecurityInternal(
 
   {
     using Permissions = detail::MetaData::Permissions;
-    MAIDSAFE_CONSTEXPR_OR_CONST auto ownership_mappings =
-    {
-        std::make_tuple(
-            WinCreatorOwnerSid, TRUSTEE_IS_USER,
-            Permissions::owner_read, Permissions::owner_write, Permissions::owner_exe),
-        std::make_tuple(
-            WinCreatorGroupSid, TRUSTEE_IS_WELL_KNOWN_GROUP,
-            Permissions::group_read, Permissions::group_write, Permissions::group_exe),
-        std::make_tuple(
-            WinWorldSid, TRUSTEE_IS_WELL_KNOWN_GROUP,
-            Permissions::others_read, Permissions::others_write, Permissions::others_exe)
-    };
+    MAIDSAFE_CONSTEXPR_OR_CONST auto ownership_mappings = {
+        std::make_tuple(WinCreatorOwnerSid, TRUSTEE_IS_USER, Permissions::owner_read,
+                        Permissions::owner_write, Permissions::owner_exe),
+        std::make_tuple(WinCreatorGroupSid, TRUSTEE_IS_WELL_KNOWN_GROUP, Permissions::group_read,
+                        Permissions::group_write, Permissions::group_exe),
+        std::make_tuple(WinWorldSid, TRUSTEE_IS_WELL_KNOWN_GROUP, Permissions::others_read,
+                        Permissions::others_write, Permissions::others_exe)};
 
     // TODO upgrade to static_assert with newer Visual Studios
     assert(aces_size == ownership_mappings.size());
@@ -367,8 +327,8 @@ DWORD GetFileSecurityInternal(
     }
 
     PACL newDacl{};
-    const bool acl_success =
-        (SetEntriesInAcl(static_cast<ULONG>(aces.size()), aces.data(), NULL, &newDacl) == ERROR_SUCCESS);
+    const bool acl_success = (SetEntriesInAcl(static_cast<ULONG>(aces.size()), aces.data(), NULL,
+                                              &newDacl) == ERROR_SUCCESS);
     dacl.reset(newDacl);
 
     if (!acl_success) {
@@ -384,12 +344,8 @@ DWORD GetFileSecurityInternal(
     ThrowWinFunctionError("SetSecurityDescriptorDacl");
   }
 
-  return ConvertToRelative(
-      owner,
-      path_type == detail::MetaData::FileType::directory_file,
-      *temp_descriptor,
-      out_descriptor,
-      out_descriptor_length);
+  return ConvertToRelative(owner, path_type == detail::MetaData::FileType::directory_file,
+                           *temp_descriptor, out_descriptor, out_descriptor_length);
 }
 
 }  // namespace detail

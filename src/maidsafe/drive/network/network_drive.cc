@@ -113,9 +113,7 @@ void SetSignalHandler() {
 
 #else
 
-process::ProcessInfo GetParentProcessInfo(const Options& /*options*/) {
-  return getppid();
-}
+process::ProcessInfo GetParentProcessInfo(const Options& /*options*/) { return getppid(); }
 
 // void SetSignalHandler() {}
 
@@ -123,9 +121,8 @@ process::ProcessInfo GetParentProcessInfo(const Options& /*options*/) {
 
 po::options_description CommandLineOptions() {
   po::options_description options("Network Drive options");
-  options.add_options()
-    ("help,h", "Show help message.")
-    ("shared_memory", po::value<std::string>(), "Shared memory name (IPC).");
+  options.add_options()("help,h", "Show help message.")("shared_memory", po::value<std::string>(),
+                                                        "Shared memory name (IPC).");
   return options;
 }
 
@@ -133,9 +130,9 @@ template <typename Char>
 po::variables_map ParseCommandLine(int argc, Char* argv[]) {
   auto command_line_options(CommandLineOptions());
   po::basic_parsed_options<Char> parsed(po::basic_command_line_parser<Char>(argc, argv)
-                                        .options(command_line_options)
-                                        .allow_unregistered()
-                                        .run());
+                                            .options(command_line_options)
+                                            .allow_unregistered()
+                                            .run());
   po::variables_map variables_map;
   po::store(parsed, variables_map);
   po::notify(variables_map);
@@ -224,26 +221,25 @@ int Mount(const Options& options) {
   maid.reset(new passport::Maid(passport::DecryptMaid(encrypted_maid, symm_key, symm_iv)));
 
   g_maid_node_nfs = nfs_client::MaidNodeNfs::MakeShared(*maid);
-  g_network_drive.reset(new NetworkDrive(g_maid_node_nfs, options.unique_id,
-    options.root_parent_id, options.mount_path, user_app_dir, options.drive_name,
-    options.mount_status_shared_object_name, options.create_store
+  g_network_drive.reset(new NetworkDrive(
+      g_maid_node_nfs, options.unique_id, options.root_parent_id, options.mount_path, user_app_dir,
+      options.drive_name, options.mount_status_shared_object_name, options.create_store
 #ifdef MAIDSAFE_WIN32
-    , BOOST_PP_STRINGIZE(PRODUCT_ID)
+      ,
+      BOOST_PP_STRINGIZE(PRODUCT_ID)
 #endif
-    ));
+          ));
 
   if (options.monitor_parent) {
     std::thread poll_parent([&] {
-        try {
-          MonitorParentProcess(options);
-        }
-        catch (const std::exception& e) {
-          LOG(kError) << "Error: " << e.what();
-        }
-        catch (...) {
-          LOG(kError) << "Unknown Error";
-        }
-      });
+      try {
+        MonitorParentProcess(options);
+      } catch (const std::exception& e) {
+        LOG(kError) << "Error: " << e.what();
+      } catch (...) {
+        LOG(kError) << "Unknown Error";
+      }
+    });
 
     try {
       g_network_drive->Mount();
@@ -287,15 +283,13 @@ int main(int argc, char* argv[]) {
     maidsafe::drive::GetOptions(variables_map, options);
     maidsafe::drive::ValidateOptions(options);
     return maidsafe::drive::Mount(options);
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     if (!maidsafe::drive::g_error_message.empty()) {
       std::cout << maidsafe::drive::g_error_message;
       return maidsafe::drive::g_return_code;
     }
     LOG(kError) << "Exception: " << e.what();
-  }
-  catch (...) {
+  } catch (...) {
     LOG(kError) << "Exception of unknown type!";
   }
   return 64;

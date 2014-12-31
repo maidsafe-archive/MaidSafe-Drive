@@ -57,17 +57,16 @@ MetaData::MetaData(FileType file_type)
       size_(0),
       allocation_size_(0)
 #ifdef MAIDSAFE_WIN32
-      , attributes_(0xFFFFFFFF)
+      ,
+      attributes_(0xFFFFFFFF)
 #endif
-        {}
+{
+}
 
 MetaData::MetaData(const fs::path& name, FileType file_type)
-    : data_map_((file_type == FileType::directory_file)
-                ? nullptr
-                : new encrypt::DataMap()),
-      directory_id_((file_type == FileType::directory_file)
-                    ? new DirectoryId(RandomString(64))
-                    : nullptr),
+    : data_map_((file_type == FileType::directory_file) ? nullptr : new encrypt::DataMap()),
+      directory_id_((file_type == FileType::directory_file) ? new DirectoryId(RandomString(64))
+                                                            : nullptr),
       name_(name),
       file_type_(file_type),
       creation_time_(common::Clock::now()),
@@ -77,9 +76,10 @@ MetaData::MetaData(const fs::path& name, FileType file_type)
       size_(0),
       allocation_size_(0)
 #ifdef MAIDSAFE_WIN32
-      , attributes_(file_type == FileType::directory_file ? FILE_ATTRIBUTE_DIRECTORY : 0xFFFFFFFF)
+      ,
+      attributes_(file_type == FileType::directory_file ? FILE_ATTRIBUTE_DIRECTORY : 0xFFFFFFFF)
 #endif
-        {
+{
 #ifndef MAIDSAFE_WIN32
   if (file_type == FileType::directory_file) {
     size_ = 4096;  // #BEFORE_RELEASE detail::kDirectorySize;
@@ -99,9 +99,10 @@ MetaData::MetaData(const protobuf::Path& entry)
       size_(entry.attributes().st_size()),
       allocation_size_(entry.attributes().st_size())
 #ifdef MAIDSAFE_WIN32
-      , attributes_(0xFFFFFFFF)
+      ,
+      attributes_(0xFFFFFFFF)
 #endif
-       {
+{
   if ((name_ == "\\") || (name_ == "/"))
     name_ = kRoot;
 
@@ -145,12 +146,12 @@ MetaData::MetaData(const protobuf::Path& entry)
 
 #ifdef MAIDSAFE_WIN32
   if (file_type() == FileType::directory_file) {
-	  attributes_ |= FILE_ATTRIBUTE_DIRECTORY;
+    attributes_ |= FILE_ATTRIBUTE_DIRECTORY;
     size_ = 0;
   }
 
   if (attributes.has_win_attributes())
-	  attributes_ = static_cast<DWORD>(attributes.win_attributes());
+    attributes_ = static_cast<DWORD>(attributes.win_attributes());
 #else
   if (file_type() == FileType::directory_file) {
     size_ = 4096;
@@ -170,9 +171,10 @@ MetaData::MetaData(MetaData&& other)
       size_(0),
       allocation_size_(0)
 #ifdef MAIDSAFE_WIN32
-      , attributes_(0xFFFFFFFF)
-#endif 
-        {
+      ,
+      attributes_(0xFFFFFFFF)
+#endif
+{
   swap(other);
 }
 
@@ -209,36 +211,30 @@ void MetaData::ToProtobuf(protobuf::Attributes& proto_attributes) const {
   uint32_t win_attributes(0x10);  // FILE_ATTRIBUTE_DIRECTORY
   if (file_type() == FileType::regular_file)
     win_attributes = 0x80;  // FILE_ATTRIBUTE_NORMAL
-  if (name().string()[0]  == '.')
+  if (name().string()[0] == '.')
     win_attributes |= 0x2;  // FILE_ATTRIBUTE_HIDDEN
   proto_attributes.set_win_attributes(win_attributes);
 #endif
 }
 
 bool MetaData::operator<(const MetaData& other) const {
-  return boost::ilexicographical_compare(
-      name().wstring(), other.name().wstring());
+  return boost::ilexicographical_compare(name().wstring(), other.name().wstring());
 }
 
-MetaData::Permissions MetaData::GetPermissions(
-    MetaData::Permissions base_permissions) const {
-  if (file_type() != MetaData::FileType::directory_file)
-  {
+MetaData::Permissions MetaData::GetPermissions(MetaData::Permissions base_permissions) const {
+  if (file_type() != MetaData::FileType::directory_file) {
     return base_permissions;
   }
 
-  if (HasPermission(base_permissions, MetaData::Permissions::owner_read))
-  {
+  if (HasPermission(base_permissions, MetaData::Permissions::owner_read)) {
     base_permissions |= MetaData::Permissions::owner_exe;
   }
 
-  if (HasPermission(base_permissions, MetaData::Permissions::group_read))
-  {
+  if (HasPermission(base_permissions, MetaData::Permissions::group_read)) {
     base_permissions |= MetaData::Permissions::group_exe;
   }
 
-  if (HasPermission(base_permissions, MetaData::Permissions::others_read))
-  {
+  if (HasPermission(base_permissions, MetaData::Permissions::others_read)) {
     base_permissions |= MetaData::Permissions::others_exe;
   }
 
@@ -256,9 +252,7 @@ void MetaData::UpdateLastModifiedTime() {
   last_status_time_ = last_write_time();
 }
 
-void MetaData::UpdateLastAccessTime() {
-  last_access_time_ = common::Clock::now();
-}
+void MetaData::UpdateLastAccessTime() { last_access_time_ = common::Clock::now(); }
 
 void MetaData::UpdateSize(const std::uint64_t new_size) {
   size_ = new_size;

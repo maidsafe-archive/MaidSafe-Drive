@@ -37,70 +37,61 @@ namespace drive {
 
 namespace detail {
 
-Directory::Directory(ParentId parent_id,
-                     DirectoryId directory_id,
+Directory::Directory(ParentId parent_id, DirectoryId directory_id,
                      boost::asio::io_service& io_service,
                      std::weak_ptr<Directory::Listener> listener,
                      const boost::filesystem::path& path)
-  : Path(fs::directory_file),
-    parent_id_(std::move(parent_id)),
-    directory_id_(std::move(directory_id)),
-    timer_(io_service),
-    path_(path),
-    versions_(),
-    max_versions_(kMaxVersions),
-    children_(),
-    children_count_position_(0),
-    store_state_(StoreState::kComplete),
-    listener_(listener),
-    newParent_(),
-    pending_count_(0),
-    mutex_() {
-}
+    : Path(fs::directory_file),
+      parent_id_(std::move(parent_id)),
+      directory_id_(std::move(directory_id)),
+      timer_(io_service),
+      path_(path),
+      versions_(),
+      max_versions_(kMaxVersions),
+      children_(),
+      children_count_position_(0),
+      store_state_(StoreState::kComplete),
+      listener_(listener),
+      newParent_(),
+      pending_count_(0),
+      mutex_() {}
 
-Directory::Directory(ParentId parent_id,
-                     const std::string&,
+Directory::Directory(ParentId parent_id, const std::string&,
                      const std::vector<StructuredDataVersions::VersionName>& versions,
                      boost::asio::io_service& io_service,
                      std::weak_ptr<Directory::Listener> listener,
                      const boost::filesystem::path& path)
-  : Path(fs::directory_file),
-    parent_id_(std::move(parent_id)),
-    directory_id_(),
-    timer_(io_service), path_(path),
-    versions_(std::begin(versions), std::end(versions)),
-    max_versions_(kMaxVersions),
-    children_(),
-    children_count_position_(0),
-    store_state_(StoreState::kComplete),
-    listener_(listener),
-    newParent_(),
-    pending_count_(0),
-    mutex_() {
-}
+    : Path(fs::directory_file),
+      parent_id_(std::move(parent_id)),
+      directory_id_(),
+      timer_(io_service),
+      path_(path),
+      versions_(std::begin(versions), std::end(versions)),
+      max_versions_(kMaxVersions),
+      children_(),
+      children_count_position_(0),
+      store_state_(StoreState::kComplete),
+      listener_(listener),
+      newParent_(),
+      pending_count_(0),
+      mutex_() {}
 
 Directory::~Directory() {
   try {
     StoreImmediatelyIfPending();
-  }
-  catch (...) {
+  } catch (...) {
   }
 }
 
-void Directory::Initialise(const ParentId&,
-                           const DirectoryId&,
-                           boost::asio::io_service&,
-                           std::weak_ptr<Directory::Listener>,
-                           const boost::filesystem::path&) {
+void Directory::Initialise(const ParentId&, const DirectoryId&, boost::asio::io_service&,
+                           std::weak_ptr<Directory::Listener>, const boost::filesystem::path&) {
   const std::lock_guard<std::mutex> lock(mutex_);
   DoScheduleForStoring();
 }
 
-void Directory::Initialise(const ParentId&,
-                           const std::string& serialised_directory,
+void Directory::Initialise(const ParentId&, const std::string& serialised_directory,
                            const std::vector<StructuredDataVersions::VersionName>&,
-                           boost::asio::io_service& io_service,
-                           std::weak_ptr<Directory::Listener>,
+                           boost::asio::io_service& io_service, std::weak_ptr<Directory::Listener>,
                            const boost::filesystem::path&) {
   const std::lock_guard<std::mutex> lock(mutex_);
   protobuf::Directory proto_directory;
@@ -114,10 +105,7 @@ void Directory::Initialise(const ParentId&,
   children_.reserve(proto_directory.children_size());
   for (int i(0); i != proto_directory.children_size(); ++i) {
     children_.emplace_back(
-        File::Create(
-            io_service,
-            MetaData(proto_directory.children(i)),
-            shared_from_this()));
+        File::Create(io_service, MetaData(proto_directory.children(i)), shared_from_this()));
   }
   SortAndResetChildrenCounter();
 }
@@ -152,12 +140,10 @@ void Directory::Serialise(protobuf::Directory& proto_directory,
   store_state_ = StoreState::kOngoing;
 }
 
-size_t Directory::VersionsCount() const {
-  return versions_.size();
-}
+size_t Directory::VersionsCount() const { return versions_.size(); }
 
-std::tuple<DirectoryId, StructuredDataVersions::VersionName>
-    Directory::InitialiseVersions(ImmutableData::Name version_id) {
+std::tuple<DirectoryId, StructuredDataVersions::VersionName> Directory::InitialiseVersions(
+    ImmutableData::Name version_id) {
   std::tuple<DirectoryId, StructuredDataVersions::VersionName> result;
   {
     const std::lock_guard<std::mutex> lock(mutex_);
@@ -174,8 +160,8 @@ std::tuple<DirectoryId, StructuredDataVersions::VersionName>
 
 std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
     Directory::AddNewVersion(ImmutableData::Name version_id) {
-  std::tuple<DirectoryId, StructuredDataVersions::VersionName,
-             StructuredDataVersions::VersionName> result;
+  std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
+      result;
   {
     const std::lock_guard<std::mutex> lock(mutex_);
     store_state_ = StoreState::kComplete;
@@ -194,22 +180,22 @@ std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersi
 }
 
 Directory::Children::iterator Directory::Find(const fs::path& name) {
-  return std::find_if(std::begin(children_), std::end(children_),
-                      [&name](const Children::value_type& file) {
-                          return file->meta_data.name() == name; });
+  return std::find_if(
+      std::begin(children_), std::end(children_),
+      [&name](const Children::value_type& file) { return file->meta_data.name() == name; });
 }
 
 Directory::Children::const_iterator Directory::Find(const fs::path& name) const {
-  return std::find_if(std::begin(children_), std::end(children_),
-                      [&name](const Children::value_type& file) {
-                          return file->meta_data.name() == name; });
+  return std::find_if(
+      std::begin(children_), std::end(children_),
+      [&name](const Children::value_type& file) { return file->meta_data.name() == name; });
 }
 
 void Directory::SortAndResetChildrenCounter() {
   std::sort(std::begin(children_), std::end(children_),
             [](const std::shared_ptr<Path>& lhs, const std::shared_ptr<Path>& rhs) {
-              return *lhs < *rhs;
-            });
+    return *lhs < *rhs;
+  });
   children_count_position_ = 0;
 }
 
@@ -224,9 +210,7 @@ void Directory::DoScheduleForStoring() {
   }
 #endif
   static_cast<void>(cancelled_count);
-  timer_.async_wait(std::bind(&Directory::ProcessTimer,
-                              shared_from_this(),
-                              std::placeholders::_1));
+  timer_.async_wait(std::bind(&Directory::ProcessTimer, shared_from_this(), std::placeholders::_1));
   ++pending_count_;
   store_state_ = StoreState::kPending;
 }
@@ -237,17 +221,17 @@ void Directory::ProcessTimer(const boost::system::error_code& ec) {
   {
     const std::unique_lock<std::mutex> lock(mutex_);
     switch (ec.value()) {
-    case 0: {
-      LOG(kInfo) << "Storing " << path_;
-      listener = GetListener();
-      break;
-    }
-    case boost::asio::error::operation_aborted:
-      LOG(kInfo) << "Timer was cancelled - not storing " << path_;
-      break;
-    default:
-      LOG(kWarning) << "Timer aborted with error code " << ec;
-      break;
+      case 0: {
+        LOG(kInfo) << "Storing " << path_;
+        listener = GetListener();
+        break;
+      }
+      case boost::asio::error::operation_aborted:
+        LOG(kInfo) << "Timer was cancelled - not storing " << path_;
+        break;
+      default:
+        LOG(kWarning) << "Timer aborted with error code " << ec;
+        break;
     }
   }
 
@@ -267,15 +251,13 @@ void Directory::ProcessTimer(const boost::system::error_code& ec) {
   }
 }
 
-std::shared_ptr<Directory::Listener> Directory::GetListener() const {
-  return listener_.lock();
-}
+std::shared_ptr<Directory::Listener> Directory::GetListener() const { return listener_.lock(); }
 
 bool Directory::HasChild(const fs::path& name) const {
   const std::lock_guard<std::mutex> lock(mutex_);
-  return std::any_of(std::begin(children_), std::end(children_),
-                     [&name](const Children::value_type& file) {
-                         return file->meta_data.name() == name; });
+  return std::any_of(
+      std::begin(children_), std::end(children_),
+      [&name](const Children::value_type& file) { return file->meta_data.name() == name; });
 }
 
 std::shared_ptr<const Path> Directory::GetChildAndIncrementCounter() {
@@ -337,8 +319,7 @@ ParentId Directory::parent_id() const {
   return parent_id_;
 }
 
-void Directory::SetNewParent(const ParentId parent_id,
-                             const boost::filesystem::path& path) {
+void Directory::SetNewParent(const ParentId parent_id, const boost::filesystem::path& path) {
   const std::lock_guard<std::mutex> lock(mutex_);
   newParent_.reset(new NewParent(parent_id, path));
 }

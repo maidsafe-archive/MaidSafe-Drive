@@ -64,10 +64,9 @@ void DisplayError(const std::string& message) {
 
 void AppendErrorMessageThenDisplayAndThrow(const TCHAR* error_message) {
   LPTSTR formatted_message(nullptr);
-  size_t size(FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                            FORMAT_MESSAGE_FROM_SYSTEM |
-                            FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, GetLastError(),
-                            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+  size_t size(FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                                FORMAT_MESSAGE_IGNORE_INSERTS,
+                            nullptr, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                             reinterpret_cast<LPTSTR>(&formatted_message), 0, nullptr));
   std::basic_string<TCHAR> message(error_message);
   message.append(formatted_message, size);
@@ -91,7 +90,7 @@ void GetDriverStatus(const std::string& product_guid, BOOL* installed, DWORD* ve
   if (!process_id)
     AppendErrorMessageThenDisplayAndThrow(TEXT("Failed to find 'GetModuleStatus' in DLL.\n"));
 
-  typedef bool(__stdcall* Functor)(const TCHAR*, DWORD, BOOL*, PDWORD, PDWORD);
+  typedef bool(__stdcall * Functor)(const TCHAR*, DWORD, BOOL*, PDWORD, PDWORD);
   Functor get_module_status = Functor(process_id);
   std::basic_string<TCHAR> guid(std::begin(product_guid), std::end(product_guid));
   if (!get_module_status(guid.c_str(), CBFS_MODULE_DRIVER, installed, version_high, version_low))
@@ -112,7 +111,7 @@ void InstallDriver(const std::string& product_guid, DWORD* reboot) {
   if (!process_id)
     AppendErrorMessageThenDisplayAndThrow(TEXT("Failed to find 'Install' in DLL.\n"));
 
-  typedef bool(__stdcall* Functor)(const TCHAR*, const TCHAR*, const TCHAR*, bool, DWORD, DWORD*);
+  typedef bool(__stdcall * Functor)(const TCHAR*, const TCHAR*, const TCHAR*, bool, DWORD, DWORD*);
   Functor install = Functor(process_id);
   std::basic_string<TCHAR> guid(std::begin(product_guid), std::end(product_guid));
   if (!install(CabinetFilePath(), guid.c_str(), TEXT(""), true,
@@ -142,7 +141,7 @@ void UninstallDriver(const std::string& product_guid, DWORD* reboot) {
   if (!process_id)
     AppendErrorMessageThenDisplayAndThrow(TEXT("Failed to find 'Uninstall' in DLL.\n"));
 
-  typedef bool(__stdcall* Functor)(const TCHAR*, const TCHAR*, const TCHAR*, DWORD*);
+  typedef bool(__stdcall * Functor)(const TCHAR*, const TCHAR*, const TCHAR*, DWORD*);
   Functor uninstall = Functor(process_id);
   std::basic_string<TCHAR> guid(std::begin(product_guid), std::end(product_guid));
   if (!uninstall(CabinetFilePath(), guid.c_str(), TEXT(""), reboot))
@@ -151,12 +150,12 @@ void UninstallDriver(const std::string& product_guid, DWORD* reboot) {
 
 po::options_description AvailableOptions() {
   po::options_description installer_options("Installer options");
-  installer_options.add_options()
-      ("help,h", "Please note that driver installation may require a reboot")
-      ("install,i", "Install the filesystem driver")
-      ("uninstall,u", "Uninstall the filesystem driver")
-      ("guid", po::value<std::string>()->default_value(BOOST_PP_STRINGIZE(PRODUCT_ID)),
-       "Unique identifier associated with the current product (defaults to MaidSafe GUID)");
+  installer_options.add_options()("help,h",
+                                  "Please note that driver installation may require a reboot")(
+      "install,i", "Install the filesystem driver")("uninstall,u",
+                                                    "Uninstall the filesystem driver")(
+      "guid", po::value<std::string>()->default_value(BOOST_PP_STRINGIZE(PRODUCT_ID)),
+      "Unique identifier associated with the current product (defaults to MaidSafe GUID)");
   return installer_options;
 }
 
@@ -164,11 +163,9 @@ po::variables_map ParseOptions(int argc, char* argv[],
                                const po::options_description& installer_options) {
   po::variables_map variables_map;
   try {
-    po::store(po::command_line_parser(argc, argv).options(installer_options).run(),
-              variables_map);
+    po::store(po::command_line_parser(argc, argv).options(installer_options).run(), variables_map);
     po::notify(variables_map);
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     DisplayError("Parser error:\n " + std::string(e.what()) + "\nRun with -h to see all options.");
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
   }
@@ -232,18 +229,15 @@ int main(int argc, char* argv[]) {
       maidsafe::drive::installer::UninstallDriver(product_guid, &reboot);
 
     return reboot;
-  }
-  catch (const maidsafe::maidsafe_error& error) {
+  } catch (const maidsafe::maidsafe_error& error) {
     // Success is thrown when Help option is invoked.
     if (error.code() == maidsafe::make_error_code(maidsafe::CommonErrors::success))
       return -1;
     maidsafe::drive::installer::DisplayError(std::string("Exception: ") + error.what());
     return maidsafe::ErrorToInt(error);
-  }
-  catch (const std::exception& e) {
+  } catch (const std::exception& e) {
     maidsafe::drive::installer::DisplayError(std::string("Exception: ") + e.what());
-  }
-  catch (...) {
+  } catch (...) {
     maidsafe::drive::installer::DisplayError("Exception of unknown type.");
   }
   return maidsafe::ErrorToInt(maidsafe::MakeError(maidsafe::CommonErrors::unknown));

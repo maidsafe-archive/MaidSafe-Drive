@@ -38,9 +38,8 @@ BOOL CreateDirectoryCommand(const boost::filesystem::path& path) {
 detail::WinHandle CreateFileCommand(const boost::filesystem::path& path, DWORD desired_access,
                                     DWORD share_mode, DWORD creation_disposition,
                                     DWORD flags_and_attributes) {
-  detail::WinHandle handle(
-      CreateFile(path.wstring().c_str(), desired_access, share_mode, NULL,
-                 creation_disposition, flags_and_attributes, NULL));
+  detail::WinHandle handle(CreateFile(path.wstring().c_str(), desired_access, share_mode, NULL,
+                                      creation_disposition, flags_and_attributes, NULL));
   if (handle.get() == INVALID_HANDLE_VALUE) {
     LOG(kError) << "Failed to create file " << path.string();
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::filesystem_io_error));
@@ -66,8 +65,8 @@ BOOL SetFileAttributesCommand(const boost::filesystem::path& path, DWORD attribu
   return result;
 }
 
-BOOL WriteFileCommand(HANDLE handle, const boost::filesystem::path& path,
-                      const std::string& buffer, LPDWORD bytes_written, LPOVERLAPPED overlapped) {
+BOOL WriteFileCommand(HANDLE handle, const boost::filesystem::path& path, const std::string& buffer,
+                      LPDWORD bytes_written, LPOVERLAPPED overlapped) {
   BOOL result(::WriteFile(handle, buffer.c_str(), static_cast<DWORD>(buffer.size()), bytes_written,
                           overlapped));
   if (!result) {

@@ -63,17 +63,17 @@ class Drive {
  protected:
   Drive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
         const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
-        const boost::filesystem::path& user_app_dir,
-        std::string mount_status_shared_object_name, bool create);
+        const boost::filesystem::path& user_app_dir, std::string mount_status_shared_object_name,
+        bool create);
 
   template <typename T = detail::Path>
-  typename std::enable_if<std::is_base_of<detail::Path, T>::value, const std::shared_ptr<const T>>::type
-  GetContext(const boost::filesystem::path& relative_path) const;
+  typename std::enable_if<std::is_base_of<detail::Path, T>::value,
+                          const std::shared_ptr<const T>>::type
+      GetContext(const boost::filesystem::path& relative_path) const;
   template <typename T = detail::Path>
   typename std::enable_if<std::is_base_of<detail::Path, T>::value, std::shared_ptr<T>>::type
-  GetMutableContext(const boost::filesystem::path& relative_path);
-  void Create(const boost::filesystem::path& relative_path,
-              std::shared_ptr<detail::Path> path);
+      GetMutableContext(const boost::filesystem::path& relative_path);
+  void Create(const boost::filesystem::path& relative_path, std::shared_ptr<detail::Path> path);
   void Open(detail::File& file);
   void ReleaseDir(const boost::filesystem::path& relative_path);
   void Delete(const boost::filesystem::path& relative_path);
@@ -118,39 +118,36 @@ Drive<Storage>::Drive(std::shared_ptr<Storage> storage, const Identity& unique_u
       kUserAppDir_(user_app_dir),
       kBufferRoot_(new boost::filesystem::path(user_app_dir / "Buffers"),
                    [](const boost::filesystem::path* const delete_path) {
-                     if (!delete_path->empty()) {
-                       boost::system::error_code ec;
-                       if (boost::filesystem::remove_all(*delete_path, ec) == 0)
-                         LOG(kWarning) << "Failed to remove " << *delete_path;
-                       if (ec.value() != 0)
-                         LOG(kWarning) << "Error removing " << *delete_path << "  " << ec.message();
-                     }
-                     delete delete_path;
-                   }),
+        if (!delete_path->empty()) {
+          boost::system::error_code ec;
+          if (boost::filesystem::remove_all(*delete_path, ec) == 0)
+            LOG(kWarning) << "Failed to remove " << *delete_path;
+          if (ec.value() != 0)
+            LOG(kWarning) << "Error removing " << *delete_path << "  " << ec.message();
+        }
+        delete delete_path;
+      }),
       kMountStatusSharedObjectName_(std::move(mount_status_shared_object_name)),
       mount_promise_(),
       unmounted_once_flag_(),
       get_chunk_from_store_(),
       // TODO(Fraser#5#): 2013-11-27 - BEFORE_RELEASE - confirm the following 2 variables.
       default_max_buffer_memory_(Concurrency() * 1024 * 1024),  // cores * default chunk size
-      default_max_buffer_disk_(static_cast<uint64_t>(
-          boost::filesystem::space(kUserAppDir_).available / 10)),
-      base_file_permissions_(
-          detail::MetaData::Permissions::owner_read |
-          detail::MetaData::Permissions::owner_write),
+      default_max_buffer_disk_(
+          static_cast<uint64_t>(boost::filesystem::space(kUserAppDir_).available / 10)),
+      base_file_permissions_(detail::MetaData::Permissions::owner_read |
+                             detail::MetaData::Permissions::owner_write),
       asio_service_(2),
-      directory_handler_(
-          detail::DirectoryHandler<Storage>::Create(
-              storage, unique_user_id, root_parent_id,
-              boost::filesystem::unique_path(*kBufferRoot_ / "%%%%%-%%%%%-%%%%%-%%%%%"),
-              create, asio_service_.service())) {
+      directory_handler_(detail::DirectoryHandler<Storage>::Create(
+          storage, unique_user_id, root_parent_id,
+          boost::filesystem::unique_path(*kBufferRoot_ / "%%%%%-%%%%%-%%%%%-%%%%%"), create,
+          asio_service_.service())) {
   assert(storage != nullptr);
   get_chunk_from_store_ = [storage](const std::string& name) {
     try {
       auto chunk(storage->Get(ImmutableData::Name(Identity(name))).get());
       return chunk.data();
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       LOG(kError) << "Failed to get chunk from storage: " << e.what();
       throw;
     }
@@ -163,18 +160,17 @@ Drive<Storage>::~Drive() {
     asio_service_.Stop();
     assert(directory_handler_ != nullptr);
     directory_handler_->StoreAll();
-  }
-  catch (...) {
+  } catch (...) {
   }
 }
 
-template<typename Storage>
+template <typename Storage>
 void Drive<Storage>::Unmount() {
   asio_service_.Stop();
   DoUnmount();
 }
 
-template<typename Storage>
+template <typename Storage>
 void Drive<Storage>::Mount() {
   DoMount();
 }
@@ -191,9 +187,11 @@ boost::future<void> Drive<Storage>::GetMountFuture() {
 
 template <typename Storage>
 template <typename T>
-typename std::enable_if<std::is_base_of<detail::Path, T>::value, const std::shared_ptr<const T>>::type
-Drive<Storage>::GetContext(const boost::filesystem::path& relative_path) const {
-  const auto parent(directory_handler_->template Get<detail::Directory>(relative_path.parent_path()));
+typename std::enable_if<std::is_base_of<detail::Path, T>::value,
+                        const std::shared_ptr<const T>>::type
+    Drive<Storage>::GetContext(const boost::filesystem::path& relative_path) const {
+  const auto parent(
+      directory_handler_->template Get<detail::Directory>(relative_path.parent_path()));
   assert(parent != nullptr);
   return parent->template GetChild<T>(relative_path.filename());
 }
@@ -201,9 +199,10 @@ Drive<Storage>::GetContext(const boost::filesystem::path& relative_path) const {
 template <typename Storage>
 template <typename T>
 typename std::enable_if<std::is_base_of<detail::Path, T>::value, std::shared_ptr<T>>::type
-Drive<Storage>::GetMutableContext(const boost::filesystem::path& relative_path) {
+    Drive<Storage>::GetMutableContext(const boost::filesystem::path& relative_path) {
   SCOPED_PROFILE
-  const auto parent(directory_handler_->template Get<detail::Directory>(relative_path.parent_path()));
+  const auto parent(
+      directory_handler_->template Get<detail::Directory>(relative_path.parent_path()));
   assert(parent != nullptr);
   return parent->template GetMutableChild<T>(relative_path.filename());
 }
@@ -222,8 +221,8 @@ void Drive<Storage>::Create(const boost::filesystem::path& relative_path,
 template <typename Storage>
 void Drive<Storage>::Open(detail::File& file) {
   assert(kBufferRoot_ != nullptr);
-  file.Open(
-      get_chunk_from_store_, default_max_buffer_memory_, default_max_buffer_disk_, *kBufferRoot_);
+  file.Open(get_chunk_from_store_, default_max_buffer_memory_, default_max_buffer_disk_,
+            *kBufferRoot_);
 }
 
 template <typename Storage>

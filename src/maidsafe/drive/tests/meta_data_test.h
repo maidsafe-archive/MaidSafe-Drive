@@ -28,13 +28,12 @@ namespace drive {
 namespace detail {
 namespace test {
 
-bool VerifyPermissions(
-    const std::set<MetaData::Permissions>& expected_permissions,
-    const MetaData::Permissions actual);
+bool VerifyPermissions(const std::set<MetaData::Permissions>& expected_permissions,
+                       const MetaData::Permissions actual);
 
-} // test
-} // detail
-} // drive
-} // maidsafe
+}  // test
+}  // detail
+}  // drive
+}  // maidsafe
 
-#endif // MAIDSAFE_DRIVE_UNIX_DRIVE_H_
+#endif  // MAIDSAFE_DRIVE_UNIX_DRIVE_H_
