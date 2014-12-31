@@ -197,7 +197,7 @@ class FuseDrive : public Drive<Storage> {
   FuseDrive(std::shared_ptr<Storage> storage, const Identity& unique_user_id,
             const Identity& root_parent_id, const boost::filesystem::path& mount_dir,
             const boost::filesystem::path& user_app_dir, const boost::filesystem::path& drive_name,
-            const std::string& mount_status_shared_object_name, bool create);
+            std::string mount_status_shared_object_name, bool create);
 
   virtual ~FuseDrive();
 
@@ -287,9 +287,9 @@ FuseDrive<Storage>::FuseDrive(std::shared_ptr<Storage> storage, const Identity& 
                               const boost::filesystem::path& mount_dir,
                               const boost::filesystem::path& user_app_dir,
                               const boost::filesystem::path& drive_name,
-                              const std::string& mount_status_shared_object_name, bool create)
+                              std::string mount_status_shared_object_name, bool create)
     : Drive<Storage>(storage, unique_user_id, root_parent_id, mount_dir, user_app_dir,
-                     mount_status_shared_object_name, create),
+                     std::move(mount_status_shared_object_name), create),
       fuse_(nullptr),
       fuse_channel_(nullptr),
       fuse_mountpoint_(mount_dir),

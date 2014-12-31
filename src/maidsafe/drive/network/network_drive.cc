@@ -226,11 +226,11 @@ int Mount(const Options& options) {
   g_maid_node_nfs = nfs_client::MaidNodeNfs::MakeShared(*maid);
   g_network_drive.reset(new NetworkDrive(g_maid_node_nfs, options.unique_id,
     options.root_parent_id, options.mount_path, user_app_dir, options.drive_name,
-    options.mount_status_shared_object_name, options.create_store));
-
+    options.mount_status_shared_object_name, options.create_store
 #ifdef MAIDSAFE_WIN32
-  g_network_drive->SetGuid(BOOST_PP_STRINGIZE(PRODUCT_ID));
+    , BOOST_PP_STRINGIZE(PRODUCT_ID)
 #endif
+    ));
 
   if (options.monitor_parent) {
     std::thread poll_parent([&] {
