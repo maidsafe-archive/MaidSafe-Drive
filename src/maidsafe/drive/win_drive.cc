@@ -233,6 +233,7 @@ bool HaveAccessInternal(const WinHandle& originator, DWORD desired_permissions,
   const DWORD actual_length =
       GetFileSecurityInternal(owner, path_type, path_permissions, security.get(), desired_length);
 
+  (void)actual_length;
   assert(actual_length >= desired_length);
   assert(IsValidSecurityDescriptor(security.get()) != 0);
 
