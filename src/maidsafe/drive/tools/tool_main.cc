@@ -162,8 +162,8 @@ void RemoveStorageDirectory(const fs::path& storage_path) {
 
 passport::MaidAndSigner CreateAccount() {
   passport::MaidAndSigner maid_and_signer{ passport::CreateMaidAndSigner() };
-  auto maid_node_nfs = nfs_client::MaidNodeNfs::MakeShared(maid_and_signer);
-  maid_node_nfs->Stop();
+  auto maid_client = nfs_client::MaidClient::MakeShared(maid_and_signer);
+  maid_client->Stop();
   LOG(kSuccess) << " Account created for MAID : " << DebugId(maid_and_signer.first.name());
   return maid_and_signer;
 }
