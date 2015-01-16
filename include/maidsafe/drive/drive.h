@@ -100,7 +100,7 @@ class Drive {
   DiskUsage default_max_buffer_disk_;
 
  protected:
-  AsioService asio_service_;
+  BoostAsioService asio_service_;
   // Needs to be destructed first so that 'get_chunk_from_store_' and 'storage_' outlive it.
   std::shared_ptr<detail::DirectoryHandler<Storage>> directory_handler_;
 };
