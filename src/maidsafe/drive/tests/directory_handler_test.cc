@@ -72,7 +72,7 @@ class DirectoryHandlerTest : public testing::Test {
   maidsafe::test::TestPath main_test_dir_;
   std::shared_ptr<nfs::FakeStore> data_store_;
   Identity unique_user_id_, root_parent_id_;
-  AsioService asio_service_;
+  BoostAsioService asio_service_;
   std::shared_ptr<detail::DirectoryHandler<nfs::FakeStore>> listing_handler_;
 };
 

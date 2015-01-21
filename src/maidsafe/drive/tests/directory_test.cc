@@ -360,7 +360,7 @@ class DirectoryTest : public testing::Test {
   maidsafe::test::TestPath main_test_dir_;
   fs::path relative_root_;
   Identity unique_id_, parent_id_, directory_id_;
-  AsioService asio_service_;
+  BoostAsioService asio_service_;
   std::shared_ptr<DirectoryTestListener> listener;
 
  private:
