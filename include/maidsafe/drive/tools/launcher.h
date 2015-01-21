@@ -34,7 +34,7 @@
 
 #include "maidsafe/common/types.h"
 
-#include "maidsafe/nfs/client/maid_node_nfs.h"
+#include "maidsafe/nfs/client/maid_client.h"
 
 namespace maidsafe {
 

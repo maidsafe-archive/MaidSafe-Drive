@@ -40,7 +40,7 @@ extern "C" char** environ;
 #include "maidsafe/passport/types.h"
 #include "maidsafe/passport/passport.h"
 
-#include "maidsafe/nfs/client/maid_node_nfs.h"
+#include "maidsafe/nfs/client/maid_client.h"
 
 namespace bi = boost::interprocess;
 namespace bp = boost::process;
