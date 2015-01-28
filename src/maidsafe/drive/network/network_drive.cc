@@ -52,7 +52,7 @@
 #include "maidsafe/passport/types.h"
 #include "maidsafe/passport/passport.h"
 
-#include "maidsafe/nfs/client/maid_node_nfs.h"
+#include "maidsafe/nfs/client/maid_client.h"
 
 #ifdef MAIDSAFE_WIN32
 #include "maidsafe/drive/win_drive.h"
@@ -70,20 +70,20 @@ namespace drive {
 namespace {
 
 #ifdef MAIDSAFE_WIN32
-typedef CbfsDrive<nfs_client::MaidNodeNfs> NetworkDrive;
+typedef CbfsDrive<nfs_client::MaidClient> NetworkDrive;
 #else
-typedef FuseDrive<nfs_client::MaidNodeNfs> NetworkDrive;
+typedef FuseDrive<nfs_client::MaidClient> NetworkDrive;
 #endif
 
 std::unique_ptr<NetworkDrive> g_network_drive(nullptr);
-std::shared_ptr<nfs_client::MaidNodeNfs> g_maid_node_nfs;
+std::shared_ptr<nfs_client::MaidClient> g_maid_client;
 std::once_flag g_unmount_flag;
 std::string g_error_message;
 int g_return_code(0);
 
 void Unmount() {
   std::call_once(g_unmount_flag, [&] {
-    g_maid_node_nfs->Stop();
+    g_maid_client->Stop();
     g_network_drive->Unmount();
     g_network_drive = nullptr;
   });
@@ -223,8 +223,8 @@ int Mount(const Options& options) {
   crypto::CipherText encrypted_maid(NonEmptyString(options.encrypted_maid));
   maid.reset(new passport::Maid(passport::DecryptMaid(encrypted_maid, symm_key, symm_iv)));
 
-  g_maid_node_nfs = nfs_client::MaidNodeNfs::MakeShared(*maid);
-  g_network_drive.reset(new NetworkDrive(g_maid_node_nfs, options.unique_id,
+  g_maid_client = nfs_client::MaidClient::MakeShared(*maid);
+  g_network_drive.reset(new NetworkDrive(g_maid_client, options.unique_id,
     options.root_parent_id, options.mount_path, user_app_dir, options.drive_name,
     options.mount_status_shared_object_name, options.create_store));
 
