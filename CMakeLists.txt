@@ -268,10 +268,12 @@ if(INCLUDE_TESTS)
   set(TEST_TARGET test_filesystem)
   get_network_test_arg()
   unset(TEST_TARGET)
-  add_test(NAME "\"Network Drive Filesystem Test\""
-           COMMAND test_filesystem --network${Console} --gtest_catch_exceptions=${CATCH_EXCEPTIONS}
-                   $<$<BOOL:${NetworkTestArg}>:--bootstrap_file> $<$<BOOL:${NetworkTestArg}>:${NetworkTestArg}>)
 
+  if((MAIDSAFE_TEST_TYPE MATCHES "ALL") OR (MAIDSAFE_TEST_TYPE MATCHES "NETWORK"))
+    add_test(NAME "\"Network Drive Filesystem Test\""
+             COMMAND test_filesystem --network${Console} --gtest_catch_exceptions=${CATCH_EXCEPTIONS}
+                     $<$<BOOL:${NetworkTestArg}>:--bootstrap_file> $<$<BOOL:${NetworkTestArg}>:${NetworkTestArg}>)
+  endif()
   set(Timeout 180)
   ms_update_test_timeout(Timeout)
   set_tests_properties("\"Real Disk Filesystem Test\"" "\"Local Drive Filesystem Test\"" "\"Network Drive Filesystem Test\"" PROPERTIES
