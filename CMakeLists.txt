@@ -269,15 +269,17 @@ if(INCLUDE_TESTS)
   get_network_test_arg()
   unset(TEST_TARGET)
 
+  set(Timeout 180)
+  ms_update_test_timeout(Timeout)
+  set_tests_properties("\"Real Disk Filesystem Test\"" "\"Local Drive Filesystem Test\"" PROPERTIES
+                       TIMEOUT ${Timeout} LABELS "Drive;Filesystem;${TASK_LABEL}")
   if((MAIDSAFE_TEST_TYPE MATCHES "ALL") OR (MAIDSAFE_TEST_TYPE MATCHES "NETWORK"))
     add_test(NAME "\"Network Drive Filesystem Test\""
              COMMAND test_filesystem --network${Console} --gtest_catch_exceptions=${CATCH_EXCEPTIONS}
                      $<$<BOOL:${NetworkTestArg}>:--bootstrap_file> $<$<BOOL:${NetworkTestArg}>:${NetworkTestArg}>)
-  endif()
-  set(Timeout 180)
-  ms_update_test_timeout(Timeout)
-  set_tests_properties("\"Real Disk Filesystem Test\"" "\"Local Drive Filesystem Test\"" "\"Network Drive Filesystem Test\"" PROPERTIES
+    set_tests_properties("\"Network Drive Filesystem Test\"" PROPERTIES
                        TIMEOUT ${Timeout} LABELS "Drive;Filesystem;${TASK_LABEL}")
+  endif()
 
   if(WEEKLY)
     add_test(NAME "\"Real Disk Weekly Test\""
