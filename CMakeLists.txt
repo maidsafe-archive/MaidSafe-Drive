@@ -273,7 +273,7 @@ if(INCLUDE_TESTS)
   ms_update_test_timeout(Timeout)
   set_tests_properties("\"Real Disk Filesystem Test\"" "\"Local Drive Filesystem Test\"" PROPERTIES
                        TIMEOUT ${Timeout} LABELS "Drive;Filesystem;${TASK_LABEL}")
-  if((MAIDSAFE_TEST_TYPE MATCHES "ALL") OR (MAIDSAFE_TEST_TYPE MATCHES "NETWORK"))
+  if(MAIDSAFE_TEST_TYPE MATCHES "^ALL$|^NETWORK$")
     add_test(NAME "\"Network Drive Filesystem Test\""
              COMMAND test_filesystem --network${Console} --gtest_catch_exceptions=${CATCH_EXCEPTIONS}
                      $<$<BOOL:${NetworkTestArg}>:--bootstrap_file> $<$<BOOL:${NetworkTestArg}>:${NetworkTestArg}>)
