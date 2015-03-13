@@ -194,7 +194,7 @@ void ValidateOptions(const Options& options) {
 
   if (g_return_code) {
     g_error_message = "Fatal error:\n" + error_message + "\n\n";
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_argument));
   }
 }
 

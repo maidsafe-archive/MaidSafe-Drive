@@ -21,8 +21,10 @@
 #include "boost/algorithm/string/predicate.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
 
+#include "maidsafe/common/convert.h"
 #include "maidsafe/common/log.h"
 #include "maidsafe/common/utils.h"
+#include "maidsafe/common/serialisation/serialisation.h"
 
 #include "maidsafe/drive/proto_structs.pb.h"
 #include "maidsafe/drive/utils.h"
@@ -228,7 +230,7 @@ MetaData::MetaData(const protobuf::MetaData& protobuf_meta_data)
     if (directory_id)
       BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
     data_map.reset(new encrypt::DataMap());
-    encrypt::ParseDataMap(protobuf_meta_data.serialised_data_map(), *data_map);
+    ConvertFromString(protobuf_meta_data.serialised_data_map(), *data_map);
   } else if (!directory_id) {
     BOOST_THROW_EXCEPTION(MakeError(CommonErrors::parsing_error));
   }
@@ -295,10 +297,9 @@ void MetaData::ToProtobuf(protobuf::MetaData* protobuf_meta_data) const {
 #endif
 
   if (directory_id) {
-    protobuf_meta_data->set_directory_id(directory_id->string());
+    protobuf_meta_data->set_directory_id(convert::ToString(directory_id->string()));
   } else {
-    std::string serialised_data_map;
-    encrypt::SerialiseDataMap(*data_map, serialised_data_map);
+    std::string serialised_data_map(ConvertToString(*data_map));
     protobuf_meta_data->set_serialised_data_map(serialised_data_map);
   }
 }

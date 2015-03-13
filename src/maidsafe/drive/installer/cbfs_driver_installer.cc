@@ -170,7 +170,7 @@ po::variables_map ParseOptions(int argc, char* argv[],
   }
   catch (const std::exception& e) {
     DisplayError("Parser error:\n " + std::string(e.what()) + "\nRun with -h to see all options.");
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_argument));
   }
   return variables_map;
 }
@@ -191,17 +191,17 @@ void HandleHelp(const po::variables_map& variables_map) {
 void ValidateOptions(const std::string& product_guid, const po::variables_map& variables_map) {
   if (variables_map.count("install") && variables_map.count("uninstall")) {
     DisplayError("Conflicting options.  Specify exactly one of '--install' or '--uninstall'.");
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_argument));
   }
 
   if (!variables_map.count("install") && !variables_map.count("uninstall")) {
     DisplayError("No operation chosen.  Specify exactly one of '--install' or '--uninstall'.");
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_argument));
   }
 
   if (product_guid.empty()) {
     DisplayError("Can't specify empty GUID.");
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_argument));
   }
 
   if (!fs::exists(CabinetFilePath()) || !fs::exists(InstallerDllPath())) {

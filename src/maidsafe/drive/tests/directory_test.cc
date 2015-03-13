@@ -72,7 +72,7 @@ class DirectoryTestListener
   virtual void DirectoryPutChunk(const ImmutableData&) {
     LOG(kInfo) << "Putting chunk.";
   }
-  virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&) {
+  virtual void DirectoryIncrementChunks(const std::vector<Identity>&) {
     LOG(kInfo) << "Incrementing chunks.";
   }
 };

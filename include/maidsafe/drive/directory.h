@@ -73,7 +73,7 @@ class Directory : public std::enable_shared_from_this<Directory> {
     virtual ~Listener() {}
     virtual void DirectoryPut(std::shared_ptr<Directory>) = 0;
     virtual void DirectoryPutChunk(const ImmutableData&) = 0;
-    virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&) = 0;
+    virtual void DirectoryIncrementChunks(const std::vector<Identity>&) = 0;
 
   private:
     friend class Directory;
@@ -88,7 +88,7 @@ class Directory : public std::enable_shared_from_this<Directory> {
       DirectoryPutChunk(data);
     }
     template <typename Lock>
-    void IncrementChunks(const std::vector<ImmutableData::Name>& names, Lock& lock) {
+    void IncrementChunks(const std::vector<Identity>& names, Lock& lock) {
       ScopedUnlocker<Lock> unlocker(lock);
       DirectoryIncrementChunks(names);
     }
@@ -115,11 +115,11 @@ class Directory : public std::enable_shared_from_this<Directory> {
 
   size_t VersionsCount() const;
   std::tuple<DirectoryId, StructuredDataVersions::VersionName>
-      InitialiseVersions(ImmutableData::Name version_id);
+      InitialiseVersions(Identity version_id);
   // This marks the end of an attempt to store the directory.  It returns directory_id and most
   // recent 2 version names (including the one passed in), and sets 'store_state_' to kComplete.
   std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
-      AddNewVersion(ImmutableData::Name version_id);
+      AddNewVersion(Identity version_id);
 
   bool HasChild(const boost::filesystem::path& name) const;
   const FileContext* GetChild(const boost::filesystem::path& name) const;
@@ -186,7 +186,7 @@ class Directory : public std::enable_shared_from_this<Directory> {
   boost::asio::steady_timer timer_;
   boost::filesystem::path path_;
   std::weak_ptr<Directory::Listener> weakListener;
-  std::vector<ImmutableData::Name> chunks_to_be_incremented_;
+  std::vector<Identity> chunks_to_be_incremented_;
   std::deque<StructuredDataVersions::VersionName> versions_;
   MaxVersions max_versions_;
   Children children_;

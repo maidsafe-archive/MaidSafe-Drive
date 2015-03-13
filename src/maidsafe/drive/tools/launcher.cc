@@ -31,6 +31,7 @@ extern "C" char** environ;
 #include "boost/process/terminate.hpp"
 #include "boost/process/wait_for_exit.hpp"
 
+#include "maidsafe/common/convert.h"
 #include "maidsafe/common/crypto.h"
 #include "maidsafe/common/error.h"
 #include "maidsafe/common/ipc.h"
@@ -39,8 +40,6 @@ extern "C" char** environ;
 
 #include "maidsafe/passport/types.h"
 #include "maidsafe/passport/passport.h"
-
-#include "maidsafe/nfs/client/maid_client.h"
 
 namespace bi = boost::interprocess;
 namespace bp = boost::process;
@@ -139,7 +138,7 @@ void DoNotifyMountStatus(const std::string& mount_status_shared_object_name, boo
 }  // unnamed namespace
 
 std::string GetMountStatusSharedMemoryName(const std::string& initial_shared_memory_name) {
-  return HexEncode(crypto::Hash<crypto::SHA512>(initial_shared_memory_name)).substr(0, 32);
+  return hex::Encode(crypto::Hash<crypto::SHA512>(initial_shared_memory_name)).substr(0, 32);
 }
 
 void ReadAndRemoveInitialSharedMemory(const std::string& initial_shared_memory_name,
@@ -200,8 +199,8 @@ void Launcher::CreateInitialSharedMemory(const Options& options) {
   std::vector<std::string> shared_memory_args(kMaxArgIndex);
   shared_memory_args[kMountPathArg] = options.mount_path.string();
   shared_memory_args[kStoragePathArg] = options.storage_path.string();
-  shared_memory_args[kUniqueIdArg] = options.unique_id.string();
-  shared_memory_args[kRootParentIdArg] = options.root_parent_id.string();
+  shared_memory_args[kUniqueIdArg] = convert::ToString(options.unique_id.string());
+  shared_memory_args[kRootParentIdArg] = convert::ToString(options.root_parent_id.string());
   shared_memory_args[kDriveNameArg] = options.drive_name.string();
   shared_memory_args[kCreateStoreArg] = options.create_store ? "1" : "0";
   shared_memory_args[kMonitorParentArg] = options.monitor_parent ? "1" : "0";
@@ -274,7 +273,7 @@ fs::path Launcher::GetDriveExecutablePath(DriveType drive_type) {
     case DriveType::kNetworkConsole:
       return process::GetOtherExecutablePath("drive_console");
     default:
-      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_argument));
   }
 }
 

@@ -24,7 +24,7 @@
 
 #include "boost/filesystem/path.hpp"
 
-#include "maidsafe/common/types.h"
+#include "maidsafe/common/identity.h"
 
 namespace maidsafe {
 

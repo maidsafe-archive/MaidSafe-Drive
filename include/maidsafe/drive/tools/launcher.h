@@ -23,8 +23,7 @@
 #include <string>
 #include <vector>
 
-#include "maidsafe/common/utils.h"
-
+#include "boost/asio/ip/udp.hpp"
 #include "boost/filesystem/path.hpp"
 #include "boost/interprocess/mapped_region.hpp"
 #include "boost/interprocess/shared_memory_object.hpp"
@@ -32,9 +31,11 @@
 #include "boost/interprocess/sync/interprocess_condition.hpp"
 #include "boost/process/child.hpp"
 
+#include "maidsafe/common/utils.h"
 #include "maidsafe/common/types.h"
+#include "maidsafe/passport/types.h"
 
-#include "maidsafe/nfs/client/maid_client.h"
+// #include "maidsafe/nfs/client/maid_client.h"
 
 namespace maidsafe {
 
