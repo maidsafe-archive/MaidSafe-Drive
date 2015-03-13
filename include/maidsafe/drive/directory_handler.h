@@ -42,7 +42,6 @@
 #include "maidsafe/common/rsa.h"
 #include "maidsafe/common/types.h"
 #include "maidsafe/common/utils.h"
-#include "maidsafe/common/data_types/data_type_values.h"
 #include "maidsafe/common/data_types/mutable_data.h"
 
 #include "maidsafe/encrypt/self_encryptor.h"
@@ -128,7 +127,7 @@ class DirectoryHandler
   // Directory::Listener
   virtual void DirectoryPut(std::shared_ptr<Directory>);
   virtual void DirectoryPutChunk(const ImmutableData&);
-  virtual void DirectoryIncrementChunks(const std::vector<ImmutableData::Name>&);
+  virtual void DirectoryIncrementChunks(const std::vector<Identity>&);
 
   std::shared_ptr<Storage> storage_;
   Identity unique_user_id_, root_parent_id_;
@@ -288,7 +287,7 @@ std::shared_ptr<Directory>
     }
 
     if (!file_context->meta_data.directory_id)
-      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_argument));
     auto directory(GetFromStorage(antecedent, ParentId(parent->directory_id()),
                                   *file_context->meta_data.directory_id));
     {
@@ -397,7 +396,7 @@ DirectoryHandler<Storage>::GetParent(const boost::filesystem::path& relative_pat
   auto grandparent(Get(relative_path.parent_path().parent_path()));
   auto parent_context(grandparent->GetMutableChild(relative_path.parent_path().filename()));
   if (!(parent_context->meta_data.directory_id))
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_argument));
   return std::make_pair(Get(relative_path.parent_path()), parent_context);
 }
 
@@ -529,7 +528,7 @@ DirectoryHandler<Storage>::SerialiseDirectory(std::shared_ptr<Directory> directo
     assert(serialised_directory.size() <= std::numeric_limits<uint32_t>::max());
     if (!self_encryptor.Write(serialised_directory.c_str(),
                               static_cast<uint32_t>(serialised_directory.size()), 0)) {
-      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_argument));
     }
   }
   for (const auto& chunk : data_map.chunks) {
@@ -656,7 +655,7 @@ void DirectoryHandler<Storage>::DirectoryPutChunk(const ImmutableData& chunk) {
 
 template <typename Storage>
 void DirectoryHandler<Storage>::DirectoryIncrementChunks(
-  const std::vector<ImmutableData::Name>& names) {
+  const std::vector<Identity>& names) {
   storage_->IncrementReferenceCount(names);
 }
 

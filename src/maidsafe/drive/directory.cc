@@ -23,6 +23,7 @@
 
 #include "boost/asio/placeholders.hpp"
 
+#include "maidsafe/common/convert.h"
 #include "maidsafe/common/profiler.h"
 
 #include "maidsafe/drive/meta_data.h"
@@ -42,13 +43,13 @@ namespace {
 template <typename PutChunkClosure>
 void FlushEncryptor(FileContext* file_context,
                     PutChunkClosure put_chunk_closure,
-                    std::vector<ImmutableData::Name>& chunks_to_be_incremented) {
+                    std::vector<Identity>& chunks_to_be_incremented) {
   file_context->self_encryptor->Flush();
   if (file_context->self_encryptor->original_data_map().chunks.empty()) {
     // If the original data map didn't contain any chunks, just store the new ones.
     for (const auto& chunk : file_context->self_encryptor->data_map().chunks) {
-      auto content(file_context->buffer->Get(std::string(std::begin(chunk.hash),
-                                                         std::end(chunk.hash))));
+      auto content(
+          file_context->buffer->Get(DataBuffer::KeyType(Identity(chunk.hash), DataTypeId(0))));
       put_chunk_closure(ImmutableData(content));
     }
   } else {
@@ -63,8 +64,8 @@ void FlushEncryptor(FileContext* file_context,
         chunks_to_be_incremented.emplace_back(
                     Identity(std::string(std::begin(chunk.hash), std::end(chunk.hash))));
       } else {
-        auto content(file_context->buffer->Get(std::string(std::begin(chunk.hash),
-                                                           std::end(chunk.hash))));
+        auto content(
+            file_context->buffer->Get(DataBuffer::KeyType(Identity(chunk.hash), DataTypeId(0))));
         put_chunk_closure(ImmutableData(content));
       }
     }
@@ -157,7 +158,7 @@ std::string Directory::Serialise() {
   protobuf::Directory proto_directory;
   {
     std::unique_lock<std::mutex> lock(mutex_);
-    proto_directory.set_directory_id(directory_id_.string());
+    proto_directory.set_directory_id(convert::ToString(directory_id_.string()));
     proto_directory.set_max_versions(max_versions_.data);
 
     for (const auto& child : children_) {
@@ -206,7 +207,7 @@ size_t Directory::VersionsCount() const {
 }
 
 std::tuple<DirectoryId, StructuredDataVersions::VersionName>
-    Directory::InitialiseVersions(ImmutableData::Name version_id) {
+    Directory::InitialiseVersions(Identity version_id) {
   std::tuple<DirectoryId, StructuredDataVersions::VersionName> result;
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -222,7 +223,7 @@ std::tuple<DirectoryId, StructuredDataVersions::VersionName>
 }
 
 std::tuple<DirectoryId, StructuredDataVersions::VersionName, StructuredDataVersions::VersionName>
-    Directory::AddNewVersion(ImmutableData::Name version_id) {
+    Directory::AddNewVersion(Identity version_id) {
   std::tuple<DirectoryId, StructuredDataVersions::VersionName,
              StructuredDataVersions::VersionName> result;
   {

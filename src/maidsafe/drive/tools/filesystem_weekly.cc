@@ -69,7 +69,7 @@ std::function<void()> clean_root([] {
 
 fs::path GenerateFile(const fs::path& parent, size_t size) {
   if (size == 0)
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_argument));
 
   auto file_name(parent / (RandomAlphaNumericString((RandomUint32() % 4) + 4) + ".txt"));
 

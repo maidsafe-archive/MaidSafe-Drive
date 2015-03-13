@@ -40,7 +40,7 @@ namespace detail {
 class Directory;
 
 struct FileContext {
-  typedef DataBuffer<std::string> Buffer;
+  typedef DataBuffer Buffer;
 
   FileContext();
   FileContext(FileContext&& other);

@@ -250,7 +250,7 @@ void GetTestType(const po::variables_map& variables_map) {
     stream << kHelpInfo << "'.  For all options, run '--help'\n\n";
     g_error_message = stream.str();
     g_return_code = 1;
-    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+    BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_argument));
   }
 }
 
@@ -347,7 +347,7 @@ std::function<void()> PrepareTest() {
     case TestType::kNetworkConsole:
       return PrepareNetworkVfs();
     default:
-      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_parameter));
+      BOOST_THROW_EXCEPTION(MakeError(CommonErrors::invalid_argument));
   }
 }
 
