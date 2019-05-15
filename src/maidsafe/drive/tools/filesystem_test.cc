@@ -37,11 +37,7 @@
 extern "C" char** environ;
 #endif
 
-#ifndef MAIDSAFE_WIN32
 #include <locale>  // NOLINT
-#else
-#include "boost/locale/generator.hpp"
-#endif
 #include "boost/filesystem/path.hpp"
 #include "boost/filesystem/operations.hpp"
 #include "boost/system/error_code.hpp"
@@ -1406,11 +1402,8 @@ TEST(FileSystemTest, BEH_Locale) {
   if (g_test_type != drive::DriveType::kLocal && g_test_type != drive::DriveType::kLocalConsole &&
       g_test_type != drive::DriveType::kNetwork && g_test_type != drive::DriveType::kNetworkConsole)
     return GTEST_SUCCEED();
-#elif defined(MAIDSAFE_WIN32)
-  std::locale::global(boost::locale::generator().generate(""));
-#else
-  std::locale::global(std::locale(""));
 #endif
+  std::locale::global(std::locale(""));
   fs::path::imbue(std::locale());
   fs::path resources(BOOST_PP_STRINGIZE(DRIVE_TESTS_RESOURCES));
   fs::path file(resources / "utf-8");
@@ -1677,7 +1670,7 @@ TEST(FileSystemTest, FUNC_CrossPlatformFileCheck) {
       ASSERT_TRUE(fs::exists(file));
 #ifdef MAIDSAFE_WIN32
       //  inconv required for conversion of types
-      std::locale::global(boost::locale::generator().generate(""));
+      std::locale::global(std::locale(""));
       std::wifstream original_file, recovered_file;
 
       original_file.imbue(std::locale());
